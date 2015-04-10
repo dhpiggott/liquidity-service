@@ -10,3 +10,7 @@ libraryDependencies ++= Seq(
   cache,
   ws
 )
+
+resolvers += "Pellucid Bintray" at "http://dl.bintray.com/pellucid/maven"
+
+libraryDependencies += "com.pellucid" %% "sealerate" % "0.0.3"

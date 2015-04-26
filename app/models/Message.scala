@@ -25,7 +25,7 @@ case object HeartbeatTypeName extends MessageTypeName("heartbeat") with Outbound
 case class ZoneCreated(zoneId: ZoneId) extends OutboundZoneMessage
 case object ZoneCreatedTypeName extends MessageTypeName("zoneCreated") with OutboundMessageTypeName
 
-// TODO: Signing
+// TODO: Signing - use https://github.com/sbt/sbt-pgp?
 case class ZoneState(zoneId: ZoneId, zone: Zone) extends OutboundZoneMessage
 case object ZoneStateTypeName extends MessageTypeName("zoneState") with OutboundMessageTypeName
 

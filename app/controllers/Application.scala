@@ -1,6 +1,8 @@
 package controllers
 
+import java.io.ByteArrayInputStream
 import java.security.MessageDigest
+import java.security.cert.{CertificateFactory, X509Certificate}
 import java.util
 
 import actors.ClientConnection.AuthenticatedInboundMessage
@@ -18,8 +20,10 @@ import play.api.libs.concurrent.Execution.Implicits._
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json._
 import play.api.mvc._
+import sun.security.provider.X509Factory
 
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 object Application extends Controller {
 
@@ -31,6 +35,18 @@ object Application extends Controller {
     implicit val publicKeyWrites = Writes[PublicKey] {
       publicKey => JsString(Base64.encodeBase64String(publicKey.value))
 
+    }
+
+    def getPublicKey(headers: Headers) = Try {
+      new PublicKey(
+        CertificateFactory.getInstance("X.509").generateCertificate(
+          new ByteArrayInputStream(
+            Base64.decodeBase64(
+              headers("X-SSL-Client-Cert").stripPrefix(X509Factory.BEGIN_CERT).stripSuffix(X509Factory.END_CERT)
+            )
+          )
+        ).asInstanceOf[X509Certificate].getPublicKey.getEncoded
+      )
     }
 
   }
@@ -53,17 +69,6 @@ object Application extends Controller {
 
   }
 
-  def getPublicKey(headers: Headers): Option[PublicKey] = {
-
-    // TODO:
-    // Extract client certificate using http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_verify_client
-    // Get the public key from it (as per https://www.owasp.org/index.php/Certificate_and_Public_Key_Pinning#Public_Key)
-    // using
-    // http://stackoverflow.com/questions/9739121/convert-a-pem-formatted-string-to-a-java-security-cert-x509certificate
-    // and http://stackoverflow.com/questions/6358555/obtaining-public-key-from-certificate
-    Some(new PublicKey(Base64.decodeBase64("TODO")))
-  }
-
   case class PostedInboundMessage(connectionNumber: Int, inboundMessage: InboundMessage)
 
   object PostedInboundMessage {
@@ -74,25 +79,28 @@ object Application extends Controller {
 
   def postAction = Action(parse.json) { request =>
 
-    val maybePublicKey = getPublicKey(request.headers)
+    val triedPublicKey = PublicKey.getPublicKey(request.headers)
 
-    maybePublicKey.fold(
-      BadRequest(Json.obj("status" -> "KO", "error" -> "public key not given")))(
-        publicKey => {
+    triedPublicKey match {
 
-          request.body.validate[PostedInboundMessage].fold(
-            invalid = errors => BadRequest(Json.obj("status" -> "KO", "error" -> JsError.toFlatJson(errors))),
-            valid = postedInboundMessage => {
-              Actors.clientIdentityManager ! PostedInboundAuthenticatedMessage(
-                postedInboundMessage.connectionNumber,
-                AuthenticatedInboundMessage(publicKey, postedInboundMessage.inboundMessage)
-              )
-              Ok(Json.obj("status" -> "OK"))
-            }
-          )
+      case Failure(exception) =>
 
-        }
-      )
+        BadRequest(Json.obj("status" -> "KO", "error" -> s"public key not given: ${exception.getMessage}"))
+
+      case Success(publicKey) =>
+
+        request.body.validate[PostedInboundMessage].fold(
+          invalid = errors => BadRequest(Json.obj("status" -> "KO", "error" -> JsError.toFlatJson(errors))),
+          valid = postedInboundMessage => {
+            Actors.clientIdentityManager ! PostedInboundAuthenticatedMessage(
+              postedInboundMessage.connectionNumber,
+              AuthenticatedInboundMessage(publicKey, postedInboundMessage.inboundMessage)
+            )
+            Ok(Json.obj("status" -> "OK"))
+          }
+        )
+
+    }
 
   }
 
@@ -104,18 +112,25 @@ object Application extends Controller {
 
   def getAction = Action.async { request =>
 
-    val maybePublicKey = getPublicKey(request.headers)
+    val triedPublicKey = PublicKey.getPublicKey(request.headers)
 
-    maybePublicKey.fold(
-      Future.successful(BadRequest(Json.obj("status" -> "KO", "error" -> "public key not given"))))(
-        publicKey => {
-          (Actors.clientIdentityManager ? CreateConnectionForIdentity(publicKey, request.remoteAddress))
-            .mapTo[Enumerator[OutboundMessage]]
-            .map(enumerator =>
-            Ok.feed(enumerator.through(EventSource())).as("text/event-stream")
-            ).recover { case _: AskTimeoutException => GatewayTimeout }
-        }
-      )
+    triedPublicKey match {
+
+      case Failure(exception) =>
+
+        Future.successful(
+          BadRequest(Json.obj("status" -> "KO", "error" -> s"public key not given: ${exception.getMessage}"))
+        )
+
+      case Success(publicKey) =>
+
+        (Actors.clientIdentityManager ? CreateConnectionForIdentity(publicKey, request.remoteAddress))
+          .mapTo[Enumerator[OutboundMessage]]
+          .map(enumerator =>
+          Ok.feed(enumerator.through(EventSource())).as("text/event-stream")
+          ).recover { case _: AskTimeoutException => GatewayTimeout }
+
+    }
 
   }
 

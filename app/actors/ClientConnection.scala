@@ -106,6 +106,8 @@ class ClientConnection(remoteAddress: String) extends Actor with ActorLogging {
 
   import context.dispatcher
 
+  var joinedValidators = Map.empty[ZoneId, ActorRef]
+
   def receive = waiting
 
   def waiting: Receive = {
@@ -144,18 +146,17 @@ class ClientConnection(remoteAddress: String) extends Actor with ActorLogging {
 
       context.become(
         connected(
-          context.actorOf(ClientConnection.ChannelHolder.props(channel), "channelHolder"),
-          Map.empty
+          context.actorOf(ClientConnection.ChannelHolder.props(channel), "channelHolder")
         )
       )
 
   }
 
-  def connected(channelHolder: ActorRef, validators: Map[ZoneId, ActorRef]): Receive = {
+  def connected(channelHolder: ActorRef): Receive = {
 
     case ClientConnection.Pulse.PushHeartbeat =>
 
-      channelHolder.forward(Heartbeat(new DateTime))
+      channelHolder ! Heartbeat(new DateTime)
 
     case outboundMessage: OutboundMessage =>
 
@@ -185,16 +186,16 @@ class ClientConnection(remoteAddress: String) extends Actor with ActorLogging {
 
         case QuitZone(zoneId) =>
 
-          validators.get(zoneId).foreach { validator =>
+          joinedValidators.get(zoneId).foreach { validator =>
             validator ! authenticatedInboundMessage
             context.unwatch(validator)
 
-            context.become(connected(channelHolder, validators - zoneId))
+            joinedValidators -= zoneId
           }
 
         case inboundZoneMessage: InboundZoneMessage =>
 
-          validators.get(inboundZoneMessage.zoneId).foreach(_ ! authenticatedInboundMessage)
+          joinedValidators.get(inboundZoneMessage.zoneId).foreach(_ ! authenticatedInboundMessage)
 
       }
 
@@ -202,13 +203,17 @@ class ClientConnection(remoteAddress: String) extends Actor with ActorLogging {
 
       context.watch(validator)
 
-      context.become(connected(channelHolder, validators + (zoneId -> validator)))
+      joinedValidators += (zoneId -> validator)
 
     case Terminated(validator) =>
 
-      // TODO: Tell the client the validator was destroyed or auto-rejoin on its behalf.
-      // TODO: Revert to a field for consistency with zone validator?
-      context.become(connected(channelHolder, validators.filterNot { case (_, v) => v == validator }))
+      joinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
+        val remove = v == validator
+        if (remove) {
+          channelHolder ! ZoneTerminated(zoneId)
+        }
+        remove
+      }
 
     case Disconnected(reason) =>
 

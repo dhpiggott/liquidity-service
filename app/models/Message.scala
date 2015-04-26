@@ -38,6 +38,9 @@ case object ZoneStateTypeName extends MessageTypeName("zoneState") with Outbound
 case class ZoneEmpty(zoneId: ZoneId) extends OutboundZoneMessage
 case object ZoneEmptyTypeName extends MessageTypeName("zoneEmpty") with OutboundMessageTypeName
 
+case class ZoneTerminated(zoneId: ZoneId) extends OutboundZoneMessage
+case object ZoneTerminatedTypeName extends MessageTypeName("zoneTerminated") with OutboundMessageTypeName
+
 object OutboundMessage {
 
 
@@ -52,6 +55,7 @@ object OutboundMessage {
     case message: MemberQuitZone => (MemberQuitZoneTypeName.typeName, Json.toJson(message)(Json.writes[MemberQuitZone]))
     case message: ZoneState => (ZoneStateTypeName.typeName, Json.toJson(message)(Json.writes[ZoneState]))
     case message: ZoneEmpty => (ZoneEmptyTypeName.typeName, Json.toJson(message)(Json.writes[ZoneEmpty]))
+    case message: ZoneTerminated => (ZoneTerminatedTypeName.typeName, Json.toJson(message)(Json.writes[ZoneTerminated]))
   })
 
 }

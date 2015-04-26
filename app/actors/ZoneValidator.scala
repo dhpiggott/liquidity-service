@@ -18,8 +18,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   var presentClients = Set.empty[ActorRef]
 
-  var maybeCanonicalZone: Option[Zone] = None
-
   var accountBalances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(BigInteger.ZERO))
 
   def canDelete(zone: Zone, memberId: MemberId) =
@@ -85,11 +83,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
   def memberIdsForIdentity(zone: Zone, publicKey: PublicKey) =
     zone.members.collect { case (memberId, member) if member.publicKey == publicKey => memberId }
 
-  def receive = {
+  def receive = waitingForCanonicalZone
 
-    case Terminated(clientConnection) =>
-
-      handleQuit(clientConnection)
+  def waitingForCanonicalZone: Receive = {
 
     case AuthenticatedInboundMessage(publicKey, inboundMessage) =>
 
@@ -99,278 +95,267 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           handleJoin(sender())
 
+          val zone = Zone(name, zoneType)
+
           sender ! ZoneCreated(zoneId)
 
-          if (maybeCanonicalZone.isEmpty) {
+          val zoneState = ZoneState(zoneId, zone)
+          presentClients.foreach(_ ! zoneState)
 
-            maybeCanonicalZone = Some(Zone(name, zoneType))
-
-            val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-            presentClients.foreach(_ ! zoneState)
-
-          }
+          context.become(receiveWithCanonicalZone(zone))
 
         case JoinZone(_) =>
 
-          sender ! maybeCanonicalZone.fold[OutboundZoneMessage](ZoneEmpty(zoneId))(ZoneState(zoneId, _))
+          sender ! ZoneEmpty(zoneId)
 
-          if (maybeCanonicalZone.isDefined) {
+          if (!presentClients.contains(sender())) {
 
-            val canonicalZone = maybeCanonicalZone.get
-
-            /*
-             * In case the sender didn't receive the confirmation the first time around.
-             */
-            if (presentClients.contains(sender())) {
-
-              memberIdsForIdentity(canonicalZone, publicKey).foreach { memberId =>
-                val memberJoinedZone = MemberJoinedZone(zoneId, memberId)
-                sender ! memberJoinedZone
-              }
-
-            } else {
-
-              handleJoin(sender())
-
-              memberIdsForIdentity(canonicalZone, publicKey).foreach { memberId =>
-                val memberJoinedZone = MemberJoinedZone(zoneId, memberId)
-                presentClients.foreach(_ ! memberJoinedZone)
-              }
-
-            }
+            handleJoin(sender())
 
           }
+
+        case RestoreZone(_, zone) =>
+
+          val zoneState = ZoneState(zoneId, zone)
+          presentClients.foreach(_ ! zoneState)
+
+          context.become(receiveWithCanonicalZone(zone))
 
         case QuitZone(_) =>
 
-          if (maybeCanonicalZone.isDefined) {
+          if (presentClients.contains(sender())) {
 
-            val canonicalZone = maybeCanonicalZone.get
-
-            /*
-             * In case the sender didn't receive the confirmation the first time around.
-             */
-            if (!presentClients.contains(sender())) {
-
-              memberIdsForIdentity(canonicalZone, publicKey).foreach { memberId =>
-                val memberQuitZone = MemberQuitZone(zoneId, memberId)
-                sender ! memberQuitZone
-              }
-
-            } else {
-
-              handleQuit(sender())
-
-              memberIdsForIdentity(canonicalZone, publicKey).foreach { memberId =>
-                val memberQuitZone = MemberQuitZone(zoneId, memberId)
-                presentClients.foreach(_ ! memberQuitZone)
-              }
-
-            }
+            handleQuit(sender())
 
           }
 
-        case SetZoneName(_, name) =>
+        case _ =>
 
-          if (maybeCanonicalZone.isDefined) {
+          log.warning(s"Received command from ${publicKey.fingerprint} to operate on non-existing zone")
 
-            val canonicalZone = maybeCanonicalZone.get
+      }
 
-            maybeCanonicalZone = Some(canonicalZone.copy(name = name))
-            val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-            presentClients.foreach(_ ! zoneState)
+    case Terminated(clientConnection) =>
 
-          }
+      handleQuit(clientConnection)
 
-        case CreateMember(_, member) =>
+  }
 
-          // TODO: Maximum numbers?
+  def receiveWithCanonicalZone(canonicalZone: Zone): Receive = {
 
-          if (maybeCanonicalZone.isDefined) {
+    case AuthenticatedInboundMessage(publicKey, inboundMessage) =>
 
-            val canonicalZone = maybeCanonicalZone.get
+      inboundMessage match {
 
-            def freshMemberId: MemberId = {
-              val memberId = MemberId()
-              if (canonicalZone.members.get(memberId).isEmpty) {
-                memberId
-              } else {
-                freshMemberId
-              }
+        case CreateZone(name, zoneType) =>
+
+          log.warning(s"Received command from ${publicKey.fingerprint} to create already existing zone")
+
+        case JoinZone(_) =>
+
+          sender ! ZoneState(zoneId, canonicalZone)
+
+          /*
+           * In case the sender didn't receive the confirmation the first time around.
+           */
+          if (presentClients.contains(sender())) {
+
+            memberIdsForIdentity(canonicalZone, publicKey).foreach { memberId =>
+              val memberJoinedZone = MemberJoinedZone(zoneId, memberId)
+              sender ! memberJoinedZone
             }
-            val memberId = freshMemberId
 
-            maybeCanonicalZone = Some(
-              canonicalZone.copy(members = canonicalZone.members + (memberId -> member))
-            )
-            val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-            presentClients.foreach(_ ! zoneState)
+          } else {
 
-            memberIdsForIdentity(maybeCanonicalZone.get, publicKey).foreach { memberId =>
+            handleJoin(sender())
+
+            memberIdsForIdentity(canonicalZone, publicKey).foreach { memberId =>
               val memberJoinedZone = MemberJoinedZone(zoneId, memberId)
               presentClients.foreach(_ ! memberJoinedZone)
             }
 
           }
 
+        case RestoreZone(_, zone) =>
+
+          if (zone.lastModified <= canonicalZone.lastModified) {
+
+            log.info(s"Received command from ${publicKey.fingerprint} to restore outdated $zone")
+
+          } else {
+
+            val zoneState = ZoneState(zoneId, zone)
+            presentClients.foreach(_ ! zoneState)
+
+            context.become(receiveWithCanonicalZone(zone))
+
+          }
+
+        case QuitZone(_) =>
+
+          /*
+           * In case the sender didn't receive the confirmation the first time around.
+           */
+          if (!presentClients.contains(sender())) {
+
+            memberIdsForIdentity(canonicalZone, publicKey).foreach { memberId =>
+              val memberQuitZone = MemberQuitZone(zoneId, memberId)
+              sender ! memberQuitZone
+            }
+
+          } else {
+
+            handleQuit(sender())
+
+            memberIdsForIdentity(canonicalZone, publicKey).foreach { memberId =>
+              val memberQuitZone = MemberQuitZone(zoneId, memberId)
+              presentClients.foreach(_ ! memberQuitZone)
+            }
+
+          }
+
+        case SetZoneName(_, name) =>
+
+          val newCanonicalZone = canonicalZone.copy(name = name)
+          val zoneState = ZoneState(zoneId, newCanonicalZone)
+          presentClients.foreach(_ ! zoneState)
+
+          context.become(receiveWithCanonicalZone(newCanonicalZone))
+
+        case CreateMember(_, member) =>
+
+          // TODO: Maximum numbers?
+
+          def freshMemberId: MemberId = {
+            val memberId = MemberId()
+            if (canonicalZone.members.get(memberId).isEmpty) {
+              memberId
+            } else {
+              freshMemberId
+            }
+          }
+          val memberId = freshMemberId
+
+          val newCanonicalZone = canonicalZone.copy(members = canonicalZone.members + (memberId -> member))
+          val zoneState = ZoneState(zoneId, newCanonicalZone)
+          presentClients.foreach(_ ! zoneState)
+
+          memberIdsForIdentity(newCanonicalZone, publicKey).foreach { memberId =>
+            val memberJoinedZone = MemberJoinedZone(zoneId, memberId)
+            presentClients.foreach(_ ! memberJoinedZone)
+          }
+
+          context.become(receiveWithCanonicalZone(newCanonicalZone))
+
         case UpdateMember(_, memberId, member) =>
 
-          if (maybeCanonicalZone.isDefined) {
+          if (!canModify(canonicalZone, memberId, publicKey)) {
 
-            val canonicalZone = maybeCanonicalZone.get
+            log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $memberId")
 
-            if (!canModify(canonicalZone, memberId, publicKey)) {
+          } else {
 
-              log.warning(s"Received invalid request from ${publicKey.fingerprint} to update $memberId")
+            val newCanonicalZone = canonicalZone.copy(members = canonicalZone.members + (memberId -> member))
+            val zoneState = ZoneState(zoneId, newCanonicalZone)
+            presentClients.foreach(_ ! zoneState)
 
-            } else {
-
-              maybeCanonicalZone = Some(
-                canonicalZone.copy(members = canonicalZone.members + (memberId -> member))
-              )
-              val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-              presentClients.foreach(_ ! zoneState)
-
-            }
+            context.become(receiveWithCanonicalZone(newCanonicalZone))
 
           }
 
         case DeleteMember(_, memberId) =>
 
-          if (maybeCanonicalZone.isDefined) {
+          if (!canModify(canonicalZone, memberId, publicKey) || !canDelete(canonicalZone, memberId)) {
 
-            val canonicalZone = maybeCanonicalZone.get
+            log.warning(s"Received invalid command from ${publicKey.fingerprint} to delete $memberId")
 
-            if (!canModify(canonicalZone, memberId, publicKey) || !canDelete(canonicalZone, memberId)) {
+          } else {
 
-              log.warning(s"Received invalid request from ${publicKey.fingerprint} to delete $memberId")
+            val newCanonicalZone = canonicalZone.copy(members = canonicalZone.members - memberId)
+            val zoneState = ZoneState(zoneId, newCanonicalZone)
+            presentClients.foreach(_ ! zoneState)
 
-            } else {
-
-              maybeCanonicalZone = Some(
-                canonicalZone.copy(members = canonicalZone.members - memberId)
-              )
-              val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-              presentClients.foreach(_ ! zoneState)
-
-              val memberIds = maybeCanonicalZone.map(_.members.filter(_._2.publicKey == publicKey).map(_._1))
-              memberIds.toList.flatten.foreach { memberId =>
-                val memberQuitZone = MemberQuitZone(zoneId, memberId)
-                presentClients.foreach(_ ! memberQuitZone)
-              }
-
+            memberIdsForIdentity(newCanonicalZone, publicKey).foreach { memberId =>
+              val memberQuitZone = MemberQuitZone(zoneId, memberId)
+              presentClients.foreach(_ ! memberQuitZone)
             }
+
+            context.become(receiveWithCanonicalZone(newCanonicalZone))
 
           }
 
         case CreateAccount(_, account) =>
 
-          if (maybeCanonicalZone.isDefined) {
-
-            val canonicalZone = maybeCanonicalZone.get
-
-            def freshAccountId: AccountId = {
-              val accountId = AccountId()
-              if (canonicalZone.accounts.get(accountId).isEmpty) {
-                accountId
-              } else {
-                freshAccountId
-              }
+          def freshAccountId: AccountId = {
+            val accountId = AccountId()
+            if (canonicalZone.accounts.get(accountId).isEmpty) {
+              accountId
+            } else {
+              freshAccountId
             }
-            val accountId = freshAccountId
-
-            maybeCanonicalZone = Some(
-              canonicalZone.copy(accounts = canonicalZone.accounts + (accountId -> account))
-            )
-            val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-            presentClients.foreach(_ ! zoneState)
-
           }
+          val accountId = freshAccountId
+
+          val newCanonicalZone = canonicalZone.copy(accounts = canonicalZone.accounts + (accountId -> account))
+          val zoneState = ZoneState(zoneId, newCanonicalZone)
+          presentClients.foreach(_ ! zoneState)
+
+          context.become(receiveWithCanonicalZone(newCanonicalZone))
 
         case UpdateAccount(_, accountId, account) =>
 
-          if (maybeCanonicalZone.isDefined) {
+          if (!canModify(canonicalZone, accountId, publicKey)) {
 
-            val canonicalZone = maybeCanonicalZone.get
+            log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $accountId")
 
-            if (!canModify(canonicalZone, accountId, publicKey)) {
+          } else {
 
-              log.warning(s"Received invalid request from ${publicKey.fingerprint} to update $accountId")
+            val newCanonicalZone = canonicalZone.copy(accounts = canonicalZone.accounts + (accountId -> account))
+            val zoneState = ZoneState(zoneId, newCanonicalZone)
+            presentClients.foreach(_ ! zoneState)
 
-            } else {
-
-              maybeCanonicalZone = Some(
-                canonicalZone.copy(accounts = canonicalZone.accounts + (accountId -> account))
-              )
-              val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-              presentClients.foreach(_ ! zoneState)
-
-            }
+            context.become(receiveWithCanonicalZone(newCanonicalZone))
 
           }
 
         case DeleteAccount(_, accountId) =>
 
-          if (maybeCanonicalZone.isDefined) {
+          if (!canModify(canonicalZone, accountId, publicKey) || !canDelete(canonicalZone, accountId)) {
 
-            val canonicalZone = maybeCanonicalZone.get
+            log.warning(s"Received invalid command from ${publicKey.fingerprint} to delete $accountId")
 
-            if (!canModify(canonicalZone, accountId, publicKey) || !canDelete(canonicalZone, accountId)) {
+          } else {
 
-              log.warning(s"Received invalid request from ${publicKey.fingerprint} to delete $accountId")
+            val newCanonicalZone = canonicalZone.copy(accounts = canonicalZone.accounts - accountId)
+            val zoneState = ZoneState(zoneId, newCanonicalZone)
+            presentClients.foreach(_ ! zoneState)
 
-            } else {
-
-              maybeCanonicalZone = Some(
-                canonicalZone.copy(accounts = canonicalZone.accounts - accountId)
-              )
-              val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-              presentClients.foreach(_ ! zoneState)
-
-            }
+            context.become(receiveWithCanonicalZone(newCanonicalZone))
 
           }
 
         case AddTransaction(_, transaction) =>
 
-          if (maybeCanonicalZone.isDefined) {
+          if (!canModify(canonicalZone, transaction.from, publicKey)
+            || !checkTransactionAndUpdateAccountBalances(canonicalZone, transaction)) {
 
-            val canonicalZone = maybeCanonicalZone.get
-
-            if (!canModify(canonicalZone, transaction.from, publicKey)
-              || !checkTransactionAndUpdateAccountBalances(canonicalZone, transaction)) {
-
-              log.warning(s"Received invalid request from ${publicKey.fingerprint} to add $transaction")
-
-            } else {
-
-              maybeCanonicalZone = Some(
-                canonicalZone.copy(transactions = canonicalZone.transactions :+ transaction)
-              )
-              val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
-              presentClients.foreach(_ ! zoneState)
-
-            }
-
-          }
-
-        case RestoreZone(_, zone) =>
-
-          val canonicalZoneLastModified = maybeCanonicalZone.fold(0L)(_.lastModified)
-
-          if (zone.lastModified <= canonicalZoneLastModified) {
-
-            log.info(s"Received request from ${publicKey.fingerprint} to restore outdated $zone")
+            log.warning(s"Received invalid command from ${publicKey.fingerprint} to add $transaction")
 
           } else {
 
-            maybeCanonicalZone = Some(zone)
-            val zoneState = ZoneState(zoneId, maybeCanonicalZone.get)
+            val newCanonicalZone = canonicalZone.copy(transactions = canonicalZone.transactions :+ transaction)
+            val zoneState = ZoneState(zoneId, newCanonicalZone)
             presentClients.foreach(_ ! zoneState)
+
+            context.become(receiveWithCanonicalZone(newCanonicalZone))
 
           }
 
       }
+
+    case Terminated(clientConnection) =>
+
+      handleQuit(clientConnection)
 
   }
 

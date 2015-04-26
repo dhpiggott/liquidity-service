@@ -25,12 +25,6 @@ case object HeartbeatTypeName extends MessageTypeName("heartbeat") with Outbound
 case class ZoneCreated(zoneId: ZoneId) extends OutboundZoneMessage
 case object ZoneCreatedTypeName extends MessageTypeName("zoneCreated") with OutboundMessageTypeName
 
-case class MemberJoinedZone(zoneId: ZoneId, memberId: MemberId) extends OutboundZoneMessage
-case object MemberJoinedZoneTypeName extends MessageTypeName("memberJoinedZone") with OutboundMessageTypeName
-
-case class MemberQuitZone(zoneId: ZoneId, memberId: MemberId) extends OutboundZoneMessage
-case object MemberQuitZoneTypeName extends MessageTypeName("memberQuitZone") with OutboundMessageTypeName
-
 // TODO: Signing
 case class ZoneState(zoneId: ZoneId, zone: Zone) extends OutboundZoneMessage
 case object ZoneStateTypeName extends MessageTypeName("zoneState") with OutboundMessageTypeName
@@ -40,6 +34,12 @@ case object ZoneEmptyTypeName extends MessageTypeName("zoneEmpty") with Outbound
 
 case class ZoneTerminated(zoneId: ZoneId) extends OutboundZoneMessage
 case object ZoneTerminatedTypeName extends MessageTypeName("zoneTerminated") with OutboundMessageTypeName
+
+case class MemberJoinedZone(zoneId: ZoneId, memberId: MemberId) extends OutboundZoneMessage
+case object MemberJoinedZoneTypeName extends MessageTypeName("memberJoinedZone") with OutboundMessageTypeName
+
+case class MemberQuitZone(zoneId: ZoneId, memberId: MemberId) extends OutboundZoneMessage
+case object MemberQuitZoneTypeName extends MessageTypeName("memberQuitZone") with OutboundMessageTypeName
 
 object OutboundMessage {
 
@@ -51,11 +51,11 @@ object OutboundMessage {
     case message: ConnectionNumber => (ConnectionNumberTypeName.typeName, Json.toJson(message)(Json.writes[ConnectionNumber]))
     case message: Heartbeat => (HeartbeatTypeName.typeName, Json.toJson(message)(Json.writes[Heartbeat]))
     case message: ZoneCreated => (ZoneCreatedTypeName.typeName, Json.toJson(message)(Json.writes[ZoneCreated]))
-    case message: MemberJoinedZone => (MemberJoinedZoneTypeName.typeName, Json.toJson(message)(Json.writes[MemberJoinedZone]))
-    case message: MemberQuitZone => (MemberQuitZoneTypeName.typeName, Json.toJson(message)(Json.writes[MemberQuitZone]))
     case message: ZoneState => (ZoneStateTypeName.typeName, Json.toJson(message)(Json.writes[ZoneState]))
     case message: ZoneEmpty => (ZoneEmptyTypeName.typeName, Json.toJson(message)(Json.writes[ZoneEmpty]))
     case message: ZoneTerminated => (ZoneTerminatedTypeName.typeName, Json.toJson(message)(Json.writes[ZoneTerminated]))
+    case message: MemberJoinedZone => (MemberJoinedZoneTypeName.typeName, Json.toJson(message)(Json.writes[MemberJoinedZone]))
+    case message: MemberQuitZone => (MemberQuitZoneTypeName.typeName, Json.toJson(message)(Json.writes[MemberQuitZone]))
   })
 
 }
@@ -71,6 +71,10 @@ case object CreateZoneTypeName extends MessageTypeName("createZone") with Inboun
 
 case class JoinZone(zoneId: ZoneId) extends InboundZoneMessage
 case object JoinZoneTypeName extends MessageTypeName("joinZone") with InboundMessageTypeName
+
+// TODO: Signing
+case class RestoreZone(zoneId: ZoneId, zone: Zone) extends InboundZoneMessage
+case object RestoreZoneTypeName extends MessageTypeName("restoreZone") with InboundMessageTypeName
 
 case class QuitZone(zoneId: ZoneId) extends InboundZoneMessage
 case object QuitZoneTypeName extends MessageTypeName("quitZone") with InboundMessageTypeName
@@ -99,10 +103,6 @@ case object DeleteAccountTypeName extends MessageTypeName("deleteAccount") with 
 case class AddTransaction(zoneId: ZoneId, transaction: Transaction) extends InboundZoneMessage
 case object AddTransactionTypeName extends MessageTypeName("addTransaction") with InboundMessageTypeName
 
-// TODO: Signing
-case class RestoreZone(zoneId: ZoneId, zone: Zone) extends InboundZoneMessage
-case object RestoreZoneTypeName extends MessageTypeName("restoreZone") with InboundMessageTypeName
-
 object InboundMessage {
 
   val inboundMessageTypes = sealerate.values[InboundMessageTypeName]
@@ -113,6 +113,7 @@ object InboundMessage {
     )((messageType, messageData) => messageType match {
     case CreateZoneTypeName.typeName => messageData.as(Json.reads[CreateZone])
     case JoinZoneTypeName.typeName => messageData.as(Json.reads[JoinZone])
+    case RestoreZoneTypeName.typeName => messageData.as(Json.reads[RestoreZone])
     case QuitZoneTypeName.typeName => messageData.as(Json.reads[QuitZone])
     case SetZoneNameTypeName.typeName => messageData.as(Json.reads[SetZoneName])
     case CreateMemberTypeName.typeName => messageData.as(Json.reads[CreateMember])
@@ -122,7 +123,6 @@ object InboundMessage {
     case UpdateAccountTypeName.typeName => messageData.as(Json.reads[UpdateAccount])
     case DeleteAccountTypeName.typeName => messageData.as(Json.reads[DeleteAccount])
     case AddTransactionTypeName.typeName => messageData.as(Json.reads[AddTransaction])
-    case RestoreZoneTypeName.typeName => messageData.as(Json.reads[RestoreZone])
   })
 
 }

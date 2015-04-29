@@ -2,7 +2,7 @@ package actors
 
 import actors.ZoneValidatorManager._
 import akka.actor._
-import models._
+import com.dhpcs.liquidity.models.ZoneId
 
 import scala.concurrent.duration._
 

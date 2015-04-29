@@ -1,7 +1,7 @@
 package actors
 
-import actors.ClientConnection.AuthenticatedInboundMessage
-import actors.ClientIdentity.{CreateConnection, PostedInboundAuthenticatedMessage}
+import actors.ClientConnection.AuthenticatedCommand
+import actors.ClientIdentity.{CreateConnection, PostedAuthenticatedCommand}
 import actors.ClientIdentityManager.TerminationRequest
 import akka.actor._
 
@@ -11,8 +11,8 @@ object ClientIdentity {
 
   case class CreateConnection(remoteAddress: String)
 
-  case class PostedInboundAuthenticatedMessage(connectionNumber: Int,
-                                               authenticatedInboundMessage: AuthenticatedInboundMessage)
+  case class PostedAuthenticatedCommand(connectionNumber: Int,
+                                        authenticatedCommand: AuthenticatedCommand)
 
 }
 
@@ -32,10 +32,10 @@ class ClientIdentity extends Actor with ActorLogging {
 
       context.become(receive(clientConnectionNumber + 1))
 
-    case PostedInboundAuthenticatedMessage(connectionNumber, inboundAuthenticatedMessage) =>
+    case PostedAuthenticatedCommand(connectionNumber, authenticatedCommand) =>
 
       val childName = connectionNumber.toString
-      context.child(childName).foreach(_ ! inboundAuthenticatedMessage)
+      context.child(childName).foreach(_ ! authenticatedCommand)
 
     case Terminated(clientConnection) =>
 

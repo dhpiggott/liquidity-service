@@ -1,10 +1,10 @@
 package actors
 
-import actors.ClientConnection.AuthenticatedInboundMessage
-import actors.ClientIdentity.{CreateConnection, PostedInboundAuthenticatedMessage}
+import actors.ClientConnection.AuthenticatedCommand
+import actors.ClientIdentity.{CreateConnection, PostedAuthenticatedCommand}
 import actors.ClientIdentityManager.{CreateConnectionForIdentity, TerminationRequest}
 import akka.actor._
-import controllers.Application.PublicKey
+import com.dhpcs.liquidity.models.PublicKey
 
 import scala.concurrent.duration._
 
@@ -51,10 +51,10 @@ class ClientIdentityManager extends Actor with ActorLogging {
 
       }
 
-    case postedInboundAuthenticatedMessage@PostedInboundAuthenticatedMessage(_, AuthenticatedInboundMessage(publicKey, _)) =>
+    case postedAuthenticatedCommand@PostedAuthenticatedCommand(_, AuthenticatedCommand(publicKey, _)) =>
 
       val childName = publicKey.fingerprint
-      context.child(childName).foreach(_ ! postedInboundAuthenticatedMessage)
+      context.child(childName).foreach(_ ! postedAuthenticatedCommand)
 
     case TerminationRequest =>
 

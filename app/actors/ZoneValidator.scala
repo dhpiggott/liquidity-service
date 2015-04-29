@@ -2,11 +2,10 @@ package actors
 
 import java.math.BigInteger
 
-import actors.ClientConnection.AuthenticatedInboundMessage
+import actors.ClientConnection.AuthenticatedCommand
 import actors.ZoneValidatorManager.TerminationRequest
 import akka.actor._
-import controllers.Application.PublicKey
-import models._
+import com.dhpcs.liquidity.models._
 
 object ZoneValidator {
 
@@ -87,9 +86,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   def waitingForCanonicalZone: Receive = {
 
-    case AuthenticatedInboundMessage(publicKey, inboundMessage) =>
+    case AuthenticatedCommand(publicKey, command) =>
 
-      inboundMessage match {
+      command match {
 
         case CreateZone(name, zoneType) =>
 
@@ -143,9 +142,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   def receiveWithCanonicalZone(canonicalZone: Zone): Receive = {
 
-    case AuthenticatedInboundMessage(publicKey, inboundMessage) =>
+    case AuthenticatedCommand(publicKey, command) =>
 
-      inboundMessage match {
+      command match {
 
         case CreateZone(name, zoneType) =>
 

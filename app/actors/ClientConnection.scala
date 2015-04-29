@@ -5,8 +5,7 @@ import actors.ZoneValidatorManager.{CreateValidator, GetValidator, ValidatorCrea
 import akka.actor._
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
-import controllers.Application.PublicKey
-import models._
+import com.dhpcs.liquidity.models._
 import org.joda.time.DateTime
 import play.api.Play.current
 import play.api.libs.iteratee.Concurrent.Channel
@@ -22,9 +21,9 @@ object ClientConnection {
 
   case object Init
 
-  case class AuthenticatedInboundMessage(publicKey: PublicKey, inboundMessage: InboundMessage)
+  case class AuthenticatedCommand(publicKey: PublicKey, command: Command)
 
-  private case class Connected(channel: Concurrent.Channel[OutboundMessage])
+  private case class Connected(channel: Concurrent.Channel[Event])
 
   private case class CacheValidator(zoneId: ZoneId, validator: ActorRef)
 
@@ -64,11 +63,11 @@ object ClientConnection {
 
   object ChannelHolder {
 
-    def props(channel: Channel[OutboundMessage]) = Props(new ChannelHolder(channel))
+    def props(channel: Channel[Event]) = Props(new ChannelHolder(channel))
 
   }
 
-  class ChannelHolder(channel: Channel[OutboundMessage]) extends Actor with ActorLogging {
+  class ChannelHolder(channel: Channel[Event]) extends Actor with ActorLogging {
 
     override def postStop(): Unit = {
 
@@ -92,7 +91,7 @@ object ClientConnection {
 
         channel.push(Heartbeat(new DateTime))
 
-      case outboundMessage: OutboundMessage =>
+      case outboundMessage: Event =>
 
         channel.push(outboundMessage)
 
@@ -114,7 +113,7 @@ class ClientConnection(remoteAddress: String) extends Actor with ActorLogging {
 
     case Init =>
 
-      val enumerator = Enumerator[OutboundMessage](
+      val enumerator = Enumerator[Event](
         ConnectionNumber(self.path.name.toInt)
       ).andThen(
           Concurrent.unicast(
@@ -158,20 +157,20 @@ class ClientConnection(remoteAddress: String) extends Actor with ActorLogging {
 
       channelHolder ! Heartbeat(new DateTime)
 
-    case outboundMessage: OutboundMessage =>
+    case event: Event =>
 
-      channelHolder.forward(outboundMessage)
+      channelHolder.forward(event)
 
-    case authenticatedInboundMessage: AuthenticatedInboundMessage =>
+    case authenticatedCommand: AuthenticatedCommand =>
 
-      authenticatedInboundMessage.inboundMessage match {
+      authenticatedCommand.command match {
 
         case CreateZone(_, _) =>
 
           (Actors.zoneValidatorManager ? CreateValidator)
             .mapTo[ValidatorCreated]
             .map { case ValidatorCreated(zoneId, validator) =>
-            validator ! authenticatedInboundMessage
+            validator ! authenticatedCommand
             CacheValidator(zoneId, validator)
           }.pipeTo(self)
 
@@ -180,22 +179,22 @@ class ClientConnection(remoteAddress: String) extends Actor with ActorLogging {
           (Actors.zoneValidatorManager ? GetValidator(zoneId))
             .mapTo[ValidatorGot]
             .map { case ValidatorGot(validator) =>
-            validator ! authenticatedInboundMessage
+            validator ! authenticatedCommand
             CacheValidator(zoneId, validator)
           }.pipeTo(self)
 
         case QuitZone(zoneId) =>
 
           joinedValidators.get(zoneId).foreach { validator =>
-            validator ! authenticatedInboundMessage
+            validator ! authenticatedCommand
             context.unwatch(validator)
 
             joinedValidators -= zoneId
           }
 
-        case inboundZoneMessage: InboundZoneMessage =>
+        case zoneCommand: ZoneCommand =>
 
-          joinedValidators.get(inboundZoneMessage.zoneId).foreach(_ ! authenticatedInboundMessage)
+          joinedValidators.get(zoneCommand.zoneId).foreach(_ ! authenticatedCommand)
 
       }
 

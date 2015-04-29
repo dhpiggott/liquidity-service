@@ -1,4 +1,4 @@
-name := """liquidity"""
+name := "liquidity-server"
 
 version := "1.0-SNAPSHOT"
 
@@ -10,18 +10,19 @@ daemonUser in Docker := "root"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
 
-scalaVersion := "2.11.1"
+scalaVersion := "2.11.6"
+
+resolvers ++= Seq(
+  "Pellucid Bintray" at "https://dl.bintray.com/pellucid/maven",
+  Resolver.mavenLocal
+)
 
 libraryDependencies ++= Seq(
-  cache,
-  ws
+  ws,
+  "com.dhpcs" %% "liquidity-common" % "0.2.0"
 )
 
 javaOptions in Universal ++= Seq(
   "-Dpidfile.path=/dev/null",
   "-Dhttp.port=80"
 )
-
-resolvers += "Pellucid Bintray" at "http://dl.bintray.com/pellucid/maven"
-
-libraryDependencies += "com.pellucid" %% "sealerate" % "0.0.3"

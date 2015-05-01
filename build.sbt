@@ -1,12 +1,15 @@
-name := """liquidity-core"""
+name := "liquidity-common"
 
-version := "1.0"
+organization := "com.dhpcs"
 
-scalaVersion := "2.11.5"
+version := "0.1.0-SNAPSHOT"
 
-// Change this to another test framework if you prefer
-libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.4" % "test"
+scalaVersion := "2.11.6"
 
-// Uncomment to use Akka
-//libraryDependencies += "com.typesafe.akka" % "akka-actor_2.11" % "2.3.9"
+resolvers += "Pellucid Bintray" at "https://dl.bintray.com/pellucid/maven"
 
+libraryDependencies ++= Seq(
+  "com.pellucid" %% "sealerate" % "0.0.3",
+  "com.typesafe.play" %% "play-json" % "2.3.8",
+  "commons-codec" % "commons-codec" % "1.10"
+)

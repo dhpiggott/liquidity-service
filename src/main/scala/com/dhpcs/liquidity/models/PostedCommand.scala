@@ -2,8 +2,7 @@ package com.dhpcs.liquidity.models
 
 import play.api.libs.json.Json
 
-// TODO
-case class PostedCommand(connectionNumber: Int, inboundMessage: Command)
+case class PostedCommand(connectionNumber: Int, command: Command)
 
 object PostedCommand {
 

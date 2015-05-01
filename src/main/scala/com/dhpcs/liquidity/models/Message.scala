@@ -16,7 +16,7 @@ sealed trait ZoneEvent extends Event {
 case class ConnectionNumber(connectionNumber: Int) extends Event
 case object ConnectionNumberTypeName extends MessageTypeName("connectionNumber") with EventTypeName
 
-case class Heartbeat(dateTime: DateTime) extends Event
+case class Heartbeat(sent: DateTime) extends Event
 case object HeartbeatTypeName extends MessageTypeName("heartbeat") with EventTypeName
 
 case class ZoneCreated(zoneId: ZoneId) extends ZoneEvent
@@ -43,7 +43,8 @@ object Event {
   def eventTypes = sealerate.values[EventTypeName]
 
   implicit val eventReads: Reads[Event] = (
-    (__ \ "type").read[String](Reads.verifying[String](typeName => eventTypes.exists(eventType => eventType.typeName == typeName))) and
+    (__ \ "type").read[String](Reads.verifying[String](typeName =>
+      eventTypes.exists(eventType => eventType.typeName == typeName))) and
       (__ \ "data").read[JsValue]
     )((eventType, eventData) => eventType match {
     case ConnectionNumberTypeName.typeName => eventData.as(Json.reads[ConnectionNumber])
@@ -120,7 +121,8 @@ object Command {
   def commandTypes = sealerate.values[CommandTypeName]
 
   implicit val commandReads: Reads[Command] = (
-    (__ \ "type").read[String](Reads.verifying[String](typeName => commandTypes.exists(commandType => commandType.typeName == typeName))) and
+    (__ \ "type").read[String](Reads.verifying[String](typeName =>
+      commandTypes.exists(commandType => commandType.typeName == typeName))) and
       (__ \ "data").read[JsValue]
     )((commandType, commandData) => commandType match {
     case CreateZoneTypeName.typeName => commandData.as(Json.reads[CreateZone])

@@ -34,8 +34,7 @@ object Zone {
 
   implicit val zoneReads =
     ((JsPath \ "name").read[String] and
-      // TODO
-      (JsPath \ "zoneType").read[String] and
+      (JsPath \ "type").read[String] and
       (JsPath \ "members").read[Map[String, Member]] and
       (JsPath \ "accounts").read[Map[String, Account]] and
       (JsPath \ "transactions").read[Seq[Transaction]] and
@@ -53,7 +52,6 @@ object Zone {
 
   implicit val zoneWrites: Writes[Zone] = (
     (__ \ "name").write[String] and
-      // TODO
       (__ \ "type").write[String] and
       (__ \ "members").write[Map[String, Member]] and
       (__ \ "accounts").write[Map[String, Account]] and

@@ -12,7 +12,7 @@ object ClientConnection {
   implicit val GetValidatorTimeout = Timeout(ZoneRegistry.StoppingChildRetryDelay * 10)
 
   def props(publicKey: PublicKey, zoneRegistry: ActorRef)(upstream: ActorRef) =
-    Props(new ClientConnection(publicKey, upstream, zoneRegistry))
+    Props(new ClientConnection(publicKey, zoneRegistry, upstream))
 
   case class AuthenticatedCommand(publicKey: PublicKey, command: Command)
 

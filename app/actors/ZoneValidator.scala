@@ -3,7 +3,7 @@ package actors
 import java.math.BigInteger
 
 import actors.ClientConnection.AuthenticatedCommand
-import actors.ZoneValidatorManager.TerminationRequest
+import actors.ZoneRegistry.TerminationRequest
 import akka.actor._
 import com.dhpcs.liquidity.models._
 

@@ -8,9 +8,7 @@ object Actors {
   private def actors(implicit app: Application) = app.plugin[Actors]
     .getOrElse(sys.error("Actors plugin not registered"))
 
-  def clientIdentityManager(implicit app: Application) = actors.clientIdentityManager
-
-  def zoneValidatorManager(implicit app: Application) = actors.zoneValidatorManager
+  def zoneRegistry(implicit app: Application) = actors.zoneRegistry
 
 }
 
@@ -18,8 +16,6 @@ class Actors(application: Application) extends Plugin {
 
   private def system = Akka.system(application)
 
-  private lazy val clientIdentityManager = system.actorOf(ClientIdentityManager.props(), "clientIdentityManager")
-
-  private lazy val zoneValidatorManager = system.actorOf(ZoneValidatorManager.props(), "zoneValidatorManager")
+  private lazy val zoneRegistry = system.actorOf(ZoneRegistry.props(), "zoneRegistry")
 
 }

@@ -19,7 +19,7 @@ resolvers ++= Seq(
 
 libraryDependencies ++= Seq(
   ws,
-  "com.dhpcs" %% "liquidity-common" % "0.2.0"
+  "com.dhpcs" %% "liquidity-common" % "0.3.0"
 )
 
 javaOptions in Universal ++= Seq(

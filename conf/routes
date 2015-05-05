@@ -2,5 +2,4 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
-GET     /action                     controllers.Application.getAction
-POST    /action                     controllers.Application.postAction
+GET     /socket                     controllers.Application.socket

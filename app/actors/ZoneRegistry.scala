@@ -1,16 +1,16 @@
 package actors
 
-import actors.ZoneValidatorManager._
+import actors.ZoneRegistry._
 import akka.actor._
 import com.dhpcs.liquidity.models.ZoneId
 
 import scala.concurrent.duration._
 
-object ZoneValidatorManager {
+object ZoneRegistry {
 
   val StoppingChildRetryDelay = 100.milliseconds
 
-  def props() = Props(new ZoneValidatorManager())
+  def props() = Props(new ZoneRegistry())
 
   case object CreateValidator
 
@@ -24,7 +24,7 @@ object ZoneValidatorManager {
 
 }
 
-class ZoneValidatorManager extends Actor with ActorLogging {
+class ZoneRegistry extends Actor with ActorLogging {
 
   import context.dispatcher
 
@@ -60,7 +60,7 @@ class ZoneValidatorManager extends Actor with ActorLogging {
 
         log.debug(s"Received request for stopping validator; scheduling retry")
         context.system.scheduler.scheduleOnce(
-          ZoneValidatorManager.StoppingChildRetryDelay,
+          ZoneRegistry.StoppingChildRetryDelay,
           self,
           getValidator
         )

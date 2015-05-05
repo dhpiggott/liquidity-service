@@ -3,20 +3,12 @@ package controllers
 import java.io.ByteArrayInputStream
 import java.security.cert.{CertificateFactory, X509Certificate}
 
-import actors.ClientConnection.AuthenticatedCommand
-import actors.ClientIdentity.PostedAuthenticatedCommand
-import actors.ClientIdentityManager.CreateConnectionForIdentity
-import actors.{Actors, ClientIdentityManager}
-import akka.pattern.{AskTimeoutException, ask}
-import akka.util.Timeout
-import com.dhpcs.liquidity.models.{Event, PostedCommand, PublicKey}
+import actors.{Actors, ClientConnection}
+import com.dhpcs.liquidity.models.{Command, Event, PublicKey}
 import org.apache.commons.codec.binary.Base64
 import play.api.Play.current
-import play.api.libs.EventSource
-import play.api.libs.EventSource.EventDataExtractor
-import play.api.libs.concurrent.Execution.Implicits._
-import play.api.libs.iteratee.Enumerator
 import play.api.libs.json._
+import play.api.mvc.WebSocket.FrameFormatter
 import play.api.mvc._
 
 import scala.concurrent.Future
@@ -28,6 +20,22 @@ object Application extends Controller {
     ("-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----"),
     ("-----BEGIN TRUSTED CERTIFICATE-----", "-----END TRUSTED CERTIFICATE-----"),
     ("-----BEGIN X509 CERTIFICATE-----", "-----END X509 CERTIFICATE-----")
+  )
+
+  implicit def commandFrameFormatter: FrameFormatter[Command] = FrameFormatter.jsonFrame.transform(
+    command => Json.toJson(command),
+    json => Json.fromJson[Command](json).fold(
+      invalid => scala.sys.error("Bad client command on WebSocket: " + invalid),
+      valid => valid
+    )
+  )
+
+  implicit def eventFrameFormatter: FrameFormatter[Event] = FrameFormatter.jsonFrame.transform(
+    event => Json.toJson(event),
+    json => Json.fromJson[Event](json).fold(
+      invalid => scala.sys.error("Bad server event on WebSocket: " + invalid),
+      valid => valid
+    )
   )
 
   def getPublicKey(headers: Headers) = Try {
@@ -49,57 +57,15 @@ object Application extends Controller {
     )
   }
 
-  def postAction = Action(parse.json) { request =>
-
-    getPublicKey(request.headers) match {
-
-      case Failure(exception) =>
-
-        BadRequest(Json.obj("status" -> "KO", "error" -> s"public key not given: ${exception.getMessage}"))
-
-      case Success(publicKey) =>
-
-        request.body.validate[PostedCommand].fold(
-          invalid = errors => BadRequest(Json.obj("status" -> "KO", "error" -> JsError.toFlatJson(errors))),
-          valid = postedCommand => {
-            Actors.clientIdentityManager ! PostedAuthenticatedCommand(
-              postedCommand.connectionNumber,
-              AuthenticatedCommand(publicKey, postedCommand.command)
-            )
-            Ok(Json.obj("status" -> "OK"))
-          }
-        )
-
-    }
-
-  }
-
-  implicit val ConnectTimeout = Timeout(ClientIdentityManager.StoppingChildRetryDelay * 10)
-
-  implicit val eventDataExtractor = EventDataExtractor[Event](
-    message => Json.stringify(Json.toJson(message))
-  )
-
-  def getAction = Action.async { request =>
-
-    getPublicKey(request.headers) match {
-
-      case Failure(exception) =>
-
-        Future.successful(
-          BadRequest(Json.obj("status" -> "KO", "error" -> s"public key not given: ${exception.getMessage}"))
-        )
-
-      case Success(publicKey) =>
-
-        (Actors.clientIdentityManager ? CreateConnectionForIdentity(publicKey, request.remoteAddress))
-          .mapTo[Enumerator[Event]]
-          .map(enumerator =>
-          Ok.feed(enumerator.through(EventSource())).as("text/event-stream")
-          ).recover { case _: AskTimeoutException => GatewayTimeout }
-
-    }
-
+  def socket = WebSocket.tryAcceptWithActor[Command, Event] { request =>
+    Future.successful(getPublicKey(request.headers) match {
+      case Failure(exception) => Left(
+        BadRequest(exception.getMessage)
+      )
+      case Success(publicKey) => Right(
+        ClientConnection.props(publicKey, Actors.zoneRegistry)
+      )
+    })
   }
 
 }

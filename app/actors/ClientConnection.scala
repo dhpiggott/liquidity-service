@@ -40,6 +40,8 @@ class ClientConnection(publicKey: PublicKey,
 
     case command: CreateZone =>
 
+      log.debug(s"Received $command}")
+
       (zoneRegistry ? CreateValidator)
         .mapTo[ValidatorCreated]
         .map { case ValidatorCreated(zoneId, validator) =>
@@ -48,6 +50,8 @@ class ClientConnection(publicKey: PublicKey,
       }.pipeTo(self)
 
     case command@JoinZone(zoneId) =>
+
+      log.debug(s"Received $command}")
 
       (zoneRegistry ? GetValidator(zoneId))
         .mapTo[ValidatorGot]
@@ -58,6 +62,8 @@ class ClientConnection(publicKey: PublicKey,
 
     case command@QuitZone(zoneId) =>
 
+      log.debug(s"Received $command}")
+
       joinedValidators.get(zoneId).foreach { validator =>
         validator ! AuthenticatedCommand(publicKey, command)
         context.unwatch(validator)
@@ -66,6 +72,8 @@ class ClientConnection(publicKey: PublicKey,
       }
 
     case zoneCommand: ZoneCommand =>
+
+      log.debug(s"Received $zoneCommand}")
 
       joinedValidators.get(zoneCommand.zoneId).foreach(_ ! AuthenticatedCommand(publicKey, zoneCommand))
 
@@ -76,6 +84,8 @@ class ClientConnection(publicKey: PublicKey,
       joinedValidators += (zoneId -> validator)
 
     case event: Event =>
+
+      log.debug(s"Received $event}")
 
       upstream ! event
 

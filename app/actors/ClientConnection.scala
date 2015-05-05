@@ -77,7 +77,9 @@ class ClientConnection(publicKey: PublicKey,
 
       joinedValidators.get(zoneCommand.zoneId).foreach(_ ! AuthenticatedCommand(publicKey, zoneCommand))
 
-    case CacheValidator(zoneId, validator) =>
+    case cacheValidator@CacheValidator(zoneId, validator) =>
+
+      log.debug(s"Received $cacheValidator}")
 
       context.watch(validator)
 
@@ -89,7 +91,9 @@ class ClientConnection(publicKey: PublicKey,
 
       upstream ! event
 
-    case Terminated(validator) =>
+    case terminated@Terminated(validator) =>
+
+      log.debug(s"Received $terminated}")
 
       joinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
         val remove = v == validator

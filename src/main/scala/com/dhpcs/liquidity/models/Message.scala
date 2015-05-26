@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.models
 
 import com.pellucid.sealerate
-import org.joda.time.DateTime
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 
@@ -12,12 +11,6 @@ sealed trait EventTypeName extends MessageTypeName
 sealed trait ZoneEvent extends Event {
   val zoneId: ZoneId
 }
-
-case class ConnectionNumber(connectionNumber: Int) extends Event
-case object ConnectionNumberTypeName extends MessageTypeName("connectionNumber") with EventTypeName
-
-case class Heartbeat(sent: DateTime) extends Event
-case object HeartbeatTypeName extends MessageTypeName("heartbeat") with EventTypeName
 
 case class ZoneCreated(zoneId: ZoneId) extends ZoneEvent
 case object ZoneCreatedTypeName extends MessageTypeName("zoneCreated") with EventTypeName
@@ -47,8 +40,6 @@ object Event {
       eventTypes.exists(eventType => eventType.typeName == typeName))) and
       (__ \ "data").read[JsValue]
     )((eventType, eventData) => eventType match {
-    case ConnectionNumberTypeName.typeName => eventData.as(Json.reads[ConnectionNumber])
-    case HeartbeatTypeName.typeName => eventData.as(Json.reads[Heartbeat])
     case ZoneCreatedTypeName.typeName => eventData.as(Json.reads[ZoneCreated])
     case ZoneStateTypeName.typeName => eventData.as(Json.reads[ZoneState])
     case ZoneEmptyTypeName.typeName => eventData.as(Json.reads[ZoneEmpty])
@@ -61,8 +52,6 @@ object Event {
     (__ \ "type").write[String] and
       (__ \ "data").write[JsValue]
     )((event: Event) => event match {
-    case message: ConnectionNumber => (ConnectionNumberTypeName.typeName, Json.toJson(message)(Json.writes[ConnectionNumber]))
-    case message: Heartbeat => (HeartbeatTypeName.typeName, Json.toJson(message)(Json.writes[Heartbeat]))
     case message: ZoneCreated => (ZoneCreatedTypeName.typeName, Json.toJson(message)(Json.writes[ZoneCreated]))
     case message: ZoneState => (ZoneStateTypeName.typeName, Json.toJson(message)(Json.writes[ZoneState]))
     case message: ZoneEmpty => (ZoneEmptyTypeName.typeName, Json.toJson(message)(Json.writes[ZoneEmpty]))

@@ -4,26 +4,15 @@ import java.util.UUID
 
 import play.api.libs.json._
 
-case class MemberId(id: UUID)
+case class MemberId(id: UUID) extends Identifier
 
-object MemberId {
-
-  def apply(): MemberId = MemberId(UUID.randomUUID)
-
-  implicit val memberIdReads =
-    __.read[UUID].map(MemberId(_))
-
-  implicit val memberIdWrites = Writes[MemberId] {
-    memberId => JsString(memberId.id.toString)
-  }
-
-}
+object MemberId extends IdentifierCompanion[MemberId]
 
 case class Member(name: String,
                   publicKey: PublicKey)
 
 object Member {
 
-  implicit val memberFormat = Json.format[Member]
+  implicit val MemberFormat = Json.format[Member]
 
 }

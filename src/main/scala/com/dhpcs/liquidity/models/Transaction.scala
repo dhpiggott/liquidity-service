@@ -9,6 +9,6 @@ case class Transaction(description: String,
 
 object Transaction {
 
-  implicit val transactionFormat = Json.format[Transaction]
+  implicit val TransactionFormat = Json.format[Transaction]
 
 }

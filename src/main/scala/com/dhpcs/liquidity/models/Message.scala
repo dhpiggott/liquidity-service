@@ -1,149 +1,181 @@
 package com.dhpcs.liquidity.models
 
-import com.pellucid.sealerate
-import play.api.libs.functional.syntax._
+import com.dhpcs.jsonrpc._
 import play.api.libs.json._
 
-sealed abstract class MessageTypeName(val typeName: String)
-
-sealed trait Event
-sealed trait EventTypeName extends MessageTypeName
-sealed trait ZoneEvent extends Event {
-  val zoneId: ZoneId
-}
-
-case class ZoneCreated(zoneId: ZoneId) extends ZoneEvent
-case object ZoneCreatedTypeName extends MessageTypeName("zoneCreated") with EventTypeName
-
-// TODO: Signing - use https://github.com/sbt/sbt-pgp?
-case class ZoneState(zoneId: ZoneId, zone: Zone) extends ZoneEvent
-case object ZoneStateTypeName extends MessageTypeName("zoneState") with EventTypeName
-
-case class ZoneEmpty(zoneId: ZoneId) extends ZoneEvent
-case object ZoneEmptyTypeName extends MessageTypeName("zoneEmpty") with EventTypeName
-
-case class ZoneTerminated(zoneId: ZoneId) extends ZoneEvent
-case object ZoneTerminatedTypeName extends MessageTypeName("zoneTerminated") with EventTypeName
-
-case class MemberJoinedZone(zoneId: ZoneId, memberId: MemberId) extends ZoneEvent
-case object MemberJoinedZoneTypeName extends MessageTypeName("memberJoinedZone") with EventTypeName
-
-case class MemberQuitZone(zoneId: ZoneId, memberId: MemberId) extends ZoneEvent
-case object MemberQuitZoneTypeName extends MessageTypeName("memberQuitZone") with EventTypeName
-
-object Event {
-
-  def eventTypes = sealerate.values[EventTypeName]
-
-  implicit val eventReads: Reads[Event] = (
-    (__ \ "type").read[String](Reads.verifying[String](typeName =>
-      eventTypes.exists(eventType => eventType.typeName == typeName))) and
-      (__ \ "data").read[JsValue]
-    )((eventType, eventData) => eventType match {
-    case ZoneCreatedTypeName.typeName => eventData.as(Json.reads[ZoneCreated])
-    case ZoneStateTypeName.typeName => eventData.as(Json.reads[ZoneState])
-    case ZoneEmptyTypeName.typeName => eventData.as(Json.reads[ZoneEmpty])
-    case ZoneTerminatedTypeName.typeName => eventData.as(Json.reads[ZoneTerminated])
-    case MemberJoinedZoneTypeName.typeName => eventData.as(Json.reads[MemberJoinedZone])
-    case MemberQuitZoneTypeName.typeName => eventData.as(Json.reads[MemberQuitZone])
-  })
-
-  implicit val eventWrites: Writes[Event] = (
-    (__ \ "type").write[String] and
-      (__ \ "data").write[JsValue]
-    )((event: Event) => event match {
-    case message: ZoneCreated => (ZoneCreatedTypeName.typeName, Json.toJson(message)(Json.writes[ZoneCreated]))
-    case message: ZoneState => (ZoneStateTypeName.typeName, Json.toJson(message)(Json.writes[ZoneState]))
-    case message: ZoneEmpty => (ZoneEmptyTypeName.typeName, Json.toJson(message)(Json.writes[ZoneEmpty]))
-    case message: ZoneTerminated => (ZoneTerminatedTypeName.typeName, Json.toJson(message)(Json.writes[ZoneTerminated]))
-    case message: MemberJoinedZone => (MemberJoinedZoneTypeName.typeName, Json.toJson(message)(Json.writes[MemberJoinedZone]))
-    case message: MemberQuitZone => (MemberQuitZoneTypeName.typeName, Json.toJson(message)(Json.writes[MemberQuitZone]))
-  })
-
-}
+// TODO: Review https://github.com/zilverline/event-sourced-blog-example/blob/master/app/events/PostEvents.scala#L60-L65
+// and https://github.com/zilverline/event-sourced-blog-example/blob/master/app/eventstore/JsonMapping.scala to see if
+// this can be improved.
 
 sealed trait Command
-sealed trait CommandTypeName extends MessageTypeName
+
+sealed abstract class CommandMethodName(val name: String)
+
 sealed trait ZoneCommand extends Command {
+
   val zoneId: ZoneId
+
 }
 
 case class CreateZone(name: String, zoneType: String) extends Command
-case object CreateZoneTypeName extends MessageTypeName("createZone") with CommandTypeName
+case object CreateZoneMethodName extends CommandMethodName("createZone")
 
 case class JoinZone(zoneId: ZoneId) extends ZoneCommand
-case object JoinZoneTypeName extends MessageTypeName("joinZone") with CommandTypeName
+case object JoinZoneMethodName extends CommandMethodName("joinZone")
 
-// TODO: Signing
+// TODO: Signing - use https://github.com/sbt/sbt-pgp?
 case class RestoreZone(zoneId: ZoneId, zone: Zone) extends ZoneCommand
-case object RestoreZoneTypeName extends MessageTypeName("restoreZone") with CommandTypeName
+case object RestoreZoneMethodName extends CommandMethodName("restoreZone")
 
 case class QuitZone(zoneId: ZoneId) extends ZoneCommand
-case object QuitZoneTypeName extends MessageTypeName("quitZone") with CommandTypeName
+case object QuitZoneMethodName extends CommandMethodName("quitZone")
 
 case class SetZoneName(zoneId: ZoneId, name: String) extends ZoneCommand
-case object SetZoneNameTypeName extends MessageTypeName("setZoneName") with CommandTypeName
+case object SetZoneNameMethodName extends CommandMethodName("setZoneName")
 
 case class CreateMember(zoneId: ZoneId, member: Member) extends ZoneCommand
-case object CreateMemberTypeName extends MessageTypeName("createMember") with CommandTypeName
+case object CreateMemberMethodName extends CommandMethodName("createMember")
 
 case class UpdateMember(zoneId: ZoneId, memberId: MemberId, member: Member) extends ZoneCommand
-case object UpdateMemberTypeName extends MessageTypeName("updateMember") with CommandTypeName
+case object UpdateMemberMethodName extends CommandMethodName("updateMember")
 
 case class DeleteMember(zoneId: ZoneId, memberId: MemberId) extends ZoneCommand
-case object DeleteMemberTypeName extends MessageTypeName("deleteMember") with CommandTypeName
+case object DeleteMemberMethodName extends CommandMethodName("deleteMember")
 
 case class CreateAccount(zoneId: ZoneId, account: Account) extends ZoneCommand
-case object CreateAccountTypeName extends MessageTypeName("createAccount") with CommandTypeName
+case object CreateAccountMethodName extends CommandMethodName("createAccount")
 
 case class UpdateAccount(zoneId: ZoneId, accountId: AccountId, account: Account) extends ZoneCommand
-case object UpdateAccountTypeName extends MessageTypeName("updateAccount") with CommandTypeName
+case object UpdateAccountMethodName extends CommandMethodName("updateAccount")
 
 case class DeleteAccount(zoneId: ZoneId, accountId: AccountId) extends ZoneCommand
-case object DeleteAccountTypeName extends MessageTypeName("deleteAccount") with CommandTypeName
+case object DeleteAccountMethodName extends CommandMethodName("deleteAccount")
 
 case class AddTransaction(zoneId: ZoneId, transaction: Transaction) extends ZoneCommand
-case object AddTransactionTypeName extends MessageTypeName("addTransaction") with CommandTypeName
+case object AddTransactionMethodName extends CommandMethodName("addTransaction")
 
 object Command {
 
-  def commandTypes = sealerate.values[CommandTypeName]
+  def readCommand(jsonRpcRequestMessage: JsonRpcRequestMessage): Command = {
+    val jsObject = jsonRpcRequestMessage.params.right.get
+    jsonRpcRequestMessage.method match {
+      case CreateZoneMethodName.name => jsObject.as(Json.reads[CreateZone])
+      case JoinZoneMethodName.name => jsObject.as(Json.reads[JoinZone])
+      case RestoreZoneMethodName.name => jsObject.as(Json.reads[RestoreZone])
+      case QuitZoneMethodName.name => jsObject.as(Json.reads[QuitZone])
+      case SetZoneNameMethodName.name => jsObject.as(Json.reads[SetZoneName])
+      case CreateMemberMethodName.name => jsObject.as(Json.reads[CreateMember])
+      case UpdateMemberMethodName.name => jsObject.as(Json.reads[UpdateMember])
+      case DeleteMemberMethodName.name => jsObject.as(Json.reads[DeleteMember])
+      case CreateAccountMethodName.name => jsObject.as(Json.reads[CreateAccount])
+      case UpdateAccountMethodName.name => jsObject.as(Json.reads[UpdateAccount])
+      case DeleteAccountMethodName.name => jsObject.as(Json.reads[DeleteAccount])
+      case AddTransactionMethodName.name => jsObject.as(Json.reads[AddTransaction])
+    }
+  }
 
-  implicit val commandReads: Reads[Command] = (
-    (__ \ "type").read[String](Reads.verifying[String](typeName =>
-      commandTypes.exists(commandType => commandType.typeName == typeName))) and
-      (__ \ "data").read[JsValue]
-    )((commandType, commandData) => commandType match {
-    case CreateZoneTypeName.typeName => commandData.as(Json.reads[CreateZone])
-    case JoinZoneTypeName.typeName => commandData.as(Json.reads[JoinZone])
-    case RestoreZoneTypeName.typeName => commandData.as(Json.reads[RestoreZone])
-    case QuitZoneTypeName.typeName => commandData.as(Json.reads[QuitZone])
-    case SetZoneNameTypeName.typeName => commandData.as(Json.reads[SetZoneName])
-    case CreateMemberTypeName.typeName => commandData.as(Json.reads[CreateMember])
-    case UpdateMemberTypeName.typeName => commandData.as(Json.reads[UpdateMember])
-    case DeleteMemberTypeName.typeName => commandData.as(Json.reads[DeleteMember])
-    case CreateAccountTypeName.typeName => commandData.as(Json.reads[CreateAccount])
-    case UpdateAccountTypeName.typeName => commandData.as(Json.reads[UpdateAccount])
-    case DeleteAccountTypeName.typeName => commandData.as(Json.reads[DeleteAccount])
-    case AddTransactionTypeName.typeName => commandData.as(Json.reads[AddTransaction])
-  })
+  def writeCommand(command: Command, id: Either[String, Int]): JsonRpcRequestMessage = {
+    val (method, jsValue) = command match {
+      case command: CreateZone => (CreateZoneMethodName.name, Json.toJson(command)(Json.writes[CreateZone]))
+      case command: JoinZone => (JoinZoneMethodName.name, Json.toJson(command)(Json.writes[JoinZone]))
+      case command: RestoreZone => (RestoreZoneMethodName.name, Json.toJson(command)(Json.writes[RestoreZone]))
+      case command: QuitZone => (QuitZoneMethodName.name, Json.toJson(command)(Json.writes[QuitZone]))
+      case command: SetZoneName => (SetZoneNameMethodName.name, Json.toJson(command)(Json.writes[SetZoneName]))
+      case command: CreateMember => (CreateMemberMethodName.name, Json.toJson(command)(Json.writes[CreateMember]))
+      case command: UpdateMember => (UpdateMemberMethodName.name, Json.toJson(command)(Json.writes[UpdateMember]))
+      case command: DeleteMember => (DeleteMemberMethodName.name, Json.toJson(command)(Json.writes[DeleteMember]))
+      case command: CreateAccount => (CreateAccountMethodName.name, Json.toJson(command)(Json.writes[CreateAccount]))
+      case command: UpdateAccount => (UpdateAccountMethodName.name, Json.toJson(command)(Json.writes[UpdateAccount]))
+      case command: DeleteAccount => (DeleteAccountMethodName.name, Json.toJson(command)(Json.writes[DeleteAccount]))
+      case command: AddTransaction => (AddTransactionMethodName.name, Json.toJson(command)(Json.writes[AddTransaction]))
+    }
+    JsonRpcRequestMessage(method, Right(jsValue.asInstanceOf[JsObject]), id)
+  }
 
-  implicit val commandWrites: Writes[Command] = (
-    (__ \ "type").write[String] and
-      (__ \ "data").write[JsValue]
-    )((command: Command) => command match {
-    case message: CreateZone => (CreateZoneTypeName.typeName, Json.toJson(message)(Json.writes[CreateZone]))
-    case message: JoinZone => (JoinZoneTypeName.typeName, Json.toJson(message)(Json.writes[JoinZone]))
-    case message: RestoreZone => (RestoreZoneTypeName.typeName, Json.toJson(message)(Json.writes[RestoreZone]))
-    case message: QuitZone => (QuitZoneTypeName.typeName, Json.toJson(message)(Json.writes[QuitZone]))
-    case message: SetZoneName => (SetZoneNameTypeName.typeName, Json.toJson(message)(Json.writes[SetZoneName]))
-    case message: CreateMember => (CreateMemberTypeName.typeName, Json.toJson(message)(Json.writes[CreateMember]))
-    case message: UpdateMember => (UpdateMemberTypeName.typeName, Json.toJson(message)(Json.writes[UpdateMember]))
-    case message: DeleteMember => (DeleteMemberTypeName.typeName, Json.toJson(message)(Json.writes[DeleteMember]))
-    case message: CreateAccount => (CreateAccountTypeName.typeName, Json.toJson(message)(Json.writes[CreateAccount]))
-    case message: UpdateAccount => (UpdateAccountTypeName.typeName, Json.toJson(message)(Json.writes[UpdateAccount]))
-    case message: DeleteAccount => (DeleteAccountTypeName.typeName, Json.toJson(message)(Json.writes[DeleteAccount]))
-    case message: AddTransaction => (AddTransactionTypeName.typeName, Json.toJson(message)(Json.writes[AddTransaction]))
-  })
+}
+
+sealed trait CommandResponse
+
+case class CommandErrorResponse(code: Int, message: String, data: Option[JsValue]) extends CommandResponse
+
+sealed trait CommandResultResponse extends CommandResponse
+
+case class ZoneCreated(zoneId: ZoneId) extends CommandResultResponse
+
+case class ZoneJoined(zone: Option[Zone]) extends CommandResultResponse
+
+object CommandResponse {
+
+  def readCommandResponse(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): CommandResponse =
+    jsonRpcResponseMessage.eitherResultOrError.fold(
+      result => {
+        val jsObject = result.asInstanceOf[JsObject]
+        method match {
+          case CreateZoneMethodName.name => jsObject.as(Json.reads[ZoneCreated])
+          case JoinZoneMethodName.name => jsObject.as(Json.reads[ZoneJoined])
+        }
+      },
+      error => CommandErrorResponse(error.code, error.message, error.data)
+    )
+
+  def writeCommandResponse(commandResponse: CommandResponse, id: Either[String, Int]): JsonRpcResponseMessage = {
+    val eitherResultOrError = commandResponse match {
+      case CommandErrorResponse(code, message, data) => Right(
+        JsonRpcResponseError(code, message, data)
+      )
+      case commandResultResponse: CommandResultResponse => commandResultResponse match {
+        case commandResponse: ZoneCreated => Left(Json.toJson(commandResponse)(Json.writes[ZoneCreated]))
+        case commandResponse: ZoneJoined => Left(Json.toJson(commandResponse)(Json.writes[ZoneJoined]))
+      }
+    }
+    JsonRpcResponseMessage(eitherResultOrError, id)
+  }
+
+}
+
+sealed trait Notification
+
+sealed abstract class NotificationMethodName(val name: String)
+
+sealed trait ZoneNotification extends Notification {
+
+  val zoneId: ZoneId
+
+}
+
+// TODO: Signing - use https://github.com/sbt/sbt-pgp?
+case class ZoneState(zoneId: ZoneId, zone: Zone) extends ZoneNotification
+case object ZoneStateMethodName extends NotificationMethodName("zoneState")
+
+case class ZoneTerminated(zoneId: ZoneId) extends ZoneNotification
+case object ZoneTerminatedMethodName extends NotificationMethodName("zoneTerminated")
+
+case class MemberJoinedZone(zoneId: ZoneId, memberId: MemberId) extends ZoneNotification
+case object MemberJoinedZoneMethodName extends NotificationMethodName("memberJoinedZone")
+
+case class MemberQuitZone(zoneId: ZoneId, memberId: MemberId) extends ZoneNotification
+case object MemberQuitZoneMethodName extends NotificationMethodName("memberQuitZone")
+
+object Notification {
+
+  def readNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage): Notification = {
+    val jsObject = jsonRpcNotificationMessage.params.right.get
+    jsonRpcNotificationMessage.method match {
+      case ZoneStateMethodName.name => jsObject.as(Json.reads[ZoneState])
+      case ZoneTerminatedMethodName.name => jsObject.as(Json.reads[ZoneTerminated])
+      case MemberJoinedZoneMethodName.name => jsObject.as(Json.reads[MemberJoinedZone])
+      case MemberQuitZoneMethodName.name => jsObject.as(Json.reads[MemberQuitZone])
+    }
+  }
+
+  def writeNotification(notification: Notification): JsonRpcNotificationMessage = {
+    val (method, jsValue) = notification match {
+      case notification: ZoneState => (ZoneStateMethodName.name, Json.toJson(notification)(Json.writes[ZoneState]))
+      case notification: ZoneTerminated => (ZoneTerminatedMethodName.name, Json.toJson(notification)(Json.writes[ZoneTerminated]))
+      case notification: MemberJoinedZone => (MemberJoinedZoneMethodName.name, Json.toJson(notification)(Json.writes[MemberJoinedZone]))
+      case notification: MemberQuitZone => (MemberQuitZoneMethodName.name, Json.toJson(notification)(Json.writes[MemberQuitZone]))
+    }
+    JsonRpcNotificationMessage(method, Right(jsValue.asInstanceOf[JsObject]))
+  }
 
 }

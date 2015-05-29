@@ -3,8 +3,8 @@ package com.dhpcs.liquidity.models
 import java.security.MessageDigest
 import java.util
 
+import com.dhpcs.json.ValueFormat
 import com.google.common.io.BaseEncoding
-import play.api.libs.json._
 
 case class PublicKey(value: Array[Byte]) {
 
@@ -26,11 +26,8 @@ case class PublicKey(value: Array[Byte]) {
 
 object PublicKey {
 
-  implicit val publicKeyReads =
-    __.read[String].map(publicKeyBase64 => PublicKey(BaseEncoding.base64().decode(publicKeyBase64)))
-
-  implicit val publicKeyWrites = Writes[PublicKey] {
-    publicKey => JsString(BaseEncoding.base64().encode(publicKey.value))
-  }
+  implicit val PublicKeyFormat = ValueFormat.valueFormat(
+    (publicKeyBase64: String) => PublicKey(BaseEncoding.base64().decode(publicKeyBase64))
+  )(publicKey => BaseEncoding.base64().encode(publicKey.value))
 
 }

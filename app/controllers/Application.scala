@@ -4,10 +4,10 @@ import java.io.ByteArrayInputStream
 import java.security.cert.{CertificateFactory, X509Certificate}
 
 import actors.{Actors, ClientConnection}
-import com.dhpcs.liquidity.models.{Command, Event, PublicKey}
+import com.dhpcs.jsonrpc.JsonRpcMessage
+import com.dhpcs.liquidity.models.PublicKey
 import org.apache.commons.codec.binary.Base64
 import play.api.Play.current
-import play.api.libs.json._
 import play.api.mvc.WebSocket.FrameFormatter
 import play.api.mvc._
 
@@ -16,26 +16,12 @@ import scala.util.{Failure, Success, Try}
 
 object Application extends Controller {
 
+  implicit val jsonRpcMessageFrameFormatter = FrameFormatter.jsonFrame[JsonRpcMessage]
+
   val pemCertStringMarkers = Seq(
     ("-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----"),
     ("-----BEGIN TRUSTED CERTIFICATE-----", "-----END TRUSTED CERTIFICATE-----"),
     ("-----BEGIN X509 CERTIFICATE-----", "-----END X509 CERTIFICATE-----")
-  )
-
-  implicit def commandFrameFormatter: FrameFormatter[Command] = FrameFormatter.jsonFrame.transform(
-    command => Json.toJson(command),
-    json => Json.fromJson[Command](json).fold(
-      invalid => scala.sys.error("Bad client command on WebSocket: " + invalid),
-      valid => valid
-    )
-  )
-
-  implicit def eventFrameFormatter: FrameFormatter[Event] = FrameFormatter.jsonFrame.transform(
-    event => Json.toJson(event),
-    json => Json.fromJson[Event](json).fold(
-      invalid => scala.sys.error("Bad server event on WebSocket: " + invalid),
-      valid => valid
-    )
   )
 
   def getPublicKey(headers: Headers) = Try {
@@ -57,7 +43,7 @@ object Application extends Controller {
     )
   }
 
-  def socket = WebSocket.tryAcceptWithActor[Command, Event] { request =>
+  def socket = WebSocket.tryAcceptWithActor[JsonRpcMessage, JsonRpcMessage] { request =>
     Future.successful(getPublicKey(request.headers) match {
       case Failure(exception) => Left(
         BadRequest(exception.getMessage)

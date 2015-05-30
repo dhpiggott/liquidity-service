@@ -35,7 +35,7 @@ class ZoneRegistry extends Actor with ActorLogging {
     case CreateValidator =>
 
       def freshZoneId: ZoneId = {
-        val zoneId = ZoneId()
+        val zoneId = ZoneId.generate
         if (context.child(zoneId.id.toString).isEmpty) {
           zoneId
         } else {

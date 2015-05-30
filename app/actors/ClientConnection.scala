@@ -5,6 +5,7 @@ import actors.ZoneRegistry.{CreateValidator, GetValidator, ValidatorCreated, Val
 import akka.actor._
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
+import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.models._
 
 object ClientConnection {
@@ -14,7 +15,7 @@ object ClientConnection {
   def props(publicKey: PublicKey, zoneRegistry: ActorRef)(upstream: ActorRef) =
     Props(new ClientConnection(publicKey, zoneRegistry, upstream))
 
-  case class AuthenticatedCommand(publicKey: PublicKey, command: Command)
+  case class AuthenticatedCommand(publicKey: PublicKey, command: Command, id: Either[String, Int])
 
   private case class CacheValidator(zoneId: ZoneId, validator: ActorRef)
 
@@ -38,44 +39,52 @@ class ClientConnection(publicKey: PublicKey,
 
   def receive = {
 
-    case command: CreateZone =>
+    case jsonRpcRequestMessage: JsonRpcRequestMessage =>
 
-      log.debug(s"Received $command}")
+      Command.readCommand(jsonRpcRequestMessage) match {
 
-      (zoneRegistry ? CreateValidator)
-        .mapTo[ValidatorCreated]
-        .map { case ValidatorCreated(zoneId, validator) =>
-        validator ! AuthenticatedCommand(publicKey, command)
-        CacheValidator(zoneId, validator)
-      }.pipeTo(self)
+        case command: CreateZone =>
 
-    case command@JoinZone(zoneId) =>
+          log.debug(s"Received $command}")
 
-      log.debug(s"Received $command}")
+          (zoneRegistry ? CreateValidator)
+            .mapTo[ValidatorCreated]
+            .map { case ValidatorCreated(zoneId, validator) =>
+            validator ! AuthenticatedCommand(publicKey, command, jsonRpcRequestMessage.id)
+            CacheValidator(zoneId, validator)
+          }.pipeTo(self)
 
-      (zoneRegistry ? GetValidator(zoneId))
-        .mapTo[ValidatorGot]
-        .map { case ValidatorGot(validator) =>
-        validator ! AuthenticatedCommand(publicKey, command)
-        CacheValidator(zoneId, validator)
-      }.pipeTo(self)
+        case command@JoinZone(zoneId) =>
 
-    case command@QuitZone(zoneId) =>
+          log.debug(s"Received $command}")
 
-      log.debug(s"Received $command}")
+          (zoneRegistry ? GetValidator(zoneId))
+            .mapTo[ValidatorGot]
+            .map { case ValidatorGot(validator) =>
+            validator ! AuthenticatedCommand(publicKey, command, jsonRpcRequestMessage.id)
+            CacheValidator(zoneId, validator)
+          }.pipeTo(self)
 
-      joinedValidators.get(zoneId).foreach { validator =>
-        validator ! AuthenticatedCommand(publicKey, command)
-        context.unwatch(validator)
+        case command@QuitZone(zoneId) =>
 
-        joinedValidators -= zoneId
+          log.debug(s"Received $command}")
+
+          joinedValidators.get(zoneId).foreach { validator =>
+            validator ! AuthenticatedCommand(publicKey, command, jsonRpcRequestMessage.id)
+            context.unwatch(validator)
+
+            joinedValidators -= zoneId
+          }
+
+        case zoneCommand: ZoneCommand =>
+
+          log.debug(s"Received $zoneCommand}")
+
+          joinedValidators.get(zoneCommand.zoneId).foreach(
+            _ ! AuthenticatedCommand(publicKey, zoneCommand, jsonRpcRequestMessage.id)
+          )
+
       }
-
-    case zoneCommand: ZoneCommand =>
-
-      log.debug(s"Received $zoneCommand}")
-
-      joinedValidators.get(zoneCommand.zoneId).foreach(_ ! AuthenticatedCommand(publicKey, zoneCommand))
 
     case cacheValidator@CacheValidator(zoneId, validator) =>
 
@@ -85,11 +94,17 @@ class ClientConnection(publicKey: PublicKey,
 
       joinedValidators += (zoneId -> validator)
 
-    case event: Event =>
+    case (commandResponse: CommandResponse, id: Either[String, Int] @unchecked) =>
 
-      log.debug(s"Received $event}")
+      log.debug(s"Received $commandResponse}")
 
-      upstream ! event
+      upstream ! CommandResponse.writeCommandResponse(commandResponse, id)
+
+    case notification: Notification =>
+
+      log.debug(s"Received $notification}")
+
+      upstream ! Notification.writeNotification(notification)
 
     case terminated@Terminated(validator) =>
 
@@ -98,7 +113,7 @@ class ClientConnection(publicKey: PublicKey,
       joinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
         val remove = v == validator
         if (remove) {
-          upstream ! ZoneTerminated(zoneId)
+          upstream ! Notification.writeNotification(ZoneTerminated(zoneId))
         }
         remove
       }

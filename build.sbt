@@ -12,14 +12,9 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
 
 scalaVersion := "2.11.6"
 
-resolvers ++= Seq(
-  "Pellucid Bintray" at "https://dl.bintray.com/pellucid/maven",
-  Resolver.mavenLocal
-)
-
 libraryDependencies ++= Seq(
   ws,
-  "com.dhpcs" %% "liquidity-common" % "0.3.0"
+  "com.dhpcs" %% "liquidity-common" % "0.5.0"
 )
 
 javaOptions in Universal ++= Seq(

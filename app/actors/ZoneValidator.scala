@@ -1,7 +1,5 @@
 package actors
 
-import java.math.BigInteger
-
 import actors.ClientConnection.AuthenticatedCommand
 import actors.ZoneRegistry.TerminationRequest
 import akka.actor._
@@ -17,7 +15,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   var presentClients = Set.empty[ActorRef]
 
-  var accountBalances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(BigInteger.ZERO))
+  var accountBalances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
 
   def canDelete(zone: Zone, memberId: MemberId) =
     !zone.accounts.values.exists { account =>
@@ -50,7 +48,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
       // TODO: Validate zone payment state for seigniorage, allow negative account values for special account types
       val newSourceBalance = accountBalances(transaction.from).-(transaction.amount)
-      if (newSourceBalance.<(BigDecimal(BigInteger.ZERO))) {
+      if (newSourceBalance.<(BigDecimal(0))) {
         log.warning(s"Illegal transaction amount: ${transaction.amount}")
         false
       } else {
@@ -71,7 +69,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
   def handleQuit(clientConnection: ActorRef): Unit = {
     context.unwatch(sender())
     presentClients -= clientConnection
-    if (presentClients.size != 0) {
+    if (presentClients.nonEmpty) {
       log.debug(s"$presentClients clients are present")
     } else {
       log.debug(s"No clients are present; requesting termination")
@@ -86,7 +84,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   def waitingForCanonicalZone: Receive = {
 
-    case AuthenticatedCommand(publicKey, command) =>
+    case AuthenticatedCommand(publicKey, command, id) =>
 
       command match {
 
@@ -96,7 +94,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           val zone = Zone(name, zoneType)
 
-          sender ! ZoneCreated(zoneId)
+          sender !(ZoneCreated(zoneId), id)
 
           val zoneState = ZoneState(zoneId, zone)
           presentClients.foreach(_ ! zoneState)
@@ -105,7 +103,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
         case JoinZone(_) =>
 
-          sender ! ZoneEmpty(zoneId)
+          sender !(ZoneJoined(None), id)
 
           if (!presentClients.contains(sender())) {
 
@@ -142,7 +140,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   def receiveWithCanonicalZone(canonicalZone: Zone): Receive = {
 
-    case AuthenticatedCommand(publicKey, command) =>
+    case AuthenticatedCommand(publicKey, command, id) =>
 
       command match {
 
@@ -152,7 +150,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
         case JoinZone(_) =>
 
-          sender ! ZoneState(zoneId, canonicalZone)
+          sender !(ZoneJoined(Some(canonicalZone)), id)
 
           /*
            * In case the sender didn't receive the confirmation the first time around.
@@ -226,7 +224,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           // TODO: Maximum numbers?
 
           def freshMemberId: MemberId = {
-            val memberId = MemberId()
+            val memberId = MemberId.generate
             if (canonicalZone.members.get(memberId).isEmpty) {
               memberId
             } else {
@@ -286,7 +284,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
         case CreateAccount(_, account) =>
 
           def freshAccountId: AccountId = {
-            val accountId = AccountId()
+            val accountId = AccountId.generate
             if (canonicalZone.accounts.get(accountId).isEmpty) {
               accountId
             } else {

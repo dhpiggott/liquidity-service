@@ -1,8 +1,8 @@
-name := "liquidity-common"
+name := """liquidity-common"""
 
 organization := "com.dhpcs"
 
-version := "0.5.0"
+version := "0.6.0-SNAPSHOT"
 
 scalaVersion := "2.11.6"
 

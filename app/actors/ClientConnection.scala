@@ -94,7 +94,7 @@ class ClientConnection(publicKey: PublicKey,
 
       joinedValidators += (zoneId -> validator)
 
-    case (commandResponse: CommandResponse, id: Either[String, Int] @unchecked) =>
+    case (commandResponse: CommandResponse, id: Either[String, Int]@unchecked) =>
 
       log.debug(s"Received $commandResponse}")
 

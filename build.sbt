@@ -1,8 +1,8 @@
-name := "liquidity-server"
+name := """liquidity-server"""
 
 version := "1.0-SNAPSHOT"
 
-dockerBaseImage := "java:jre"
+dockerBaseImage := "java:8-jre"
 
 dockerExposedPorts := Seq(80)
 
@@ -14,10 +14,15 @@ scalaVersion := "2.11.6"
 
 libraryDependencies ++= Seq(
   ws,
-  "com.dhpcs" %% "liquidity-common" % "0.5.0"
+  "com.dhpcs" %% "liquidity-common" % "0.5.0",
+  specs2 % Test
 )
+
+resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
 
 javaOptions in Universal ++= Seq(
   "-Dpidfile.path=/dev/null",
   "-Dhttp.port=80"
 )
+
+routesGenerator := InjectedRoutesGenerator

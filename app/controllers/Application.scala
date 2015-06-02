@@ -2,8 +2,10 @@ package controllers
 
 import java.io.ByteArrayInputStream
 import java.security.cert.{CertificateFactory, X509Certificate}
+import javax.inject._
 
-import actors.{Actors, ClientConnection}
+import actors.ClientConnection
+import akka.actor.ActorRef
 import com.dhpcs.jsonrpc.JsonRpcMessage
 import com.dhpcs.liquidity.models.PublicKey
 import org.apache.commons.codec.binary.Base64
@@ -14,7 +16,7 @@ import play.api.mvc._
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
-object Application extends Controller {
+class Application @Inject()(@Named("zone-registry") zoneRegistry: ActorRef) extends Controller {
 
   implicit val jsonRpcMessageFrameFormatter = FrameFormatter.jsonFrame[JsonRpcMessage]
 
@@ -49,7 +51,7 @@ object Application extends Controller {
         BadRequest(exception.getMessage)
       )
       case Success(publicKey) => Right(
-        ClientConnection.props(publicKey, Actors.zoneRegistry)
+        ClientConnection.props(publicKey, zoneRegistry)
       )
     })
   }

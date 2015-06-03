@@ -4,7 +4,9 @@ import play.api.libs.json.{Format, Reads, Writes}
 
 object ValueFormat {
 
-  def valueFormat[A, B: Format](apply: B => A)(unapply: A => B): Format[A] = Format(
-    Reads.of[B].map(apply), Writes(a => Writes.of[B].writes(unapply(a))))
+  def apply[V, W: Format](apply: W => V, unapply: V => W) = Format(
+    Reads.of[W].map(apply),
+    Writes[V](a => Writes.of[W].writes(unapply(a)))
+  )
 
 }

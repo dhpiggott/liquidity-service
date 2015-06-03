@@ -7,6 +7,7 @@ import play.api.libs.json._
 
 /**
  * These types define an implementation of JSON-RPC: http://www.jsonrpc.org/specification.
+ * TODO: JsonRpcMessage name should match file name, can the implicit formats be grouped in one object?
  */
 sealed trait JsonRpcMessage
 
@@ -16,6 +17,7 @@ object JsonRpcMessage {
 
   implicit val JsonRpcMessageFormat: Format[JsonRpcMessage] = new Format[JsonRpcMessage] {
 
+    // TODO
     override def reads(jsValue: JsValue) = (
       __.read[JsonRpcRequestMessage].map(m => m: JsonRpcMessage) orElse
         __.read[JsonRpcResponseMessage].map(m => m: JsonRpcMessage) orElse
@@ -34,12 +36,21 @@ object JsonRpcMessage {
 
 abstract class JsonRpcMessageCompanion {
 
-  implicit val IdFormat = eitherFormat[String, Int]
-  implicit val ParamsFormat = eitherFormat[JsArray, JsObject]
+  implicit val IdFormat = eitherValueFormat[String, Int]
+  implicit val ParamsFormat = eitherValueFormat[JsArray, JsObject]
 
-  def eitherFormat[A: Format, B: Format]: Format[Either[A, B]] = ValueFormat.valueFormat(
-    (jsValue: JsValue) => jsValue.asOpt[A].fold[Either[A, B]](Right(jsValue.as[B]))(a => Left(a))
-  )((eitherAorB: Either[A, B]) => eitherAorB.fold(Json.toJson[A], Json.toJson[B]))
+  def eitherObjectFormat[L: Format, R: Format](leftKey: String, rightKey: String) = OFormat[Either[L, R]](
+    (__ \ leftKey).read[L].map(a => Left(a): Either[L, R]) orElse
+      (__ \ rightKey).read[R].map(b => Right(b): Either[L, R]),
+    OWrites[Either[L, R]](
+      _.fold(leftValue => Json.obj(leftKey -> leftValue), rightValue => Json.obj(rightKey -> rightValue))
+    )
+  )
+
+  def eitherValueFormat[L: Format, R: Format]: Format[Either[L, R]] = ValueFormat[Either[L, R], JsValue](
+    jsValue => jsValue.asOpt[L].fold[Either[L, R]](Right(jsValue.as[R]))(a => Left(a)),
+    _.fold[JsValue](Json.toJson[L], Json.toJson[R])
+  )
 
 }
 
@@ -49,30 +60,19 @@ case class JsonRpcRequestMessage(method: String,
 
 object JsonRpcRequestMessage extends JsonRpcMessageCompanion {
 
-  implicit val JsonRpcRequestMessageFormat: Format[JsonRpcRequestMessage] = new Format[JsonRpcRequestMessage] {
-
-    override def reads(jsValue: JsValue) = (
-      (__ \ "jsonrpc").read(verifying[String](_ == JsonRpcMessage.Version)) andKeep
-        (__ \ "method").read[String] and
-        (__ \ "params").read[Either[JsArray, JsObject]] and
-        (__ \ "id").read[Either[String, Int]]
-      )((method, params, id) =>
-      JsonRpcRequestMessage(method, params, id)
-      ).reads(jsValue)
-
-    override def writes(jsonRpcRequestMessage: JsonRpcRequestMessage) = (
-      (__ \ "jsonrpc").write[String] and
-        (__ \ "method").write[String] and
-        (__ \ "params").write[Either[JsArray, JsObject]] and
-        (__ \ "id").write[Either[String, Int]]
-      )((jsonRpcRequestMessage: JsonRpcRequestMessage) =>
-      (JsonRpcMessage.Version,
-        jsonRpcRequestMessage.method,
-        jsonRpcRequestMessage.params,
-        jsonRpcRequestMessage.id)
-      ).writes(jsonRpcRequestMessage)
-
-  }
+  implicit val JsonRpcRequestMessageFormat: Format[JsonRpcRequestMessage] = (
+    (__ \ "jsonrpc").format(verifying[String](_ == JsonRpcMessage.Version)) and
+      (__ \ "method").format[String] and
+      (__ \ "params").format[Either[JsArray, JsObject]] and
+      (__ \ "id").format[Either[String, Int]]
+    )((_, method, params, id) =>
+    JsonRpcRequestMessage(method, params, id),
+      jsonRpcRequestMessage =>
+        (JsonRpcMessage.Version,
+          jsonRpcRequestMessage.method,
+          jsonRpcRequestMessage.params,
+          jsonRpcRequestMessage.id)
+    )
 
 }
 
@@ -82,59 +82,27 @@ case class JsonRpcResponseError(code: Int,
 
 object JsonRpcResponseError {
 
-  implicit val JsonRpcResponseErrorFormat: Format[JsonRpcResponseError] = new Format[JsonRpcResponseError] {
-
-    override def reads(jsValue: JsValue) = (
-      (__ \ "code").read[Int] and
-        (__ \ "message").read[String] and
-        (__ \ "data").readNullable[JsValue]
-      )((code, message, data) =>
-      JsonRpcResponseError(code, message, data)
-      ).reads(jsValue)
-
-    override def writes(jsonRpcResponseError: JsonRpcResponseError) = (
-      (__ \ "code").write[Int] and
-        (__ \ "message").write[String] and
-        (__ \ "data").writeNullable[JsValue]
-      )((jsonRpcResponseError: JsonRpcResponseError) =>
-      (jsonRpcResponseError.code,
-        jsonRpcResponseError.message,
-        jsonRpcResponseError.data)
-      ).writes(jsonRpcResponseError)
-
-  }
+  implicit val JsonRpcResponseErrorFormat = Json.format[JsonRpcResponseError]
 
 }
 
+// TODO: Swap? See http://www.scala-lang.org/api/2.11.6/index.html#scala.util.Either
 case class JsonRpcResponseMessage(eitherResultOrError: Either[JsValue, JsonRpcResponseError],
                                   id: Either[String, Int]) extends JsonRpcMessage
 
 object JsonRpcResponseMessage extends JsonRpcMessageCompanion {
 
-  implicit val JsonRpcResponseMessageFormat: Format[JsonRpcResponseMessage] = new Format[JsonRpcResponseMessage] {
-
-    override def reads(jsValue: JsValue) = (
-      (__ \ "jsonrpc").read(verifying[String](_ == JsonRpcMessage.Version)) andKeep
-        (__ \ "result").readNullable[JsValue] and
-        (__ \ "error").readNullable[JsonRpcResponseError] and
-        (__ \ "id").read[Either[String, Int]]
-      )((result, error, id) =>
-      JsonRpcResponseMessage(error.fold[Either[JsValue, JsonRpcResponseError]](Left(result.get))(Right(_)), id)
-      ).reads(jsValue)
-
-    override def writes(jsonRpcResponseMessage: JsonRpcResponseMessage) = (
-      (__ \ "jsonrpc").write[String] and
-        (__ \ "result").writeNullable[JsValue] and
-        (__ \ "error").writeNullable[JsonRpcResponseError] and
-        (__ \ "id").write[Either[String, Int]]
-      )((jsonRpcResponseMessage: JsonRpcResponseMessage) =>
-      (JsonRpcMessage.Version,
-        jsonRpcResponseMessage.eitherResultOrError.left.toOption,
-        jsonRpcResponseMessage.eitherResultOrError.right.toOption,
-        jsonRpcResponseMessage.id)
-      ).writes(jsonRpcResponseMessage)
-
-  }
+  implicit val JsonRpcResponseMessageFormat: Format[JsonRpcResponseMessage] = (
+    (__ \ "jsonrpc").format(verifying[String](_ == JsonRpcMessage.Version)) and
+      __.format(eitherObjectFormat[JsValue, JsonRpcResponseError]("result", "error")) and
+      (__ \ "id").format[Either[String, Int]]
+    )((_, eitherResultOrError, id) =>
+    JsonRpcResponseMessage(eitherResultOrError, id),
+      jsonRpcResponseMessage =>
+        (JsonRpcMessage.Version,
+          jsonRpcResponseMessage.eitherResultOrError,
+          jsonRpcResponseMessage.id)
+    )
 
 }
 
@@ -143,26 +111,16 @@ case class JsonRpcNotificationMessage(method: String,
 
 object JsonRpcNotificationMessage extends JsonRpcMessageCompanion {
 
-  implicit val JsonRpcNotificationMessageFormat: Format[JsonRpcNotificationMessage] = new Format[JsonRpcNotificationMessage] {
+  implicit val JsonRpcNotificationMessageFormat: Format[JsonRpcNotificationMessage] = (
+    (__ \ "jsonrpc").format(verifying[String](_ == JsonRpcMessage.Version)) and
+      (__ \ "method").format[String] and
+      (__ \ "params").format[Either[JsArray, JsObject]]
+    )((_, method, params) =>
+    JsonRpcNotificationMessage(method, params),
+      jsonRpcNotificationMessage =>
+        (JsonRpcMessage.Version,
+          jsonRpcNotificationMessage.method,
+          jsonRpcNotificationMessage.params)
+    )
 
-    override def reads(jsValue: JsValue) = (
-      (__ \ "jsonrpc").read(verifying[String](_ == JsonRpcMessage.Version)) andKeep
-        (__ \ "method").read[String] and
-        (__ \ "params").read[Either[JsArray, JsObject]]
-      )((method, params) =>
-      JsonRpcNotificationMessage(method, params)
-      ).reads(jsValue)
-
-    override def writes(jsonRpcNotificationMessage: JsonRpcNotificationMessage) = (
-      (__ \ "jsonrpc").write[String] and
-        (__ \ "method").write[String] and
-        (__ \ "params").write[Either[JsArray, JsObject]]
-      )((jsonRpcNotificationMessage: JsonRpcNotificationMessage) =>
-      (JsonRpcMessage.Version,
-        jsonRpcNotificationMessage.method,
-        jsonRpcNotificationMessage.params)
-      ).writes(jsonRpcNotificationMessage)
-
-  }
-
-}
+} 

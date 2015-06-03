@@ -7,6 +7,7 @@ import play.api.libs.json._
 // and https://github.com/zilverline/event-sourced-blog-example/blob/master/app/eventstore/JsonMapping.scala to see if
 // this can be improved.
 
+// TODO: Unifying type that should match file name, also review use of sealed (there may be more uses than necessary)
 sealed trait Command
 
 sealed abstract class CommandMethodName(val name: String)
@@ -89,6 +90,7 @@ object Command {
       case command: DeleteAccount => (DeleteAccountMethodName.name, Json.toJson(command)(Json.writes[DeleteAccount]))
       case command: AddTransaction => (AddTransactionMethodName.name, Json.toJson(command)(Json.writes[AddTransaction]))
     }
+    // TODO: It would be nice to get an OWrites and use that directly to avoid the cast.
     JsonRpcRequestMessage(method, Right(jsValue.asInstanceOf[JsObject]), id)
   }
 
@@ -109,10 +111,9 @@ object CommandResponse {
   def readCommandResponse(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): CommandResponse =
     jsonRpcResponseMessage.eitherResultOrError.fold(
       result => {
-        val jsObject = result.asInstanceOf[JsObject]
         method match {
-          case CreateZoneMethodName.name => jsObject.as(Json.reads[ZoneCreated])
-          case JoinZoneMethodName.name => jsObject.as(Json.reads[ZoneJoined])
+          case CreateZoneMethodName.name => result.as(Json.reads[ZoneCreated])
+          case JoinZoneMethodName.name => result.as(Json.reads[ZoneJoined])
         }
       },
       error => CommandErrorResponse(error.code, error.message, error.data)
@@ -175,6 +176,7 @@ object Notification {
       case notification: MemberJoinedZone => (MemberJoinedZoneMethodName.name, Json.toJson(notification)(Json.writes[MemberJoinedZone]))
       case notification: MemberQuitZone => (MemberQuitZoneMethodName.name, Json.toJson(notification)(Json.writes[MemberQuitZone]))
     }
+    // TODO: It would be nice to get an OWrites and use that directly to avoid the cast.
     JsonRpcNotificationMessage(method, Right(jsValue.asInstanceOf[JsObject]))
   }
 

@@ -4,11 +4,12 @@ import com.dhpcs.json.ValueFormat
 import org.scalatest._
 import play.api.libs.json.Json
 
+// TODO: FunSpec
 case class TestValue(value: String)
 
 object TestValue {
 
-  implicit val TestFormat = ValueFormat.valueFormat(apply)(_.value)
+  implicit val TestFormat = ValueFormat[TestValue, String](apply, _.value)
 
 }
 

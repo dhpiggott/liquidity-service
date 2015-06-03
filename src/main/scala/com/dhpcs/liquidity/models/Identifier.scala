@@ -12,7 +12,7 @@ trait Identifier {
 
 abstract class IdentifierCompanion[T <: Identifier] {
 
-  implicit val IdentifierFormat = ValueFormat.valueFormat(apply)(_.id)
+  implicit val IdentifierFormat = ValueFormat[T, UUID](apply, _.id)
 
   def apply(id: UUID): T
 

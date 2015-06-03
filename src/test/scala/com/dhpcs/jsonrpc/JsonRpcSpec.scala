@@ -1,85 +1,167 @@
 package com.dhpcs.jsonrpc
 
-import com.dhpcs.liquidity.models._
 import org.scalatest._
-import play.api.libs.json.Json
+import play.api.data.validation.ValidationError
+import play.api.libs.json._
 
-class JsonRpcSpec extends FlatSpec with Matchers {
+// TODO: Matchers needed?
+class JsonRpcSpec extends FunSpec with Matchers {
 
-  "JsonRpcRequestMessage formatting with string identifiers" should "be reversible" in {
-    val jsonRpcRequestMessage = Command.writeCommand(
-      CreateZone("Dave's zone", "test"),
-      Left("zero")
+  val TestArray = JsArray(
+    Seq(
+      JsString("param1"),
+      JsString("param2")
     )
-    note(s"jsonRpcRequestMessage: $jsonRpcRequestMessage")
-    val jsonRpcRequestMessageJson = Json.toJson(jsonRpcRequestMessage: JsonRpcMessage)
-    note(s"jsonRpcRequestMessageJson: $jsonRpcRequestMessageJson")
-    jsonRpcRequestMessageJson.as[JsonRpcRequestMessage] should be(jsonRpcRequestMessage)
+  )
+
+  val TestError = JsonRpcResponseError(
+    0,
+    "testError",
+    None
+  )
+
+  val TestIdentifierInt = 0
+
+  val TestIdentifierString = "zero"
+
+  val TestMethod = "testMethod"
+
+  val TestObject = JsObject(
+    Seq(
+      "param1" -> JsString("param1"),
+      "param2" -> JsString("param2")
+    )
+  )
+
+  def decode[T <: JsonRpcMessage : Format](implicit jsonRpcMessageJson: JsValue, jsonRpcMessage: T) =
+    it(s"$jsonRpcMessageJson should decode to $jsonRpcMessage") {
+      jsonRpcMessageJson.as[T] should be(jsonRpcMessage)
+    }
+
+  // TODO: Decode errors
+  def decodeError[T <: JsonRpcMessage : Format](badJsonRpcMessageJson: JsValue, jsError: JsError) =
+    it(s"$badJsonRpcMessageJson should not decode") {
+      Json.fromJson[T](badJsonRpcMessageJson) should be(jsError)
+    }
+
+  def encode[T <: JsonRpcMessage : Format](implicit jsonRpcMessage: T, jsonRpcMessageJson: JsValue) =
+    it(s"$jsonRpcMessage should encode to $jsonRpcMessageJson") {
+      Json.toJson(jsonRpcMessage) should be(jsonRpcMessageJson)
+    }
+
+  describe("A JsonRpcRequestMessage") {
+    describe("with an object params") {
+      describe("with a string identifier") {
+        implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
+          TestMethod,
+          Right(TestObject),
+          Left(TestIdentifierString)
+        )
+        implicit val jsonRpcRequestMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":\"zero\"}")
+        it should behave like encode
+        it should behave like decode
+        it should behave like decodeError(
+          Json.parse("{\"jsonrpc\":\"2.0\",\"methods\":\"testMethod\",\"params\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":\"zero\"}"),
+          JsError(List((__ \ "method",List(ValidationError("error.path.missing")))))
+        )
+      }
+      describe("with an int identifier") {
+        implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
+          TestMethod,
+          Right(TestObject),
+          Right(TestIdentifierInt)
+        )
+        implicit val jsonRpcRequestMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":0}")
+        it should behave like encode
+        it should behave like decode
+      }
+    }
+    describe("with an array params") {
+      describe("with a string identifier") {
+        implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
+          TestMethod,
+          Left(TestArray),
+          Left(TestIdentifierString)
+        )
+        implicit val jsonRpcRequestMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":[\"param1\",\"param2\"],\"id\":\"zero\"}")
+        it should behave like encode
+        it should behave like decode
+      }
+      describe("with an int identifier") {
+        implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
+          TestMethod,
+          Left(TestArray),
+          Right(TestIdentifierInt)
+        )
+        implicit val jsonRpcRequestMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":[\"param1\",\"param2\"],\"id\":0}")
+        it should behave like encode
+        it should behave like decode
+      }
+    }
   }
 
-  "JsonRpcRequestMessage formatting with integer identifiers" should "be reversible" in {
-    val jsonRpcRequestMessage = Command.writeCommand(
-      CreateZone("Dave's zone", "test"),
-      Right(0)
-    )
-    note(s"jsonRpcRequestMessage: $jsonRpcRequestMessage")
-    val jsonRpcRequestMessageJson = Json.toJson(jsonRpcRequestMessage: JsonRpcMessage)
-    note(s"jsonRpcRequestMessageJson: $jsonRpcRequestMessageJson")
-    jsonRpcRequestMessageJson.as[JsonRpcRequestMessage] should be(jsonRpcRequestMessage)
+  describe("A JsonRpcResponseMessage") {
+    describe("with a result") {
+      describe("with a string identifier") {
+        implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
+          Left(TestObject),
+          Left(TestIdentifierString)
+        )
+        implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"result\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":\"zero\"}")
+        it should behave like encode
+        it should behave like decode
+      }
+      describe("with an int identifier") {
+        implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
+          Left(TestObject),
+          Right(TestIdentifierInt)
+        )
+        implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"result\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":0}")
+        it should behave like encode
+        it should behave like decode
+      }
+    }
+    describe("with an error") {
+      describe("with a string identifier") {
+        implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
+          Right(TestError),
+          Left(TestIdentifierString)
+        )
+        implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":0,\"message\":\"testError\"},\"id\":\"zero\"}")
+        it should behave like encode
+        it should behave like decode
+      }
+      describe("with an int identifier") {
+        implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
+          Right(TestError),
+          Right(TestIdentifierInt)
+        )
+        implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":0,\"message\":\"testError\"},\"id\":0}")
+        it should behave like encode
+        it should behave like decode
+      }
+    }
   }
 
-  "JsonRpcResponseMessage formatting with string identifiers" should "be reversible" in {
-    val jsonRpcResponseMessage = CommandResponse.writeCommandResponse(
-      ZoneCreated(ZoneId.generate),
-      Left("zero")
-    )
-    note(s"jsonRpcResponseMessage: $jsonRpcResponseMessage")
-    val jsonRpcResponseMessageJson = Json.toJson(jsonRpcResponseMessage: JsonRpcMessage)
-    note(s"jsonRpcResponseMessageJson: $jsonRpcResponseMessageJson")
-    jsonRpcResponseMessageJson.as[JsonRpcResponseMessage] should be(jsonRpcResponseMessage)
-  }
-
-  "JsonRpcResponseMessage formatting with integer identifiers" should "be reversible" in {
-    val jsonRpcResponseMessage = CommandResponse.writeCommandResponse(
-      ZoneCreated(ZoneId.generate),
-      Right(0)
-    )
-    note(s"jsonRpcResponseMessage: $jsonRpcResponseMessage")
-    val jsonRpcResponseMessageJson = Json.toJson(jsonRpcResponseMessage: JsonRpcMessage)
-    note(s"jsonRpcResponseMessageJson: $jsonRpcResponseMessageJson")
-    jsonRpcResponseMessageJson.as[JsonRpcResponseMessage] should be(jsonRpcResponseMessage)
-  }
-
-  "JsonRpcResponseMessage error formatting with string identifiers" should "be reversible" in {
-    val jsonRpcResponseMessage = CommandResponse.writeCommandResponse(
-      CommandErrorResponse(0, "test,", None),
-      Left("zero")
-    )
-    note(s"jsonRpcResponseMessage: $jsonRpcResponseMessage")
-    val jsonRpcResponseMessageJson = Json.toJson(jsonRpcResponseMessage: JsonRpcMessage)
-    note(s"jsonRpcResponseMessageJson: $jsonRpcResponseMessageJson")
-    jsonRpcResponseMessageJson.as[JsonRpcResponseMessage] should be(jsonRpcResponseMessage)
-  }
-
-  "JsonRpcResponseMessage error formatting with integer identifiers" should "be reversible" in {
-    val jsonRpcResponseMessage = CommandResponse.writeCommandResponse(
-      CommandErrorResponse(0, "test,", None),
-      Right(0)
-    )
-    note(s"jsonRpcResponseMessage: $jsonRpcResponseMessage")
-    val jsonRpcResponseMessageJson = Json.toJson(jsonRpcResponseMessage: JsonRpcMessage)
-    note(s"jsonRpcResponseMessageJson: $jsonRpcResponseMessageJson")
-    jsonRpcResponseMessageJson.as[JsonRpcResponseMessage] should be(jsonRpcResponseMessage)
-  }
-
-  "JsonRpcNotificationMessage formatting" should "be reversible" in {
-    val jsonRpcNotificationMessage = Notification.writeNotification(
-      MemberJoinedZone(ZoneId.generate, MemberId.generate)
-    )
-    note(s"jsonRpcNotificationMessage: $jsonRpcNotificationMessage")
-    val jsonRpcNotificationMessageJson = Json.toJson(jsonRpcNotificationMessage: JsonRpcMessage)
-    note(s"jsonRpcNotificationMessageJson: $jsonRpcNotificationMessageJson")
-    jsonRpcNotificationMessageJson.as[JsonRpcNotificationMessage] should be(jsonRpcNotificationMessage)
+  describe("A JsonRpcNotificationMessage") {
+    describe("with an object params") {
+      implicit val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
+        TestMethod,
+        Right(TestObject)
+      )
+      implicit val jsonRpcNotificationMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":{\"param1\":\"param1\",\"param2\":\"param2\"}}")
+      it should behave like encode
+      it should behave like decode
+    }
+    describe("with an array params") {
+      implicit val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
+        TestMethod,
+        Left(TestArray)
+      )
+      implicit val jsonRpcNotificationMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":[\"param1\",\"param2\"]}")
+      it should behave like encode
+      it should behave like decode
+    }
   }
 
 }

@@ -1,7 +1,7 @@
 package controllers
 
 import java.io.ByteArrayInputStream
-import java.security.cert.{CertificateFactory, X509Certificate}
+import java.security.cert.CertificateFactory
 import javax.inject._
 
 import actors.ClientConnection
@@ -41,7 +41,7 @@ class Application @Inject()(@Named("zone-registry") zoneRegistry: ActorRef) exte
         new ByteArrayInputStream(
           Base64.decodeBase64(pemStringData.getOrElse(scala.sys.error("Client certificate PEM string is not valid")))
         )
-      ).asInstanceOf[X509Certificate].getPublicKey.getEncoded
+      ).getPublicKey.getEncoded
     )
   }
 

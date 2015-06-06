@@ -86,21 +86,20 @@ object JsonRpcResponseError {
 
 }
 
-// TODO: Swap? See http://www.scala-lang.org/api/2.11.6/index.html#scala.util.Either
-case class JsonRpcResponseMessage(eitherResultOrError: Either[JsValue, JsonRpcResponseError],
+case class JsonRpcResponseMessage(eitherErrorOrResult: Either[JsonRpcResponseError, JsValue],
                                   id: Either[String, Int]) extends JsonRpcMessage
 
 object JsonRpcResponseMessage extends JsonRpcMessageCompanion {
 
   implicit val JsonRpcResponseMessageFormat: Format[JsonRpcResponseMessage] = (
     (__ \ "jsonrpc").format(verifying[String](_ == JsonRpcMessage.Version)) and
-      __.format(eitherObjectFormat[JsValue, JsonRpcResponseError]("result", "error")) and
+      __.format(eitherObjectFormat[JsonRpcResponseError, JsValue]("error", "result")) and
       (__ \ "id").format[Either[String, Int]]
-    )((_, eitherResultOrError, id) =>
-    JsonRpcResponseMessage(eitherResultOrError, id),
+    )((_, eitherErrorOrResult, id) =>
+    JsonRpcResponseMessage(eitherErrorOrResult, id),
       jsonRpcResponseMessage =>
         (JsonRpcMessage.Version,
-          jsonRpcResponseMessage.eitherResultOrError,
+          jsonRpcResponseMessage.eitherErrorOrResult,
           jsonRpcResponseMessage.id)
     )
 

@@ -104,7 +104,7 @@ class JsonRpcSpec extends FunSpec with Matchers {
     describe("with a result") {
       describe("with a string identifier") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Left(TestObject),
+          Right(TestObject),
           Left(TestIdentifierString)
         )
         implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"result\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":\"zero\"}")
@@ -113,7 +113,7 @@ class JsonRpcSpec extends FunSpec with Matchers {
       }
       describe("with an int identifier") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Left(TestObject),
+          Right(TestObject),
           Right(TestIdentifierInt)
         )
         implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"result\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":0}")
@@ -124,7 +124,7 @@ class JsonRpcSpec extends FunSpec with Matchers {
     describe("with an error") {
       describe("with a string identifier") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Right(TestError),
+          Left(TestError),
           Left(TestIdentifierString)
         )
         implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":0,\"message\":\"testError\"},\"id\":\"zero\"}")
@@ -133,7 +133,7 @@ class JsonRpcSpec extends FunSpec with Matchers {
       }
       describe("with an int identifier") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Right(TestError),
+          Left(TestError),
           Right(TestIdentifierInt)
         )
         implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":0,\"message\":\"testError\"},\"id\":0}")

@@ -109,27 +109,27 @@ case class ZoneJoined(zone: Option[Zone]) extends CommandResultResponse
 object CommandResponse {
 
   def readCommandResponse(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): CommandResponse =
-    jsonRpcResponseMessage.eitherResultOrError.fold(
-      result => {
-        method match {
-          case CreateZoneMethodName.name => result.as(Json.reads[ZoneCreated])
-          case JoinZoneMethodName.name => result.as(Json.reads[ZoneJoined])
-        }
-      },
-      error => CommandErrorResponse(error.code, error.message, error.data)
+    jsonRpcResponseMessage.eitherErrorOrResult.fold(
+      error => CommandErrorResponse(error.code, error.message, error.data),
+        result => {
+    method match {
+      case CreateZoneMethodName.name => result.as(Json.reads[ZoneCreated])
+      case JoinZoneMethodName.name => result.as(Json.reads[ZoneJoined])
+    }
+  }
     )
 
   def writeCommandResponse(commandResponse: CommandResponse, id: Either[String, Int]): JsonRpcResponseMessage = {
-    val eitherResultOrError = commandResponse match {
-      case CommandErrorResponse(code, message, data) => Right(
+    val eitherErrorOrResult = commandResponse match {
+      case CommandErrorResponse(code, message, data) => Left(
         JsonRpcResponseError(code, message, data)
       )
       case commandResultResponse: CommandResultResponse => commandResultResponse match {
-        case commandResponse: ZoneCreated => Left(Json.toJson(commandResponse)(Json.writes[ZoneCreated]))
-        case commandResponse: ZoneJoined => Left(Json.toJson(commandResponse)(Json.writes[ZoneJoined]))
+        case commandResponse: ZoneCreated => Right(Json.toJson(commandResponse)(Json.writes[ZoneCreated]))
+        case commandResponse: ZoneJoined => Right(Json.toJson(commandResponse)(Json.writes[ZoneJoined]))
       }
     }
-    JsonRpcResponseMessage(eitherResultOrError, id)
+    JsonRpcResponseMessage(eitherErrorOrResult, id)
   }
 
 }

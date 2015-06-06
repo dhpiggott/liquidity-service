@@ -11,7 +11,6 @@ object MemberId extends IdentifierCompanion[MemberId]
 case class Member(name: String,
                   publicKey: PublicKey)
 
-// TODO: Common base class here too?
 object Member {
 
   implicit val MemberFormat = Json.format[Member]

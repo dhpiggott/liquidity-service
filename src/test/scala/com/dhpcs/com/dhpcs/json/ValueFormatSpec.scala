@@ -15,14 +15,14 @@ class ValueFormatSpec extends FunSpec with Matchers {
 
   }
 
+  def decodeError(badTestValueJson: JsValue, jsError: JsError) =
+    it(s"$badTestValueJson should fail to decode with error $jsError") {
+      Json.fromJson[TestValue](badTestValueJson) should be(jsError)
+    }
+
   def decode(implicit testValueJson: JsValue, testValue: TestValue) =
     it(s"$testValueJson should decode to $testValue") {
       testValueJson.as[TestValue] should be(testValue)
-    }
-
-  def decodeError(badTestValueJson: JsValue, jsError: JsError) =
-    it(s"$badTestValueJson should not decode") {
-      Json.fromJson[TestValue](badTestValueJson) should be(jsError)
     }
 
   def encode(implicit testValue: TestValue, testValueJson: JsValue) =
@@ -30,15 +30,18 @@ class ValueFormatSpec extends FunSpec with Matchers {
       Json.toJson(testValue) should be(testValueJson)
     }
 
+  describe("A JsValue of the wrong type") {
+    it should behave like decodeError(
+      Json.parse("0"),
+      JsError(List((__, List(ValidationError("error.expected.jsstring")))))
+    )
+  }
+
   describe("A TestValue") {
     implicit val testValue = TestValue("test")
     implicit val testValueJson = Json.parse("\"test\"")
     it should behave like decode
     it should behave like encode
-    it should behave like decodeError(
-      Json.parse("0"),
-      JsError(List((__, List(ValidationError("error.expected.jsstring")))))
-    )
   }
 
 }

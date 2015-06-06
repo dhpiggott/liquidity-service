@@ -1,13 +1,9 @@
 package com.dhpcs.jsonrpc
 
-import com.dhpcs.json.ValueFormat
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
-/**
- * These types define an implementation of JSON-RPC: http://www.jsonrpc.org/specification.
- */
 sealed trait JsonRpcMessage
 
 object JsonRpcMessage {
@@ -16,17 +12,19 @@ object JsonRpcMessage {
 
   implicit val JsonRpcMessageFormat: Format[JsonRpcMessage] = new Format[JsonRpcMessage] {
 
-    // TODO
     override def reads(jsValue: JsValue) = (
       __.read[JsonRpcRequestMessage].map(m => m: JsonRpcMessage) orElse
         __.read[JsonRpcResponseMessage].map(m => m: JsonRpcMessage) orElse
         __.read[JsonRpcNotificationMessage].map(m => m: JsonRpcMessage)
-      ).reads(jsValue)
+      ).reads(jsValue).orElse(JsError("not a valid request, response or notification message"))
 
     override def writes(jsonRpcMessage: JsonRpcMessage) = jsonRpcMessage match {
-      case jsonRpcRequestMessage: JsonRpcRequestMessage => Json.toJson(jsonRpcRequestMessage)(JsonRpcRequestMessage.JsonRpcRequestMessageFormat)
-      case jsonRpcResponseMessage: JsonRpcResponseMessage => Json.toJson(jsonRpcResponseMessage)(JsonRpcResponseMessage.JsonRpcResponseMessageFormat)
-      case jsonRpcNotificationMessage: JsonRpcNotificationMessage => Json.toJson(jsonRpcNotificationMessage)(JsonRpcNotificationMessage.JsonRpcNotificationMessageFormat)
+      case jsonRpcRequestMessage: JsonRpcRequestMessage =>
+        Json.toJson(jsonRpcRequestMessage)(JsonRpcRequestMessage.JsonRpcRequestMessageFormat)
+      case jsonRpcResponseMessage: JsonRpcResponseMessage =>
+        Json.toJson(jsonRpcResponseMessage)(JsonRpcResponseMessage.JsonRpcResponseMessageFormat)
+      case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
+        Json.toJson(jsonRpcNotificationMessage)(JsonRpcNotificationMessage.JsonRpcNotificationMessageFormat)
     }
 
   }
@@ -39,16 +37,27 @@ abstract class JsonRpcMessageCompanion {
   implicit val ParamsFormat = eitherValueFormat[JsArray, JsObject]
 
   def eitherObjectFormat[L: Format, R: Format](leftKey: String, rightKey: String) = OFormat[Either[L, R]](
+
     (__ \ leftKey).read[L].map(a => Left(a): Either[L, R]) orElse
       (__ \ rightKey).read[R].map(b => Right(b): Either[L, R]),
-    OWrites[Either[L, R]](
-      _.fold(leftValue => Json.obj(leftKey -> leftValue), rightValue => Json.obj(rightKey -> rightValue))
-    )
+
+    OWrites[Either[L, R]] {
+      case Left(leftValue) => Json.obj(leftKey -> leftValue)
+      case Right(rightValue) => Json.obj(rightKey -> rightValue)
+    }
+
   )
 
-  def eitherValueFormat[L: Format, R: Format]: Format[Either[L, R]] = ValueFormat[Either[L, R], JsValue](
-    jsValue => jsValue.asOpt[L].fold[Either[L, R]](Right(jsValue.as[R]))(a => Left(a)),
-    _.fold[JsValue](Json.toJson[L], Json.toJson[R])
+  def eitherValueFormat[L: Format, R: Format]: Format[Either[L, R]] = Format[Either[L, R]](
+
+    __.read[L].map(a => Left(a): Either[L, R]) orElse
+      __.read[R].map(b => Right(b): Either[L, R]),
+
+    Writes[Either[L, R]] {
+      case Left(leftValue) => Json.toJson[L](leftValue)
+      case Right(rightValue) => Json.toJson[R](rightValue)
+    }
+
   )
 
 }

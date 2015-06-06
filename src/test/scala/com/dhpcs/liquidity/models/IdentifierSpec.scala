@@ -7,24 +7,24 @@ import play.api.data.validation.ValidationError
 import play.api.libs.json._
 
 class IdentifierSpec extends FunSpec with Matchers {
-  
-  case class TestId(id: UUID) extends Identifier
 
-  object TestId extends IdentifierCompanion[TestId]
+  case class TestIdentifier(id: UUID) extends Identifier
+
+  object TestIdentifier extends IdentifierCompanion[TestIdentifier]
 
   def decodeError(badTestIdJson: JsValue, jsError: JsError) =
     it(s"$badTestIdJson should fail to decode with error $jsError") {
-      Json.fromJson[TestId](badTestIdJson) should be(jsError)
+      Json.fromJson[TestIdentifier](badTestIdJson) should be(jsError)
     }
 
-  def decode(implicit testIdJson: JsValue, testId: TestId) =
-    it(s"$testIdJson should decode to $testId") {
-      testIdJson.as[TestId] should be(testId)
+  def decode(implicit testIdentifierJson: JsValue, testIdentifier: TestIdentifier) =
+    it(s"$testIdentifierJson should decode to $testIdentifier") {
+      testIdentifierJson.as[TestIdentifier] should be(testIdentifier)
     }
 
-  def encode(implicit testId: TestId, testIdJson: JsValue) =
-    it(s"$testId should encode to $testIdJson") {
-      Json.toJson(testId) should be(testIdJson)
+  def encode(implicit testIdentifier: TestIdentifier, testIdentifierJson: JsValue) =
+    it(s"$testIdentifier should encode to $testIdentifierJson") {
+      Json.toJson(testIdentifier) should be(testIdentifierJson)
     }
 
   describe("A JsValue of the wrong type") {
@@ -34,9 +34,9 @@ class IdentifierSpec extends FunSpec with Matchers {
     )
   }
 
-  describe("A TestId") {
-    implicit val testId = TestId(UUID.fromString("77bade6c-eeb3-4f0a-ad0f-5761426c3a7e"))
-    implicit val testIdJson = Json.parse("\"77bade6c-eeb3-4f0a-ad0f-5761426c3a7e\"")
+  describe("A TestIdentifier") {
+    implicit val testIdentifier = TestIdentifier(UUID.fromString("77bade6c-eeb3-4f0a-ad0f-5761426c3a7e"))
+    implicit val testIdentifierJson = Json.parse("\"77bade6c-eeb3-4f0a-ad0f-5761426c3a7e\"")
     it should behave like decode
     it should behave like encode
   }

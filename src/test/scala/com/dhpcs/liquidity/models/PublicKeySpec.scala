@@ -2,17 +2,41 @@ package com.dhpcs.liquidity.models
 
 import java.security.KeyPairGenerator
 
+import com.google.common.io.BaseEncoding
 import org.scalatest._
-import play.api.libs.json.Json
+import play.api.data.validation.ValidationError
+import play.api.libs.json._
 
-class PublicKeySpec extends FlatSpec with Matchers {
+class PublicKeySpec extends FunSpec with Matchers {
 
-  "PublicKey formatting" should "be reversible" in {
-    val publicKey = PublicKey(KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded)
-    note(s"publicKey: $publicKey")
-    val publicKeyJson = Json.toJson(publicKey)
-    note(s"publicKeyJson: $publicKeyJson")
-    publicKeyJson.as[PublicKey] should be(publicKey)
+  def decodeError(badPublicKeyJson: JsValue, jsError: JsError) =
+    it(s"$badPublicKeyJson should fail to decode with error $jsError") {
+      Json.fromJson[PublicKey](badPublicKeyJson) should be(jsError)
+    }
+
+  def decode(implicit publicKeyJson: JsValue, publicKey: PublicKey) =
+    it(s"$publicKeyJson should decode to $publicKey") {
+      publicKeyJson.as[PublicKey] should be(publicKey)
+    }
+
+  def encode(implicit publicKey: PublicKey, publicKeyJson: JsValue) =
+    it(s"$publicKey should encode to $publicKeyJson") {
+      Json.toJson(publicKey) should be(publicKeyJson)
+    }
+
+  describe("A JsValue of the wrong type") {
+    it should behave like decodeError(
+      Json.parse("0"),
+      JsError(List((__, List(ValidationError("error.expected.jsstring")))))
+    )
+  }
+
+  describe("A PublicKey") {
+    val rawPublicKey = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
+    implicit val publicKey = PublicKey(rawPublicKey)
+    implicit val publicKeyJson = Json.parse( s"""\"${BaseEncoding.base64.encode(rawPublicKey)}\"""")
+    it should behave like decode
+    it should behave like encode
   }
 
 }

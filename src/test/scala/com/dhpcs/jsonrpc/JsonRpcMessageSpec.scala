@@ -6,32 +6,6 @@ import play.api.libs.json._
 
 class JsonRpcMessageSpec extends FunSpec with Matchers {
 
-  val TestArray = JsArray(
-    Seq(
-      JsString("param1"),
-      JsString("param2")
-    )
-  )
-
-  val TestError = JsonRpcResponseError(
-    0,
-    "testError",
-    None
-  )
-
-  val TestIdentifierInt = 0
-
-  val TestIdentifierString = "zero"
-
-  val TestMethod = "testMethod"
-
-  val TestObject = JsObject(
-    Seq(
-      "param1" -> JsString("param1"),
-      "param2" -> JsString("param2")
-    )
-  )
-
   def decodeError[T <: JsonRpcMessage : Format](badJsonRpcMessageJson: JsValue, jsError: JsError) =
     it(s"$badJsonRpcMessageJson should fail to decode with error $jsError") {
       Json.fromJson[T](badJsonRpcMessageJson) should be(jsError)
@@ -112,9 +86,14 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
     describe("with a params array") {
       describe("and an identifier string") {
         implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
-          TestMethod,
-          Left(TestArray),
-          Left(TestIdentifierString)
+          "testMethod",
+          Left(JsArray(
+            Seq(
+              JsString("param1"),
+              JsString("param2")
+            )
+          )),
+          Left("zero")
         )
         implicit val jsonRpcRequestMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":[\"param1\",\"param2\"],\"id\":\"zero\"}")
         it should behave like decode
@@ -122,9 +101,14 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
       }
       describe("and an identifier int") {
         implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
-          TestMethod,
-          Left(TestArray),
-          Right(TestIdentifierInt)
+          "testMethod",
+          Left(JsArray(
+            Seq(
+              JsString("param1"),
+              JsString("param2")
+            )
+          )),
+          Right(0)
         )
         implicit val jsonRpcRequestMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":[\"param1\",\"param2\"],\"id\":0}")
         it should behave like decode
@@ -134,9 +118,14 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
     describe("with a params object") {
       describe("and an identifier string") {
         implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
-          TestMethod,
-          Right(TestObject),
-          Left(TestIdentifierString)
+          "testMethod",
+          Right(JsObject(
+            Seq(
+              "param1" -> JsString("param1"),
+              "param2" -> JsString("param2")
+            )
+          )),
+          Left("zero")
         )
         implicit val jsonRpcRequestMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":\"zero\"}")
         it should behave like decode
@@ -144,9 +133,14 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
       }
       describe("and an identifier int") {
         implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
-          TestMethod,
-          Right(TestObject),
-          Right(TestIdentifierInt)
+          "testMethod",
+          Right(JsObject(
+            Seq(
+              "param1" -> JsString("param1"),
+              "param2" -> JsString("param2")
+            )
+          )),
+          Right(0)
         )
         implicit val jsonRpcRequestMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":0}")
         it should behave like decode
@@ -201,8 +195,12 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
     describe("with an error") {
       describe("and an identifier string") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Left(TestError),
-          Left(TestIdentifierString)
+          Left(JsonRpcResponseError(
+            0,
+            "testError",
+            None
+          )),
+          Left("zero")
         )
         implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":0,\"message\":\"testError\"},\"id\":\"zero\"}")
         it should behave like decode
@@ -210,8 +208,12 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
       }
       describe("and an identifier int") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Left(TestError),
-          Right(TestIdentifierInt)
+          Left(JsonRpcResponseError(
+            0,
+            "testError",
+            None
+          )),
+          Right(0)
         )
         implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":0,\"message\":\"testError\"},\"id\":0}")
         it should behave like decode
@@ -221,8 +223,13 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
     describe("with a result") {
       describe("and an identifier string") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Right(TestObject),
-          Left(TestIdentifierString)
+          Right(JsObject(
+            Seq(
+              "param1" -> JsString("param1"),
+              "param2" -> JsString("param2")
+            )
+          )),
+          Left("zero")
         )
         implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"result\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":\"zero\"}")
         it should behave like decode
@@ -230,8 +237,13 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
       }
       describe("and an identifier int") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Right(TestObject),
-          Right(TestIdentifierInt)
+          Right(JsObject(
+            Seq(
+              "param1" -> JsString("param1"),
+              "param2" -> JsString("param2")
+            )
+          )),
+          Right(0)
         )
         implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"result\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":0}")
         it should behave like decode
@@ -285,8 +297,13 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
     }
     describe("with a params array") {
       implicit val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
-        TestMethod,
-        Left(TestArray)
+        "testMethod",
+        Left(JsArray(
+          Seq(
+            JsString("param1"),
+            JsString("param2")
+          )
+        ))
       )
       implicit val jsonRpcNotificationMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":[\"param1\",\"param2\"]}")
       it should behave like decode
@@ -294,8 +311,13 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
     }
     describe("with a params object") {
       implicit val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
-        TestMethod,
-        Right(TestObject)
+        "testMethod",
+        Right(JsObject(
+          Seq(
+            "param1" -> JsString("param1"),
+            "param2" -> JsString("param2")
+          )
+        ))
       )
       implicit val jsonRpcNotificationMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"method\":\"testMethod\",\"params\":{\"param1\":\"param1\",\"param2\":\"param2\"}}")
       it should behave like decode

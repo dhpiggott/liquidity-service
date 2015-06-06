@@ -7,8 +7,9 @@ import play.api.libs.json._
 // and https://github.com/zilverline/event-sourced-blog-example/blob/master/app/eventstore/JsonMapping.scala to see if
 // this can be improved.
 
-// TODO: Unifying type that should match file name, also review use of sealed (there may be more uses than necessary)
-sealed trait Command
+sealed trait Message
+
+sealed trait Command extends Message
 
 sealed abstract class CommandMethodName(val name: String)
 
@@ -96,7 +97,7 @@ object Command {
 
 }
 
-sealed trait CommandResponse
+sealed trait CommandResponse extends Message
 
 case class CommandErrorResponse(code: Int, message: String, data: Option[JsValue]) extends CommandResponse
 
@@ -134,7 +135,7 @@ object CommandResponse {
 
 }
 
-sealed trait Notification
+sealed trait Notification extends Message
 
 sealed abstract class NotificationMethodName(val name: String)
 

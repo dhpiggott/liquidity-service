@@ -7,7 +7,7 @@ import play.api.libs.json._
 
 /**
  * These types define an implementation of JSON-RPC: http://www.jsonrpc.org/specification.
- * TODO: JsonRpcMessage name should match file name, can the implicit formats be grouped in one object?
+ * TODO: Can the implicit formats be grouped in one object?
  */
 sealed trait JsonRpcMessage
 

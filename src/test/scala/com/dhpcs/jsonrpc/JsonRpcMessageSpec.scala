@@ -5,7 +5,7 @@ import play.api.data.validation.ValidationError
 import play.api.libs.json._
 
 // TODO: Matchers needed?
-class JsonRpcSpec extends FunSpec with Matchers {
+class JsonRpcMessageSpec extends FunSpec with Matchers {
 
   val TestArray = JsArray(
     Seq(

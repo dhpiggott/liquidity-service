@@ -4,6 +4,7 @@ import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 
+// TODO: Extract as separate library
 class JsonRpcMessageSpec extends FunSpec with Matchers {
 
   def decodeError[T <: JsonRpcMessage : Format](badJsonRpcMessageJson: JsValue, jsError: JsError) =

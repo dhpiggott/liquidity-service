@@ -4,7 +4,6 @@ import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 
-// TODO: Matchers needed?
 class JsonRpcMessageSpec extends FunSpec with Matchers {
 
   val TestArray = JsArray(
@@ -38,7 +37,6 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
       jsonRpcMessageJson.as[T] should be(jsonRpcMessage)
     }
 
-  // TODO: Decode errors
   def decodeError[T <: JsonRpcMessage : Format](badJsonRpcMessageJson: JsValue, jsError: JsError) =
     it(s"$badJsonRpcMessageJson should not decode") {
       Json.fromJson[T](badJsonRpcMessageJson) should be(jsError)
@@ -62,7 +60,7 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
         it should behave like decode
         it should behave like decodeError(
           Json.parse("{\"jsonrpc\":\"2.0\",\"methods\":\"testMethod\",\"params\":{\"param1\":\"param1\",\"param2\":\"param2\"},\"id\":\"zero\"}"),
-          JsError(List((__ \ "method",List(ValidationError("error.path.missing")))))
+          JsError(List((__ \ "method", List(ValidationError("error.path.missing")))))
         )
       }
       describe("with an int identifier") {

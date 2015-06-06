@@ -35,9 +35,9 @@ class MemberSpec extends FunSpec with Matchers {
   }
 
   describe("A Member") {
-    val rawPublicKey = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    implicit val member = Member("Dave", PublicKey(rawPublicKey))
-    implicit val memberJson = Json.parse( s"""{\"name\":\"Dave\",\"publicKey\":\"${BaseEncoding.base64.encode(rawPublicKey)}\"}""")
+    val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
+    implicit val member = Member("Dave", PublicKey(publicKeyBytes))
+    implicit val memberJson = Json.parse( s"""{\"name\":\"Dave\",\"publicKey\":\"${BaseEncoding.base64.encode(publicKeyBytes)}\"}""")
     it should behave like decode
     it should behave like encode
   }

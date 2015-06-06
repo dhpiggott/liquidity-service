@@ -35,8 +35,8 @@ class IdentifierSpec extends FunSpec with Matchers {
   }
 
   describe("A TestIdentifier") {
-    implicit val testIdentifier = TestIdentifier(UUID.fromString("77bade6c-eeb3-4f0a-ad0f-5761426c3a7e"))
-    implicit val testIdentifierJson = Json.parse("\"77bade6c-eeb3-4f0a-ad0f-5761426c3a7e\"")
+    implicit val testIdentifier = TestIdentifier(UUID.fromString("c65910f3-40b0-476d-a404-c0bcbb57f45a"))
+    implicit val testIdentifierJson = Json.parse("\"c65910f3-40b0-476d-a404-c0bcbb57f45a\"")
     it should behave like decode
     it should behave like encode
   }

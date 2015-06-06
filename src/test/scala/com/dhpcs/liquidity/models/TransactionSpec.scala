@@ -1,5 +1,7 @@
 package com.dhpcs.liquidity.models
 
+import java.util.UUID
+
 import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
@@ -34,10 +36,13 @@ class TransactionSpec extends FunSpec with Matchers {
   }
 
   describe("A Transaction") {
-    val from = AccountId.generate
-    val to = AccountId.generate
-    implicit val transaction = Transaction("test", from, to, BigDecimal(1))
-    implicit val transactionJson = Json.parse( s"""{\"description\":\"test\",\"from\":\"${from.id}\",\"to\":\"${to.id}\",\"amount\":1}""")
+    implicit val transaction = Transaction(
+      "test",
+      AccountId(UUID.fromString("28c331cd-35eb-45b2-a478-82334d7a4593")),
+      AccountId(UUID.fromString("a1191a07-fc84-4245-975a-9798a9c26a9e")),
+      BigDecimal(1000000)
+    )
+    implicit val transactionJson = Json.parse("{\"description\":\"test\",\"from\":\"28c331cd-35eb-45b2-a478-82334d7a4593\",\"to\":\"a1191a07-fc84-4245-975a-9798a9c26a9e\",\"amount\":1000000}")
     it should behave like decode
     it should behave like encode
   }

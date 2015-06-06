@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.models
 
 import java.security.KeyPairGenerator
+import java.util.UUID
 
 import com.google.common.io.BaseEncoding
 import org.scalatest._
@@ -39,27 +40,29 @@ class ZoneSpec extends FunSpec with Matchers {
   }
 
   describe("A Zone") {
-    val memberId = MemberId.generate
-    // TODO: Be consistent with public key and id vals across all tests
-    val memberRawPublicKey = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    val memberAccountId = AccountId.generate
-    val lotteryFundAccountId = AccountId.generate
-    val lastModified = System.currentTimeMillis
+    val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     implicit val zone = Zone(
       "Dave's zone",
       "test",
       Map(
-        memberId -> Member("Dave", PublicKey(memberRawPublicKey))
+        MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37")) ->
+          Member("Dave", PublicKey(publicKeyBytes))
       ),
       Map(
-        memberAccountId -> Account("Dave's account", Set(memberId))
+        AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")) ->
+          Account("Dave's account", Set(MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37"))))
       ),
       Seq(
-        Transaction("Dave's lottery win", lotteryFundAccountId, memberAccountId, BigDecimal(1000000))
+        Transaction(
+          "Dave's lottery win",
+          AccountId(UUID.fromString("80ccbec2-79a4-4cfa-8e97-f33fac2aa5ba")),
+          AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")),
+          BigDecimal(1000000)
+        )
       ),
-      lastModified
+      1433611420487L
     )
-    implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","type":"test","members":{"${memberId.id}":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(memberRawPublicKey)}"}},"accounts":{"${memberAccountId.id}":{"name":"Dave's account","owners":["${memberId.id}"]}},"transactions":[{"description":"Dave's lottery win","from":"${lotteryFundAccountId.id}","to":"${memberAccountId.id}","amount":1000000}],"lastModified":$lastModified}""")
+    implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","type":"test","members":{"fa781d33-368f-42a5-9c64-0e4b43381c37":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}},"accounts":{"f2f4613c-0645-4dec-895b-2812382f4523":{"name":"Dave's account","owners":["fa781d33-368f-42a5-9c64-0e4b43381c37"]}},"transactions":[{"description":"Dave's lottery win","from":"80ccbec2-79a4-4cfa-8e97-f33fac2aa5ba","to":"f2f4613c-0645-4dec-895b-2812382f4523","amount":1000000}],"lastModified":1433611420487}""")
     it should behave like decode
     it should behave like encode
   }

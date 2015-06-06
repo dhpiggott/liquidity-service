@@ -1,5 +1,7 @@
 package com.dhpcs.liquidity.models
 
+import java.util.UUID
+
 import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
@@ -32,9 +34,11 @@ class AccountSpec extends FunSpec with Matchers {
   }
 
   describe("An Account") {
-    val owner = MemberId.generate
-    implicit val account = Account("Dave's account", Set(owner))
-    implicit val accountJson = Json.parse( s"""{\"name\":\"Dave's account\",\"owners\":[\"${owner.id}\"]}""")
+    implicit val account = Account(
+      "Dave's account",
+      Set(MemberId(UUID.fromString("6709b5c8-1f18-491e-b703-d76baa261099")))
+    )
+    implicit val accountJson = Json.parse("{\"name\":\"Dave's account\",\"owners\":[\"6709b5c8-1f18-491e-b703-d76baa261099\"]}")
     it should behave like decode
     it should behave like encode
   }

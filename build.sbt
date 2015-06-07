@@ -2,15 +2,13 @@ name := "liquidity-common"
 
 organization := "com.dhpcs"
 
-version := "0.5.0-SNAPSHOT"
+version := "0.5.0"
 
 scalaVersion := "2.11.6"
 
-resolvers += "Pellucid Bintray" at "https://dl.bintray.com/pellucid/maven"
-
 libraryDependencies ++= Seq(
-  "com.pellucid" %% "sealerate" % "0.0.3",
   "com.typesafe.play" %% "play-json" % "2.3.8",
+  "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test",
   "com.google.guava" % "guava" % "18.0",
   "com.google.code.findbugs" % "jsr305" % "3.0.0"
 )

@@ -44,12 +44,13 @@ class ClientConnection(publicKey: PublicKey,
 
     case jsonString: String =>
 
+      // TODO: Extract all error constants to liquidity-common - see http://www.jsonrpc.org/specification#error_object
+      // TODO: Make this whole block read better
       Try(Json.parse(jsonString)) match {
 
         case Failure(e) =>
 
           sender ! Json.toJson(
-            // TODO: Extract all error constants to liquidity-common - see http://www.jsonrpc.org/specification#error_object
             JsonRpcResponseError(
               -32700,
               "Parse error",
@@ -71,7 +72,6 @@ class ClientConnection(publicKey: PublicKey,
           jsonRpcRequestMessageJsResult.fold(
 
             invalid => sender ! Json.toJson(
-              // TODO: Extract all error constants to liquidity-common - see http://www.jsonrpc.org/specification#error_object
               JsonRpcResponseError(
                 -32600,
                 "Invalid Request",
@@ -88,8 +88,37 @@ class ClientConnection(publicKey: PublicKey,
 
             valid =>
 
-              // TODO: Make readCommand etc. return e.g. JsResult based on whether the method is valid etc. and fold on that
-              Command.readCommand(valid) match {
+              Command.readCommand(valid).fold(
+                sender ! Json.toJson(
+                  JsonRpcResponseError(
+                    -32601,
+                    "Method not found",
+                    Some(
+                      JsObject(
+                        Seq(
+                          "meaning" -> JsString("The method does not exist / is not available."),
+                          "error" -> JsString(s"${valid.method} is not a valid method")
+                        )
+                      )
+                    )
+                  )
+                )
+              )(_.fold(
+
+              invalid => sender ! Json.toJson(
+                JsonRpcResponseError(
+                  -32602,
+                  "Invalid params",
+                  Some(
+                    JsObject(
+                      Seq(
+                        "meaning" -> JsString("Invalid method parameter(s)."),
+                        "error" -> JsError.toJson(invalid)
+                      )
+                    )
+                  )
+                )
+              ), {
 
                 case command: CreateZone =>
 
@@ -132,9 +161,10 @@ class ClientConnection(publicKey: PublicKey,
                     _ ! AuthenticatedCommand(publicKey, zoneCommand, valid.id)
                   )
 
-              }
+              }))
 
           )
+
       }
 
     case cacheValidator@CacheValidator(zoneId, validator) =>

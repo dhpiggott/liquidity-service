@@ -7,6 +7,9 @@ import akka.pattern.{ask, pipe}
 import akka.util.Timeout
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.models._
+import play.api.libs.json._
+
+import scala.util.{Failure, Success, Try}
 
 object ClientConnection {
 
@@ -39,51 +42,99 @@ class ClientConnection(publicKey: PublicKey,
 
   def receive = {
 
-    case jsonRpcRequestMessage: JsonRpcRequestMessage =>
+    case jsonString: String =>
 
-      Command.readCommand(jsonRpcRequestMessage) match {
+      Try(Json.parse(jsonString)) match {
 
-        case command: CreateZone =>
+        case Failure(e) =>
 
-          log.debug(s"Received $command}")
-
-          (zoneRegistry ? CreateValidator)
-            .mapTo[ValidatorCreated]
-            .map { case ValidatorCreated(zoneId, validator) =>
-            validator ! AuthenticatedCommand(publicKey, command, jsonRpcRequestMessage.id)
-            CacheValidator(zoneId, validator)
-          }.pipeTo(self)
-
-        case command@JoinZone(zoneId) =>
-
-          log.debug(s"Received $command}")
-
-          (zoneRegistry ? GetValidator(zoneId))
-            .mapTo[ValidatorGot]
-            .map { case ValidatorGot(validator) =>
-            validator ! AuthenticatedCommand(publicKey, command, jsonRpcRequestMessage.id)
-            CacheValidator(zoneId, validator)
-          }.pipeTo(self)
-
-        case command@QuitZone(zoneId) =>
-
-          log.debug(s"Received $command}")
-
-          joinedValidators.get(zoneId).foreach { validator =>
-            validator ! AuthenticatedCommand(publicKey, command, jsonRpcRequestMessage.id)
-            context.unwatch(validator)
-
-            joinedValidators -= zoneId
-          }
-
-        case zoneCommand: ZoneCommand =>
-
-          log.debug(s"Received $zoneCommand}")
-
-          joinedValidators.get(zoneCommand.zoneId).foreach(
-            _ ! AuthenticatedCommand(publicKey, zoneCommand, jsonRpcRequestMessage.id)
+          sender ! Json.toJson(
+            // TODO: Extract all error constants to liquidity-common - see http://www.jsonrpc.org/specification#error_object
+            JsonRpcResponseError(
+              -32700,
+              "Parse error",
+              Some(
+                JsObject(
+                  Seq(
+                    "meaning" -> JsString("Invalid JSON was received by the server.\nAn error occurred on the server while parsing the JSON text."),
+                    "error" -> JsString(e.getMessage)
+                  )
+                )
+              )
+            )
           )
 
+        case Success(jsValue) =>
+
+          val jsonRpcRequestMessageJsResult = Json.fromJson[JsonRpcRequestMessage](jsValue)
+
+          jsonRpcRequestMessageJsResult.fold(
+
+            invalid => sender ! Json.toJson(
+              // TODO: Extract all error constants to liquidity-common - see http://www.jsonrpc.org/specification#error_object
+              JsonRpcResponseError(
+                -32600,
+                "Invalid Request",
+                Some(
+                  JsObject(
+                    Seq(
+                      "meaning" -> JsString("The JSON sent is not a valid Request object."),
+                      "error" -> JsError.toJson(invalid)
+                    )
+                  )
+                )
+              )
+            ),
+
+            valid =>
+
+              // TODO: Make readCommand etc. return e.g. JsResult based on whether the method is valid etc. and fold on that
+              Command.readCommand(valid) match {
+
+                case command: CreateZone =>
+
+                  log.debug(s"Received $command}")
+
+                  (zoneRegistry ? CreateValidator)
+                    .mapTo[ValidatorCreated]
+                    .map { case ValidatorCreated(zoneId, validator) =>
+                    validator ! AuthenticatedCommand(publicKey, command, valid.id)
+                    CacheValidator(zoneId, validator)
+                  }.pipeTo(self)
+
+                case command@JoinZone(zoneId) =>
+
+                  log.debug(s"Received $command}")
+
+                  (zoneRegistry ? GetValidator(zoneId))
+                    .mapTo[ValidatorGot]
+                    .map { case ValidatorGot(validator) =>
+                    validator ! AuthenticatedCommand(publicKey, command, valid.id)
+                    CacheValidator(zoneId, validator)
+                  }.pipeTo(self)
+
+                case command@QuitZone(zoneId) =>
+
+                  log.debug(s"Received $command}")
+
+                  joinedValidators.get(zoneId).foreach { validator =>
+                    validator ! AuthenticatedCommand(publicKey, command, valid.id)
+                    context.unwatch(validator)
+
+                    joinedValidators -= zoneId
+                  }
+
+                case zoneCommand: ZoneCommand =>
+
+                  log.debug(s"Received $zoneCommand}")
+
+                  joinedValidators.get(zoneCommand.zoneId).foreach(
+                    _ ! AuthenticatedCommand(publicKey, zoneCommand, valid.id)
+                  )
+
+              }
+
+          )
       }
 
     case cacheValidator@CacheValidator(zoneId, validator) =>
@@ -98,13 +149,13 @@ class ClientConnection(publicKey: PublicKey,
 
       log.debug(s"Received $commandResponse}")
 
-      upstream ! CommandResponse.writeCommandResponse(commandResponse, id)
+      upstream ! Json.toJson(CommandResponse.writeCommandResponse(commandResponse, id))
 
     case notification: Notification =>
 
       log.debug(s"Received $notification}")
 
-      upstream ! Notification.writeNotification(notification)
+      upstream ! Json.toJson(Notification.writeNotification(notification))
 
     case terminated@Terminated(validator) =>
 

@@ -58,21 +58,21 @@ case object AddTransactionMethodName extends CommandMethodName("addTransaction")
 
 object Command {
 
-  def readCommand(jsonRpcRequestMessage: JsonRpcRequestMessage): Command = {
+  def readCommand(jsonRpcRequestMessage: JsonRpcRequestMessage): Option[JsResult[Command]] = {
     val jsObject = jsonRpcRequestMessage.params.right.get
     jsonRpcRequestMessage.method match {
-      case CreateZoneMethodName.name => jsObject.as(Json.reads[CreateZone])
-      case JoinZoneMethodName.name => jsObject.as(Json.reads[JoinZone])
-      case RestoreZoneMethodName.name => jsObject.as(Json.reads[RestoreZone])
-      case QuitZoneMethodName.name => jsObject.as(Json.reads[QuitZone])
-      case SetZoneNameMethodName.name => jsObject.as(Json.reads[SetZoneName])
-      case CreateMemberMethodName.name => jsObject.as(Json.reads[CreateMember])
-      case UpdateMemberMethodName.name => jsObject.as(Json.reads[UpdateMember])
-      case DeleteMemberMethodName.name => jsObject.as(Json.reads[DeleteMember])
-      case CreateAccountMethodName.name => jsObject.as(Json.reads[CreateAccount])
-      case UpdateAccountMethodName.name => jsObject.as(Json.reads[UpdateAccount])
-      case DeleteAccountMethodName.name => jsObject.as(Json.reads[DeleteAccount])
-      case AddTransactionMethodName.name => jsObject.as(Json.reads[AddTransaction])
+      case CreateZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[CreateZone]))
+      case JoinZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[JoinZone]))
+      case RestoreZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[RestoreZone]))
+      case QuitZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[QuitZone]))
+      case SetZoneNameMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[SetZoneName]))
+      case CreateMemberMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[CreateMember]))
+      case UpdateMemberMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[UpdateMember]))
+      case DeleteMemberMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[DeleteMember]))
+      case CreateAccountMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[CreateAccount]))
+      case DeleteAccountMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[DeleteAccount]))
+      case AddTransactionMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[AddTransaction]))
+      case _ => None
     }
   }
 
@@ -109,15 +109,15 @@ case class ZoneJoined(zone: Option[Zone]) extends CommandResultResponse
 
 object CommandResponse {
 
-  def readCommandResponse(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): CommandResponse =
+  def readCommandResponse(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): JsResult[CommandResponse] =
     jsonRpcResponseMessage.eitherErrorOrResult.fold(
-      error => CommandErrorResponse(error.code, error.message, error.data),
-        result => {
-    method match {
-      case CreateZoneMethodName.name => result.as(Json.reads[ZoneCreated])
-      case JoinZoneMethodName.name => result.as(Json.reads[ZoneJoined])
-    }
-  }
+      error => JsSuccess(CommandErrorResponse(error.code, error.message, error.data)),
+      result => {
+        method match {
+          case CreateZoneMethodName.name => Json.fromJson(result)(Json.reads[ZoneCreated])
+          case JoinZoneMethodName.name => Json.fromJson(result)(Json.reads[ZoneJoined])
+        }
+      }
     )
 
   def writeCommandResponse(commandResponse: CommandResponse, id: Either[String, Int]): JsonRpcResponseMessage = {
@@ -160,13 +160,14 @@ case object MemberQuitZoneMethodName extends NotificationMethodName("memberQuitZ
 
 object Notification {
 
-  def readNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage): Notification = {
+  def readNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage): Option[JsResult[Notification]] = {
     val jsObject = jsonRpcNotificationMessage.params.right.get
     jsonRpcNotificationMessage.method match {
-      case ZoneStateMethodName.name => jsObject.as(Json.reads[ZoneState])
-      case ZoneTerminatedMethodName.name => jsObject.as(Json.reads[ZoneTerminated])
-      case MemberJoinedZoneMethodName.name => jsObject.as(Json.reads[MemberJoinedZone])
-      case MemberQuitZoneMethodName.name => jsObject.as(Json.reads[MemberQuitZone])
+      case ZoneStateMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ZoneState]))
+      case ZoneTerminatedMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ZoneTerminated]))
+      case MemberJoinedZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[MemberJoinedZone]))
+      case MemberQuitZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[MemberQuitZone]))
+      case _ => None
     }
   }
 

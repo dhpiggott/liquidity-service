@@ -40,130 +40,95 @@ class ClientConnection(publicKey: PublicKey,
     log.debug(s"Started actor for ${publicKey.fingerprint}")
   }
 
+  def readCommand(jsonString: String): Either[JsonRpcResponseError, (Command, Either[String, Int])] =
+
+    Try(Json.parse(jsonString)) match {
+
+      case Failure(e) =>
+
+        Left(JsonRpcResponseError.parseError(e))
+
+      case Success(jsValue) =>
+
+        Json.fromJson[JsonRpcRequestMessage](jsValue).fold(
+
+          errors => Left(JsonRpcResponseError.invalidRequest(errors)),
+
+          jsonRpcRequestMessage =>
+
+            Command.readCommand(jsonRpcRequestMessage)
+              .fold[Either[JsonRpcResponseError, (Command, Either[String, Int])]](
+
+                Left(JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method))
+
+              )(commandJsResult => commandJsResult.fold(
+
+              errors => Left(JsonRpcResponseError.invalidParams(errors)),
+
+              command => Right(command, jsonRpcRequestMessage.id)
+
+            ))
+
+        )
+
+    }
+
   def receive = {
 
     case jsonString: String =>
 
-      // TODO: Extract all error constants to liquidity-common - see http://www.jsonrpc.org/specification#error_object
-      // TODO: Make this whole block read better
-      Try(Json.parse(jsonString)) match {
+      readCommand(jsonString) match {
 
-        case Failure(e) =>
+        case Left(jsonRpcResponseError) =>
 
-          sender ! Json.toJson(
-            JsonRpcResponseError(
-              -32700,
-              "Parse error",
-              Some(
-                JsObject(
-                  Seq(
-                    "meaning" -> JsString("Invalid JSON was received by the server.\nAn error occurred on the server while parsing the JSON text."),
-                    "error" -> JsString(e.getMessage)
-                  )
-                )
+          sender ! Json.toJson(jsonRpcResponseError)
+
+        case Right((command, id)) =>
+
+          command match {
+
+            case command: CreateZone =>
+
+              log.debug(s"Received $command}")
+
+              (zoneRegistry ? CreateValidator)
+                .mapTo[ValidatorCreated]
+                .map { case ValidatorCreated(zoneId, validator) =>
+                validator ! AuthenticatedCommand(publicKey, command, id)
+                CacheValidator(zoneId, validator)
+              }.pipeTo(self)
+
+            case command@JoinZone(zoneId) =>
+
+              log.debug(s"Received $command}")
+
+              (zoneRegistry ? GetValidator(zoneId))
+                .mapTo[ValidatorGot]
+                .map { case ValidatorGot(validator) =>
+                validator ! AuthenticatedCommand(publicKey, command, id)
+                CacheValidator(zoneId, validator)
+              }.pipeTo(self)
+
+            case command@QuitZone(zoneId) =>
+
+              log.debug(s"Received $command}")
+
+              joinedValidators.get(zoneId).foreach { validator =>
+                validator ! AuthenticatedCommand(publicKey, command, id)
+                context.unwatch(validator)
+
+                joinedValidators -= zoneId
+              }
+
+            case zoneCommand: ZoneCommand =>
+
+              log.debug(s"Received $zoneCommand}")
+
+              joinedValidators.get(zoneCommand.zoneId).foreach(
+                _ ! AuthenticatedCommand(publicKey, zoneCommand, id)
               )
-            )
-          )
 
-        case Success(jsValue) =>
-
-          val jsonRpcRequestMessageJsResult = Json.fromJson[JsonRpcRequestMessage](jsValue)
-
-          jsonRpcRequestMessageJsResult.fold(
-
-            invalid => sender ! Json.toJson(
-              JsonRpcResponseError(
-                -32600,
-                "Invalid Request",
-                Some(
-                  JsObject(
-                    Seq(
-                      "meaning" -> JsString("The JSON sent is not a valid Request object."),
-                      "error" -> JsError.toJson(invalid)
-                    )
-                  )
-                )
-              )
-            ),
-
-            valid =>
-
-              Command.readCommand(valid).fold(
-                sender ! Json.toJson(
-                  JsonRpcResponseError(
-                    -32601,
-                    "Method not found",
-                    Some(
-                      JsObject(
-                        Seq(
-                          "meaning" -> JsString("The method does not exist / is not available."),
-                          "error" -> JsString(s"${valid.method} is not a valid method")
-                        )
-                      )
-                    )
-                  )
-                )
-              )(_.fold(
-
-              invalid => sender ! Json.toJson(
-                JsonRpcResponseError(
-                  -32602,
-                  "Invalid params",
-                  Some(
-                    JsObject(
-                      Seq(
-                        "meaning" -> JsString("Invalid method parameter(s)."),
-                        "error" -> JsError.toJson(invalid)
-                      )
-                    )
-                  )
-                )
-              ), {
-
-                case command: CreateZone =>
-
-                  log.debug(s"Received $command}")
-
-                  (zoneRegistry ? CreateValidator)
-                    .mapTo[ValidatorCreated]
-                    .map { case ValidatorCreated(zoneId, validator) =>
-                    validator ! AuthenticatedCommand(publicKey, command, valid.id)
-                    CacheValidator(zoneId, validator)
-                  }.pipeTo(self)
-
-                case command@JoinZone(zoneId) =>
-
-                  log.debug(s"Received $command}")
-
-                  (zoneRegistry ? GetValidator(zoneId))
-                    .mapTo[ValidatorGot]
-                    .map { case ValidatorGot(validator) =>
-                    validator ! AuthenticatedCommand(publicKey, command, valid.id)
-                    CacheValidator(zoneId, validator)
-                  }.pipeTo(self)
-
-                case command@QuitZone(zoneId) =>
-
-                  log.debug(s"Received $command}")
-
-                  joinedValidators.get(zoneId).foreach { validator =>
-                    validator ! AuthenticatedCommand(publicKey, command, valid.id)
-                    context.unwatch(validator)
-
-                    joinedValidators -= zoneId
-                  }
-
-                case zoneCommand: ZoneCommand =>
-
-                  log.debug(s"Received $zoneCommand}")
-
-                  joinedValidators.get(zoneCommand.zoneId).foreach(
-                    _ ! AuthenticatedCommand(publicKey, zoneCommand, valid.id)
-                  )
-
-              }))
-
-          )
+          }
 
       }
 

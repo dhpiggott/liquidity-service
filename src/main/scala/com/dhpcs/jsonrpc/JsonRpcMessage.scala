@@ -1,5 +1,6 @@
 package com.dhpcs.jsonrpc
 
+import play.api.data.validation.ValidationError
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
@@ -85,6 +86,10 @@ object JsonRpcRequestMessage extends JsonRpcMessageCompanion {
 
 }
 
+/**
+ * Do not construct these directly - use the helpers on the companion object. As well as helping with the formatting
+ * of the error content, these will ensure the correct codes are used.
+ */
 case class JsonRpcResponseError(code: Int,
                                 message: String,
                                 data: Option[JsValue])
@@ -92,6 +97,85 @@ case class JsonRpcResponseError(code: Int,
 object JsonRpcResponseError {
 
   implicit val JsonRpcResponseErrorFormat = Json.format[JsonRpcResponseError]
+
+  val ReservedErrorCodeFloor = -32768
+  val ReservedErrorCodeCeiling = -32000
+
+  val ParseErrorCode = -32700
+  val InvalidRequestCode = -32600
+  val MethodNotFoundCode = -32601
+  val InvalidParamsCode = -32602
+  val InternalErrorCode = -32603
+  val ServerErrorCodeFloor = -32099
+  val ServerErrorCodeCeiling = -32000
+
+  private def build(code: Int, message: String, meaning: String, error: Option[JsValue]) = JsonRpcResponseError(
+    code,
+    message,
+    Some(
+      JsObject(
+        "meaning" -> JsString(meaning) ::
+          error.fold[List[(String, JsValue)]](Nil)(
+            error => List("error" -> error)
+          )
+      )
+    )
+  )
+
+  def parseError(exception: Exception) = build(
+    ParseErrorCode,
+    "Parse error",
+    "Invalid JSON was received by the server.\nAn error occurred on the server while parsing the JSON text.",
+    Some(JsString(exception.getMessage))
+  )
+
+  def invalidRequest(errors: Seq[(JsPath, Seq[ValidationError])]) = build(
+    InvalidRequestCode,
+    "Invalid Request",
+    "The JSON sent is not a valid Request object.",
+    Some(JsError.toJson(errors))
+  )
+
+  def methodNotFound(method: String) = build(
+    MethodNotFoundCode,
+    "Method not found",
+    "The method does not exist / is not available.",
+    Some(JsString( s"""The method "$method" is not implemented."""))
+  )
+
+  def invalidParams(errors: Seq[(JsPath, Seq[ValidationError])]) = build(
+    InvalidParamsCode,
+    "Invalid params",
+    "Invalid method parameter(s).",
+    Some(JsError.toJson(errors))
+  )
+
+  def internalError(error: Option[JsValue] = None) = build(
+    InternalErrorCode,
+    "Invalid params",
+    "Internal JSON-RPC error.",
+    error
+  )
+
+  def serverError(code: Int, error: Option[JsValue] = None) = {
+    require(code >= ServerErrorCodeFloor && code <= ServerErrorCodeCeiling)
+    build(
+      InternalErrorCode,
+      "Invalid params",
+      "Internal JSON-RPC error.",
+      error
+    )
+  }
+
+  def applicationError(code: Int, message: String, meaning: String, error: Option[JsValue] = None) = {
+    require(code > ReservedErrorCodeCeiling || code < ReservedErrorCodeFloor)
+    build(
+      code,
+      message,
+      meaning,
+      error
+    )
+  }
 
 }
 

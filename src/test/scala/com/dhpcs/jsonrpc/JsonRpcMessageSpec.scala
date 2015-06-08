@@ -196,27 +196,19 @@ class JsonRpcMessageSpec extends FunSpec with Matchers {
     describe("with an error") {
       describe("and an identifier string") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Left(JsonRpcResponseError(
-            0,
-            "testError",
-            None
-          )),
+          Left(JsonRpcResponseError.internalError()),
           Left("zero")
         )
-        implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":0,\"message\":\"testError\"},\"id\":\"zero\"}")
+        implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Invalid params\",\"data\":{\"meaning\":\"Internal JSON-RPC error.\"}},\"id\":\"zero\"}")
         it should behave like decode
         it should behave like encode
       }
       describe("and an identifier int") {
         implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
-          Left(JsonRpcResponseError(
-            0,
-            "testError",
-            None
-          )),
+          Left(JsonRpcResponseError.internalError()),
           Right(0)
         )
-        implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":0,\"message\":\"testError\"},\"id\":0}")
+        implicit val jsonRpcResponseMessageJson = Json.parse("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"Invalid params\",\"data\":{\"meaning\":\"Internal JSON-RPC error.\"}},\"id\":0}")
         it should behave like decode
         it should behave like encode
       }

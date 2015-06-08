@@ -144,13 +144,13 @@ class ClientConnection(publicKey: PublicKey,
 
       log.debug(s"Received $commandResponse}")
 
-      upstream ! Json.toJson(CommandResponse.writeCommandResponse(commandResponse, id))
+      upstream ! Json.stringify(Json.toJson(CommandResponse.writeCommandResponse(commandResponse, id)))
 
     case notification: Notification =>
 
       log.debug(s"Received $notification}")
 
-      upstream ! Json.toJson(Notification.writeNotification(notification))
+      upstream ! Json.stringify(Json.toJson(Notification.writeNotification(notification)))
 
     case terminated@Terminated(validator) =>
 

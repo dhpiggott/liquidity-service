@@ -41,8 +41,7 @@ class Application @Inject()(@Named("zone-registry") zoneRegistry: ActorRef) exte
     )
   }
 
-  // TODO: Rename to ws
-  def socket = WebSocket.tryAcceptWithActor[String, String] { request =>
+  def ws = WebSocket.tryAcceptWithActor[String, String] { request =>
     Future.successful(
       getPublicKey(request.headers) match {
         case Failure(exception) => Left(

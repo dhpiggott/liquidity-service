@@ -122,7 +122,7 @@ object JsonRpcResponseError {
     )
   )
 
-  def parseError(exception: Exception) = build(
+  def parseError(exception: Throwable) = build(
     ParseErrorCode,
     "Parse error",
     "Invalid JSON was received by the server.\nAn error occurred on the server while parsing the JSON text.",

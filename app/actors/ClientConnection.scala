@@ -81,7 +81,9 @@ class ClientConnection(publicKey: PublicKey,
 
         case Left(jsonRpcResponseError) =>
 
-          sender ! Json.toJson(jsonRpcResponseError)
+          log.debug(s"Receive error $jsonRpcResponseError}")
+
+          sender ! Json.stringify(Json.toJson(jsonRpcResponseError))
 
         case Right((command, id)) =>
 

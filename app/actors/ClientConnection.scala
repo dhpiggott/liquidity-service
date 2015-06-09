@@ -40,30 +40,31 @@ class ClientConnection(publicKey: PublicKey,
     log.debug(s"Started actor for ${publicKey.fingerprint}")
   }
 
-  def readCommand(jsonString: String): Either[JsonRpcResponseError, (Command, Either[String, Int])] =
+  def readCommand(jsonString: String):
+  (Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])]) =
 
     Try(Json.parse(jsonString)) match {
 
       case Failure(e) =>
 
-        Left(JsonRpcResponseError.parseError(e))
+        Left(JsonRpcResponseError.parseError(e), None)
 
       case Success(jsValue) =>
 
         Json.fromJson[JsonRpcRequestMessage](jsValue).fold(
 
-          errors => Left(JsonRpcResponseError.invalidRequest(errors)),
+          errors => Left(JsonRpcResponseError.invalidRequest(errors), None),
 
           jsonRpcRequestMessage =>
 
             Command.readCommand(jsonRpcRequestMessage)
-              .fold[Either[JsonRpcResponseError, (Command, Either[String, Int])]](
+              .fold[(Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])])](
 
-                Left(JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method))
+                Left(JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method), Some(jsonRpcRequestMessage.id))
 
               )(commandJsResult => commandJsResult.fold(
 
-              errors => Left(JsonRpcResponseError.invalidParams(errors)),
+              errors => Left(JsonRpcResponseError.invalidParams(errors), Some(jsonRpcRequestMessage.id)),
 
               command => Right(command, jsonRpcRequestMessage.id)
 
@@ -79,11 +80,15 @@ class ClientConnection(publicKey: PublicKey,
 
       readCommand(jsonString) match {
 
-        case Left(jsonRpcResponseError) =>
+        case Left((jsonRpcResponseError, maybeId)) =>
 
           log.debug(s"Receive error $jsonRpcResponseError}")
 
-          sender ! Json.stringify(Json.toJson(jsonRpcResponseError))
+          sender ! Json.stringify(
+            Json.toJson(
+              JsonRpcResponseMessage(Left(jsonRpcResponseError), maybeId)
+            )
+          )
 
         case Right((command, id)) =>
 
@@ -146,13 +151,21 @@ class ClientConnection(publicKey: PublicKey,
 
       log.debug(s"Received $commandResponse}")
 
-      upstream ! Json.stringify(Json.toJson(CommandResponse.writeCommandResponse(commandResponse, id)))
+      upstream ! Json.stringify(
+        Json.toJson(
+          CommandResponse.writeCommandResponse(commandResponse, id)
+        )
+      )
 
     case notification: Notification =>
 
       log.debug(s"Received $notification}")
 
-      upstream ! Json.stringify(Json.toJson(Notification.writeNotification(notification)))
+      upstream ! Json.stringify(
+        Json.toJson(
+          Notification.writeNotification(notification)
+        )
+      )
 
     case terminated@Terminated(validator) =>
 

@@ -107,6 +107,26 @@ case class ZoneCreated(zoneId: ZoneId) extends CommandResultResponse
 
 case class ZoneJoined(zone: Option[Zone]) extends CommandResultResponse
 
+case object ZoneRestored extends CommandResultResponse
+
+case object ZoneQuit extends CommandResultResponse
+
+case object ZoneNameSet extends CommandResultResponse
+
+case class MemberCreated(memberId: MemberId) extends CommandResultResponse
+
+case object MemberUpdated extends CommandResultResponse
+
+case object MemberDeleted extends CommandResultResponse
+
+case class AccountCreated(accountId: AccountId) extends CommandResultResponse
+
+case object AccountUpdated extends CommandResultResponse
+
+case object AccountDeleted extends CommandResultResponse
+
+case object TransactionAdded extends CommandResultResponse
+
 object CommandResponse {
 
   def readCommandResponse(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): JsResult[CommandResponse] =
@@ -116,11 +136,23 @@ object CommandResponse {
         method match {
           case CreateZoneMethodName.name => Json.fromJson(result)(Json.reads[ZoneCreated])
           case JoinZoneMethodName.name => Json.fromJson(result)(Json.reads[ZoneJoined])
+          case RestoreZoneMethodName.name => JsSuccess(ZoneRestored)
+          case QuitZoneMethodName.name => JsSuccess(ZoneQuit)
+          case SetZoneNameMethodName.name => JsSuccess(ZoneNameSet)
+          case CreateMemberMethodName.name => Json.fromJson(result)(Json.reads[MemberCreated])
+          case UpdateMemberMethodName.name => JsSuccess(MemberUpdated)
+          case DeleteMemberMethodName.name => JsSuccess(MemberDeleted)
+          case CreateAccountMethodName.name => Json.fromJson(result)(Json.reads[AccountCreated])
+          case UpdateAccountMethodName.name => JsSuccess(AccountUpdated)
+          case DeleteAccountMethodName.name => JsSuccess(AccountDeleted)
+          case AddTransactionMethodName.name => JsSuccess(TransactionAdded)
         }
       }
     )
 
-  def writeCommandResponse(commandResponse: CommandResponse, id: Either[String, Int]): JsonRpcResponseMessage = {
+  def writeCommandResponse(commandResponse: CommandResponse,
+                           id: Either[String, Int],
+                           emptyJsObject: JsObject): JsonRpcResponseMessage = {
     val eitherErrorOrResult = commandResponse match {
       case CommandErrorResponse(code, message, data) => Left(
         JsonRpcResponseError(code, message, data)
@@ -128,6 +160,16 @@ object CommandResponse {
       case commandResultResponse: CommandResultResponse => commandResultResponse match {
         case commandResponse: ZoneCreated => Right(Json.toJson(commandResponse)(Json.writes[ZoneCreated]))
         case commandResponse: ZoneJoined => Right(Json.toJson(commandResponse)(Json.writes[ZoneJoined]))
+        case ZoneRestored => Right(emptyJsObject)
+        case ZoneQuit => Right(emptyJsObject)
+        case ZoneNameSet => Right(emptyJsObject)
+        case commandResponse: MemberCreated => Right(Json.toJson(commandResponse)(Json.writes[MemberCreated]))
+        case MemberUpdated => Right(emptyJsObject)
+        case MemberDeleted => Right(emptyJsObject)
+        case commandResponse: AccountCreated => Right(Json.toJson(commandResponse)(Json.writes[AccountCreated]))
+        case AccountUpdated => Right(emptyJsObject)
+        case AccountDeleted => Right(emptyJsObject)
+        case TransactionAdded => Right(emptyJsObject)
       }
     }
     JsonRpcResponseMessage(eitherErrorOrResult, Some(id))
@@ -173,7 +215,7 @@ object Notification {
 
   def writeNotification(notification: Notification): JsonRpcNotificationMessage = {
     val (method, jsValue) = notification match {
-      case notification: ZoneState => (ZoneStateMethodName.name, Json.toJson(notification)(Json.writes[ZoneState]))
+      case notification: ZoneState => (ZoneStateMethodName.name,Json.toJson(notification)(Json.writes[ZoneState]))
       case notification: ZoneTerminated => (ZoneTerminatedMethodName.name, Json.toJson(notification)(Json.writes[ZoneTerminated]))
       case notification: MemberJoinedZone => (MemberJoinedZoneMethodName.name, Json.toJson(notification)(Json.writes[MemberJoinedZone]))
       case notification: MemberQuitZone => (MemberQuitZoneMethodName.name, Json.toJson(notification)(Json.writes[MemberQuitZone]))

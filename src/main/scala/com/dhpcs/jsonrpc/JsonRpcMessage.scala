@@ -115,7 +115,7 @@ object JsonRpcResponseError {
                     message: String,
                     meaning: String,
                     error: Option[JsValue],
-                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = JsonRpcResponseError(
+                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject) = JsonRpcResponseError(
     code,
     message,
     Some(
@@ -129,7 +129,7 @@ object JsonRpcResponseError {
   )
 
   def parseError(exception: Throwable,
-                 jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
+                 jsObjectBuilder: Seq[(String, JsValue)] => JsObject) = build(
     ParseErrorCode,
     "Parse error",
     "Invalid JSON was received by the server.\nAn error occurred on the server while parsing the JSON text.",
@@ -138,16 +138,17 @@ object JsonRpcResponseError {
   )
 
   def invalidRequest(errors: Seq[(JsPath, Seq[ValidationError])],
-                     jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
+                     jsErrorObjectBuilder: Seq[(JsPath, Seq[ValidationError])] => JsObject,
+                     jsObjectBuilder: Seq[(String, JsValue)] => JsObject) = build(
     InvalidRequestCode,
     "Invalid Request",
     "The JSON sent is not a valid Request object.",
-    Some(JsError.toFlatJson(errors)),
+    Some(jsErrorObjectBuilder(errors)),
     jsObjectBuilder
   )
 
   def methodNotFound(method: String,
-                     jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
+                     jsObjectBuilder: Seq[(String, JsValue)] => JsObject) = build(
     MethodNotFoundCode,
     "Method not found",
     "The method does not exist / is not available.",
@@ -156,16 +157,17 @@ object JsonRpcResponseError {
   )
 
   def invalidParams(errors: Seq[(JsPath, Seq[ValidationError])],
-                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
+                    jsErrorObjectBuilder: Seq[(JsPath, Seq[ValidationError])] => JsObject,
+                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject) = build(
     InvalidParamsCode,
     "Invalid params",
     "Invalid method toFlatJson(s).",
-    Some(JsError.toFlatJson(errors)),
+    Some(jsErrorObjectBuilder(errors)),
     jsObjectBuilder
   )
 
   def internalError(error: Option[JsValue] = None,
-                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
+                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject) = build(
     InternalErrorCode,
     "Invalid params",
     "Internal JSON-RPC error.",
@@ -174,7 +176,7 @@ object JsonRpcResponseError {
   )
 
   def serverError(code: Int, error: Option[JsValue] = None,
-                  jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = {
+                  jsObjectBuilder: Seq[(String, JsValue)] => JsObject) = {
     require(code >= ServerErrorCodeFloor && code <= ServerErrorCodeCeiling)
     build(
       InternalErrorCode,
@@ -189,7 +191,7 @@ object JsonRpcResponseError {
                        message: String,
                        meaning: String,
                        error: Option[JsValue] = None,
-                       jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = {
+                       jsObjectBuilder: Seq[(String, JsValue)] => JsObject) = {
     require(code > ReservedErrorCodeCeiling || code < ReservedErrorCodeFloor)
     build(
       code,

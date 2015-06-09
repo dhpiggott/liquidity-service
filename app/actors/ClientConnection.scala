@@ -57,7 +57,7 @@ class ClientConnection(publicKey: PublicKey,
         Json.fromJson[JsonRpcRequestMessage](jsValue).fold(
 
           errors => Left(
-            JsonRpcResponseError.invalidRequest(errors, JsObject.apply),
+            JsonRpcResponseError.invalidRequest(errors, JsError.toJson, JsObject.apply),
             None
           ),
 
@@ -74,7 +74,7 @@ class ClientConnection(publicKey: PublicKey,
               )(commandJsResult => commandJsResult.fold(
 
               errors => Left(
-                JsonRpcResponseError.invalidParams(errors, JsObject.apply),
+                JsonRpcResponseError.invalidParams(errors, JsError.toJson, JsObject.apply),
                 Some(jsonRpcRequestMessage.id)
               ),
 
@@ -168,7 +168,7 @@ class ClientConnection(publicKey: PublicKey,
 
       upstream ! Json.stringify(
         Json.toJson(
-          CommandResponse.writeCommandResponse(commandResponse, id)
+          CommandResponse.writeCommandResponse(commandResponse, id, JsObject(Seq.empty))
         )
       )
 

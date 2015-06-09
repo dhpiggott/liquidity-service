@@ -2,7 +2,7 @@ name := """liquidity-common"""
 
 organization := "com.dhpcs"
 
-version := "0.9.0"
+version := "0.10.0-SNAPSHOT"
 
 scalaVersion := "2.11.6"
 

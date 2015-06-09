@@ -180,14 +180,14 @@ object JsonRpcResponseError {
 }
 
 case class JsonRpcResponseMessage(eitherErrorOrResult: Either[JsonRpcResponseError, JsValue],
-                                  id: Either[String, Int]) extends JsonRpcMessage
+                                  id: Option[Either[String, Int]]) extends JsonRpcMessage
 
 object JsonRpcResponseMessage extends JsonRpcMessageCompanion {
 
   implicit val JsonRpcResponseMessageFormat: Format[JsonRpcResponseMessage] = (
     (__ \ "jsonrpc").format(verifying[String](_ == JsonRpcMessage.Version)) and
       __.format(eitherObjectFormat[JsonRpcResponseError, JsValue]("error", "result")) and
-      (__ \ "id").format[Either[String, Int]]
+      (__ \ "id").format[Option[Either[String, Int]]]
     )((_, eitherErrorOrResult, id) =>
     JsonRpcResponseMessage(eitherErrorOrResult, id),
       jsonRpcResponseMessage =>

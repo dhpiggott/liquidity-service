@@ -130,7 +130,7 @@ object CommandResponse {
         case commandResponse: ZoneJoined => Right(Json.toJson(commandResponse)(Json.writes[ZoneJoined]))
       }
     }
-    JsonRpcResponseMessage(eitherErrorOrResult, id)
+    JsonRpcResponseMessage(eitherErrorOrResult, Some(id))
   }
 
 }

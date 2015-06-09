@@ -47,26 +47,41 @@ class ClientConnection(publicKey: PublicKey,
 
       case Failure(e) =>
 
-        Left(JsonRpcResponseError.parseError(e), None)
+        Left(
+          JsonRpcResponseError.parseError(e, JsObject.apply),
+          None
+        )
 
       case Success(jsValue) =>
 
         Json.fromJson[JsonRpcRequestMessage](jsValue).fold(
 
-          errors => Left(JsonRpcResponseError.invalidRequest(errors), None),
+          errors => Left(
+            JsonRpcResponseError.invalidRequest(errors, JsObject.apply),
+            None
+          ),
 
           jsonRpcRequestMessage =>
 
             Command.readCommand(jsonRpcRequestMessage)
               .fold[(Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])])](
 
-                Left(JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method), Some(jsonRpcRequestMessage.id))
+                Left(
+                  JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method, JsObject.apply),
+                  Some(jsonRpcRequestMessage.id)
+                )
 
               )(commandJsResult => commandJsResult.fold(
 
-              errors => Left(JsonRpcResponseError.invalidParams(errors), Some(jsonRpcRequestMessage.id)),
+              errors => Left(
+                JsonRpcResponseError.invalidParams(errors, JsObject.apply),
+                Some(jsonRpcRequestMessage.id)
+              ),
 
-              command => Right(command, jsonRpcRequestMessage.id)
+              command => Right(
+                command,
+                jsonRpcRequestMessage.id
+              )
 
             ))
 

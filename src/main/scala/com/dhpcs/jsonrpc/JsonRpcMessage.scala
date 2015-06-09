@@ -5,6 +5,8 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
+import scala.collection.Seq
+
 // TODO: Extract as separate library
 sealed trait JsonRpcMessage
 
@@ -109,12 +111,16 @@ object JsonRpcResponseError {
   val ServerErrorCodeFloor = -32099
   val ServerErrorCodeCeiling = -32000
 
-  private def build(code: Int, message: String, meaning: String, error: Option[JsValue]) = JsonRpcResponseError(
+  private def build(code: Int,
+                    message: String,
+                    meaning: String,
+                    error: Option[JsValue],
+                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = JsonRpcResponseError(
     code,
     message,
     Some(
-      JsObject(
-        "meaning" -> JsString(meaning) ::
+      jsObjectBuilder(
+        ("meaning" -> JsString(meaning)) ::
           error.fold[List[(String, JsValue)]](Nil)(
             error => List("error" -> error)
           )
@@ -122,58 +128,75 @@ object JsonRpcResponseError {
     )
   )
 
-  def parseError(exception: Throwable) = build(
+  def parseError(exception: Throwable,
+                 jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
     ParseErrorCode,
     "Parse error",
     "Invalid JSON was received by the server.\nAn error occurred on the server while parsing the JSON text.",
-    Some(JsString(exception.getMessage))
+    Some(JsString(exception.getMessage)),
+    jsObjectBuilder
   )
 
-  def invalidRequest(errors: Seq[(JsPath, Seq[ValidationError])]) = build(
+  def invalidRequest(errors: Seq[(JsPath, Seq[ValidationError])],
+                     jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
     InvalidRequestCode,
     "Invalid Request",
     "The JSON sent is not a valid Request object.",
-    Some(JsError.toFlatJson(errors))
+    Some(JsError.toFlatJson(errors)),
+    jsObjectBuilder
   )
 
-  def methodNotFound(method: String) = build(
+  def methodNotFound(method: String,
+                     jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
     MethodNotFoundCode,
     "Method not found",
     "The method does not exist / is not available.",
-    Some(JsString( s"""The method "$method" is not implemented."""))
+    Some(JsString( s"""The method "$method" is not implemented.""")),
+    jsObjectBuilder
   )
 
-  def invalidParams(errors: Seq[(JsPath, Seq[ValidationError])]) = build(
+  def invalidParams(errors: Seq[(JsPath, Seq[ValidationError])],
+                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
     InvalidParamsCode,
     "Invalid params",
-    "Invalid method parameter(s).",
-    Some(JsError.toFlatJson(errors))
+    "Invalid method toFlatJson(s).",
+    Some(JsError.toFlatJson(errors)),
+    jsObjectBuilder
   )
 
-  def internalError(error: Option[JsValue] = None) = build(
+  def internalError(error: Option[JsValue] = None,
+                    jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = build(
     InternalErrorCode,
     "Invalid params",
     "Internal JSON-RPC error.",
-    error
+    error,
+    jsObjectBuilder
   )
 
-  def serverError(code: Int, error: Option[JsValue] = None) = {
+  def serverError(code: Int, error: Option[JsValue] = None,
+                  jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = {
     require(code >= ServerErrorCodeFloor && code <= ServerErrorCodeCeiling)
     build(
       InternalErrorCode,
       "Invalid params",
       "Internal JSON-RPC error.",
-      error
+      error,
+      jsObjectBuilder
     )
   }
 
-  def applicationError(code: Int, message: String, meaning: String, error: Option[JsValue] = None) = {
+  def applicationError(code: Int,
+                       message: String,
+                       meaning: String,
+                       error: Option[JsValue] = None,
+                       jsObjectBuilder: Seq[(String, JsValue)] => JsObject = JsObject) = {
     require(code > ReservedErrorCodeCeiling || code < ReservedErrorCodeFloor)
     build(
       code,
       message,
       meaning,
-      error
+      error,
+      jsObjectBuilder
     )
   }
 
@@ -187,7 +210,7 @@ object JsonRpcResponseMessage extends JsonRpcMessageCompanion {
   implicit val JsonRpcResponseMessageFormat: Format[JsonRpcResponseMessage] = (
     (__ \ "jsonrpc").format(verifying[String](_ == JsonRpcMessage.Version)) and
       __.format(eitherObjectFormat[JsonRpcResponseError, JsValue]("error", "result")) and
-      (__ \ "id").format[Option[Either[String, Int]]]
+      (__ \ "id").format(Format.optionWithNull[Either[String, Int]])
     )((_, eitherErrorOrResult, id) =>
     JsonRpcResponseMessage(eitherErrorOrResult, id),
       jsonRpcResponseMessage =>

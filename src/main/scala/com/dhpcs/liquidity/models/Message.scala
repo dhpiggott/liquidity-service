@@ -105,7 +105,15 @@ sealed trait CommandResultResponse extends CommandResponse
 
 case class ZoneCreated(zoneId: ZoneId) extends CommandResultResponse
 
-case class ZoneJoined(zone: Option[Zone]) extends CommandResultResponse
+case class ZoneAndConnectedMembers(zone: Zone, connectedMembers: Set[MemberId])
+
+object ZoneAndConnectedMembers {
+
+  implicit val ZoneAndConnectedMembersFormat = Json.format[ZoneAndConnectedMembers]
+  
+}
+
+case class ZoneJoined(zoneAndConnectedMembers: Option[ZoneAndConnectedMembers]) extends CommandResultResponse
 
 case object ZoneRestored extends CommandResultResponse
 

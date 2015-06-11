@@ -105,15 +105,15 @@ sealed trait CommandResultResponse extends CommandResponse
 
 case class ZoneCreated(zoneId: ZoneId) extends CommandResultResponse
 
-case class ZoneAndConnectedMembers(zone: Zone, connectedMembers: Set[MemberId])
+case class ZoneAndConnectedClients(zone: Zone, connectedClients: Set[PublicKey])
 
-object ZoneAndConnectedMembers {
+object ZoneAndConnectedClients {
 
-  implicit val ZoneAndConnectedMembersFormat = Json.format[ZoneAndConnectedMembers]
-  
+  implicit val ZoneAndConnectedClientsFormat = Json.format[ZoneAndConnectedClients]
+
 }
 
-case class ZoneJoined(zoneAndConnectedMembers: Option[ZoneAndConnectedMembers]) extends CommandResultResponse
+case class ZoneJoined(zoneAndConnectedClients: Option[ZoneAndConnectedClients]) extends CommandResultResponse
 
 case object ZoneRestored extends CommandResultResponse
 
@@ -202,11 +202,11 @@ case object ZoneStateMethodName extends NotificationMethodName("zoneState")
 case class ZoneTerminated(zoneId: ZoneId) extends ZoneNotification
 case object ZoneTerminatedMethodName extends NotificationMethodName("zoneTerminated")
 
-case class MemberJoinedZone(zoneId: ZoneId, memberId: MemberId) extends ZoneNotification
-case object MemberJoinedZoneMethodName extends NotificationMethodName("memberJoinedZone")
+case class ClientJoinedZone(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+case object ClientJoinedZoneMethodName extends NotificationMethodName("clientJoinedZone")
 
-case class MemberQuitZone(zoneId: ZoneId, memberId: MemberId) extends ZoneNotification
-case object MemberQuitZoneMethodName extends NotificationMethodName("memberQuitZone")
+case class ClientQuitZone(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+case object ClientQuitZoneMethodName extends NotificationMethodName("clientQuitZone")
 
 object Notification {
 
@@ -215,8 +215,8 @@ object Notification {
     jsonRpcNotificationMessage.method match {
       case ZoneStateMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ZoneState]))
       case ZoneTerminatedMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ZoneTerminated]))
-      case MemberJoinedZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[MemberJoinedZone]))
-      case MemberQuitZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[MemberQuitZone]))
+      case ClientJoinedZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ClientJoinedZone]))
+      case ClientQuitZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ClientQuitZone]))
       case _ => None
     }
   }
@@ -225,8 +225,8 @@ object Notification {
     val (method, jsValue) = notification match {
       case notification: ZoneState => (ZoneStateMethodName.name,Json.toJson(notification)(Json.writes[ZoneState]))
       case notification: ZoneTerminated => (ZoneTerminatedMethodName.name, Json.toJson(notification)(Json.writes[ZoneTerminated]))
-      case notification: MemberJoinedZone => (MemberJoinedZoneMethodName.name, Json.toJson(notification)(Json.writes[MemberJoinedZone]))
-      case notification: MemberQuitZone => (MemberQuitZoneMethodName.name, Json.toJson(notification)(Json.writes[MemberQuitZone]))
+      case notification: ClientJoinedZone => (ClientJoinedZoneMethodName.name, Json.toJson(notification)(Json.writes[ClientJoinedZone]))
+      case notification: ClientQuitZone => (ClientQuitZoneMethodName.name, Json.toJson(notification)(Json.writes[ClientQuitZone]))
     }
     // TODO: It would be nice to get an OWrites and use that directly to avoid the cast.
     JsonRpcNotificationMessage(method, Right(jsValue.asInstanceOf[JsObject]))

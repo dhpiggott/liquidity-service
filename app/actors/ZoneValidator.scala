@@ -15,7 +15,6 @@ object ZoneValidator {
 class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   var presentClients = Map.empty[ActorRef, PublicKey]
-  var presentMembers = Set.empty[MemberId]
   var accountBalances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
 
   def canDelete(zone: Zone, memberId: MemberId) =
@@ -64,12 +63,17 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
   def handleJoin(clientConnection: ActorRef, publicKey: PublicKey): Unit = {
     context.watch(sender())
     presentClients += (clientConnection -> publicKey)
+    val clientJoinedZone = ClientJoinedZone(zoneId, publicKey)
+    presentClients.keys.foreach(_ ! clientJoinedZone)
     log.debug(s"$presentClients clients are present")
   }
 
   def handleQuit(clientConnection: ActorRef): Unit = {
     context.unwatch(sender())
+    val publicKey = presentClients(clientConnection)
     presentClients -= clientConnection
+    val clientQuitZone = ClientQuitZone(zoneId, publicKey)
+    presentClients.keys.foreach(_ ! clientQuitZone)
     if (presentClients.nonEmpty) {
       log.debug(s"$presentClients clients are present")
     } else {
@@ -77,9 +81,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       context.parent ! TerminationRequest
     }
   }
-
-  def memberIdsForIdentity(zone: Zone, publicKey: PublicKey) =
-    zone.members.collect { case (memberId, member) if member.publicKey == publicKey => memberId }
 
   def receive = waitingForCanonicalZone
 
@@ -167,20 +168,11 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
         case JoinZone(_) =>
 
           sender !
-            (ZoneJoined(Some(ZoneAndConnectedMembers(canonicalZone, presentMembers))), id)
+            (ZoneJoined(Some(ZoneAndConnectedClients(canonicalZone, presentClients.values.toSet))), id)
 
           if (!presentClients.contains(sender())) {
 
             handleJoin(sender(), publicKey)
-
-            val memberIdsForIdentity = ZoneValidator.this.memberIdsForIdentity(canonicalZone, publicKey)
-
-            memberIdsForIdentity.foreach { memberId =>
-              val memberJoinedZone = MemberJoinedZone(zoneId, memberId)
-              presentClients.keys.foreach(_ ! memberJoinedZone)
-            }
-
-            presentMembers ++= memberIdsForIdentity
 
           }
 
@@ -205,29 +197,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             val zoneState = ZoneState(zoneId, zone)
             presentClients.keys.foreach(_ ! zoneState)
 
-            val zoneMemberIdsSet = zone.members.keys.toSet
-            val canonicalMemberIdsSet = canonicalZone.members.keys.toSet
-
-            val addedMemberIds = zoneMemberIdsSet.diff(canonicalMemberIdsSet).filter(memberId => {
-              val publicKey = canonicalZone.members(memberId).publicKey
-              presentClients.values.exists(_ == publicKey)
-            })
-            addedMemberIds.foreach { memberId =>
-              val memberJoinedZone = MemberJoinedZone(zoneId, memberId)
-              presentClients.keys.foreach(_ ! memberJoinedZone)
-            }
-            presentMembers ++= addedMemberIds
-
-            val removedMemberIds = canonicalMemberIdsSet.diff(zoneMemberIdsSet).filter(memberId => {
-              val publicKey = canonicalZone.members(memberId).publicKey
-              presentClients.values.exists(_ == publicKey)
-            })
-            removedMemberIds.foreach { memberId =>
-              val memberQuitZone = MemberQuitZone(zoneId, memberId)
-              presentClients.keys.foreach(_ ! memberQuitZone)
-            }
-            presentMembers --= removedMemberIds
-
             context.become(receiveWithCanonicalZone(zone))
 
           }
@@ -240,15 +209,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           if (presentClients.contains(sender())) {
 
             handleQuit(sender())
-
-            val memberIdsForIdentity = ZoneValidator.this.memberIdsForIdentity(canonicalZone, publicKey)
-
-            memberIdsForIdentity.foreach { memberId =>
-              val memberQuitZone = MemberQuitZone(zoneId, memberId)
-              presentClients.keys.foreach(_ ! memberQuitZone)
-            }
-
-            presentMembers --= memberIdsForIdentity
 
           }
 
@@ -289,11 +249,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           )
           val zoneState = ZoneState(zoneId, newCanonicalZone)
           presentClients.keys.foreach(_ ! zoneState)
-
-          memberIdsForIdentity(newCanonicalZone, publicKey).foreach { memberId =>
-            val memberJoinedZone = MemberJoinedZone(zoneId, memberId)
-            presentClients.keys.foreach(_ ! memberJoinedZone)
-          }
 
           context.become(receiveWithCanonicalZone(newCanonicalZone))
 
@@ -350,11 +305,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             )
             val zoneState = ZoneState(zoneId, newCanonicalZone)
             presentClients.keys.foreach(_ ! zoneState)
-
-            memberIdsForIdentity(newCanonicalZone, publicKey).foreach { memberId =>
-              val memberQuitZone = MemberQuitZone(zoneId, memberId)
-              presentClients.keys.foreach(_ ! memberQuitZone)
-            }
 
             context.become(receiveWithCanonicalZone(newCanonicalZone))
 

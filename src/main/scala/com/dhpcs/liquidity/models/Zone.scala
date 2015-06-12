@@ -19,15 +19,6 @@ case class Zone(name: String,
 
 object Zone {
 
-  def apply(name: String, zoneType: String): Zone = Zone(
-    name,
-    zoneType,
-    Map.empty,
-    Map.empty,
-    Map.empty,
-    System.currentTimeMillis
-  )
-
   implicit val ZoneFormat: Format[Zone] = (
     (JsPath \ "name").format[String] and
       (JsPath \ "type").format[String] and
@@ -51,5 +42,44 @@ object Zone {
       zone.transactions.map { case (transactionId, transaction) => (transactionId.id.toString, transaction) },
       zone.lastModified)
     )
+
+  def apply(name: String, zoneType: String): Zone = Zone(
+    name,
+    zoneType,
+    Map.empty,
+    Map.empty,
+    Map.empty,
+    System.currentTimeMillis
+  )
+
+  def checkTransactionAndUpdateAccountBalances(zone: Zone,
+                                               transaction: Transaction,
+                                               accountBalances: Map[AccountId, BigDecimal]): Either[String, Map[AccountId, BigDecimal]] = {
+    if (!zone.accounts.contains(transaction.from)) {
+      Left(s"Invalid transaction source account: ${transaction.from}")
+    } else if (!zone.accounts.contains(transaction.to)) {
+      Left(s"Invalid transaction destination account: ${transaction.to}")
+    } else {
+      // TODO: Validate zone payment state for seigniorage, allow negative account values for special account types
+      val newSourceBalance = accountBalances(transaction.from) - transaction.amount
+      if (newSourceBalance < 0) {
+        Left(s"Illegal transaction amount: ${transaction.amount}")
+      } else {
+        val newDestinationBalance = accountBalances(transaction.to) + transaction.amount
+        Right(accountBalances
+          + (transaction.from -> newSourceBalance)
+          + (transaction.to -> newDestinationBalance))
+      }
+    }
+  }
+
+  def otherMembers(zone: Zone, userPublicKey: PublicKey) =
+    zone.members.filter { case (_, member: Member) => member.publicKey != userPublicKey }
+
+  def otherConnectedMembers(otherMembers: Map[MemberId, Member], connectedClients: Set[PublicKey]) =
+    otherMembers.filter { case (_, member: Member) => connectedClients.contains(member.publicKey) }
+
+  def userMembers(zone: Zone, userPublicKey: PublicKey) =
+    zone.members.filter { case (_, member: Member) => member.publicKey == userPublicKey }
 
 }

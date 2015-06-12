@@ -133,7 +133,7 @@ case object AccountUpdated extends CommandResultResponse
 
 case object AccountDeleted extends CommandResultResponse
 
-case object TransactionAdded extends CommandResultResponse
+case class TransactionAdded(transactionId: TransactionId) extends CommandResultResponse
 
 object CommandResponse {
 
@@ -153,7 +153,7 @@ object CommandResponse {
           case CreateAccountMethodName.name => Json.fromJson(result)(Json.reads[AccountCreated])
           case UpdateAccountMethodName.name => JsSuccess(AccountUpdated)
           case DeleteAccountMethodName.name => JsSuccess(AccountDeleted)
-          case AddTransactionMethodName.name => JsSuccess(TransactionAdded)
+          case AddTransactionMethodName.name => Json.fromJson(result)(Json.reads[TransactionAdded])
         }
       }
     )
@@ -177,7 +177,7 @@ object CommandResponse {
         case commandResponse: AccountCreated => Right(Json.toJson(commandResponse)(Json.writes[AccountCreated]))
         case AccountUpdated => Right(emptyJsObject)
         case AccountDeleted => Right(emptyJsObject)
-        case TransactionAdded => Right(emptyJsObject)
+        case commandResponse: TransactionAdded => Right(Json.toJson(commandResponse)(Json.writes[TransactionAdded]))
       }
     }
     JsonRpcResponseMessage(eitherErrorOrResult, Some(id))
@@ -197,15 +197,19 @@ sealed trait ZoneNotification extends Notification {
 
 // TODO: Signing - use https://github.com/sbt/sbt-pgp?
 case class ZoneState(zoneId: ZoneId, zone: Zone) extends ZoneNotification
+
 case object ZoneStateMethodName extends NotificationMethodName("zoneState")
 
 case class ZoneTerminated(zoneId: ZoneId) extends ZoneNotification
+
 case object ZoneTerminatedMethodName extends NotificationMethodName("zoneTerminated")
 
 case class ClientJoinedZone(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+
 case object ClientJoinedZoneMethodName extends NotificationMethodName("clientJoinedZone")
 
 case class ClientQuitZone(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+
 case object ClientQuitZoneMethodName extends NotificationMethodName("clientQuitZone")
 
 object Notification {
@@ -223,7 +227,7 @@ object Notification {
 
   def writeNotification(notification: Notification): JsonRpcNotificationMessage = {
     val (method, jsValue) = notification match {
-      case notification: ZoneState => (ZoneStateMethodName.name,Json.toJson(notification)(Json.writes[ZoneState]))
+      case notification: ZoneState => (ZoneStateMethodName.name, Json.toJson(notification)(Json.writes[ZoneState]))
       case notification: ZoneTerminated => (ZoneTerminatedMethodName.name, Json.toJson(notification)(Json.writes[ZoneTerminated]))
       case notification: ClientJoinedZone => (ClientJoinedZoneMethodName.name, Json.toJson(notification)(Json.writes[ClientJoinedZone]))
       case notification: ClientQuitZone => (ClientQuitZoneMethodName.name, Json.toJson(notification)(Json.writes[ClientQuitZone]))

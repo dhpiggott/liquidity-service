@@ -2,30 +2,16 @@ package com.dhpcs.liquidity.models
 
 import java.util.UUID
 
+import com.dhpcs.json.FormatBehaviors
 import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 
-class IdentifierSpec extends FunSpec with Matchers {
+case class TestIdentifier(id: UUID) extends Identifier
 
-  case class TestIdentifier(id: UUID) extends Identifier
+object TestIdentifier extends IdentifierCompanion[TestIdentifier]
 
-  object TestIdentifier extends IdentifierCompanion[TestIdentifier]
-
-  def decodeError(badTestIdJson: JsValue, jsError: JsError) =
-    it(s"$badTestIdJson should fail to decode with error $jsError") {
-      Json.fromJson[TestIdentifier](badTestIdJson) should be(jsError)
-    }
-
-  def decode(implicit testIdentifierJson: JsValue, testIdentifier: TestIdentifier) =
-    it(s"$testIdentifierJson should decode to $testIdentifier") {
-      testIdentifierJson.as[TestIdentifier] should be(testIdentifier)
-    }
-
-  def encode(implicit testIdentifier: TestIdentifier, testIdentifierJson: JsValue) =
-    it(s"$testIdentifier should encode to $testIdentifierJson") {
-      Json.toJson(testIdentifier) should be(testIdentifierJson)
-    }
+class IdentifierSpec extends FunSpec with FormatBehaviors[TestIdentifier] with Matchers {
 
   describe("A JsValue of the wrong type") {
     it should behave like decodeError(

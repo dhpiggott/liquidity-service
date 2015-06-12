@@ -3,37 +3,23 @@ package com.dhpcs.liquidity.models
 import java.security.KeyPairGenerator
 import java.util.UUID
 
+import com.dhpcs.json.FormatBehaviors
 import com.google.common.io.BaseEncoding
 import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 
-class ZoneSpec extends FunSpec with Matchers {
-
-  def decodeError(badZoneJson: JsValue, jsError: JsError) =
-    it(s"$badZoneJson should fail to decode with error $jsError") {
-      Json.fromJson[Zone](badZoneJson) should be(jsError)
-    }
-
-  def decode(implicit zoneJson: JsValue, zone: Zone) =
-    it(s"$zoneJson should decode to $zone") {
-      zoneJson.as[Zone] should be(zone)
-    }
-
-  def encode(implicit zone: Zone, zoneJson: JsValue) =
-    it(s"$zone should encode to $zoneJson") {
-      Json.toJson(zone) should be(zoneJson)
-    }
+class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
 
   describe("A JsValue of the wrong type") {
     it should behave like decodeError(
       Json.parse("0"),
       JsError(List(
         (__ \ "name", List(ValidationError("error.path.missing"))),
-        (__ \ "transactions", List(ValidationError("error.path.missing"))),
-        (__ \ "accounts", List(ValidationError("error.path.missing"))),
         (__ \ "type", List(ValidationError("error.path.missing"))),
         (__ \ "members", List(ValidationError("error.path.missing"))),
+        (__ \ "accounts", List(ValidationError("error.path.missing"))),
+        (__ \ "transactions", List(ValidationError("error.path.missing"))),
         (__ \ "lastModified", List(ValidationError("error.path.missing")))
       ))
     )

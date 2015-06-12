@@ -14,6 +14,7 @@ object ZoneValidator {
 
 class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
+  // TODO?
   var presentClients = Map.empty[ActorRef, PublicKey]
   var accountBalances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
 
@@ -36,29 +37,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
         zone.members.get(memberId).fold(false)(_.publicKey == publicKey)
       }
     )
-
-  def checkTransactionAndUpdateAccountBalances(zone: Zone, transaction: Transaction) = {
-    if (!zone.accounts.contains(transaction.from)) {
-      log.warning(s"Invalid transaction source account: ${transaction.from}")
-      false
-    } else if (!zone.accounts.contains(transaction.to)) {
-      log.warning(s"Invalid transaction destination account: ${transaction.to}")
-      false
-    } else {
-
-      // TODO: Validate zone payment state for seigniorage, allow negative account values for special account types
-      val newSourceBalance = accountBalances(transaction.from).-(transaction.amount)
-      if (newSourceBalance.<(BigDecimal(0))) {
-        log.warning(s"Illegal transaction amount: ${transaction.amount}")
-        false
-      } else {
-        val newDestinationBalance = accountBalances(transaction.to).+(transaction.amount)
-        accountBalances += transaction.from -> newSourceBalance
-        accountBalances += transaction.to -> newDestinationBalance
-        true
-      }
-    }
-  }
 
   def handleJoin(clientConnection: ActorRef, publicKey: PublicKey): Unit = {
     context.watch(sender())
@@ -400,13 +378,12 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
         case AddTransaction(_, transaction) =>
 
-          if (!canModify(canonicalZone, transaction.from, publicKey)
-            || !checkTransactionAndUpdateAccountBalances(canonicalZone, transaction)) {
+          if (!canModify(canonicalZone, transaction.from, publicKey)) {
 
             sender !
               (CommandErrorResponse(
                 JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Transaction addition forbidden",
+                "Account modification forbidden",
                 None),
                 id)
 
@@ -414,27 +391,52 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           } else {
 
-            def freshTransactionId: TransactionId = {
-              val transactionId = TransactionId.generate
-              if (canonicalZone.transactions.get(transactionId).isEmpty) {
-                transactionId
-              } else {
-                freshTransactionId
-              }
-            }
-            val transactionId = freshTransactionId
-
-            sender !
-              (TransactionAdded(transactionId), id)
-
-            val newCanonicalZone = canonicalZone.copy(
-              transactions = canonicalZone.transactions + (transactionId -> transaction),
-              lastModified = System.currentTimeMillis
+            val eitherErrorOrUpdatedAccountBalances = Zone.checkTransactionAndUpdateAccountBalances(
+              canonicalZone,
+              transaction,
+              accountBalances
             )
-            val zoneState = ZoneState(zoneId, newCanonicalZone)
-            presentClients.keys.foreach(_ ! zoneState)
 
-            context.become(receiveWithCanonicalZone(newCanonicalZone))
+            eitherErrorOrUpdatedAccountBalances match {
+
+              case Left(message) =>
+
+                sender !
+                  (CommandErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    message,
+                    None),
+                    id)
+
+                log.warning(s"Received invalid command from ${publicKey.fingerprint} to add $transaction")
+
+              case Right(updatedAccountBalances) =>
+
+                accountBalances = updatedAccountBalances
+
+                def freshTransactionId: TransactionId = {
+                  val transactionId = TransactionId.generate
+                  if (canonicalZone.transactions.get(transactionId).isEmpty) {
+                    transactionId
+                  } else {
+                    freshTransactionId
+                  }
+                }
+                val transactionId = freshTransactionId
+
+                sender !
+                  (TransactionAdded(transactionId), id)
+
+                val newCanonicalZone = canonicalZone.copy(
+                  transactions = canonicalZone.transactions + (transactionId -> transaction),
+                  lastModified = System.currentTimeMillis
+                )
+                val zoneState = ZoneState(zoneId, newCanonicalZone)
+                presentClients.keys.foreach(_ ! zoneState)
+
+                context.become(receiveWithCanonicalZone(newCanonicalZone))
+
+            }
 
           }
 

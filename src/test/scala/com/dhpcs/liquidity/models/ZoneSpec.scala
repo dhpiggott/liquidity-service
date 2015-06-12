@@ -52,17 +52,19 @@ class ZoneSpec extends FunSpec with Matchers {
         AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")) ->
           Account("Dave's account", Set(MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37"))))
       ),
-      Seq(
-        Transaction(
-          "Dave's lottery win",
-          AccountId(UUID.fromString("80ccbec2-79a4-4cfa-8e97-f33fac2aa5ba")),
-          AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")),
-          BigDecimal(1000000)
-        )
+      Map(
+        TransactionId(UUID.fromString("65b1711c-5747-452c-8975-3f0d36e9efa6")) ->
+          Transaction(
+            "Dave's lottery win",
+            AccountId(UUID.fromString("80ccbec2-79a4-4cfa-8e97-f33fac2aa5ba")),
+            AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")),
+            BigDecimal(1000000),
+            1433611420487L
+          )
       ),
       1433611420487L
     )
-    implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","type":"test","members":{"fa781d33-368f-42a5-9c64-0e4b43381c37":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}},"accounts":{"f2f4613c-0645-4dec-895b-2812382f4523":{"name":"Dave's account","owners":["fa781d33-368f-42a5-9c64-0e4b43381c37"]}},"transactions":[{"description":"Dave's lottery win","from":"80ccbec2-79a4-4cfa-8e97-f33fac2aa5ba","to":"f2f4613c-0645-4dec-895b-2812382f4523","amount":1000000}],"lastModified":1433611420487}""")
+    implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","type":"test","members":{"fa781d33-368f-42a5-9c64-0e4b43381c37":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}},"accounts":{"f2f4613c-0645-4dec-895b-2812382f4523":{"name":"Dave's account","owners":["fa781d33-368f-42a5-9c64-0e4b43381c37"]}},"transactions":{"65b1711c-5747-452c-8975-3f0d36e9efa6":{"description":"Dave's lottery win","from":"80ccbec2-79a4-4cfa-8e97-f33fac2aa5ba","to":"f2f4613c-0645-4dec-895b-2812382f4523","amount":1000000,"created":1433611420487}},"lastModified":1433611420487}""")
     it should behave like decode
     it should behave like encode
   }

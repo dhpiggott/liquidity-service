@@ -44,7 +44,7 @@ class TransactionSpec extends FunSpec with Matchers {
       BigDecimal(1000000),
       1434115187612L
     )
-    implicit val transactionJson = Json.parse("{\"description\":\"test\",\"from\":\"28c331cd-35eb-45b2-a478-82334d7a4593\",\"to\":\"a1191a07-fc84-4245-975a-9798a9c26a9e\",\"amount\":1000000,\"created\":1434115187612}")
+    implicit val transactionJson = Json.parse( """{"description":"test","from":"28c331cd-35eb-45b2-a478-82334d7a4593","to":"a1191a07-fc84-4245-975a-9798a9c26a9e","amount":1000000,"created":1434115187612}""")
     it should behave like decode
     it should behave like encode
   }

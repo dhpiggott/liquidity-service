@@ -34,7 +34,7 @@ class PublicKeySpec extends FunSpec with Matchers {
   describe("A PublicKey") {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     implicit val publicKey = PublicKey(publicKeyBytes)
-    implicit val publicKeyJson = Json.parse( s"""\"${BaseEncoding.base64.encode(publicKeyBytes)}\"""")
+    implicit val publicKeyJson = Json.parse( s""""${BaseEncoding.base64.encode(publicKeyBytes)}"""")
     it should behave like decode
     it should behave like encode
   }

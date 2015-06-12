@@ -38,7 +38,7 @@ class AccountSpec extends FunSpec with Matchers {
       "Dave's account",
       Set(MemberId(UUID.fromString("6709b5c8-1f18-491e-b703-d76baa261099")))
     )
-    implicit val accountJson = Json.parse("{\"name\":\"Dave's account\",\"owners\":[\"6709b5c8-1f18-491e-b703-d76baa261099\"]}")
+    implicit val accountJson = Json.parse( """{"name":"Dave's account","owners":["6709b5c8-1f18-491e-b703-d76baa261099"]}""")
     it should behave like decode
     it should behave like encode
   }

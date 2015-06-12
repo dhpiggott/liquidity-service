@@ -23,7 +23,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
     }
 
   def canDelete(zone: Zone, accountId: AccountId) =
-    !zone.transactions.exists { transaction =>
+    !zone.transactions.values.exists { transaction =>
       transaction.from == accountId || transaction.to == accountId
     }
 
@@ -414,11 +414,21 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           } else {
 
+            def freshTransactionId: TransactionId = {
+              val transactionId = TransactionId.generate
+              if (canonicalZone.transactions.get(transactionId).isEmpty) {
+                transactionId
+              } else {
+                freshTransactionId
+              }
+            }
+            val transactionId = freshTransactionId
+
             sender !
-              (TransactionAdded, id)
+              (TransactionAdded(transactionId), id)
 
             val newCanonicalZone = canonicalZone.copy(
-              transactions = canonicalZone.transactions :+ transaction,
+              transactions = canonicalZone.transactions + (transactionId -> transaction),
               lastModified = System.currentTimeMillis
             )
             val zoneState = ZoneState(zoneId, newCanonicalZone)

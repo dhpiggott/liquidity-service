@@ -96,7 +96,6 @@ object Command {
       case command: DeleteAccount => (DeleteAccountMethodName.name, Json.toJson(command)(Json.writes[DeleteAccount]))
       case command: AddTransaction => (AddTransactionMethodName.name, Json.toJson(command)(Json.writes[AddTransaction]))
     }
-    // TODO: It would be nice to get an OWrites and use that directly to avoid the cast.
     JsonRpcRequestMessage(method, Right(jsValue.asInstanceOf[JsObject]), id)
   }
 
@@ -224,7 +223,6 @@ object Notification {
       case notification: ClientJoinedZone => (ClientJoinedZoneMethodName.name, Json.toJson(notification)(Json.writes[ClientJoinedZone]))
       case notification: ClientQuitZone => (ClientQuitZoneMethodName.name, Json.toJson(notification)(Json.writes[ClientQuitZone]))
     }
-    // TODO: It would be nice to get an OWrites and use that directly to avoid the cast.
     JsonRpcNotificationMessage(method, Right(jsValue.asInstanceOf[JsObject]))
   }
 

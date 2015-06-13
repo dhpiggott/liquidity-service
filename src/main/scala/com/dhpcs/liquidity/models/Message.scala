@@ -67,7 +67,7 @@ object Command {
 
   def readCommand(jsonRpcRequestMessage: JsonRpcRequestMessage): Option[JsResult[Command]] = {
     val jsObject = jsonRpcRequestMessage.params.right.get
-    jsonRpcRequestMessage.method match {
+    (jsonRpcRequestMessage.method match {
       case CreateZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[CreateZone]))
       case JoinZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[JoinZone]))
       case QuitZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[QuitZone]))
@@ -79,7 +79,14 @@ object Command {
       case DeleteAccountMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[DeleteAccount]))
       case AddTransactionMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[AddTransaction]))
       case _ => None
-    }
+    }).map(_.fold(
+
+      /*
+       * We do this in order to drop any non-root path that may have existed in the success case.
+       */
+      invalid => JsError(invalid),
+      valid => JsSuccess(valid)
+    ))
   }
 
   def writeCommand(command: Command, id: Either[String, Int]): JsonRpcRequestMessage = {
@@ -148,7 +155,14 @@ object CommandResponse {
           case DeleteAccountMethodName.name => JsSuccess(AccountDeleted)
           case AddTransactionMethodName.name => Json.fromJson(result)(Json.reads[TransactionAdded])
         }
-      }
+      }.fold(
+
+          /*
+           * We do this in order to drop any non-root path that may have existed in the success case.
+           */
+          invalid => JsError(invalid),
+          valid => JsSuccess(valid)
+        )
     )
 
   def writeCommandResponse(commandResponse: CommandResponse,
@@ -207,13 +221,20 @@ object Notification {
 
   def readNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage): Option[JsResult[Notification]] = {
     val jsObject = jsonRpcNotificationMessage.params.right.get
-    jsonRpcNotificationMessage.method match {
+    (jsonRpcNotificationMessage.method match {
       case ZoneStateMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ZoneState]))
       case ZoneTerminatedMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ZoneTerminated]))
       case ClientJoinedZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ClientJoinedZone]))
       case ClientQuitZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[ClientQuitZone]))
       case _ => None
-    }
+    }).map(_.fold(
+
+      /*
+       * We do this in order to drop any non-root path that may have existed in the success case.
+       */
+      invalid => JsError(invalid),
+      valid => JsSuccess(valid)
+    ))
   }
 
   def writeNotification(notification: Notification): JsonRpcNotificationMessage = {

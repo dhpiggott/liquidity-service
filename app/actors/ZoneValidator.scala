@@ -127,7 +127,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
         case JoinZone(_) =>
 
           sender !
-            (ZoneJoined(Some(ZoneAndConnectedClients(canonicalZone, presentClients.values.toSet))), id)
+            (ZoneJoined(canonicalZone, presentClients.values.toSet), id)
 
           if (!presentClients.contains(sender())) {
 

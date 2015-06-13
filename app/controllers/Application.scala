@@ -24,7 +24,7 @@ class Application @Inject()(@Named("zone-registry") zoneRegistry: ActorRef) exte
 
   def getPublicKey(headers: Headers) = Try {
     val pemStringData = headers.get("X-SSL-Client-Cert").fold(
-      scala.sys.error("Client certificate not present")
+      sys.error("Client certificate not present")
     ) {
       pemString =>
         pemCertStringMarkers.collectFirst {
@@ -35,7 +35,7 @@ class Application @Inject()(@Named("zone-registry") zoneRegistry: ActorRef) exte
     new PublicKey(
       CertificateFactory.getInstance("X.509").generateCertificate(
         new ByteArrayInputStream(
-          Base64.decodeBase64(pemStringData.getOrElse(scala.sys.error("Client certificate PEM string is not valid")))
+          Base64.decodeBase64(pemStringData.getOrElse(sys.error("Client certificate PEM string is not valid")))
         )
       ).getPublicKey.getEncoded
     )

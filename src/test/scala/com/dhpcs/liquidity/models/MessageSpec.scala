@@ -6,36 +6,31 @@ import java.util.UUID
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
 import com.google.common.io.BaseEncoding
 import org.scalactic.Uniformity
+import org.scalatest.OptionValues._
 import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 
 class MessageSpec extends FunSpec with Matchers {
 
-  def ordered[U] = new Uniformity[Option[JsResult[U]]] {
+  // TODO: s/decode/read/, /s/encode/write/, make output less verbose, unify those changes with FormatBehaviors
+
+  def ordered[U] = new Uniformity[JsResult[U]] {
 
     override def normalizedCanHandle(b: Any) = b match {
-      case Some(someA) => someA match {
-        case _: JsError => true
-        case _ => false
-      }
+      case _: JsError => true
       case _ => false
     }
 
     override def normalizedOrSame(b: Any) = b match {
-      case some@Some(someA) => someA match {
-        case _: JsError => normalized(some.asInstanceOf[Some[JsResult[U]]])
-        case _ =>
-      }
+      case j: JsError => normalized(j)
       case _ => b
     }
 
-    override def normalized(a: Option[JsResult[U]]) = a match {
-      case Some(jsError: JsError) =>
-        Some(
-          jsError.copy(
-            errors = jsError.errors.sortBy { case (jsPath: JsPath, _) => jsPath.toJsonString }
-          )
+    override def normalized(a: JsResult[U]) = a match {
+      case jsError: JsError =>
+        jsError.copy(
+          errors = jsError.errors.sortBy { case (jsPath: JsPath, _) => jsPath.toJsonString }
         )
       case _ => a
     }
@@ -44,7 +39,14 @@ class MessageSpec extends FunSpec with Matchers {
 
   def commandDecodeError(jsonRpcRequestMessage: JsonRpcRequestMessage, maybeJsError: Option[JsError]) =
     it(s"$jsonRpcRequestMessage should fail to decode with error $maybeJsError") {
-      (Command.readCommand(jsonRpcRequestMessage) should equal(maybeJsError))(after being ordered[Command])
+      val maybeCommandJsResult = Command.readCommand(jsonRpcRequestMessage)
+      maybeJsError.fold(
+        maybeCommandJsResult shouldBe empty
+      )(
+          jsError => {
+            maybeCommandJsResult.value should equal(jsError)(after being ordered[Command])
+          }
+        )
     }
 
   def commandDecode(implicit jsonRpcRequestMessage: JsonRpcRequestMessage, command: Command) =
@@ -70,6 +72,20 @@ class MessageSpec extends FunSpec with Matchers {
     }
     describe("of type CreateZone") {
       describe("with params of the wrong type") {
+        it should behave like commandDecodeError(
+          JsonRpcRequestMessage(
+            "createZone",
+            Left(Json.arr()),
+            Right(0)
+          ),
+          Some(
+            JsError(List(
+              (__, List(ValidationError("command parameters must be named")))
+            ))
+          )
+        )
+      }
+      describe("with empty params") {
         it should behave like commandDecodeError(
           JsonRpcRequestMessage(
             "createZone",
@@ -108,8 +124,8 @@ class MessageSpec extends FunSpec with Matchers {
                                  method: String,
                                  jsError: JsError) =
     it(s"$jsonRpcResponseMessage should fail to decode with error $jsError") {
-      ((Some(CommandResponse.readCommandResponse(jsonRpcResponseMessage, method)): Option[JsResult[CommandResponse]])
-        should equal(Some(jsError)))(after being ordered[CommandResponse])
+      (CommandResponse.readCommandResponse(jsonRpcResponseMessage, method)
+        should equal(jsError))(after being ordered[CommandResponse])
     }
 
   def commandResponseDecode(implicit jsonRpcResponseMessage: JsonRpcResponseMessage,
@@ -128,7 +144,7 @@ class MessageSpec extends FunSpec with Matchers {
 
   describe("A CommandResponse") {
     describe("of type ZoneCreated") {
-      describe("with params of the wrong type") {
+      describe("with empty params") {
         it should behave like commandResponseDecodeError(
           JsonRpcResponseMessage(
             Right(Json.obj()),
@@ -162,8 +178,14 @@ class MessageSpec extends FunSpec with Matchers {
 
   def notificationDecodeError(jsonRpcNotificationMessage: JsonRpcNotificationMessage, maybeJsError: Option[JsError]) =
     it(s"$jsonRpcNotificationMessage should fail to decode with error $maybeJsError") {
-      (Notification.readNotification(jsonRpcNotificationMessage)
-        should equal(maybeJsError))(after being ordered[Notification])
+      val maybeNotificationJsResult = Notification.readNotification(jsonRpcNotificationMessage)
+      maybeJsError.fold(
+        maybeNotificationJsResult shouldBe empty
+      )(
+          jsError => {
+            maybeNotificationJsResult.value should equal(jsError)(after being ordered[Notification])
+          }
+        )
     }
 
   def notificationDecode(implicit jsonRpcNotificationMessage: JsonRpcNotificationMessage, notification: Notification) =
@@ -188,6 +210,19 @@ class MessageSpec extends FunSpec with Matchers {
     }
     describe("of type Notification") {
       describe("with params of the wrong type") {
+        it should behave like notificationDecodeError(
+          JsonRpcNotificationMessage(
+            "zoneState",
+            Left(Json.arr())
+          ),
+          Some(
+            JsError(List(
+              (__, List(ValidationError("notification parameters must be named")))
+            ))
+          )
+        )
+      }
+      describe("with empty params") {
         it should behave like notificationDecodeError(
           JsonRpcNotificationMessage(
             "zoneState",

@@ -20,36 +20,47 @@ sealed trait ZoneCommand extends Command {
 }
 
 case class CreateZone(name: String, zoneType: String) extends Command
+
 case object CreateZoneMethodName extends CommandMethodName("createZone")
 
 case class JoinZone(zoneId: ZoneId) extends ZoneCommand
+
 case object JoinZoneMethodName extends CommandMethodName("joinZone")
 
 case class QuitZone(zoneId: ZoneId) extends ZoneCommand
+
 case object QuitZoneMethodName extends CommandMethodName("quitZone")
 
 case class SetZoneName(zoneId: ZoneId, name: String) extends ZoneCommand
+
 case object SetZoneNameMethodName extends CommandMethodName("setZoneName")
 
 case class CreateMember(zoneId: ZoneId, member: Member) extends ZoneCommand
+
 case object CreateMemberMethodName extends CommandMethodName("createMember")
 
 case class UpdateMember(zoneId: ZoneId, memberId: MemberId, member: Member) extends ZoneCommand
+
 case object UpdateMemberMethodName extends CommandMethodName("updateMember")
 
 case class DeleteMember(zoneId: ZoneId, memberId: MemberId) extends ZoneCommand
+
 case object DeleteMemberMethodName extends CommandMethodName("deleteMember")
 
 case class CreateAccount(zoneId: ZoneId, account: Account) extends ZoneCommand
+
 case object CreateAccountMethodName extends CommandMethodName("createAccount")
 
 case class UpdateAccount(zoneId: ZoneId, accountId: AccountId, account: Account) extends ZoneCommand
+
 case object UpdateAccountMethodName extends CommandMethodName("updateAccount")
 
 case class DeleteAccount(zoneId: ZoneId, accountId: AccountId) extends ZoneCommand
+
 case object DeleteAccountMethodName extends CommandMethodName("deleteAccount")
 
 case class AddTransaction(zoneId: ZoneId, transaction: Transaction) extends ZoneCommand
+
 case object AddTransactionMethodName extends CommandMethodName("addTransaction")
 
 object Command {

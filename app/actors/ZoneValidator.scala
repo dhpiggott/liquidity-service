@@ -88,39 +88,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           context.become(receiveWithCanonicalZone(zone))
 
-        case JoinZone(_) =>
-
-          sender !
-            (ZoneJoined(None), id)
-
-          if (!presentClients.contains(sender())) {
-
-            handleJoin(sender(), publicKey)
-
-          }
-
-        case RestoreZone(_, zone) =>
-
-          sender !
-            (ZoneRestored, id)
-
-          val zoneState = ZoneState(zoneId, zone)
-          presentClients.keys.foreach(_ ! zoneState)
-
-          context.become(receiveWithCanonicalZone(zone))
-
-        case QuitZone(_) =>
-
-          sender !
-            (ZoneQuit, id)
-
-          if (presentClients.contains(sender())) {
-
-            handleQuit(sender())
-
-          }
-
         case _ =>
+
+          sender !
+            (CommandErrorResponse(
+              JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+              "Zone does not exist",
+              None),
+              id)
 
           log.warning(s"Received command from ${publicKey.fingerprint} to operate on non-existing zone")
 
@@ -157,31 +132,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           if (!presentClients.contains(sender())) {
 
             handleJoin(sender(), publicKey)
-
-          }
-
-        case RestoreZone(_, zone) =>
-
-          if (zone.lastModified <= canonicalZone.lastModified) {
-
-            sender !
-              (CommandErrorResponse(
-                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Zone state is out of date",
-                None),
-                id)
-
-            log.info(s"Received command from ${publicKey.fingerprint} to restore outdated $zone")
-
-          } else {
-
-            sender !
-              (ZoneRestored, id)
-
-            val zoneState = ZoneState(zoneId, zone)
-            presentClients.keys.foreach(_ ! zoneState)
-
-            context.become(receiveWithCanonicalZone(zone))
 
           }
 

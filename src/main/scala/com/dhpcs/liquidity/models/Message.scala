@@ -25,10 +25,6 @@ case object CreateZoneMethodName extends CommandMethodName("createZone")
 case class JoinZone(zoneId: ZoneId) extends ZoneCommand
 case object JoinZoneMethodName extends CommandMethodName("joinZone")
 
-// TODO: Signing - use https://github.com/sbt/sbt-pgp?
-case class RestoreZone(zoneId: ZoneId, zone: Zone) extends ZoneCommand
-case object RestoreZoneMethodName extends CommandMethodName("restoreZone")
-
 case class QuitZone(zoneId: ZoneId) extends ZoneCommand
 case object QuitZoneMethodName extends CommandMethodName("quitZone")
 
@@ -63,7 +59,6 @@ object Command {
     jsonRpcRequestMessage.method match {
       case CreateZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[CreateZone]))
       case JoinZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[JoinZone]))
-      case RestoreZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[RestoreZone]))
       case QuitZoneMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[QuitZone]))
       case SetZoneNameMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[SetZoneName]))
       case CreateMemberMethodName.name => Some(Json.fromJson(jsObject)(Json.reads[CreateMember]))
@@ -80,7 +75,6 @@ object Command {
     val (method, jsValue) = command match {
       case command: CreateZone => (CreateZoneMethodName.name, Json.toJson(command)(Json.writes[CreateZone]))
       case command: JoinZone => (JoinZoneMethodName.name, Json.toJson(command)(Json.writes[JoinZone]))
-      case command: RestoreZone => (RestoreZoneMethodName.name, Json.toJson(command)(Json.writes[RestoreZone]))
       case command: QuitZone => (QuitZoneMethodName.name, Json.toJson(command)(Json.writes[QuitZone]))
       case command: SetZoneName => (SetZoneNameMethodName.name, Json.toJson(command)(Json.writes[SetZoneName]))
       case command: CreateMember => (CreateMemberMethodName.name, Json.toJson(command)(Json.writes[CreateMember]))
@@ -115,8 +109,6 @@ object ZoneAndConnectedClients {
 
 case class ZoneJoined(zoneAndConnectedClients: Option[ZoneAndConnectedClients]) extends CommandResultResponse
 
-case object ZoneRestored extends CommandResultResponse
-
 case object ZoneQuit extends CommandResultResponse
 
 case object ZoneNameSet extends CommandResultResponse
@@ -144,7 +136,6 @@ object CommandResponse {
         method match {
           case CreateZoneMethodName.name => Json.fromJson(result)(Json.reads[ZoneCreated])
           case JoinZoneMethodName.name => Json.fromJson(result)(Json.reads[ZoneJoined])
-          case RestoreZoneMethodName.name => JsSuccess(ZoneRestored)
           case QuitZoneMethodName.name => JsSuccess(ZoneQuit)
           case SetZoneNameMethodName.name => JsSuccess(ZoneNameSet)
           case CreateMemberMethodName.name => Json.fromJson(result)(Json.reads[MemberCreated])
@@ -168,7 +159,6 @@ object CommandResponse {
       case commandResultResponse: CommandResultResponse => commandResultResponse match {
         case commandResponse: ZoneCreated => Right(Json.toJson(commandResponse)(Json.writes[ZoneCreated]))
         case commandResponse: ZoneJoined => Right(Json.toJson(commandResponse)(Json.writes[ZoneJoined]))
-        case ZoneRestored => Right(emptyJsObject)
         case ZoneQuit => Right(emptyJsObject)
         case ZoneNameSet => Right(emptyJsObject)
         case commandResponse: MemberCreated => Right(Json.toJson(commandResponse)(Json.writes[MemberCreated]))
@@ -195,7 +185,6 @@ sealed trait ZoneNotification extends Notification {
 
 }
 
-// TODO: Signing - use https://github.com/sbt/sbt-pgp?
 case class ZoneState(zoneId: ZoneId, zone: Zone) extends ZoneNotification
 
 case object ZoneStateMethodName extends NotificationMethodName("zoneState")

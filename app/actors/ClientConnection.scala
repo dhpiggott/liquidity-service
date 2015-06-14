@@ -48,7 +48,7 @@ class ClientConnection(publicKey: PublicKey,
       case Failure(e) =>
 
         Left(
-          JsonRpcResponseError.parseError(e, JsObject.apply),
+          JsonRpcResponseError.parseError(e),
           None
         )
 
@@ -57,24 +57,24 @@ class ClientConnection(publicKey: PublicKey,
         Json.fromJson[JsonRpcRequestMessage](jsValue).fold(
 
           errors => Left(
-            JsonRpcResponseError.invalidRequest(errors, JsError.toJson, JsObject.apply),
+            JsonRpcResponseError.invalidRequest(errors),
             None
           ),
 
           jsonRpcRequestMessage =>
 
-            Command.readCommand(jsonRpcRequestMessage)
+            Command.read(jsonRpcRequestMessage)
               .fold[(Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])])](
 
                 Left(
-                  JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method, JsObject.apply),
+                  JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method),
                   Some(jsonRpcRequestMessage.id)
                 )
 
               )(commandJsResult => commandJsResult.fold(
 
               errors => Left(
-                JsonRpcResponseError.invalidParams(errors, JsError.toJson, JsObject.apply),
+                JsonRpcResponseError.invalidParams(errors),
                 Some(jsonRpcRequestMessage.id)
               ),
 
@@ -168,7 +168,7 @@ class ClientConnection(publicKey: PublicKey,
 
       upstream ! Json.stringify(
         Json.toJson(
-          CommandResponse.writeCommandResponse(commandResponse, id, JsObject(Seq.empty))
+          CommandResponse.write(commandResponse, id)
         )
       )
 
@@ -178,7 +178,7 @@ class ClientConnection(publicKey: PublicKey,
 
       upstream ! Json.stringify(
         Json.toJson(
-          Notification.writeNotification(notification)
+          Notification.write(notification)
         )
       )
 
@@ -189,7 +189,7 @@ class ClientConnection(publicKey: PublicKey,
       joinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
         val remove = v == validator
         if (remove) {
-          upstream ! Notification.writeNotification(ZoneTerminated(zoneId))
+          upstream ! Notification.write(ZoneTerminated(zoneId))
         }
         remove
       }

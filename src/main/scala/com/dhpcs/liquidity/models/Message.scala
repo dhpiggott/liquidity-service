@@ -105,8 +105,7 @@ object Command {
     "addTransaction" -> Json.format[AddTransaction]
   )
 
-  // TODO: Rename?
-  def readCommand(jsonRpcRequestMessage: JsonRpcRequestMessage): Option[JsResult[Command]] =
+  def read(jsonRpcRequestMessage: JsonRpcRequestMessage): Option[JsResult[Command]] =
     CommandTypeFormats.find(_.methodName == jsonRpcRequestMessage.method).map(
       typeChoiceMapping => jsonRpcRequestMessage.params.fold(
         _ => JsError("command parameters must be named"),
@@ -121,8 +120,7 @@ object Command {
       valid => JsSuccess(valid)
     ))
 
-  // TODO: Rename?
-  def writeCommand(command: Command, id: Either[String, Int]): JsonRpcRequestMessage = {
+  def write(command: Command, id: Either[String, Int]): JsonRpcRequestMessage = {
     val mapping = CommandTypeFormats.find(_.matchesInstance(command))
       .getOrElse(sys.error(s"No format found for ${command.getClass}"))
     JsonRpcRequestMessage(mapping.methodName, Right(mapping.toJson(command).asInstanceOf[JsObject]), id)
@@ -174,8 +172,7 @@ object CommandResponse {
     "addTransaction" -> Json.format[TransactionAdded]
   )
 
-  // TODO: Rename?
-  def readCommandResponse(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): JsResult[CommandResponse] =
+  def read(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): JsResult[CommandResponse] =
     jsonRpcResponseMessage.eitherErrorOrResult.fold(
       error => JsSuccess(CommandErrorResponse(error.code, error.message, error.data)),
       result => CommandResponseFormats.find(_.methodName == method).get.fromJson(result)
@@ -188,11 +185,7 @@ object CommandResponse {
         valid => JsSuccess(valid)
       )
 
-  // TODO: Rename?
-  def writeCommandResponse(commandResponse: CommandResponse,
-                           id: Either[String, Int],
-                           // TODO: Remove
-                           jsObject: JsObject): JsonRpcResponseMessage = {
+  def write(commandResponse: CommandResponse, id: Either[String, Int]): JsonRpcResponseMessage = {
     val eitherErrorOrResult = commandResponse match {
       case CommandErrorResponse(code, message, data) => Left(
         JsonRpcResponseError(code, message, data)
@@ -234,8 +227,7 @@ object Notification {
     "clientQuitZone" -> Json.format[ClientQuitZone]
   )
 
-  // TODO: Rename?
-  def readNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage): Option[JsResult[Notification]] =
+  def read(jsonRpcNotificationMessage: JsonRpcNotificationMessage): Option[JsResult[Notification]] =
     NotificationFormats.find(_.methodName == jsonRpcNotificationMessage.method).map(
       typeChoiceMapping => jsonRpcNotificationMessage.params.fold(
         _ => JsError("notification parameters must be named"),
@@ -250,8 +242,7 @@ object Notification {
       valid => JsSuccess(valid)
     ))
 
-  // TODO: Rename?
-  def writeNotification(notification: Notification): JsonRpcNotificationMessage = {
+  def write(notification: Notification): JsonRpcNotificationMessage = {
     val mapping = NotificationFormats.find(_.matchesInstance(notification))
       .getOrElse(sys.error(s"No format found for ${notification.getClass}"))
     JsonRpcNotificationMessage(mapping.methodName, Right(mapping.toJson(notification).asInstanceOf[JsObject]))

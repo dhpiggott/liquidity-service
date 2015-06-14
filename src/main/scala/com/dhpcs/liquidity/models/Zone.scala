@@ -75,6 +75,18 @@ object Zone {
     }
   }
 
+  def connectedMembersAsJavaMap(members: java.util.Map[MemberId, Member],
+                                connectedClients: java.util.Set[PublicKey]) =
+    mapAsJavaMap(
+      connectedMembers(
+        mapAsScalaMap(members).toMap,
+        asScalaSet(connectedClients).toSet
+      )
+    )
+
+  def connectedMembers(members: Map[MemberId, Member], connectedClients: Set[PublicKey]) =
+    members.filter { case (_, member: Member) => connectedClients.contains(member.publicKey) }
+
   def otherMembersAsJavaMap(zone: Zone, userPublicKey: PublicKey) =
     mapAsJavaMap(
       otherMembers(
@@ -85,18 +97,6 @@ object Zone {
 
   def otherMembers(zone: Zone, userPublicKey: PublicKey) =
     zone.members.filter { case (_, member: Member) => member.publicKey != userPublicKey }
-
-  def otherConnectedMembersAsJavaMap(otherMembers: java.util.Map[MemberId, Member],
-                            connectedClients: java.util.Set[PublicKey]) =
-    mapAsJavaMap(
-      otherConnectedMembers(
-        mapAsScalaMap(otherMembers).toMap,
-        asScalaSet(connectedClients).toSet
-      )
-    )
-
-  def otherConnectedMembers(otherMembers: Map[MemberId, Member], connectedClients: Set[PublicKey]) =
-    otherMembers.filter { case (_, member: Member) => connectedClients.contains(member.publicKey) }
 
   def userMembersAsJavaMap(zone: Zone, userPublicKey: PublicKey) =
     mapAsJavaMap(

@@ -10,11 +10,11 @@ trait Identifier {
 
 }
 
-abstract class IdentifierCompanion[I <: Identifier] {
+abstract class IdentifierCompanion[A <: Identifier] {
 
-  implicit val IdentifierFormat = ValueFormat[I, UUID](apply, _.id)
+  implicit val IdentifierFormat = ValueFormat[A, UUID](apply, _.id)
 
-  def apply(id: UUID): I
+  def apply(id: UUID): A
 
   def generate = apply(UUID.randomUUID)
 

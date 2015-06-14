@@ -10,8 +10,8 @@ sealed trait Message
 
 object Message {
 
-  abstract class MethodFormat[M](methodAndFormatOrObject: (String, Either[M, Format[M]]))
-                                (implicit val classTag: ClassTag[M]) {
+  abstract class MethodFormat[A](methodAndFormatOrObject: (String, Either[A, Format[A]]))
+                                (implicit val classTag: ClassTag[A]) {
 
     val (methodName, formatOrObject) = methodAndFormatOrObject
 
@@ -24,20 +24,20 @@ object Message {
 
     def toJson(o: Any) = formatOrObject.fold(
       _ => Json.obj(),
-      format => format.writes(o.asInstanceOf[M])
+      format => format.writes(o.asInstanceOf[A])
     )
 
   }
 
-  implicit class MethodFormatFormat[M](methodAndFormat: (String, Format[M]))(implicit classTag: ClassTag[M])
+  implicit class MethodFormatFormat[A](methodAndFormat: (String, Format[A]))(implicit classTag: ClassTag[A])
     extends MethodFormat(methodAndFormat._1, Right(methodAndFormat._2))(classTag)
 
-  implicit class MethodFormatObject[M](methodAndObject: (String, M))(implicit classTag: ClassTag[M])
+  implicit class MethodFormatObject[A](methodAndObject: (String, A))(implicit classTag: ClassTag[A])
     extends MethodFormat(methodAndObject._1, Left(methodAndObject._2))(classTag)
 
   object MethodFormats {
 
-    def apply[M](methodFormats: MethodFormat[_ <: M]*) = {
+    def apply[A](methodFormats: MethodFormat[_ <: A]*) = {
       val methodNames = methodFormats.map(_.methodName)
       require(
         methodNames == methodNames.distinct,

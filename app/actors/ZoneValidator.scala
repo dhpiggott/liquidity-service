@@ -46,7 +46,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       val clientJoinedZone = ClientJoinedZone(zoneId, publicKey)
       presentClients.keys.foreach(_ ! clientJoinedZone)
     }
-    log.debug(s"$presentClients clients are present")
+    log.debug(s"${presentClients.size} clients are present")
   }
 
   def handleQuit(clientConnection: ActorRef): Unit = {
@@ -59,7 +59,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       presentClients.keys.foreach(_ ! clientQuitZone)
     }
     if (presentClients.nonEmpty) {
-      log.debug(s"$presentClients clients are present")
+      log.debug(s"${presentClients.size} clients are present")
     } else {
       log.debug(s"No clients are present; requesting termination")
       context.parent ! TerminationRequest

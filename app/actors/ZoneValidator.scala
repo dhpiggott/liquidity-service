@@ -1,7 +1,6 @@
 package actors
 
 import actors.ClientConnection.AuthenticatedCommand
-import actors.ZoneRegistry.TerminationRequest
 import akka.actor._
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
@@ -60,9 +59,10 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
     }
     if (presentClients.nonEmpty) {
       log.debug(s"${presentClients.size} clients are present")
-    } else {
-      log.debug(s"No clients are present; requesting termination")
-      context.parent ! TerminationRequest
+      // TODO: Disabled to simplify client testing until persistence is implemented
+      //    } else {
+      //      log.debug(s"No clients are present; requesting termination")
+      //      context.parent ! TerminationRequest
     }
   }
 

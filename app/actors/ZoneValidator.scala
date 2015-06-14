@@ -76,8 +76,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
         case CreateZone(name, zoneType) =>
 
-          handleJoin(sender(), publicKey)
-
           val zone = Zone(name, zoneType)
 
           sender !

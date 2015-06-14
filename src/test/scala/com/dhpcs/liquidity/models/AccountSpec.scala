@@ -10,7 +10,7 @@ import play.api.libs.json._
 class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
 
   describe("A JsValue of the wrong type") {
-    it should behave like decodeError(
+    it should behave like readError(
       Json.parse("0"),
       JsError(List(
         (__ \ "name", List(ValidationError("error.path.missing"))),
@@ -25,8 +25,8 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
       Set(MemberId(UUID.fromString("6709b5c8-1f18-491e-b703-d76baa261099")))
     )
     implicit val accountJson = Json.parse( """{"name":"Dave's account","owners":["6709b5c8-1f18-491e-b703-d76baa261099"]}""")
-    it should behave like decode
-    it should behave like encode
+    it should behave like read
+    it should behave like write
   }
 
 }

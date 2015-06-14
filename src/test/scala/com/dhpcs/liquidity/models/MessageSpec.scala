@@ -3,9 +3,9 @@ package com.dhpcs.liquidity.models
 import java.security.KeyPairGenerator
 import java.util.UUID
 
+import com.dhpcs.json.JsResultUniformity
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
 import com.google.common.io.BaseEncoding
-import org.scalactic.Uniformity
 import org.scalatest.OptionValues._
 import org.scalatest._
 import play.api.data.validation.ValidationError
@@ -13,32 +13,8 @@ import play.api.libs.json._
 
 class MessageSpec extends FunSpec with Matchers {
 
-  // TODO: s/decode/read/, /s/encode/write/, make output less verbose, unify those changes with FormatBehaviors
-
-  def ordered[U] = new Uniformity[JsResult[U]] {
-
-    override def normalizedCanHandle(b: Any) = b match {
-      case _: JsError => true
-      case _ => false
-    }
-
-    override def normalizedOrSame(b: Any) = b match {
-      case j: JsError => normalized(j)
-      case _ => b
-    }
-
-    override def normalized(a: JsResult[U]) = a match {
-      case jsError: JsError =>
-        jsError.copy(
-          errors = jsError.errors.sortBy { case (jsPath: JsPath, _) => jsPath.toJsonString }
-        )
-      case _ => a
-    }
-
-  }
-
-  def commandDecodeError(jsonRpcRequestMessage: JsonRpcRequestMessage, maybeJsError: Option[JsError]) =
-    it(s"$jsonRpcRequestMessage should fail to decode with error $maybeJsError") {
+  def commandReadError(jsonRpcRequestMessage: JsonRpcRequestMessage, maybeJsError: Option[JsError]) =
+    it(s"should fail to decode with error $maybeJsError") {
       val maybeCommandJsResult = Command.readCommand(jsonRpcRequestMessage)
       maybeJsError.fold(
         maybeCommandJsResult shouldBe empty
@@ -49,19 +25,21 @@ class MessageSpec extends FunSpec with Matchers {
         )
     }
 
-  def commandDecode(implicit jsonRpcRequestMessage: JsonRpcRequestMessage, command: Command) =
-    it(s"$jsonRpcRequestMessage should decode to $command") {
+  def commandRead(implicit jsonRpcRequestMessage: JsonRpcRequestMessage, command: Command) =
+    it(s"should decode to $command") {
       Command.readCommand(jsonRpcRequestMessage) should be(Some(JsSuccess(command)))
     }
 
-  def commandEncode(implicit command: Command, id: Either[String, Int], jsonRpcRequestMessage: JsonRpcRequestMessage) =
-    it(s"$command should encode to $jsonRpcRequestMessage") {
+  def commandWrite(implicit command: Command, id: Either[String, Int], jsonRpcRequestMessage: JsonRpcRequestMessage) =
+    it(s"should encode to $jsonRpcRequestMessage") {
       Command.writeCommand(command, id) should be(jsonRpcRequestMessage)
     }
 
+  def ordered[A] = new JsResultUniformity[A]
+
   describe("A Command") {
     describe("with an invalid method") {
-      it should behave like commandDecodeError(
+      it should behave like commandReadError(
         JsonRpcRequestMessage(
           "invalidMethod",
           Right(Json.obj()),
@@ -72,7 +50,7 @@ class MessageSpec extends FunSpec with Matchers {
     }
     describe("of type CreateZone") {
       describe("with params of the wrong type") {
-        it should behave like commandDecodeError(
+        it should behave like commandReadError(
           JsonRpcRequestMessage(
             "createZone",
             Left(Json.arr()),
@@ -86,7 +64,7 @@ class MessageSpec extends FunSpec with Matchers {
         )
       }
       describe("with empty params") {
-        it should behave like commandDecodeError(
+        it should behave like commandReadError(
           JsonRpcRequestMessage(
             "createZone",
             Right(Json.obj()),
@@ -115,37 +93,37 @@ class MessageSpec extends FunSpec with Matchers {
         ),
         Right(0)
       )
-      it should behave like commandDecode
-      it should behave like commandEncode
+      it should behave like commandRead
+      it should behave like commandWrite
     }
   }
 
-  def commandResponseDecodeError(jsonRpcResponseMessage: JsonRpcResponseMessage,
-                                 method: String,
-                                 jsError: JsError) =
-    it(s"$jsonRpcResponseMessage should fail to decode with error $jsError") {
+  def commandResponseReadError(jsonRpcResponseMessage: JsonRpcResponseMessage,
+                               method: String,
+                               jsError: JsError) =
+    it(s"should fail to decode with error $jsError") {
       (CommandResponse.readCommandResponse(jsonRpcResponseMessage, method)
         should equal(jsError))(after being ordered[CommandResponse])
     }
 
-  def commandResponseDecode(implicit jsonRpcResponseMessage: JsonRpcResponseMessage,
-                            method: String,
-                            commandResponse: CommandResponse) =
-    it(s"$jsonRpcResponseMessage should decode to $commandResponse") {
+  def commandResponseRead(implicit jsonRpcResponseMessage: JsonRpcResponseMessage,
+                          method: String,
+                          commandResponse: CommandResponse) =
+    it(s"should decode to $commandResponse") {
       CommandResponse.readCommandResponse(jsonRpcResponseMessage, method) should be(JsSuccess(commandResponse))
     }
 
-  def commandResponseEncode(implicit commandResponse: CommandResponse,
-                            id: Either[String, Int],
-                            jsonRpcResponseMessage: JsonRpcResponseMessage) =
-    it(s"$commandResponse should encode to $jsonRpcResponseMessage") {
+  def commandResponseWrite(implicit commandResponse: CommandResponse,
+                           id: Either[String, Int],
+                           jsonRpcResponseMessage: JsonRpcResponseMessage) =
+    it(s"should encode to $jsonRpcResponseMessage") {
       CommandResponse.writeCommandResponse(commandResponse, id, Json.obj()) should be(jsonRpcResponseMessage)
     }
 
   describe("A CommandResponse") {
     describe("of type ZoneCreated") {
       describe("with empty params") {
-        it should behave like commandResponseDecodeError(
+        it should behave like commandResponseReadError(
           JsonRpcResponseMessage(
             Right(Json.obj()),
             Some(Right(0))
@@ -172,12 +150,12 @@ class MessageSpec extends FunSpec with Matchers {
       )
     )
     implicit val method = "createZone"
-    it should behave like commandResponseDecode
-    it should behave like commandResponseEncode
+    it should behave like commandResponseRead
+    it should behave like commandResponseWrite
   }
 
-  def notificationDecodeError(jsonRpcNotificationMessage: JsonRpcNotificationMessage, maybeJsError: Option[JsError]) =
-    it(s"$jsonRpcNotificationMessage should fail to decode with error $maybeJsError") {
+  def notificationReadError(jsonRpcNotificationMessage: JsonRpcNotificationMessage, maybeJsError: Option[JsError]) =
+    it(s"should fail to decode with error $maybeJsError") {
       val maybeNotificationJsResult = Notification.readNotification(jsonRpcNotificationMessage)
       maybeJsError.fold(
         maybeNotificationJsResult shouldBe empty
@@ -188,19 +166,19 @@ class MessageSpec extends FunSpec with Matchers {
         )
     }
 
-  def notificationDecode(implicit jsonRpcNotificationMessage: JsonRpcNotificationMessage, notification: Notification) =
-    it(s"$jsonRpcNotificationMessage should decode to $notification") {
+  def notificationRead(implicit jsonRpcNotificationMessage: JsonRpcNotificationMessage, notification: Notification) =
+    it(s"should decode to $notification") {
       Notification.readNotification(jsonRpcNotificationMessage) should be(Some(JsSuccess(notification)))
     }
 
-  def notificationEncode(implicit notification: Notification, jsonRpcNotificationMessage: JsonRpcNotificationMessage) =
-    it(s"$notification should encode to $jsonRpcNotificationMessage") {
+  def notificationWrite(implicit notification: Notification, jsonRpcNotificationMessage: JsonRpcNotificationMessage) =
+    it(s"should encode to $jsonRpcNotificationMessage") {
       Notification.writeNotification(notification) should be(jsonRpcNotificationMessage)
     }
 
   describe("A Notification") {
     describe("with an invalid method") {
-      it should behave like notificationDecodeError(
+      it should behave like notificationReadError(
         JsonRpcNotificationMessage(
           "invalidMethod",
           Right(Json.obj())
@@ -210,7 +188,7 @@ class MessageSpec extends FunSpec with Matchers {
     }
     describe("of type Notification") {
       describe("with params of the wrong type") {
-        it should behave like notificationDecodeError(
+        it should behave like notificationReadError(
           JsonRpcNotificationMessage(
             "zoneState",
             Left(Json.arr())
@@ -223,7 +201,7 @@ class MessageSpec extends FunSpec with Matchers {
         )
       }
       describe("with empty params") {
-        it should behave like notificationDecodeError(
+        it should behave like notificationReadError(
           JsonRpcNotificationMessage(
             "zoneState",
             Right(Json.obj())
@@ -272,8 +250,8 @@ class MessageSpec extends FunSpec with Matchers {
           )
         )
       )
-      it should behave like notificationDecode
-      it should behave like notificationEncode
+      it should behave like notificationRead
+      it should behave like notificationWrite
     }
   }
 

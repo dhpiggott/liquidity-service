@@ -14,7 +14,7 @@ object TestIdentifier extends IdentifierCompanion[TestIdentifier]
 class IdentifierSpec extends FunSpec with FormatBehaviors[TestIdentifier] with Matchers {
 
   describe("A JsValue of the wrong type") {
-    it should behave like decodeError(
+    it should behave like readError(
       Json.parse("0"),
       JsError(List((__, List(ValidationError("error.expected.uuid")))))
     )
@@ -23,8 +23,8 @@ class IdentifierSpec extends FunSpec with FormatBehaviors[TestIdentifier] with M
   describe("A TestIdentifier") {
     implicit val testIdentifier = TestIdentifier(UUID.fromString("c65910f3-40b0-476d-a404-c0bcbb57f45a"))
     implicit val testIdentifierJson = Json.parse( """"c65910f3-40b0-476d-a404-c0bcbb57f45a"""")
-    it should behave like decode
-    it should behave like encode
+    it should behave like read
+    it should behave like write
   }
 
 }

@@ -11,7 +11,7 @@ import play.api.libs.json._
 class PublicKeySpec extends FunSpec with FormatBehaviors[PublicKey] with Matchers {
 
   describe("A JsValue of the wrong type") {
-    it should behave like decodeError(
+    it should behave like readError(
       Json.parse("0"),
       JsError(List((__, List(ValidationError("error.expected.jsstring")))))
     )
@@ -21,8 +21,8 @@ class PublicKeySpec extends FunSpec with FormatBehaviors[PublicKey] with Matcher
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     implicit val publicKey = PublicKey(publicKeyBytes)
     implicit val publicKeyJson = Json.parse( s""""${BaseEncoding.base64.encode(publicKeyBytes)}"""")
-    it should behave like decode
-    it should behave like encode
+    it should behave like read
+    it should behave like write
   }
 
 }

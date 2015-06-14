@@ -11,7 +11,7 @@ import play.api.libs.json._
 class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
 
   describe("A JsValue of the wrong type") {
-    it should behave like decodeError(
+    it should behave like readError(
       Json.parse("0"),
       JsError(List(
         (__ \ "name", List(ValidationError("error.path.missing"))),
@@ -24,8 +24,8 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     implicit val member = Member("Dave", PublicKey(publicKeyBytes))
     implicit val memberJson = Json.parse( s"""{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}""")
-    it should behave like decode
-    it should behave like encode
+    it should behave like read
+    it should behave like write
   }
 
 }

@@ -81,9 +81,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           sender !
             (ZoneCreated(zoneId), id)
 
-          val zoneState = ZoneState(zoneId, zone)
-          presentClients.keys.foreach(_ ! zoneState)
-
           context.become(receiveWithCanonicalZone(zone))
 
         case _ =>

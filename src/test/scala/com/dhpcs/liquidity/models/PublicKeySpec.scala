@@ -12,7 +12,7 @@ class PublicKeySpec extends FunSpec with FormatBehaviors[PublicKey] with Matcher
 
   describe("A JsValue of the wrong type") {
     it should behave like readError(
-      Json.parse("0"),
+      Json.parse( """0"""),
       JsError(List((__, List(ValidationError("error.expected.jsstring")))))
     )
   }

@@ -15,7 +15,7 @@ class IdentifierSpec extends FunSpec with FormatBehaviors[TestIdentifier] with M
 
   describe("A JsValue of the wrong type") {
     it should behave like readError(
-      Json.parse("0"),
+      Json.parse( """0"""),
       JsError(List((__, List(ValidationError("error.expected.uuid")))))
     )
   }

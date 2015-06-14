@@ -13,7 +13,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
 
   describe("A JsValue of the wrong type") {
     it should behave like readError(
-      Json.parse("0"),
+      Json.parse( """0"""),
       JsError(List(
         (__ \ "name", List(ValidationError("error.path.missing"))),
         (__ \ "type", List(ValidationError("error.path.missing"))),

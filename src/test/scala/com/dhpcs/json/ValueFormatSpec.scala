@@ -1,47 +1,31 @@
-package com.dhpcs.com.dhpcs.json
+package com.dhpcs.json
 
-import com.dhpcs.json.ValueFormat
 import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
 
-class ValueFormatSpec extends FunSpec with Matchers {
+case class TestValue(value: String)
 
-  case class TestValue(value: String)
+object TestValue {
 
-  object TestValue {
+  implicit val TestFormat = ValueFormat[TestValue, String](apply, _.value)
 
-    implicit val TestFormat = ValueFormat[TestValue, String](apply, _.value)
+}
 
-  }
-
-  def decodeError(badTestValueJson: JsValue, jsError: JsError) =
-    it(s"$badTestValueJson should fail to decode with error $jsError") {
-      Json.fromJson[TestValue](badTestValueJson) should be(jsError)
-    }
-
-  def decode(implicit testValueJson: JsValue, testValue: TestValue) =
-    it(s"$testValueJson should decode to $testValue") {
-      testValueJson.as[TestValue] should be(testValue)
-    }
-
-  def encode(implicit testValue: TestValue, testValueJson: JsValue) =
-    it(s"$testValue should encode to $testValueJson") {
-      Json.toJson(testValue) should be(testValueJson)
-    }
+class ValueFormatSpec extends FunSpec with FormatBehaviors[TestValue] with Matchers {
 
   describe("A JsValue of the wrong type") {
-    it should behave like decodeError(
-      Json.parse("0"),
+    it should behave like readError(
+      Json.parse( """0"""),
       JsError(List((__, List(ValidationError("error.expected.jsstring")))))
     )
   }
 
   describe("A TestValue") {
     implicit val testValue = TestValue("test")
-    implicit val testValueJson = Json.parse("\"test\"")
-    it should behave like decode
-    it should behave like encode
+    implicit val testValueJson = Json.parse( """"test"""")
+    it should behave like read
+    it should behave like write
   }
 
 }

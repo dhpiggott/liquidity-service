@@ -165,7 +165,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           def freshMemberId: MemberId = {
             val memberId = MemberId.generate
-            if (canonicalZone.members.get(memberId).isEmpty) {
+            if (!canonicalZone.members.contains(memberId)) {
               memberId
             } else {
               freshMemberId
@@ -251,7 +251,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           def freshAccountId: AccountId = {
             val accountId = AccountId.generate
-            if (canonicalZone.accounts.get(accountId).isEmpty) {
+            if (!canonicalZone.accounts.contains(accountId)) {
               accountId
             } else {
               freshAccountId
@@ -262,7 +262,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           val timestamp = System.currentTimeMillis
 
           sender !
-            (CreateAccountResponse, id)
+            (CreateAccountResponse(accountId), id)
 
           val newCanonicalZone = canonicalZone.copy(
             accounts = canonicalZone.accounts + (accountId -> account),
@@ -377,7 +377,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
                 def freshTransactionId: TransactionId = {
                   val transactionId = TransactionId.generate
-                  if (canonicalZone.transactions.get(transactionId).isEmpty) {
+                  if (!canonicalZone.transactions.contains(transactionId)) {
                     transactionId
                   } else {
                     freshTransactionId

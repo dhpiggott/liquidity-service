@@ -109,7 +109,7 @@ class ClientConnection(publicKey: PublicKey,
 
           command match {
 
-            case command: CreateZone =>
+            case command: CreateZoneCommand =>
 
               log.debug(s"Received $command}")
 
@@ -120,7 +120,7 @@ class ClientConnection(publicKey: PublicKey,
                 CacheValidator(zoneId, validator)
               }.pipeTo(self)
 
-            case command@JoinZone(zoneId) =>
+            case command@JoinZoneCommand(zoneId) =>
 
               log.debug(s"Received $command}")
 
@@ -131,7 +131,7 @@ class ClientConnection(publicKey: PublicKey,
                 CacheValidator(zoneId, validator)
               }.pipeTo(self)
 
-            case command@QuitZone(zoneId) =>
+            case command@QuitZoneCommand(zoneId) =>
 
               log.debug(s"Received $command}")
 
@@ -162,13 +162,13 @@ class ClientConnection(publicKey: PublicKey,
 
       joinedValidators += (zoneId -> validator)
 
-    case (commandResponse: CommandResponse, id: Either[String, Int]@unchecked) =>
+    case (response: Response, id: Either[String, Int]@unchecked) =>
 
-      log.debug(s"Received $commandResponse}")
+      log.debug(s"Received $response}")
 
       upstream ! Json.stringify(
         Json.toJson(
-          CommandResponse.write(commandResponse, id)
+          Response.write(response, id)
         )
       )
 
@@ -189,7 +189,7 @@ class ClientConnection(publicKey: PublicKey,
       joinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
         val remove = v == validator
         if (remove) {
-          upstream ! Notification.write(ZoneTerminated(zoneId))
+          upstream ! Notification.write(ZoneTerminatedNotification(zoneId))
         }
         remove
       }

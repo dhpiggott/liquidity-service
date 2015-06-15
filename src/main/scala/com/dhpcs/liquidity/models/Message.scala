@@ -67,42 +67,42 @@ sealed trait ZoneCommand extends Command {
 
 }
 
-case class CreateZone(name: String, zoneType: String) extends Command
+case class CreateZoneCommand(name: String, zoneType: String) extends Command
 
-case class JoinZone(zoneId: ZoneId) extends ZoneCommand
+case class JoinZoneCommand(zoneId: ZoneId) extends ZoneCommand
 
-case class QuitZone(zoneId: ZoneId) extends ZoneCommand
+case class QuitZoneCommand(zoneId: ZoneId) extends ZoneCommand
 
-case class SetZoneName(zoneId: ZoneId, name: String) extends ZoneCommand
+case class SetZoneNameCommand(zoneId: ZoneId, name: String) extends ZoneCommand
 
-case class CreateMember(zoneId: ZoneId, member: Member) extends ZoneCommand
+case class CreateMemberCommand(zoneId: ZoneId, member: Member) extends ZoneCommand
 
-case class UpdateMember(zoneId: ZoneId, memberId: MemberId, member: Member) extends ZoneCommand
+case class UpdateMemberCommand(zoneId: ZoneId, memberId: MemberId, member: Member) extends ZoneCommand
 
-case class DeleteMember(zoneId: ZoneId, memberId: MemberId) extends ZoneCommand
+case class DeleteMemberCommand(zoneId: ZoneId, memberId: MemberId) extends ZoneCommand
 
-case class CreateAccount(zoneId: ZoneId, account: Account) extends ZoneCommand
+case class CreateAccountCommand(zoneId: ZoneId, account: Account) extends ZoneCommand
 
-case class UpdateAccount(zoneId: ZoneId, accountId: AccountId, account: Account) extends ZoneCommand
+case class UpdateAccountCommand(zoneId: ZoneId, accountId: AccountId, account: Account) extends ZoneCommand
 
-case class DeleteAccount(zoneId: ZoneId, accountId: AccountId) extends ZoneCommand
+case class DeleteAccountCommand(zoneId: ZoneId, accountId: AccountId) extends ZoneCommand
 
-case class AddTransaction(zoneId: ZoneId, transaction: Transaction) extends ZoneCommand
+case class AddTransactionCommand(zoneId: ZoneId, transaction: Transaction) extends ZoneCommand
 
 object Command {
 
   val CommandTypeFormats = MethodFormats(
-    "createZone" -> Json.format[CreateZone],
-    "joinZone" -> Json.format[JoinZone],
-    "quitZone" -> Json.format[QuitZone],
-    "setZoneName" -> Json.format[SetZoneName],
-    "createMember" -> Json.format[CreateMember],
-    "updateMember" -> Json.format[UpdateMember],
-    "deleteMember" -> Json.format[DeleteMember],
-    "createAccount" -> Json.format[CreateAccount],
-    "updateAccount" -> Json.format[UpdateAccount],
-    "deleteAccount" -> Json.format[DeleteAccount],
-    "addTransaction" -> Json.format[AddTransaction]
+    "createZone" -> Json.format[CreateZoneCommand],
+    "joinZone" -> Json.format[JoinZoneCommand],
+    "quitZone" -> Json.format[QuitZoneCommand],
+    "setZoneName" -> Json.format[SetZoneNameCommand],
+    "createMember" -> Json.format[CreateMemberCommand],
+    "updateMember" -> Json.format[UpdateMemberCommand],
+    "deleteMember" -> Json.format[DeleteMemberCommand],
+    "createAccount" -> Json.format[CreateAccountCommand],
+    "updateAccount" -> Json.format[UpdateAccountCommand],
+    "deleteAccount" -> Json.format[DeleteAccountCommand],
+    "addTransaction" -> Json.format[AddTransactionCommand]
   )
 
   def read(jsonRpcRequestMessage: JsonRpcRequestMessage): Option[JsResult[Command]] =
@@ -128,54 +128,54 @@ object Command {
 
 }
 
-sealed trait CommandResponse extends Message
+sealed trait Response extends Message
 
-case class CommandErrorResponse(code: Int, message: String, data: Option[JsValue]) extends CommandResponse
+case class ErrorResponse(code: Int, message: String, data: Option[JsValue]) extends Response
 
-sealed trait CommandResultResponse extends CommandResponse
+sealed trait ResultResponse extends Response
 
-case class ZoneCreated(zoneId: ZoneId) extends CommandResultResponse
+case class CreateZoneResponse(zoneId: ZoneId) extends ResultResponse
 
-case class ZoneJoined(zone: Zone, connectedClients: Set[PublicKey]) extends CommandResultResponse
+case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends ResultResponse
 
-case object ZoneQuit extends CommandResultResponse
+case object QuitZoneResponse extends ResultResponse
 
-case object ZoneNameSet extends CommandResultResponse
+case object SetZoneNameResponse extends ResultResponse
 
-case class MemberCreated(memberId: MemberId) extends CommandResultResponse
+case class CreateMemberResponse(memberId: MemberId) extends ResultResponse
 
-case object MemberUpdated extends CommandResultResponse
+case object UpdateMemberResponse extends ResultResponse
 
-case object MemberDeleted extends CommandResultResponse
+case object DeleteMemberResponse extends ResultResponse
 
-case class AccountCreated(accountId: AccountId) extends CommandResultResponse
+case class CreateAccountResponse(accountId: AccountId) extends ResultResponse
 
-case object AccountUpdated extends CommandResultResponse
+case object UpdateAccountResponse extends ResultResponse
 
-case object AccountDeleted extends CommandResultResponse
+case object DeleteAccountResponse extends ResultResponse
 
-case class TransactionAdded(transactionId: TransactionId) extends CommandResultResponse
+case class AddTransactionResponse(transactionId: TransactionId) extends ResultResponse
 
-object CommandResponse {
+object Response {
 
-  val CommandResponseFormats = MethodFormats(
-    "createZone" -> Json.format[ZoneCreated],
-    "joinZone" -> Json.format[ZoneJoined],
-    "quitZone" -> ZoneQuit,
-    "setZoneName" -> ZoneNameSet,
-    "createMember" -> Json.format[MemberCreated],
-    "updateMember" -> MemberUpdated,
-    "deleteMember" -> MemberDeleted,
-    "createAccount" -> Json.format[AccountCreated],
-    "updateAccount" -> AccountUpdated,
-    "deleteAccount" -> AccountDeleted,
-    "addTransaction" -> Json.format[TransactionAdded]
+  val ResponseFormats = MethodFormats(
+    "createZone" -> Json.format[CreateZoneResponse],
+    "joinZone" -> Json.format[JoinZoneResponse],
+    "quitZone" -> QuitZoneResponse,
+    "setZoneName" -> SetZoneNameResponse,
+    "createMember" -> Json.format[CreateMemberResponse],
+    "updateMember" -> UpdateMemberResponse,
+    "deleteMember" -> DeleteMemberResponse,
+    "createAccount" -> Json.format[CreateAccountResponse],
+    "updateAccount" -> UpdateAccountResponse,
+    "deleteAccount" -> DeleteAccountResponse,
+    "addTransaction" -> Json.format[AddTransactionResponse]
   )
 
-  def read(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): JsResult[CommandResponse] =
+  def read(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String): JsResult[Response] =
     jsonRpcResponseMessage.eitherErrorOrResult.fold(
-      error => JsSuccess(CommandErrorResponse(error.code, error.message, error.data)),
-      result => CommandResponseFormats.find(_.methodName == method).get.fromJson(result)
+      error => JsSuccess(ErrorResponse(error.code, error.message, error.data)),
+      result => ResponseFormats.find(_.methodName == method).get.fromJson(result)
     ).fold(
 
         /*
@@ -185,15 +185,15 @@ object CommandResponse {
         valid => JsSuccess(valid)
       )
 
-  def write(commandResponse: CommandResponse, id: Either[String, Int]): JsonRpcResponseMessage = {
-    val eitherErrorOrResult = commandResponse match {
-      case CommandErrorResponse(code, message, data) => Left(
+  def write(response: Response, id: Either[String, Int]): JsonRpcResponseMessage = {
+    val eitherErrorOrResult = response match {
+      case ErrorResponse(code, message, data) => Left(
         JsonRpcResponseError(code, message, data)
       )
-      case commandResultResponse: CommandResultResponse =>
-        val mapping = CommandResponseFormats.find(_.matchesInstance(commandResponse))
-          .getOrElse(sys.error(s"No format found for ${commandResponse.getClass}"))
-        Right(mapping.toJson(commandResponse))
+      case resultResponse: ResultResponse =>
+        val mapping = ResponseFormats.find(_.matchesInstance(resultResponse))
+          .getOrElse(sys.error(s"No format found for ${response.getClass}"))
+        Right(mapping.toJson(response))
     }
     JsonRpcResponseMessage(eitherErrorOrResult, Some(id))
   }
@@ -210,21 +210,56 @@ sealed trait ZoneNotification extends Notification {
 
 }
 
-case class ZoneState(zoneId: ZoneId, zone: Zone) extends ZoneNotification
+sealed trait ZoneStateNotification extends ZoneNotification {
 
-case class ZoneTerminated(zoneId: ZoneId) extends ZoneNotification
+  val lastModified: Long
 
-case class ClientJoinedZone(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+}
 
-case class ClientQuitZone(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+
+case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+
+case class ZoneTerminatedNotification(zoneId: ZoneId) extends ZoneNotification
+
+case class ZoneNameSetNotification(zoneId: ZoneId, lastModified: Long, name: String) extends ZoneStateNotification
+
+case class MemberCreatedNotification(zoneId: ZoneId, lastModified: Long,
+                                     memberId: MemberId, member: Member) extends ZoneStateNotification
+
+case class MemberUpdatedNotification(zoneId: ZoneId, lastModified: Long,
+                                     memberId: MemberId, member: Member) extends ZoneStateNotification
+
+case class MemberDeletedNotification(zoneId: ZoneId, lastModified: Long,
+                                     memberId: MemberId) extends ZoneStateNotification
+
+case class AccountCreatedNotification(zoneId: ZoneId, lastModified: Long,
+                                      accountId: AccountId, account: Account) extends ZoneStateNotification
+
+case class AccountUpdatedNotification(zoneId: ZoneId, lastModified: Long,
+                                      accountId: AccountId, account: Account) extends ZoneStateNotification
+
+case class AccountDeletedNotification(zoneId: ZoneId, lastModified: Long,
+                                      accountId: AccountId) extends ZoneStateNotification
+
+case class TransactionAddedNotification(zoneId: ZoneId, lastModified: Long,
+                                        transactionId: TransactionId,
+                                        transaction: Transaction) extends ZoneStateNotification
 
 object Notification {
 
   val NotificationFormats = MethodFormats(
-    "zoneState" -> Json.format[ZoneState],
-    "zoneTerminated" -> Json.format[ZoneTerminated],
-    "clientJoinedZone" -> Json.format[ClientJoinedZone],
-    "clientQuitZone" -> Json.format[ClientQuitZone]
+    "clientJoinedZone" -> Json.format[ClientJoinedZoneNotification],
+    "clientQuitZone" -> Json.format[ClientQuitZoneNotification],
+    "zoneTerminated" -> Json.format[ZoneTerminatedNotification],
+    "zoneNameSet" -> Json.format[ZoneNameSetNotification],
+    "memberCreated" -> Json.format[MemberCreatedNotification],
+    "memberUpdated" -> Json.format[MemberUpdatedNotification],
+    "memberDeleted" -> Json.format[MemberDeletedNotification],
+    "accountCreated" -> Json.format[AccountCreatedNotification],
+    "accountUpdated" -> Json.format[AccountUpdatedNotification],
+    "accountDeleted" -> Json.format[AccountDeletedNotification],
+    "transactionAdded" -> Json.format[TransactionAddedNotification]
   )
 
   def read(jsonRpcNotificationMessage: JsonRpcNotificationMessage): Option[JsResult[Notification]] =

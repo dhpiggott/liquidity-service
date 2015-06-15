@@ -48,7 +48,7 @@ class MessageSpec extends FunSpec with Matchers {
         None
       )
     }
-    describe("of type CreateZone") {
+    describe("of type CreateZoneCommand") {
       describe("with params of the wrong type") {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
@@ -78,7 +78,7 @@ class MessageSpec extends FunSpec with Matchers {
           )
         )
       }
-      implicit val createZone = CreateZone(
+      implicit val createZoneCommand = CreateZoneCommand(
         "Dave's zone",
         "test"
       )
@@ -98,32 +98,27 @@ class MessageSpec extends FunSpec with Matchers {
     }
   }
 
-  def commandResponseReadError(jsonRpcResponseMessage: JsonRpcResponseMessage,
-                               method: String,
-                               jsError: JsError) =
+  def responseReadError(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String, jsError: JsError) =
     it(s"should fail to decode with error $jsError") {
-      (CommandResponse.read(jsonRpcResponseMessage, method)
-        should equal(jsError))(after being ordered[CommandResponse])
+      (Response.read(jsonRpcResponseMessage, method) should equal(jsError))(after being ordered[Response])
     }
 
-  def commandResponseRead(implicit jsonRpcResponseMessage: JsonRpcResponseMessage,
-                          method: String,
-                          commandResponse: CommandResponse) =
-    it(s"should decode to $commandResponse") {
-      CommandResponse.read(jsonRpcResponseMessage, method) should be(JsSuccess(commandResponse))
+  def responseRead(implicit jsonRpcResponseMessage: JsonRpcResponseMessage, method: String, response: Response) =
+    it(s"should decode to $response") {
+      Response.read(jsonRpcResponseMessage, method) should be(JsSuccess(response))
     }
 
-  def commandResponseWrite(implicit commandResponse: CommandResponse,
-                           id: Either[String, Int],
-                           jsonRpcResponseMessage: JsonRpcResponseMessage) =
+  def responseWrite(implicit response: Response,
+                    id: Either[String, Int],
+                    jsonRpcResponseMessage: JsonRpcResponseMessage) =
     it(s"should encode to $jsonRpcResponseMessage") {
-      CommandResponse.write(commandResponse, id) should be(jsonRpcResponseMessage)
+      Response.write(response, id) should be(jsonRpcResponseMessage)
     }
 
-  describe("A CommandResponse") {
-    describe("of type ZoneCreated") {
+  describe("A Response") {
+    describe("of type CreateZoneResponse") {
       describe("with empty params") {
-        it should behave like commandResponseReadError(
+        it should behave like responseReadError(
           JsonRpcResponseMessage(
             Right(Json.obj()),
             Some(Right(0))
@@ -135,7 +130,7 @@ class MessageSpec extends FunSpec with Matchers {
         )
       }
     }
-    implicit val zoneCreated = ZoneCreated(
+    implicit val createZoneResponse = CreateZoneResponse(
       ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3"))
     )
     implicit val id = Right(0)
@@ -150,8 +145,8 @@ class MessageSpec extends FunSpec with Matchers {
       )
     )
     implicit val method = "createZone"
-    it should behave like commandResponseRead
-    it should behave like commandResponseWrite
+    it should behave like responseRead
+    it should behave like responseWrite
   }
 
   def notificationReadError(jsonRpcNotificationMessage: JsonRpcNotificationMessage, maybeJsError: Option[JsError]) =
@@ -186,11 +181,11 @@ class MessageSpec extends FunSpec with Matchers {
         None
       )
     }
-    describe("of type Notification") {
+    describe("of type ClientJoinedZoneNotification") {
       describe("with params of the wrong type") {
         it should behave like notificationReadError(
           JsonRpcNotificationMessage(
-            "zoneState",
+            "clientJoinedZone",
             Left(Json.arr())
           ),
           Some(
@@ -203,50 +198,28 @@ class MessageSpec extends FunSpec with Matchers {
       describe("with empty params") {
         it should behave like notificationReadError(
           JsonRpcNotificationMessage(
-            "zoneState",
+            "clientJoinedZone",
             Right(Json.obj())
           ),
           Some(
             JsError(List(
               (__ \ "zoneId", List(ValidationError("error.path.missing"))),
-              (__ \ "zone", List(ValidationError("error.path.missing")))
+              (__ \ "publicKey", List(ValidationError("error.path.missing")))
             ))
           )
         )
       }
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-      implicit val zoneState = ZoneState(
+      implicit val clientJoinedZoneNotification = ClientJoinedZoneNotification(
         ZoneId(UUID.fromString("a52e984e-f0aa-4481-802b-74622cb3f6f6")),
-        Zone(
-          "Dave's zone",
-          "test",
-          Map(
-            MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37")) ->
-              Member("Dave", PublicKey(publicKeyBytes))
-          ),
-          Map(
-            AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")) ->
-              Account("Dave's account", Set(MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37"))))
-          ),
-          Map(
-            TransactionId(UUID.fromString("65b1711c-5747-452c-8975-3f0d36e9efa6")) ->
-              Transaction(
-                "Dave's lottery win",
-                AccountId(UUID.fromString("80ccbec2-79a4-4cfa-8e97-f33fac2aa5ba")),
-                AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")),
-                BigDecimal(1000000),
-                1433611420487L
-              )
-          ),
-          1433611420487L
-        )
+        PublicKey(publicKeyBytes)
       )
       implicit val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
-        "zoneState",
+        "clientJoinedZone",
         Right(
           Json.obj(
             "zoneId" -> "a52e984e-f0aa-4481-802b-74622cb3f6f6",
-            "zone" -> Json.parse( s"""{"name":"Dave's zone","type":"test","members":{"fa781d33-368f-42a5-9c64-0e4b43381c37":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}},"accounts":{"f2f4613c-0645-4dec-895b-2812382f4523":{"name":"Dave's account","owners":["fa781d33-368f-42a5-9c64-0e4b43381c37"]}},"transactions":{"65b1711c-5747-452c-8975-3f0d36e9efa6":{"description":"Dave's lottery win","from":"80ccbec2-79a4-4cfa-8e97-f33fac2aa5ba","to":"f2f4613c-0645-4dec-895b-2812382f4523","amount":1000000,"created":1433611420487}},"lastModified":1433611420487}""")
+            "publicKey" -> BaseEncoding.base64.encode(publicKeyBytes)
           )
         )
       )

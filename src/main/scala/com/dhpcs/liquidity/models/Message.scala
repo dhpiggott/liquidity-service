@@ -216,13 +216,16 @@ sealed trait ZoneStateNotification extends ZoneNotification {
 
 }
 
-case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+case class ClientJoinedZoneNotification(zoneId: ZoneId,
+                                        publicKey: PublicKey) extends ZoneNotification
 
-case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+case class ClientQuitZoneNotification(zoneId: ZoneId,
+                                      publicKey: PublicKey) extends ZoneNotification
 
 case class ZoneTerminatedNotification(zoneId: ZoneId) extends ZoneNotification
 
-case class ZoneNameSetNotification(zoneId: ZoneId, lastModified: Long, name: String) extends ZoneStateNotification
+case class ZoneNameSetNotification(zoneId: ZoneId, lastModified: Long,
+                                   name: String) extends ZoneStateNotification
 
 case class MemberCreatedNotification(zoneId: ZoneId, lastModified: Long,
                                      memberId: MemberId, member: Member) extends ZoneStateNotification

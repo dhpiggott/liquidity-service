@@ -122,6 +122,8 @@ class ClientConnection(publicKey: PublicKey,
 
             case command@JoinZoneCommand(zoneId) =>
 
+              // TODO: May already be cached from create - use that, or just don't cache on create
+
               log.debug(s"Received $command}")
 
               (zoneRegistry ? GetValidator(zoneId))

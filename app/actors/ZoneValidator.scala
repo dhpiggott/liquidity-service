@@ -77,9 +77,17 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             name,
             zoneType,
             equityHolderMemberId,
-            equityHolderMember,
             equityHolderAccountId,
-            equityHolderAccount,
+            Map(
+              equityHolderMemberId -> equityHolderMember
+            ),
+            Map(
+              equityHolderAccountId ->
+                equityHolderAccount.copy(
+                  owners = Set(equityHolderMemberId)
+                )
+            ),
+            Map.empty,
             timestamp
           )
 

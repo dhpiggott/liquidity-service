@@ -10,7 +10,7 @@ object ZoneRegistry {
 
   val StoppingChildRetryDelay = 100.milliseconds
 
-  def props() = Props(new ZoneRegistry())
+  def props() = Props(new ZoneRegistry)
 
   case object CreateValidator
 

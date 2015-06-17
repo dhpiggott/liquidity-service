@@ -17,9 +17,6 @@ object ZoneValidator {
 
 class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
-  // TODO?
-  var presentClients = Map.empty[ActorRef, PublicKey]
-
   def canModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
     zone.members.get(memberId).fold(false)(_.publicKey == publicKey)
 
@@ -30,33 +27,35 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       }
     )
 
-  def handleJoin(clientConnection: ActorRef, publicKey: PublicKey) {
-    context.watch(sender())
-    val wasAlreadyPresent = presentClients.values.exists(_ == publicKey)
-    presentClients += (clientConnection -> publicKey)
+  def handleJoin(clientConnection: ActorRef, publicKey: PublicKey, clientConnections: Map[ActorRef, PublicKey]) = {
+    context.watch(clientConnection)
+    val wasAlreadyPresent = clientConnections.values.exists(_ == publicKey)
+    val newClientConnections = clientConnections + (clientConnection -> publicKey)
     if (!wasAlreadyPresent) {
       val clientJoinedZoneNotification = ClientJoinedZoneNotification(zoneId, publicKey)
-      presentClients.keys.foreach(_ ! clientJoinedZoneNotification)
+      newClientConnections.keys.foreach(_ ! clientJoinedZoneNotification)
     }
-    log.debug(s"${presentClients.size} clients are present")
+    log.debug(s"${newClientConnections.size} clients are present")
+    newClientConnections
   }
 
-  def handleQuit(clientConnection: ActorRef) {
-    context.unwatch(sender())
-    val publicKey = presentClients(clientConnection)
-    presentClients -= clientConnection
-    val isStillPresent = presentClients.values.exists(_ == publicKey)
+  def handleQuit(clientConnection: ActorRef, clientConnections: Map[ActorRef, PublicKey]) = {
+    context.unwatch(clientConnection)
+    val publicKey = clientConnections(clientConnection)
+    val newClientConnections = clientConnections - clientConnection
+    val isStillPresent = newClientConnections.values.exists(_ == publicKey)
     if (!isStillPresent) {
       val clientQuitZoneNotification = ClientQuitZoneNotification(zoneId, publicKey)
-      presentClients.keys.foreach(_ ! clientQuitZoneNotification)
+      newClientConnections.keys.foreach(_ ! clientQuitZoneNotification)
     }
-    if (presentClients.nonEmpty) {
-      log.debug(s"${presentClients.size} clients are present")
+    if (newClientConnections.nonEmpty) {
+      log.debug(s"${newClientConnections.size} clients are present")
       // TODO: Disabled to simplify client testing until persistence is implemented
       //    } else {
       //      log.debug(s"No clients are present; requesting termination")
       //      context.parent ! TerminationRequest
     }
+    newClientConnections
   }
 
   def receive = waitingForZone
@@ -94,7 +93,13 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               id
             )
 
-          context.become(withZone(zone, Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))))
+          context.become(
+            withZone(
+              zone,
+              Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0)),
+              Map.empty[ActorRef, PublicKey]
+            )
+          )
 
         case _ =>
 
@@ -114,7 +119,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   }
 
-  def withZone(zone: Zone, balances: Map[AccountId, BigDecimal]): Receive = {
+  def withZone(zone: Zone,
+               balances: Map[AccountId, BigDecimal],
+               clientConnections: Map[ActorRef, PublicKey]): Receive = {
 
     case AuthenticatedCommandWithId(publicKey, command, id) =>
 
@@ -140,14 +147,22 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             ResponseWithId(
               JoinZoneResponse(
                 zone,
-                presentClients.values.toSet
+                clientConnections.values.toSet
               ),
               id
             )
 
-          if (!presentClients.contains(sender())) {
+          if (!clientConnections.contains(sender())) {
 
-            handleJoin(sender(), publicKey)
+            val newClientConnections = handleJoin(sender(), publicKey, clientConnections)
+
+            context.become(
+              withZone(
+                zone,
+                balances,
+                newClientConnections
+              )
+            )
 
           }
 
@@ -159,9 +174,17 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               id
             )
 
-          if (presentClients.contains(sender())) {
+          if (clientConnections.contains(sender())) {
 
-            handleQuit(sender())
+            val newClientConnections = handleQuit(sender(), clientConnections)
+
+            context.become(
+              withZone(
+                zone,
+                balances,
+                newClientConnections
+              )
+            )
 
           }
 
@@ -180,9 +203,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             lastModified = timestamp
           )
           val zoneNameSetNotification = ZoneNameSetNotification(zoneId, timestamp, name)
-          presentClients.keys.foreach(_ ! zoneNameSetNotification)
+          clientConnections.keys.foreach(_ ! zoneNameSetNotification)
 
-          context.become(withZone(newCanonicalZone, balances))
+          context.become(withZone(newCanonicalZone, balances, clientConnections))
 
         case CreateMemberCommand(_, member) =>
 
@@ -211,9 +234,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             lastModified = timestamp
           )
           val memberCreatedNotification = MemberCreatedNotification(zoneId, timestamp, memberId, member)
-          presentClients.keys.foreach(_ ! memberCreatedNotification)
+          clientConnections.keys.foreach(_ ! memberCreatedNotification)
 
-          context.become(withZone(newCanonicalZone, balances))
+          context.become(withZone(newCanonicalZone, balances, clientConnections))
 
         case UpdateMemberCommand(_, memberId, member) =>
 
@@ -246,9 +269,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               lastModified = timestamp
             )
             val memberUpdatedNotification = MemberUpdatedNotification(zoneId, timestamp, memberId, member)
-            presentClients.keys.foreach(_ ! memberUpdatedNotification)
+            clientConnections.keys.foreach(_ ! memberUpdatedNotification)
 
-            context.become(withZone(newCanonicalZone, balances))
+            context.become(withZone(newCanonicalZone, balances, clientConnections))
 
           }
 
@@ -279,9 +302,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             lastModified = timestamp
           )
           val accountCreatedNotification = AccountCreatedNotification(zoneId, timestamp, accountId, account)
-          presentClients.keys.foreach(_ ! accountCreatedNotification)
+          clientConnections.keys.foreach(_ ! accountCreatedNotification)
 
-          context.become(withZone(newCanonicalZone, balances))
+          context.become(withZone(newCanonicalZone, balances, clientConnections))
 
         case UpdateAccountCommand(_, accountId, account) =>
 
@@ -314,9 +337,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               lastModified = timestamp
             )
             val accountUpdatedNotification = AccountUpdatedNotification(zoneId, timestamp, accountId, account)
-            presentClients.keys.foreach(_ ! accountUpdatedNotification)
+            clientConnections.keys.foreach(_ ! accountUpdatedNotification)
 
-            context.become(withZone(newCanonicalZone, balances))
+            context.become(withZone(newCanonicalZone, balances, clientConnections))
 
           }
 
@@ -395,9 +418,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                   transactionId,
                   transaction
                 )
-                presentClients.keys.foreach(_ ! transactionAddedNotification)
+                clientConnections.keys.foreach(_ ! transactionAddedNotification)
 
-                context.become(withZone(newCanonicalZone, updatedAccountBalances))
+                context.become(withZone(newCanonicalZone, updatedAccountBalances, clientConnections))
 
             }
 
@@ -407,7 +430,15 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
     case Terminated(clientConnection) =>
 
-      handleQuit(clientConnection)
+      val newClientConnections = handleQuit(clientConnection, clientConnections)
+
+      context.become(
+        withZone(
+          zone,
+          balances,
+          newClientConnections
+        )
+      )
 
   }
 

@@ -1,6 +1,6 @@
 package actors
 
-import actors.ZoneValidator.AuthenticatedCommand
+import actors.ZoneValidator.{AuthenticatedCommandWithId, ResponseWithId}
 import akka.actor._
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
@@ -9,7 +9,9 @@ object ZoneValidator {
 
   def props(zoneId: ZoneId) = Props(new ZoneValidator(zoneId))
 
-  case class AuthenticatedCommand(publicKey: PublicKey, command: Command, id: Either[String, Int])
+  case class AuthenticatedCommandWithId(publicKey: PublicKey, command: Command, id: Either[String, Int])
+
+  case class ResponseWithId(response: Response, id: Either[String, Int])
 
 }
 
@@ -62,7 +64,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   def waitingForCanonicalZone: Receive = {
 
-    case AuthenticatedCommand(publicKey, command, id) =>
+    case AuthenticatedCommandWithId(publicKey, command, id) =>
 
       command match {
 
@@ -84,18 +86,28 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           )
 
           sender !
-            (CreateZoneResponse(zoneId, equityHolderMemberId, equityHolderAccountId), id)
+            ResponseWithId(
+              CreateZoneResponse(
+                zoneId,
+                equityHolderMemberId,
+                equityHolderAccountId
+              ),
+              id
+            )
 
           context.become(receiveWithCanonicalZone(zone))
 
         case _ =>
 
           sender !
-            (ErrorResponse(
-              JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-              "Zone does not exist",
-              None),
-              id)
+            ResponseWithId(
+              ErrorResponse(
+                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                "Zone does not exist",
+                None
+              ),
+              id
+            )
 
           log.warning(s"Received command from ${publicKey.fingerprint} to operate on non-existing zone")
 
@@ -109,25 +121,34 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   def receiveWithCanonicalZone(canonicalZone: Zone): Receive = {
 
-    case AuthenticatedCommand(publicKey, command, id) =>
+    case AuthenticatedCommandWithId(publicKey, command, id) =>
 
       command match {
 
         case _: CreateZoneCommand =>
 
           sender !
-            (ErrorResponse(
-              JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-              "Zone already exists",
-              None),
-              id)
+            ResponseWithId(
+              ErrorResponse(
+                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                "Zone already exists",
+                None
+              ),
+              id
+            )
 
           log.warning(s"Received command from ${publicKey.fingerprint} to create already existing zone")
 
         case _: JoinZoneCommand =>
 
           sender !
-            (JoinZoneResponse(canonicalZone, presentClients.values.toSet), id)
+            ResponseWithId(
+              JoinZoneResponse(
+                canonicalZone,
+                presentClients.values.toSet
+              ),
+              id
+            )
 
           if (!presentClients.contains(sender())) {
 
@@ -138,7 +159,10 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
         case _: QuitZoneCommand =>
 
           sender !
-            (QuitZoneResponse, id)
+            ResponseWithId(
+              QuitZoneResponse,
+              id
+            )
 
           if (presentClients.contains(sender())) {
 
@@ -151,7 +175,10 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           val timestamp = System.currentTimeMillis
 
           sender !
-            (SetZoneNameResponse, id)
+            ResponseWithId(
+              SetZoneNameResponse,
+              id
+            )
 
           val newCanonicalZone = canonicalZone.copy(
             name = name,
@@ -177,7 +204,12 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           val memberId = freshMemberId
 
           sender !
-            (CreateMemberResponse(memberId), id)
+            ResponseWithId(
+              CreateMemberResponse(
+                memberId
+              ),
+              id
+            )
 
           val newCanonicalZone = canonicalZone.copy(
             members = canonicalZone.members + (memberId -> member),
@@ -193,11 +225,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           if (!canModify(canonicalZone, memberId, publicKey)) {
 
             sender !
-              (ErrorResponse(
-                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Member modification forbidden",
-                None),
-                id)
+              ResponseWithId(
+                ErrorResponse(
+                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                  "Member modification forbidden",
+                  None
+                ),
+                id
+              )
 
             log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $memberId")
 
@@ -206,7 +241,10 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             val timestamp = System.currentTimeMillis
 
             sender !
-              (UpdateMemberResponse, id)
+              ResponseWithId(
+                UpdateMemberResponse,
+                id
+              )
 
             val newCanonicalZone = canonicalZone.copy(
               members = canonicalZone.members + (memberId -> member),
@@ -234,7 +272,12 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           val timestamp = System.currentTimeMillis
 
           sender !
-            (CreateAccountResponse(accountId), id)
+            ResponseWithId(
+              CreateAccountResponse(
+                accountId
+              ),
+              id
+            )
 
           val newCanonicalZone = canonicalZone.copy(
             accounts = canonicalZone.accounts + (accountId -> account),
@@ -250,11 +293,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           if (!canModify(canonicalZone, accountId, publicKey)) {
 
             sender !
-              (ErrorResponse(
-                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Account modification forbidden",
-                None),
-                id)
+              ResponseWithId(
+                ErrorResponse(
+                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                  "Account modification forbidden",
+                  None
+                ),
+                id
+              )
 
             log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $accountId")
 
@@ -263,7 +309,10 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             val timestamp = System.currentTimeMillis
 
             sender !
-              (UpdateAccountResponse, id)
+              ResponseWithId(
+                UpdateAccountResponse,
+                id
+              )
 
             val newCanonicalZone = canonicalZone.copy(
               accounts = canonicalZone.accounts + (accountId -> account),
@@ -281,11 +330,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           if (!canModify(canonicalZone, from, publicKey)) {
 
             sender !
-              (ErrorResponse(
-                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Account modification forbidden",
-                None),
-                id)
+              ResponseWithId(
+                ErrorResponse(
+                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                  "Account modification forbidden",
+                  None
+                ),
+                id
+              )
 
             log.warning(s"Received invalid command from ${publicKey.fingerprint} to add transaction on $from")
 
@@ -306,11 +358,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               case Left(message) =>
 
                 sender !
-                  (ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    message,
-                    None),
-                    id)
+                  ResponseWithId(
+                    ErrorResponse(
+                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                      message,
+                      None
+                    ),
+                    id
+                  )
 
                 log.warning(s"Received invalid command from ${publicKey.fingerprint} to add $transaction")
 
@@ -329,7 +384,13 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 val transactionId = freshTransactionId
 
                 sender !
-                  (AddTransactionResponse(transactionId, transaction.created), id)
+                  ResponseWithId(
+                    AddTransactionResponse(
+                      transactionId,
+                      transaction.created
+                    ),
+                    id
+                  )
 
                 val newCanonicalZone = canonicalZone.copy(
                   transactions = canonicalZone.transactions + (transactionId -> transaction),

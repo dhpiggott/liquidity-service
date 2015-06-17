@@ -2,7 +2,7 @@ package actors
 
 import actors.ClientConnection._
 import actors.ZoneRegistry.{CreateValidator, GetValidator, ValidatorCreated, ValidatorGot}
-import actors.ZoneValidator.AuthenticatedCommand
+import actors.ZoneValidator.{AuthenticatedCommandWithId, ResponseWithId}
 import akka.actor._
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
@@ -26,6 +26,8 @@ object ClientConnection {
 class ClientConnection(publicKey: PublicKey,
                        zoneRegistry: ActorRef,
                        upstream: ActorRef) extends Actor with ActorLogging {
+
+  // TODO
 
   import context.dispatcher
 
@@ -115,7 +117,7 @@ class ClientConnection(publicKey: PublicKey,
               (zoneRegistry ? CreateValidator)
                 .mapTo[ValidatorCreated]
                 .foreach { case ValidatorCreated(zoneId, validator) =>
-                validator ! AuthenticatedCommand(publicKey, command, id)
+                validator ! AuthenticatedCommandWithId(publicKey, command, id)
               }
 
             case command@JoinZoneCommand(zoneId) =>
@@ -125,7 +127,7 @@ class ClientConnection(publicKey: PublicKey,
               (zoneRegistry ? GetValidator(zoneId))
                 .mapTo[ValidatorGot]
                 .map { case ValidatorGot(validator) =>
-                validator ! AuthenticatedCommand(publicKey, command, id)
+                validator ! AuthenticatedCommandWithId(publicKey, command, id)
                 CacheValidator(zoneId, validator)
               }.pipeTo(self)
 
@@ -134,7 +136,7 @@ class ClientConnection(publicKey: PublicKey,
               log.debug(s"Received $command}")
 
               joinedValidators.get(zoneId).foreach { validator =>
-                validator ! AuthenticatedCommand(publicKey, command, id)
+                validator ! AuthenticatedCommandWithId(publicKey, command, id)
                 context.unwatch(validator)
 
                 joinedValidators -= zoneId
@@ -145,23 +147,14 @@ class ClientConnection(publicKey: PublicKey,
               log.debug(s"Received $zoneCommand}")
 
               joinedValidators.get(zoneCommand.zoneId).foreach(
-                _ ! AuthenticatedCommand(publicKey, zoneCommand, id)
+                _ ! AuthenticatedCommandWithId(publicKey, zoneCommand, id)
               )
 
           }
 
       }
 
-    case cacheValidator@CacheValidator(zoneId, validator) =>
-
-      log.debug(s"Received $cacheValidator}")
-
-      context.watch(validator)
-
-      joinedValidators += (zoneId -> validator)
-
-    // TODO
-    case (response: Response, id: Either[String, Int]@unchecked) =>
+    case ResponseWithId(response, id) =>
 
       log.debug(s"Received $response}")
 
@@ -180,6 +173,14 @@ class ClientConnection(publicKey: PublicKey,
           Notification.write(notification)
         )
       )
+
+    case cacheValidator@CacheValidator(zoneId, validator) =>
+
+      log.debug(s"Received $cacheValidator}")
+
+      context.watch(validator)
+
+      joinedValidators += (zoneId -> validator)
 
     case terminated@Terminated(validator) =>
 

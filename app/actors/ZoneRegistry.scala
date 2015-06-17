@@ -26,8 +26,6 @@ object ZoneRegistry {
 
 class ZoneRegistry extends Actor with ActorLogging {
 
-  // TODO
-
   import context.dispatcher
 
   def receive: Receive = receive(Set.empty)

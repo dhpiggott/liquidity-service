@@ -27,8 +27,6 @@ class ClientConnection(publicKey: PublicKey,
                        zoneRegistry: ActorRef,
                        upstream: ActorRef) extends Actor with ActorLogging {
 
-  // TODO
-
   import context.dispatcher
 
   var joinedValidators = Map.empty[ZoneId, ActorRef]

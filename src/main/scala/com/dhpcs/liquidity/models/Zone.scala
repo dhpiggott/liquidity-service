@@ -58,10 +58,11 @@ object Zone {
 
   def apply(name: String,
             zoneType: String,
-            equityHolderMember: Member,
             equityHolderMemberId: MemberId,
+            equityHolderMember: Member,
+            equityHolderAccountId: AccountId,
             equityHolderAccount: Account,
-            equityHolderAccountId: AccountId): Zone = Zone(
+            lastModified: Long): Zone = Zone(
     name,
     zoneType,
     equityHolderMemberId,
@@ -69,7 +70,7 @@ object Zone {
     Map(equityHolderMemberId -> equityHolderMember),
     Map(equityHolderAccountId -> equityHolderAccount),
     Map.empty,
-    System.currentTimeMillis
+    lastModified
   )
 
   def checkAndUpdateBalances(transaction: Transaction,

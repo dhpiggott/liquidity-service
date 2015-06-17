@@ -12,7 +12,11 @@ case class Transaction(description: String,
                        from: AccountId,
                        to: AccountId,
                        amount: BigDecimal,
-                       created: Long)
+                       created: Long) {
+  // TODO: Only once equivalent exists in JSON formats
+  //  require(amount > 0)
+  //  require(created > 0)
+}
 
 object Transaction {
 

@@ -67,27 +67,38 @@ sealed trait ZoneCommand extends Command {
 
 }
 
-case class CreateZoneCommand(name: String, zoneType: String) extends Command
+case class CreateZoneCommand(name: String,
+                             zoneType: String,
+                             equityHolderMember: Member,
+                             equityHolderAccount: Account) extends Command
 
 case class JoinZoneCommand(zoneId: ZoneId) extends ZoneCommand
 
 case class QuitZoneCommand(zoneId: ZoneId) extends ZoneCommand
 
-case class SetZoneNameCommand(zoneId: ZoneId, name: String) extends ZoneCommand
+case class SetZoneNameCommand(zoneId: ZoneId,
+                              name: String) extends ZoneCommand
 
-case class CreateMemberCommand(zoneId: ZoneId, member: Member) extends ZoneCommand
+case class CreateMemberCommand(zoneId: ZoneId,
+                               member: Member) extends ZoneCommand
 
-case class UpdateMemberCommand(zoneId: ZoneId, memberId: MemberId, member: Member) extends ZoneCommand
+case class UpdateMemberCommand(zoneId: ZoneId,
+                               memberId: MemberId, member: Member) extends ZoneCommand
 
-case class DeleteMemberCommand(zoneId: ZoneId, memberId: MemberId) extends ZoneCommand
+case class DeleteMemberCommand(zoneId: ZoneId,
+                               memberId: MemberId) extends ZoneCommand
 
-case class CreateAccountCommand(zoneId: ZoneId, account: Account) extends ZoneCommand
+case class CreateAccountCommand(zoneId: ZoneId,
+                                account: Account) extends ZoneCommand
 
-case class UpdateAccountCommand(zoneId: ZoneId, accountId: AccountId, account: Account) extends ZoneCommand
+case class UpdateAccountCommand(zoneId: ZoneId,
+                                accountId: AccountId, account: Account) extends ZoneCommand
 
-case class DeleteAccountCommand(zoneId: ZoneId, accountId: AccountId) extends ZoneCommand
+case class DeleteAccountCommand(zoneId: ZoneId,
+                                accountId: AccountId) extends ZoneCommand
 
-case class AddTransactionCommand(zoneId: ZoneId, transaction: Transaction) extends ZoneCommand
+case class AddTransactionCommand(zoneId: ZoneId,
+                                 transaction: Transaction) extends ZoneCommand
 
 object Command {
 
@@ -134,9 +145,12 @@ case class ErrorResponse(code: Int, message: String, data: Option[JsValue]) exte
 
 sealed trait ResultResponse extends Response
 
-case class CreateZoneResponse(zoneId: ZoneId) extends ResultResponse
+case class CreateZoneResponse(zoneId: ZoneId,
+                              equityHolderMemberId: MemberId,
+                              equityHolderAccountId: AccountId) extends ResultResponse
 
-case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends ResultResponse
+case class JoinZoneResponse(zone: Zone,
+                            connectedClients: Set[PublicKey]) extends ResultResponse
 
 case object QuitZoneResponse extends ResultResponse
 

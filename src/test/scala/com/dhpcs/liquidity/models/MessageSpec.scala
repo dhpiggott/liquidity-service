@@ -73,14 +73,19 @@ class MessageSpec extends FunSpec with Matchers {
           Some(
             JsError(List(
               (__ \ "name", List(ValidationError("error.path.missing"))),
-              (__ \ "zoneType", List(ValidationError("error.path.missing")))
+              (__ \ "zoneType", List(ValidationError("error.path.missing"))),
+              (__ \ "equityHolderMember", List(ValidationError("error.path.missing"))),
+              (__ \ "equityHolderAccount", List(ValidationError("error.path.missing")))
             ))
           )
         )
       }
+      val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
       implicit val createZoneCommand = CreateZoneCommand(
         "Dave's zone",
-        "test"
+        "test",
+        Member("Banker", PublicKey(publicKeyBytes)),
+        Account("Bank", Set.empty)
       )
       implicit val id = Right(0)
       implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
@@ -88,7 +93,15 @@ class MessageSpec extends FunSpec with Matchers {
         Right(
           Json.obj(
             "name" -> "Dave's zone",
-            "zoneType" -> "test"
+            "zoneType" -> "test",
+            "equityHolderMember" -> Json.obj(
+              "name" -> "Banker",
+              "publicKey" -> BaseEncoding.base64.encode(publicKeyBytes)
+            ),
+            "equityHolderAccount" -> Json.obj(
+              "name" -> "Bank",
+              "owners" -> JsArray()
+            )
           )
         ),
         Right(0)
@@ -125,19 +138,25 @@ class MessageSpec extends FunSpec with Matchers {
           ),
           "createZone",
           JsError(List(
-            (__ \ "zoneId", List(ValidationError("error.path.missing")))
+            (__ \ "zoneId", List(ValidationError("error.path.missing"))),
+            (__ \ "equityHolderMemberId", List(ValidationError("error.path.missing"))),
+            (__ \ "equityHolderAccountId", List(ValidationError("error.path.missing")))
           ))
         )
       }
     }
     implicit val createZoneResponse = CreateZoneResponse(
-      ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3"))
+      ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
+      MemberId(UUID.fromString("1dcf2284-ceb8-47b4-9b2c-daf3ce21f8e3")),
+      AccountId(UUID.fromString("c881da49-f009-427e-8b90-47f15e11ac0d"))
     )
     implicit val id = Right(0)
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
       Right(
         Json.obj(
-          "zoneId" -> "158842d1-38c7-4ad3-ab83-d4c723c9aaf3"
+          "zoneId" -> "158842d1-38c7-4ad3-ab83-d4c723c9aaf3",
+          "equityHolderMemberId" -> "1dcf2284-ceb8-47b4-9b2c-daf3ce21f8e3",
+          "equityHolderAccountId" -> "c881da49-f009-427e-8b90-47f15e11ac0d"
         )
       ),
       Some(

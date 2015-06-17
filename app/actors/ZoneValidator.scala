@@ -27,7 +27,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       }
     )
 
-  def handleJoin(clientConnection: ActorRef, publicKey: PublicKey): Unit = {
+  def handleJoin(clientConnection: ActorRef, publicKey: PublicKey) {
     context.watch(sender())
     val wasAlreadyPresent = presentClients.values.exists(_ == publicKey)
     presentClients += (clientConnection -> publicKey)
@@ -38,7 +38,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
     log.debug(s"${presentClients.size} clients are present")
   }
 
-  def handleQuit(clientConnection: ActorRef): Unit = {
+  def handleQuit(clientConnection: ActorRef) {
     context.unwatch(sender())
     val publicKey = presentClients(clientConnection)
     presentClients -= clientConnection

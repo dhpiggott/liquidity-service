@@ -56,23 +56,6 @@ object Zone {
       zone.lastModified)
     )
 
-  def apply(name: String,
-            zoneType: String,
-            equityHolderMemberId: MemberId,
-            equityHolderMember: Member,
-            equityHolderAccountId: AccountId,
-            equityHolderAccount: Account,
-            lastModified: Long): Zone = Zone(
-    name,
-    zoneType,
-    equityHolderMemberId,
-    equityHolderAccountId,
-    Map(equityHolderMemberId -> equityHolderMember),
-    Map(equityHolderAccountId -> equityHolderAccount),
-    Map.empty,
-    lastModified
-  )
-
   def checkAndUpdateBalances(transaction: Transaction,
                              zone: Zone,
                              balances: Map[AccountId, BigDecimal]): Either[String, Map[AccountId, BigDecimal]] =

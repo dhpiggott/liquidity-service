@@ -1,6 +1,6 @@
 package actors
 
-import actors.ClientConnection.AuthenticatedCommand
+import actors.ZoneValidator.AuthenticatedCommand
 import akka.actor._
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
@@ -8,6 +8,8 @@ import com.dhpcs.liquidity.models._
 object ZoneValidator {
 
   def props(zoneId: ZoneId) = Props(new ZoneValidator(zoneId))
+
+  case class AuthenticatedCommand(publicKey: PublicKey, command: Command, id: Either[String, Int])
 
 }
 

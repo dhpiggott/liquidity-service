@@ -2,6 +2,7 @@ package actors
 
 import actors.ClientConnection._
 import actors.ZoneRegistry.{CreateValidator, GetValidator, ValidatorCreated, ValidatorGot}
+import actors.ZoneValidator.AuthenticatedCommand
 import akka.actor._
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
@@ -17,8 +18,6 @@ object ClientConnection {
 
   def props(publicKey: PublicKey, zoneRegistry: ActorRef)(upstream: ActorRef) =
     Props(new ClientConnection(publicKey, zoneRegistry, upstream))
-
-  case class AuthenticatedCommand(publicKey: PublicKey, command: Command, id: Either[String, Int])
 
   private case class CacheValidator(zoneId: ZoneId, validator: ActorRef)
 

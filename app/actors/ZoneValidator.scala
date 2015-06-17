@@ -17,16 +17,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
   var presentClients = Map.empty[ActorRef, PublicKey]
   var accountBalances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
 
-  def canDelete(zone: Zone, memberId: MemberId) =
-    !zone.accounts.values.exists { account =>
-      account.owners.contains(memberId)
-    }
-
-  def canDelete(zone: Zone, accountId: AccountId) =
-    !zone.transactions.values.exists { transaction =>
-      transaction.from == accountId || transaction.to == accountId
-    }
-
   def canModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
     zone.members.get(memberId).fold(false)(_.publicKey == publicKey)
 
@@ -74,12 +64,25 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
       command match {
 
-        case CreateZoneCommand(name, zoneType) =>
+        case CreateZoneCommand(name, zoneType, equityHolderMember, equityHolderAccount) =>
 
-          val zone = Zone(name, zoneType)
+          val timestamp = System.currentTimeMillis
+
+          val equityHolderMemberId = MemberId.generate
+          val equityHolderAccountId = AccountId.generate
+
+          val zone = Zone(
+            name,
+            zoneType,
+            equityHolderMemberId,
+            equityHolderMember,
+            equityHolderAccountId,
+            equityHolderAccount,
+            timestamp
+          )
 
           sender !
-            (CreateZoneResponse(zoneId), id)
+            (CreateZoneResponse(zoneId, equityHolderMemberId, equityHolderAccountId), id)
 
           context.become(receiveWithCanonicalZone(zone))
 
@@ -108,7 +111,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
       command match {
 
-        case CreateZoneCommand(name, zoneType) =>
+        case _: CreateZoneCommand =>
 
           sender !
             (ErrorResponse(
@@ -119,7 +122,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           log.warning(s"Received command from ${publicKey.fingerprint} to create already existing zone")
 
-        case JoinZoneCommand(_) =>
+        case _: JoinZoneCommand =>
 
           sender !
             (JoinZoneResponse(canonicalZone, presentClients.values.toSet), id)
@@ -130,7 +133,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           }
 
-        case QuitZoneCommand(_) =>
+        case _: QuitZoneCommand =>
 
           sender !
             (QuitZoneResponse, id)
@@ -158,8 +161,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           context.become(receiveWithCanonicalZone(newCanonicalZone))
 
         case CreateMemberCommand(_, member) =>
-
-          // TODO: Maximum numbers?
 
           val timestamp = System.currentTimeMillis
 
@@ -211,37 +212,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             )
             val memberUpdatedNotification = MemberUpdatedNotification(zoneId, timestamp, memberId, member)
             presentClients.keys.foreach(_ ! memberUpdatedNotification)
-
-            context.become(receiveWithCanonicalZone(newCanonicalZone))
-
-          }
-
-        case DeleteMemberCommand(_, memberId) =>
-
-          if (!canModify(canonicalZone, memberId, publicKey) || !canDelete(canonicalZone, memberId)) {
-
-            sender !
-              (ErrorResponse(
-                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Member deletion forbidden",
-                None),
-                id)
-
-            log.warning(s"Received invalid command from ${publicKey.fingerprint} to delete $memberId")
-
-          } else {
-
-            val timestamp = System.currentTimeMillis
-
-            sender !
-              (DeleteMemberResponse, id)
-
-            val newCanonicalZone = canonicalZone.copy(
-              members = canonicalZone.members - memberId,
-              lastModified = timestamp
-            )
-            val memberDeletedNotification = MemberDeletedNotification(zoneId, timestamp, memberId)
-            presentClients.keys.foreach(_ ! memberDeletedNotification)
 
             context.become(receiveWithCanonicalZone(newCanonicalZone))
 
@@ -304,40 +274,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           }
 
-        case DeleteAccountCommand(_, accountId) =>
+        case AddTransactionCommand(_, description, from, to, amount: BigDecimal) =>
 
-          if (!canModify(canonicalZone, accountId, publicKey) || !canDelete(canonicalZone, accountId)) {
-
-            sender !
-              (ErrorResponse(
-                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Account deletion forbidden",
-                None),
-                id)
-
-            log.warning(s"Received invalid command from ${publicKey.fingerprint} to delete $accountId")
-
-          } else {
-
-            val timestamp = System.currentTimeMillis
-
-            sender !
-              (DeleteAccountResponse, id)
-
-            val newCanonicalZone = canonicalZone.copy(
-              accounts = canonicalZone.accounts - accountId,
-              lastModified = timestamp
-            )
-            val accountDeletedNotification = AccountDeletedNotification(zoneId, timestamp, accountId)
-            presentClients.keys.foreach(_ ! accountDeletedNotification)
-
-            context.become(receiveWithCanonicalZone(newCanonicalZone))
-
-          }
-
-        case AddTransactionCommand(_, transaction) =>
-
-          if (!canModify(canonicalZone, transaction.from, publicKey)) {
+          if (!canModify(canonicalZone, from, publicKey)) {
 
             sender !
               (ErrorResponse(
@@ -346,13 +285,17 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 None),
                 id)
 
-            log.warning(s"Received invalid command from ${publicKey.fingerprint} to add $transaction")
+            log.warning(s"Received invalid command from ${publicKey.fingerprint} to add transaction on $from")
 
           } else {
 
-            val eitherErrorOrUpdatedAccountBalances = Zone.checkTransactionAndUpdateAccountBalances(
-              canonicalZone,
+            val timestamp = System.currentTimeMillis
+
+            val transaction = Transaction(description, from, to, amount, timestamp)
+
+            val eitherErrorOrUpdatedAccountBalances = Zone.checkAndUpdateBalances(
               transaction,
+              canonicalZone,
               accountBalances
             )
 
@@ -371,8 +314,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
               case Right(updatedAccountBalances) =>
 
-                val timestamp = System.currentTimeMillis
-
                 accountBalances = updatedAccountBalances
 
                 def freshTransactionId: TransactionId = {
@@ -386,11 +327,11 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 val transactionId = freshTransactionId
 
                 sender !
-                  (AddTransactionResponse(transactionId), id)
+                  (AddTransactionResponse(transactionId, transaction.created), id)
 
                 val newCanonicalZone = canonicalZone.copy(
                   transactions = canonicalZone.transactions + (transactionId -> transaction),
-                  lastModified = timestamp
+                  lastModified = transaction.created
                 )
                 val transactionAddedNotification = TransactionAddedNotification(
                   zoneId,

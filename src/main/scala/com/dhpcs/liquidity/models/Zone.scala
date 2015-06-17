@@ -85,7 +85,9 @@ object Zone {
     )
 
   def connectedMembers(members: Map[MemberId, Member], connectedClients: Set[PublicKey]) =
-    members.filter { case (_, member: Member) => connectedClients.contains(member.publicKey) }
+    members.filter {
+      case (_, member) => connectedClients.contains(member.publicKey)
+    }
 
   def otherMembersAsJavaMap(zone: Zone, userPublicKey: PublicKey) =
     mapAsJavaMap(
@@ -96,7 +98,9 @@ object Zone {
     )
 
   def otherMembers(zone: Zone, userPublicKey: PublicKey) =
-    zone.members.filter { case (_, member: Member) => member.publicKey != userPublicKey }
+    zone.members.filter {
+      case (_, member) => member.publicKey != userPublicKey
+    }
 
   def userMembersAsJavaMap(zone: Zone, userPublicKey: PublicKey) =
     mapAsJavaMap(
@@ -107,6 +111,8 @@ object Zone {
     )
 
   def userMembers(zone: Zone, userPublicKey: PublicKey) =
-    zone.members.filter { case (_, member: Member) => member.publicKey == userPublicKey }
+    zone.members.filter {
+      case (memberId, member) => memberId != zone.equityHolderMemberId && member.publicKey == userPublicKey
+    }
 
 }

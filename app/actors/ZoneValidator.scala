@@ -19,7 +19,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   // TODO?
   var presentClients = Map.empty[ActorRef, PublicKey]
-  var accountBalances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
 
   def canModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
     zone.members.get(memberId).fold(false)(_.publicKey == publicKey)
@@ -60,9 +59,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
     }
   }
 
-  def receive = waitingForCanonicalZone
+  def receive = waitingForZone
 
-  def waitingForCanonicalZone: Receive = {
+  def waitingForZone: Receive = {
 
     case AuthenticatedCommandWithId(publicKey, command, id) =>
 
@@ -95,7 +94,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               id
             )
 
-          context.become(receiveWithCanonicalZone(zone))
+          context.become(withZone(zone, Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))))
 
         case _ =>
 
@@ -113,13 +112,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
       }
 
-    case Terminated(clientConnection) =>
-
-      handleQuit(clientConnection)
-
   }
 
-  def receiveWithCanonicalZone(canonicalZone: Zone): Receive = {
+  def withZone(zone: Zone, balances: Map[AccountId, BigDecimal]): Receive = {
 
     case AuthenticatedCommandWithId(publicKey, command, id) =>
 
@@ -144,7 +139,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           sender !
             ResponseWithId(
               JoinZoneResponse(
-                canonicalZone,
+                zone,
                 presentClients.values.toSet
               ),
               id
@@ -180,14 +175,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               id
             )
 
-          val newCanonicalZone = canonicalZone.copy(
+          val newCanonicalZone = zone.copy(
             name = name,
             lastModified = timestamp
           )
           val zoneNameSetNotification = ZoneNameSetNotification(zoneId, timestamp, name)
           presentClients.keys.foreach(_ ! zoneNameSetNotification)
 
-          context.become(receiveWithCanonicalZone(newCanonicalZone))
+          context.become(withZone(newCanonicalZone, balances))
 
         case CreateMemberCommand(_, member) =>
 
@@ -195,7 +190,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           def freshMemberId: MemberId = {
             val memberId = MemberId.generate
-            if (!canonicalZone.members.contains(memberId)) {
+            if (!zone.members.contains(memberId)) {
               memberId
             } else {
               freshMemberId
@@ -211,18 +206,18 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               id
             )
 
-          val newCanonicalZone = canonicalZone.copy(
-            members = canonicalZone.members + (memberId -> member),
+          val newCanonicalZone = zone.copy(
+            members = zone.members + (memberId -> member),
             lastModified = timestamp
           )
           val memberCreatedNotification = MemberCreatedNotification(zoneId, timestamp, memberId, member)
           presentClients.keys.foreach(_ ! memberCreatedNotification)
 
-          context.become(receiveWithCanonicalZone(newCanonicalZone))
+          context.become(withZone(newCanonicalZone, balances))
 
         case UpdateMemberCommand(_, memberId, member) =>
 
-          if (!canModify(canonicalZone, memberId, publicKey)) {
+          if (!canModify(zone, memberId, publicKey)) {
 
             sender !
               ResponseWithId(
@@ -246,14 +241,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 id
               )
 
-            val newCanonicalZone = canonicalZone.copy(
-              members = canonicalZone.members + (memberId -> member),
+            val newCanonicalZone = zone.copy(
+              members = zone.members + (memberId -> member),
               lastModified = timestamp
             )
             val memberUpdatedNotification = MemberUpdatedNotification(zoneId, timestamp, memberId, member)
             presentClients.keys.foreach(_ ! memberUpdatedNotification)
 
-            context.become(receiveWithCanonicalZone(newCanonicalZone))
+            context.become(withZone(newCanonicalZone, balances))
 
           }
 
@@ -261,7 +256,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           def freshAccountId: AccountId = {
             val accountId = AccountId.generate
-            if (!canonicalZone.accounts.contains(accountId)) {
+            if (!zone.accounts.contains(accountId)) {
               accountId
             } else {
               freshAccountId
@@ -279,18 +274,18 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               id
             )
 
-          val newCanonicalZone = canonicalZone.copy(
-            accounts = canonicalZone.accounts + (accountId -> account),
+          val newCanonicalZone = zone.copy(
+            accounts = zone.accounts + (accountId -> account),
             lastModified = timestamp
           )
           val accountCreatedNotification = AccountCreatedNotification(zoneId, timestamp, accountId, account)
           presentClients.keys.foreach(_ ! accountCreatedNotification)
 
-          context.become(receiveWithCanonicalZone(newCanonicalZone))
+          context.become(withZone(newCanonicalZone, balances))
 
         case UpdateAccountCommand(_, accountId, account) =>
 
-          if (!canModify(canonicalZone, accountId, publicKey)) {
+          if (!canModify(zone, accountId, publicKey)) {
 
             sender !
               ResponseWithId(
@@ -314,20 +309,20 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 id
               )
 
-            val newCanonicalZone = canonicalZone.copy(
-              accounts = canonicalZone.accounts + (accountId -> account),
+            val newCanonicalZone = zone.copy(
+              accounts = zone.accounts + (accountId -> account),
               lastModified = timestamp
             )
             val accountUpdatedNotification = AccountUpdatedNotification(zoneId, timestamp, accountId, account)
             presentClients.keys.foreach(_ ! accountUpdatedNotification)
 
-            context.become(receiveWithCanonicalZone(newCanonicalZone))
+            context.become(withZone(newCanonicalZone, balances))
 
           }
 
         case AddTransactionCommand(_, description, from, to, amount: BigDecimal) =>
 
-          if (!canModify(canonicalZone, from, publicKey)) {
+          if (!canModify(zone, from, publicKey)) {
 
             sender !
               ResponseWithId(
@@ -349,8 +344,8 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
             val eitherErrorOrUpdatedAccountBalances = Zone.checkAndUpdateBalances(
               transaction,
-              canonicalZone,
-              accountBalances
+              zone,
+              balances
             )
 
             eitherErrorOrUpdatedAccountBalances match {
@@ -371,11 +366,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
               case Right(updatedAccountBalances) =>
 
-                accountBalances = updatedAccountBalances
-
                 def freshTransactionId: TransactionId = {
                   val transactionId = TransactionId.generate
-                  if (!canonicalZone.transactions.contains(transactionId)) {
+                  if (!zone.transactions.contains(transactionId)) {
                     transactionId
                   } else {
                     freshTransactionId
@@ -392,8 +385,8 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                     id
                   )
 
-                val newCanonicalZone = canonicalZone.copy(
-                  transactions = canonicalZone.transactions + (transactionId -> transaction),
+                val newCanonicalZone = zone.copy(
+                  transactions = zone.transactions + (transactionId -> transaction),
                   lastModified = transaction.created
                 )
                 val transactionAddedNotification = TransactionAddedNotification(
@@ -404,7 +397,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 )
                 presentClients.keys.foreach(_ ! transactionAddedNotification)
 
-                context.become(receiveWithCanonicalZone(newCanonicalZone))
+                context.become(withZone(newCanonicalZone, updatedAccountBalances))
 
             }
 

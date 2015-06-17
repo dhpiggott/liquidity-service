@@ -2,6 +2,8 @@ package com.dhpcs.liquidity.models
 
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.models.Message.MethodFormats
+import play.api.libs.functional.syntax._
+import play.api.libs.json.Reads._
 import play.api.libs.json._
 
 import scala.reflect.ClassTag
@@ -98,7 +100,37 @@ case class DeleteAccountCommand(zoneId: ZoneId,
                                 accountId: AccountId) extends ZoneCommand
 
 case class AddTransactionCommand(zoneId: ZoneId,
-                                 transaction: Transaction) extends ZoneCommand
+                                 description: String,
+                                 from: AccountId,
+                                 to: AccountId,
+                                 amount: BigDecimal) extends ZoneCommand {
+  require(amount > 0)
+}
+
+object AddTransactionCommand {
+
+  implicit val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
+    (JsPath \ "zoneId").format[ZoneId] and
+      (JsPath \ "description").format[String] and
+      (JsPath \ "from").format[AccountId] and
+      (JsPath \ "to").format[AccountId] and
+      (JsPath \ "amount").format(min[BigDecimal](0))
+    )((zoneId, description, from, to, amount) =>
+    AddTransactionCommand(
+      zoneId,
+      description,
+      from,
+      to,
+      amount
+    ), addTransactionCommand =>
+    (addTransactionCommand.zoneId,
+      addTransactionCommand.description,
+      addTransactionCommand.from,
+      addTransactionCommand.to,
+      addTransactionCommand.amount)
+    )
+
+}
 
 object Command {
 
@@ -113,7 +145,7 @@ object Command {
     "createAccount" -> Json.format[CreateAccountCommand],
     "updateAccount" -> Json.format[UpdateAccountCommand],
     "deleteAccount" -> Json.format[DeleteAccountCommand],
-    "addTransaction" -> Json.format[AddTransactionCommand]
+    "addTransaction" -> AddTransactionCommand.AddTransactionCommandFormat
   )
 
   def read(jsonRpcRequestMessage: JsonRpcRequestMessage): Option[JsResult[Command]] =
@@ -168,7 +200,8 @@ case object UpdateAccountResponse extends ResultResponse
 
 case object DeleteAccountResponse extends ResultResponse
 
-case class AddTransactionResponse(transactionId: TransactionId) extends ResultResponse
+case class AddTransactionResponse(transactionId: TransactionId,
+                                  created: Long) extends ResultResponse
 
 object Response {
 

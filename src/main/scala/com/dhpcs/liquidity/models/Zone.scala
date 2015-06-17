@@ -12,7 +12,7 @@ case class ZoneId(id: UUID) extends Identifier
 
 object ZoneId extends IdentifierCompanion[ZoneId]
 
-// TODO: Payment state and expiry dates
+// TODO: Maximum member count, payment state, expiry date
 case class Zone(name: String,
                 zoneType: String,
                 equityHolderMemberId: MemberId,
@@ -21,10 +21,7 @@ case class Zone(name: String,
                 accounts: Map[AccountId, Account],
                 transactions: Map[TransactionId, Transaction],
                 lastModified: Long) {
-  require(members.contains(equityHolderMemberId))
-  require(accounts.contains(equityHolderAccountId))
-  // TODO: Only once equivalent exists in JSON formats
-  //  require(lastModified > 0)
+  require(lastModified > 0)
 }
 
 object Zone {
@@ -37,7 +34,7 @@ object Zone {
       (JsPath \ "members").format[Map[String, Member]] and
       (JsPath \ "accounts").format[Map[String, Account]] and
       (JsPath \ "transactions").format[Map[String, Transaction]] and
-      (JsPath \ "lastModified").format[Long]
+      (JsPath \ "lastModified").format(min[Long](0))
     )((name, zoneType, equityMemberId, equityAccountId, members, accounts, transactions, lastModified) =>
     Zone(
       name,
@@ -75,25 +72,24 @@ object Zone {
     System.currentTimeMillis
   )
 
-  def checkTransactionAndUpdateAccountBalances(zone: Zone,
-                                               transaction: Transaction,
-                                               accountBalances: Map[AccountId, BigDecimal]): Either[String, Map[AccountId, BigDecimal]] = {
+  def checkAndUpdateBalances(transaction: Transaction,
+                             zone: Zone,
+                             balances: Map[AccountId, BigDecimal]): Either[String, Map[AccountId, BigDecimal]] =
     if (!zone.accounts.contains(transaction.from)) {
       Left(s"Invalid transaction source account: ${transaction.from}")
     } else if (!zone.accounts.contains(transaction.to)) {
       Left(s"Invalid transaction destination account: ${transaction.to}")
     } else {
-      val newSourceBalance = accountBalances(transaction.from) - transaction.amount
+      val newSourceBalance = balances(transaction.from) - transaction.amount
       if (newSourceBalance < 0 && transaction.from != zone.equityHolderAccountId) {
         Left(s"Illegal transaction amount: ${transaction.amount}")
       } else {
-        val newDestinationBalance = accountBalances(transaction.to) + transaction.amount
-        Right(accountBalances
+        val newDestinationBalance = balances(transaction.to) + transaction.amount
+        Right(balances
           + (transaction.from -> newSourceBalance)
           + (transaction.to -> newDestinationBalance))
       }
     }
-  }
 
   def connectedMembersAsJavaMap(members: java.util.Map[MemberId, Member],
                                 connectedClients: java.util.Set[PublicKey]) =

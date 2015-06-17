@@ -114,14 +114,11 @@ class ClientConnection(publicKey: PublicKey,
 
               (zoneRegistry ? CreateValidator)
                 .mapTo[ValidatorCreated]
-                .map { case ValidatorCreated(zoneId, validator) =>
+                .foreach { case ValidatorCreated(zoneId, validator) =>
                 validator ! AuthenticatedCommand(publicKey, command, id)
-                CacheValidator(zoneId, validator)
-              }.pipeTo(self)
+              }
 
             case command@JoinZoneCommand(zoneId) =>
-
-              // TODO: May already be cached from create - use that, or just don't cache on create
 
               log.debug(s"Received $command}")
 
@@ -163,6 +160,7 @@ class ClientConnection(publicKey: PublicKey,
 
       joinedValidators += (zoneId -> validator)
 
+    // TODO
     case (response: Response, id: Either[String, Int]@unchecked) =>
 
       log.debug(s"Received $response}")

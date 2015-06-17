@@ -46,9 +46,7 @@ class ZoneRegistry extends Actor with ActorLogging {
 
       val childName = zoneId.id.toString
 
-      val validator = context.child(childName).getOrElse(
-        context.actorOf(ZoneValidator.props(zoneId), childName)
-      )
+      val validator = context.actorOf(ZoneValidator.props(zoneId), childName)
       sender ! ValidatorCreated(zoneId, validator)
 
       log.debug(s"${context.children.size} validators are active")
@@ -82,14 +80,14 @@ class ZoneRegistry extends Actor with ActorLogging {
       context.stop(context.watch(sender()))
 
       val newStoppingChildren = stoppingChildren + sender().path.name
-      log.debug(s"${newStoppingChildren.size} children are stopping")
+      log.debug(s"${newStoppingChildren.size} validators are stopping")
 
       context.become(receive(newStoppingChildren))
 
     case Terminated(clientIdentity) =>
 
       val newStoppingChildren = stoppingChildren - sender().path.name
-      log.debug(s"${newStoppingChildren.size} children are stopping")
+      log.debug(s"${newStoppingChildren.size} validators are stopping")
 
       log.debug(s"${context.children.size} validators are active")
 

@@ -87,17 +87,11 @@ case class CreateMemberCommand(zoneId: ZoneId,
 case class UpdateMemberCommand(zoneId: ZoneId,
                                memberId: MemberId, member: Member) extends ZoneCommand
 
-case class DeleteMemberCommand(zoneId: ZoneId,
-                               memberId: MemberId) extends ZoneCommand
-
 case class CreateAccountCommand(zoneId: ZoneId,
                                 account: Account) extends ZoneCommand
 
 case class UpdateAccountCommand(zoneId: ZoneId,
                                 accountId: AccountId, account: Account) extends ZoneCommand
-
-case class DeleteAccountCommand(zoneId: ZoneId,
-                                accountId: AccountId) extends ZoneCommand
 
 case class AddTransactionCommand(zoneId: ZoneId,
                                  description: String,
@@ -141,10 +135,8 @@ object Command {
     "setZoneName" -> Json.format[SetZoneNameCommand],
     "createMember" -> Json.format[CreateMemberCommand],
     "updateMember" -> Json.format[UpdateMemberCommand],
-    "deleteMember" -> Json.format[DeleteMemberCommand],
     "createAccount" -> Json.format[CreateAccountCommand],
     "updateAccount" -> Json.format[UpdateAccountCommand],
-    "deleteAccount" -> Json.format[DeleteAccountCommand],
     "addTransaction" -> AddTransactionCommand.AddTransactionCommandFormat
   )
 
@@ -192,13 +184,9 @@ case class CreateMemberResponse(memberId: MemberId) extends ResultResponse
 
 case object UpdateMemberResponse extends ResultResponse
 
-case object DeleteMemberResponse extends ResultResponse
-
 case class CreateAccountResponse(accountId: AccountId) extends ResultResponse
 
 case object UpdateAccountResponse extends ResultResponse
-
-case object DeleteAccountResponse extends ResultResponse
 
 case class AddTransactionResponse(transactionId: TransactionId,
                                   created: Long) extends ResultResponse
@@ -212,10 +200,8 @@ object Response {
     "setZoneName" -> SetZoneNameResponse,
     "createMember" -> Json.format[CreateMemberResponse],
     "updateMember" -> UpdateMemberResponse,
-    "deleteMember" -> DeleteMemberResponse,
     "createAccount" -> Json.format[CreateAccountResponse],
     "updateAccount" -> UpdateAccountResponse,
-    "deleteAccount" -> DeleteAccountResponse,
     "addTransaction" -> Json.format[AddTransactionResponse]
   )
 
@@ -280,17 +266,11 @@ case class MemberCreatedNotification(zoneId: ZoneId, lastModified: Long,
 case class MemberUpdatedNotification(zoneId: ZoneId, lastModified: Long,
                                      memberId: MemberId, member: Member) extends ZoneStateNotification
 
-case class MemberDeletedNotification(zoneId: ZoneId, lastModified: Long,
-                                     memberId: MemberId) extends ZoneStateNotification
-
 case class AccountCreatedNotification(zoneId: ZoneId, lastModified: Long,
                                       accountId: AccountId, account: Account) extends ZoneStateNotification
 
 case class AccountUpdatedNotification(zoneId: ZoneId, lastModified: Long,
                                       accountId: AccountId, account: Account) extends ZoneStateNotification
-
-case class AccountDeletedNotification(zoneId: ZoneId, lastModified: Long,
-                                      accountId: AccountId) extends ZoneStateNotification
 
 case class TransactionAddedNotification(zoneId: ZoneId, lastModified: Long,
                                         transactionId: TransactionId,
@@ -305,10 +285,8 @@ object Notification {
     "zoneNameSet" -> Json.format[ZoneNameSetNotification],
     "memberCreated" -> Json.format[MemberCreatedNotification],
     "memberUpdated" -> Json.format[MemberUpdatedNotification],
-    "memberDeleted" -> Json.format[MemberDeletedNotification],
     "accountCreated" -> Json.format[AccountCreatedNotification],
     "accountUpdated" -> Json.format[AccountUpdatedNotification],
-    "accountDeleted" -> Json.format[AccountDeletedNotification],
     "transactionAdded" -> Json.format[TransactionAddedNotification]
   )
 

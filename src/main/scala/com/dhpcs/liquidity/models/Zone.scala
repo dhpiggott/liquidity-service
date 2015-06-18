@@ -6,8 +6,6 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
-import scala.collection.JavaConversions._
-
 case class ZoneId(id: UUID) extends Identifier
 
 object ZoneId extends IdentifierCompanion[ZoneId]
@@ -73,46 +71,6 @@ object Zone {
           + (transaction.from -> newSourceBalance)
           + (transaction.to -> newDestinationBalance))
       }
-    }
-
-  def connectedMembersAsJavaMap(members: java.util.Map[MemberId, Member],
-                                connectedClients: java.util.Set[PublicKey]) =
-    mapAsJavaMap(
-      connectedMembers(
-        mapAsScalaMap(members).toMap,
-        asScalaSet(connectedClients).toSet
-      )
-    )
-
-  def connectedMembers(members: Map[MemberId, Member], connectedClients: Set[PublicKey]) =
-    members.filter {
-      case (_, member) => connectedClients.contains(member.publicKey)
-    }
-
-  def otherMembersAsJavaMap(zone: Zone, userPublicKey: PublicKey) =
-    mapAsJavaMap(
-      otherMembers(
-        zone,
-        userPublicKey
-      )
-    )
-
-  def otherMembers(zone: Zone, userPublicKey: PublicKey) =
-    zone.members.filter {
-      case (_, member) => member.publicKey != userPublicKey
-    }
-
-  def userMembersAsJavaMap(zone: Zone, userPublicKey: PublicKey) =
-    mapAsJavaMap(
-      userMembers(
-        zone,
-        userPublicKey
-      )
-    )
-
-  def userMembers(zone: Zone, userPublicKey: PublicKey) =
-    zone.members.filter {
-      case (memberId, member) => memberId != zone.equityHolderMemberId && member.publicKey == userPublicKey
     }
 
 }

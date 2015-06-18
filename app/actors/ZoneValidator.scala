@@ -102,7 +102,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           context.become(
             withZone(
               zone,
-              Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0)),
+              Map.empty[AccountId, BigDecimal],
               Map.empty[ActorRef, PublicKey]
             )
           )

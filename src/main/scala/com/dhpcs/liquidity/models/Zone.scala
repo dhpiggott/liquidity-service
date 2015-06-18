@@ -18,8 +18,8 @@ case class Zone(name: String,
                 members: Map[MemberId, Member],
                 accounts: Map[AccountId, Account],
                 transactions: Map[TransactionId, Transaction],
-                lastModified: Long) {
-  require(lastModified > 0)
+                created: Long) {
+  require(created > 0)
 }
 
 object Zone {
@@ -32,8 +32,8 @@ object Zone {
       (JsPath \ "members").format[Map[String, Member]] and
       (JsPath \ "accounts").format[Map[String, Account]] and
       (JsPath \ "transactions").format[Map[String, Transaction]] and
-      (JsPath \ "lastModified").format(min[Long](0))
-    )((name, zoneType, equityMemberId, equityAccountId, members, accounts, transactions, lastModified) =>
+      (JsPath \ "created").format(min[Long](0))
+    )((name, zoneType, equityMemberId, equityAccountId, members, accounts, transactions, created) =>
     Zone(
       name,
       zoneType,
@@ -42,7 +42,7 @@ object Zone {
       members.map(e => (MemberId(UUID.fromString(e._1)), e._2)),
       accounts.map(e => (AccountId(UUID.fromString(e._1)), e._2)),
       transactions.map(e => (TransactionId(UUID.fromString(e._1)), e._2)),
-      lastModified
+      created
     ), zone =>
     (zone.name,
       zone.zoneType,
@@ -51,7 +51,7 @@ object Zone {
       zone.members.map { case (memberId, member) => (memberId.id.toString, member) },
       zone.accounts.map { case (accountId, account) => (accountId.id.toString, account) },
       zone.transactions.map { case (transactionId, transaction) => (transactionId.id.toString, transaction) },
-      zone.lastModified)
+      zone.created)
     )
 
   def checkAndUpdateBalances(transaction: Transaction,

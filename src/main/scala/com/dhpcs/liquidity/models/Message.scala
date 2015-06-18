@@ -243,12 +243,6 @@ sealed trait ZoneNotification extends Notification {
 
 }
 
-sealed trait ZoneStateNotification extends ZoneNotification {
-
-  val lastModified: Long
-
-}
-
 case class ClientJoinedZoneNotification(zoneId: ZoneId,
                                         publicKey: PublicKey) extends ZoneNotification
 
@@ -257,24 +251,24 @@ case class ClientQuitZoneNotification(zoneId: ZoneId,
 
 case class ZoneTerminatedNotification(zoneId: ZoneId) extends ZoneNotification
 
-case class ZoneNameSetNotification(zoneId: ZoneId, lastModified: Long,
-                                   name: String) extends ZoneStateNotification
+case class ZoneNameSetNotification(zoneId: ZoneId,
+                                   name: String) extends ZoneNotification
 
-case class MemberCreatedNotification(zoneId: ZoneId, lastModified: Long,
-                                     memberId: MemberId, member: Member) extends ZoneStateNotification
+case class MemberCreatedNotification(zoneId: ZoneId,
+                                     memberId: MemberId, member: Member) extends ZoneNotification
 
-case class MemberUpdatedNotification(zoneId: ZoneId, lastModified: Long,
-                                     memberId: MemberId, member: Member) extends ZoneStateNotification
+case class MemberUpdatedNotification(zoneId: ZoneId,
+                                     memberId: MemberId, member: Member) extends ZoneNotification
 
-case class AccountCreatedNotification(zoneId: ZoneId, lastModified: Long,
-                                      accountId: AccountId, account: Account) extends ZoneStateNotification
+case class AccountCreatedNotification(zoneId: ZoneId,
+                                      accountId: AccountId, account: Account) extends ZoneNotification
 
-case class AccountUpdatedNotification(zoneId: ZoneId, lastModified: Long,
-                                      accountId: AccountId, account: Account) extends ZoneStateNotification
+case class AccountUpdatedNotification(zoneId: ZoneId,
+                                      accountId: AccountId, account: Account) extends ZoneNotification
 
-case class TransactionAddedNotification(zoneId: ZoneId, lastModified: Long,
+case class TransactionAddedNotification(zoneId: ZoneId,
                                         transactionId: TransactionId,
-                                        transaction: Transaction) extends ZoneStateNotification
+                                        transaction: Transaction) extends ZoneNotification
 
 object Notification {
 

@@ -22,7 +22,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         (__ \ "members", List(ValidationError("error.path.missing"))),
         (__ \ "accounts", List(ValidationError("error.path.missing"))),
         (__ \ "transactions", List(ValidationError("error.path.missing"))),
-        (__ \ "lastModified", List(ValidationError("error.path.missing")))
+        (__ \ "created", List(ValidationError("error.path.missing")))
       ))
     )
   }
@@ -58,7 +58,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
       ),
       1433611420487L
     )
-    implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","type":"test","equityHolderMemberId":"b825a40b-4c05-41e1-a156-0a221d765038","equityHolderAccountId":"71b60ade-c7f5-4911-b85d-d88719763289","members":{"b825a40b-4c05-41e1-a156-0a221d765038":{"name":"Banker","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},"fa781d33-368f-42a5-9c64-0e4b43381c37":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}},"accounts":{"71b60ade-c7f5-4911-b85d-d88719763289":{"name":"Bank","owners":["b825a40b-4c05-41e1-a156-0a221d765038"]},"f2f4613c-0645-4dec-895b-2812382f4523":{"name":"Dave's account","owners":["fa781d33-368f-42a5-9c64-0e4b43381c37"]}},"transactions":{"65b1711c-5747-452c-8975-3f0d36e9efa6":{"description":"Dave's lottery win","from":"89a5e157-a643-4196-be6b-e08bc8e7c28b","to":"f2f4613c-0645-4dec-895b-2812382f4523","amount":1000000,"created":1433611420487}},"lastModified":1433611420487}""")
+    implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","type":"test","equityHolderMemberId":"b825a40b-4c05-41e1-a156-0a221d765038","equityHolderAccountId":"71b60ade-c7f5-4911-b85d-d88719763289","members":{"b825a40b-4c05-41e1-a156-0a221d765038":{"name":"Banker","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},"fa781d33-368f-42a5-9c64-0e4b43381c37":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}},"accounts":{"71b60ade-c7f5-4911-b85d-d88719763289":{"name":"Bank","owners":["b825a40b-4c05-41e1-a156-0a221d765038"]},"f2f4613c-0645-4dec-895b-2812382f4523":{"name":"Dave's account","owners":["fa781d33-368f-42a5-9c64-0e4b43381c37"]}},"transactions":{"65b1711c-5747-452c-8975-3f0d36e9efa6":{"description":"Dave's lottery win","from":"89a5e157-a643-4196-be6b-e08bc8e7c28b","to":"f2f4613c-0645-4dec-895b-2812382f4523","amount":1000000,"created":1433611420487}},"created":1433611420487}""")
     it should behave like read
     it should behave like write
   }

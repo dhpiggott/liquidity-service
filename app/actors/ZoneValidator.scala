@@ -68,8 +68,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
         case CreateZoneCommand(name, zoneType, equityHolderMember, equityHolderAccount) =>
 
-          val timestamp = System.currentTimeMillis
-
           val equityHolderMemberId = MemberId.generate
           val equityHolderAccountId = AccountId.generate
 
@@ -88,7 +86,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 )
             ),
             Map.empty,
-            timestamp
+            System.currentTimeMillis
           )
 
           sender !
@@ -198,8 +196,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
         case SetZoneNameCommand(_, name) =>
 
-          val timestamp = System.currentTimeMillis
-
           sender !
             ResponseWithId(
               SetZoneNameResponse,
@@ -207,17 +203,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             )
 
           val newCanonicalZone = zone.copy(
-            name = name,
-            lastModified = timestamp
+            name = name
           )
-          val zoneNameSetNotification = ZoneNameSetNotification(zoneId, timestamp, name)
+          val zoneNameSetNotification = ZoneNameSetNotification(zoneId, name)
           clientConnections.keys.foreach(_ ! zoneNameSetNotification)
 
           context.become(withZone(newCanonicalZone, balances, clientConnections))
 
         case CreateMemberCommand(_, member) =>
-
-          val timestamp = System.currentTimeMillis
 
           def freshMemberId: MemberId = {
             val memberId = MemberId.generate
@@ -238,10 +231,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             )
 
           val newCanonicalZone = zone.copy(
-            members = zone.members + (memberId -> member),
-            lastModified = timestamp
+            members = zone.members + (memberId -> member)
           )
-          val memberCreatedNotification = MemberCreatedNotification(zoneId, timestamp, memberId, member)
+          val memberCreatedNotification = MemberCreatedNotification(zoneId, memberId, member)
           clientConnections.keys.foreach(_ ! memberCreatedNotification)
 
           context.become(withZone(newCanonicalZone, balances, clientConnections))
@@ -264,8 +256,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           } else {
 
-            val timestamp = System.currentTimeMillis
-
             sender !
               ResponseWithId(
                 UpdateMemberResponse,
@@ -273,10 +263,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               )
 
             val newCanonicalZone = zone.copy(
-              members = zone.members + (memberId -> member),
-              lastModified = timestamp
+              members = zone.members + (memberId -> member)
             )
-            val memberUpdatedNotification = MemberUpdatedNotification(zoneId, timestamp, memberId, member)
+            val memberUpdatedNotification = MemberUpdatedNotification(zoneId, memberId, member)
             clientConnections.keys.foreach(_ ! memberUpdatedNotification)
 
             context.become(withZone(newCanonicalZone, balances, clientConnections))
@@ -295,8 +284,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           }
           val accountId = freshAccountId
 
-          val timestamp = System.currentTimeMillis
-
           sender !
             ResponseWithId(
               CreateAccountResponse(
@@ -306,10 +293,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             )
 
           val newCanonicalZone = zone.copy(
-            accounts = zone.accounts + (accountId -> account),
-            lastModified = timestamp
+            accounts = zone.accounts + (accountId -> account)
           )
-          val accountCreatedNotification = AccountCreatedNotification(zoneId, timestamp, accountId, account)
+          val accountCreatedNotification = AccountCreatedNotification(zoneId, accountId, account)
           clientConnections.keys.foreach(_ ! accountCreatedNotification)
 
           context.become(withZone(newCanonicalZone, balances, clientConnections))
@@ -332,8 +318,6 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           } else {
 
-            val timestamp = System.currentTimeMillis
-
             sender !
               ResponseWithId(
                 UpdateAccountResponse,
@@ -341,10 +325,9 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               )
 
             val newCanonicalZone = zone.copy(
-              accounts = zone.accounts + (accountId -> account),
-              lastModified = timestamp
+              accounts = zone.accounts + (accountId -> account)
             )
-            val accountUpdatedNotification = AccountUpdatedNotification(zoneId, timestamp, accountId, account)
+            val accountUpdatedNotification = AccountUpdatedNotification(zoneId, accountId, account)
             clientConnections.keys.foreach(_ ! accountUpdatedNotification)
 
             context.become(withZone(newCanonicalZone, balances, clientConnections))
@@ -369,9 +352,13 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           } else {
 
-            val timestamp = System.currentTimeMillis
-
-            val transaction = Transaction(description, from, to, amount, timestamp)
+            val transaction = Transaction(
+              description,
+              from,
+              to,
+              amount,
+              System.currentTimeMillis
+            )
 
             val eitherErrorOrUpdatedAccountBalances = Zone.checkAndUpdateBalances(
               transaction,
@@ -417,12 +404,10 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                   )
 
                 val newCanonicalZone = zone.copy(
-                  transactions = zone.transactions + (transactionId -> transaction),
-                  lastModified = transaction.created
+                  transactions = zone.transactions + (transactionId -> transaction)
                 )
                 val transactionAddedNotification = TransactionAddedNotification(
                   zoneId,
-                  timestamp,
                   transactionId,
                   transaction
                 )

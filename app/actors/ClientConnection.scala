@@ -29,6 +29,7 @@ class ClientConnection(publicKey: PublicKey,
 
   import context.dispatcher
 
+  // TODO
   var joinedValidators = Map.empty[ZoneId, ActorRef]
 
   override def postStop() {

@@ -62,11 +62,11 @@ object Zone {
     } else if (!zone.accounts.contains(transaction.to)) {
       Left(s"Invalid transaction destination account: ${transaction.to}")
     } else {
-      val newSourceBalance = balances(transaction.from) - transaction.amount
+      val newSourceBalance = balances.getOrElse(transaction.from, BigDecimal(0)) - transaction.amount
       if (newSourceBalance < 0 && transaction.from != zone.equityHolderAccountId) {
         Left(s"Illegal transaction amount: ${transaction.amount}")
       } else {
-        val newDestinationBalance = balances(transaction.to) + transaction.amount
+        val newDestinationBalance = balances.getOrElse(transaction.to, BigDecimal(0)) + transaction.amount
         Right(balances
           + (transaction.from -> newSourceBalance)
           + (transaction.to -> newDestinationBalance))

@@ -29,9 +29,6 @@ class ClientConnection(publicKey: PublicKey,
 
   import context.dispatcher
 
-  // TODO
-  var joinedValidators = Map.empty[ZoneId, ActorRef]
-
   override def postStop() {
     log.debug(s"Stopped actor for ${publicKey.fingerprint}")
   }
@@ -89,7 +86,9 @@ class ClientConnection(publicKey: PublicKey,
 
     }
 
-  def receive = {
+  def receive = receive(Map.empty[ZoneId, ActorRef])
+
+  def receive(joinedValidators: Map[ZoneId, ActorRef]): Receive = {
 
     case jsonString: String =>
 
@@ -138,7 +137,9 @@ class ClientConnection(publicKey: PublicKey,
                 validator ! AuthenticatedCommandWithId(publicKey, command, id)
                 context.unwatch(validator)
 
-                joinedValidators -= zoneId
+                val newJoinedValidators = joinedValidators - zoneId
+
+                context.become(receive(newJoinedValidators))
               }
 
             case zoneCommand: ZoneCommand =>
@@ -179,19 +180,23 @@ class ClientConnection(publicKey: PublicKey,
 
       context.watch(validator)
 
-      joinedValidators += (zoneId -> validator)
+      val newJoinedValidators = joinedValidators + (zoneId -> validator)
+
+      context.become(receive(newJoinedValidators))
 
     case terminated@Terminated(validator) =>
 
       log.debug(s"Received $terminated}")
 
-      joinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
+      val newJoinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
         val remove = v == validator
         if (remove) {
           upstream ! Notification.write(ZoneTerminatedNotification(zoneId))
         }
         remove
       }
+
+      context.become(receive(newJoinedValidators))
 
   }
 

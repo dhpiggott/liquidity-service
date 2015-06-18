@@ -28,7 +28,7 @@ class ZoneRegistry extends Actor with ActorLogging {
 
   import context.dispatcher
 
-  def receive: Receive = receive(Set.empty)
+  def receive = receive(Set.empty)
 
   def receive(stoppingChildren: Set[String]): Receive = {
 

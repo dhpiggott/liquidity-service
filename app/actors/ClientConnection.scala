@@ -23,6 +23,7 @@ object ClientConnection {
 
 }
 
+// TODO: Receive timeout and/or pings?
 class ClientConnection(publicKey: PublicKey,
                        zoneRegistry: ActorRef,
                        upstream: ActorRef) extends Actor with ActorLogging {

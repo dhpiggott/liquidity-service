@@ -27,6 +27,25 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       }
     )
 
+  def checkAndUpdateBalances(transaction: Transaction,
+                             zone: Zone,
+                             balances: Map[AccountId, BigDecimal]): Either[String, Map[AccountId, BigDecimal]] =
+    if (!zone.accounts.contains(transaction.from)) {
+      Left(s"Invalid transaction source account: ${transaction.from}")
+    } else if (!zone.accounts.contains(transaction.to)) {
+      Left(s"Invalid transaction destination account: ${transaction.to}")
+    } else {
+      val newSourceBalance = balances.getOrElse(transaction.from, BigDecimal(0)) - transaction.amount
+      if (newSourceBalance < 0 && transaction.from != zone.equityHolderAccountId) {
+        Left(s"Illegal transaction amount: ${transaction.amount}")
+      } else {
+        val newDestinationBalance = balances.getOrElse(transaction.to, BigDecimal(0)) + transaction.amount
+        Right(balances
+          + (transaction.from -> newSourceBalance)
+          + (transaction.to -> newDestinationBalance))
+      }
+    }
+
   def handleJoin(clientConnection: ActorRef, publicKey: PublicKey, clientConnections: Map[ActorRef, PublicKey]) = {
     context.watch(clientConnection)
     val wasAlreadyPresent = clientConnections.values.exists(_ == publicKey)
@@ -360,7 +379,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               System.currentTimeMillis
             )
 
-            val eitherErrorOrUpdatedAccountBalances = Zone.checkAndUpdateBalances(
+            val eitherErrorOrUpdatedAccountBalances = checkAndUpdateBalances(
               transaction,
               zone,
               balances

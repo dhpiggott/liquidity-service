@@ -84,9 +84,9 @@ class ZoneRegistry extends Actor with ActorLogging {
 
       context.become(receive(newStoppingChildren))
 
-    case Terminated(clientIdentity) =>
+    case Terminated(validator) =>
 
-      val newStoppingChildren = stoppingChildren - sender().path.name
+      val newStoppingChildren = stoppingChildren - validator.path.name
       log.debug(s"${newStoppingChildren.size} validators are stopping")
 
       log.debug(s"${context.children.size} validators are active")

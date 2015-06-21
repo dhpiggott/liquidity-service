@@ -11,8 +11,10 @@ case class TransactionId(id: UUID) extends Identifier
 object TransactionId extends IdentifierCompanion[TransactionId]
 
 case class Transaction(description: String,
+                      // TODO: Add creator?
                        from: AccountId,
                        to: AccountId,
+                      // TODO: Rename to value?
                        amount: BigDecimal,
                        created: Long) {
   require(amount > 0)

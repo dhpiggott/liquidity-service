@@ -13,6 +13,7 @@ object ZoneId extends IdentifierCompanion[ZoneId]
 // TODO: Maximum member count, payment state, expiry date
 case class Zone(name: String,
                 zoneType: String,
+                // TODO: Remove?
                 equityHolderMemberId: MemberId,
                 equityHolderAccountId: AccountId,
                 members: Map[MemberId, Member],

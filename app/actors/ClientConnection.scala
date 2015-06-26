@@ -95,13 +95,13 @@ class ClientConnection(publicKey: PublicKey,
 
       readCommand(jsonString) match {
 
-        case Left((jsonRpcResponseError, maybeId)) =>
+        case Left((jsonRpcResponseError, id)) =>
 
           log.debug(s"Receive error $jsonRpcResponseError}")
 
           sender ! Json.stringify(
             Json.toJson(
-              JsonRpcResponseMessage(Left(jsonRpcResponseError), maybeId)
+              JsonRpcResponseMessage(Left(jsonRpcResponseError), id)
             )
           )
 

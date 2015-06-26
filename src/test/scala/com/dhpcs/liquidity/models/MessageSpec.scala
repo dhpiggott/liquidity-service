@@ -13,16 +13,12 @@ import play.api.libs.json._
 
 class MessageSpec extends FunSpec with Matchers {
 
-  def commandReadError(jsonRpcRequestMessage: JsonRpcRequestMessage, maybeJsError: Option[JsError]) =
-    it(s"should fail to decode with error $maybeJsError") {
-      val maybeCommandJsResult = Command.read(jsonRpcRequestMessage)
-      maybeJsError.fold(
-        maybeCommandJsResult shouldBe empty
-      )(
-          jsError => {
-            maybeCommandJsResult.value should equal(jsError)(after being ordered[Command])
-          }
-        )
+  def commandReadError(jsonRpcRequestMessage: JsonRpcRequestMessage, jsError: Option[JsError]) =
+    it(s"should fail to decode with error $jsError") {
+      val jsResult = Command.read(jsonRpcRequestMessage)
+      jsError.fold(jsResult shouldBe empty)(
+        jsResult.value should equal(_)(after being ordered[Command])
+      )
     }
 
   def commandRead(implicit jsonRpcRequestMessage: JsonRpcRequestMessage, command: Command) =
@@ -168,16 +164,12 @@ class MessageSpec extends FunSpec with Matchers {
     it should behave like responseWrite
   }
 
-  def notificationReadError(jsonRpcNotificationMessage: JsonRpcNotificationMessage, maybeJsError: Option[JsError]) =
-    it(s"should fail to decode with error $maybeJsError") {
-      val maybeNotificationJsResult = Notification.read(jsonRpcNotificationMessage)
-      maybeJsError.fold(
-        maybeNotificationJsResult shouldBe empty
-      )(
-          jsError => {
-            maybeNotificationJsResult.value should equal(jsError)(after being ordered[Notification])
-          }
-        )
+  def notificationReadError(jsonRpcNotificationMessage: JsonRpcNotificationMessage, jsError: Option[JsError]) =
+    it(s"should fail to decode with error $jsError") {
+      val notificationJsResult = Notification.read(jsonRpcNotificationMessage)
+      jsError.fold(notificationJsResult shouldBe empty)(
+        notificationJsResult.value should equal(_)(after being ordered[Notification])
+      )
     }
 
   def notificationRead(implicit jsonRpcNotificationMessage: JsonRpcNotificationMessage, notification: Notification) =

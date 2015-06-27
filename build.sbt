@@ -4,7 +4,7 @@ organization := "com.dhpcs"
 
 version := "0.25.0-SNAPSHOT"
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
   "com.dhpcs" %% "play-json-rpc" % "0.2.0",

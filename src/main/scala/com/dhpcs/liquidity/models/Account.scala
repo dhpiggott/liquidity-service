@@ -9,7 +9,8 @@ case class AccountId(id: UUID) extends Identifier
 object AccountId extends IdentifierCompanion[AccountId]
 
 case class Account(name: String,
-                   owners: Set[MemberId])
+                   owners: Set[MemberId],
+                   metadata: Option[JsObject] = None)
 
 object Account {
 

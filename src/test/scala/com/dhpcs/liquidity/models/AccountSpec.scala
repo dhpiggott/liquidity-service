@@ -20,13 +20,29 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
   }
 
   describe("An Account") {
-    implicit val account = Account(
-      "Dave's account",
-      Set(MemberId(UUID.fromString("6709b5c8-1f18-491e-b703-d76baa261099")))
-    )
-    implicit val accountJson = Json.parse( """{"name":"Dave's account","owners":["6709b5c8-1f18-491e-b703-d76baa261099"]}""")
-    it should behave like read
-    it should behave like write
+    describe("without metadata") {
+      implicit val account = Account(
+        "Dave's account",
+        Set(MemberId(UUID.fromString("6709b5c8-1f18-491e-b703-d76baa261099")))
+      )
+      implicit val accountJson = Json.parse( """{"name":"Dave's account","owners":["6709b5c8-1f18-491e-b703-d76baa261099"]}""")
+      it should behave like read
+      it should behave like write
+    }
+    describe("with metadata") {
+      implicit val account = Account(
+        "Dave's account",
+        Set(MemberId(UUID.fromString("6709b5c8-1f18-491e-b703-d76baa261099"))),
+        Some(
+          Json.obj(
+            "colour" -> "0x0000FF"
+          )
+        )
+      )
+      implicit val accountJson = Json.parse( """{"name":"Dave's account","owners":["6709b5c8-1f18-491e-b703-d76baa261099"],"metadata":{"colour":"0x0000FF"}}""")
+      it should behave like read
+      it should behave like write
+    }
   }
 
 }

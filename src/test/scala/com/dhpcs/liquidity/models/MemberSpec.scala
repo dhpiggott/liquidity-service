@@ -22,10 +22,26 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
 
   describe("A Member") {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    implicit val member = Member("Dave", PublicKey(publicKeyBytes))
-    implicit val memberJson = Json.parse( s"""{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}""")
-    it should behave like read
-    it should behave like write
+    describe("without metadata") {
+      implicit val member = Member("Dave", PublicKey(publicKeyBytes))
+      implicit val memberJson = Json.parse( s"""{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}""")
+      it should behave like read
+      it should behave like write
+    }
+    describe("with metadata") {
+      implicit val member = Member(
+        "Dave",
+        PublicKey(publicKeyBytes),
+        Some(
+          Json.obj(
+            "email" -> "david@piggott.me.uk"
+          )
+        )
+      )
+      implicit val memberJson = Json.parse( s"""{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","metadata":{"email":"david@piggott.me.uk"}}""")
+      it should behave like read
+      it should behave like write
+    }
   }
 
 }

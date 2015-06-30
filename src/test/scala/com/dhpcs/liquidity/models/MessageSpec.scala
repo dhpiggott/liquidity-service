@@ -44,7 +44,7 @@ class MessageSpec extends FunSpec with Matchers {
         None
       )
     }
-    describe("of type CreateZoneCommand") {
+    describe("of type CreateZoneCommand with metadata") {
       describe("with params of the wrong type") {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
@@ -69,9 +69,8 @@ class MessageSpec extends FunSpec with Matchers {
           Some(
             JsError(List(
               (__ \ "name", List(ValidationError("error.path.missing"))),
-              (__ \ "zoneType", List(ValidationError("error.path.missing"))),
-              (__ \ "equityHolderMember", List(ValidationError("error.path.missing"))),
-              (__ \ "equityHolderAccount", List(ValidationError("error.path.missing")))
+              (__ \ "equityOwner", List(ValidationError("error.path.missing"))),
+              (__ \ "equityAccount", List(ValidationError("error.path.missing")))
             ))
           )
         )
@@ -79,9 +78,13 @@ class MessageSpec extends FunSpec with Matchers {
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
       implicit val createZoneCommand = CreateZoneCommand(
         "Dave's zone",
-        "test",
         Member("Banker", PublicKey(publicKeyBytes)),
-        Account("Bank", Set.empty)
+        Account("Bank", Set.empty),
+        Some(
+          Json.obj(
+            "currency" -> "GBP"
+          )
+        )
       )
       implicit val id = Right(0)
       implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
@@ -89,14 +92,16 @@ class MessageSpec extends FunSpec with Matchers {
         Right(
           Json.obj(
             "name" -> "Dave's zone",
-            "zoneType" -> "test",
-            "equityHolderMember" -> Json.obj(
+            "equityOwner" -> Json.obj(
               "name" -> "Banker",
               "publicKey" -> BaseEncoding.base64.encode(publicKeyBytes)
             ),
-            "equityHolderAccount" -> Json.obj(
+            "equityAccount" -> Json.obj(
               "name" -> "Bank",
               "owners" -> JsArray()
+            ),
+            "metadata" -> Json.obj(
+              "currency" -> "GBP"
             )
           )
         ),
@@ -135,8 +140,8 @@ class MessageSpec extends FunSpec with Matchers {
           "createZone",
           JsError(List(
             (__ \ "zoneId", List(ValidationError("error.path.missing"))),
-            (__ \ "equityHolderMemberId", List(ValidationError("error.path.missing"))),
-            (__ \ "equityHolderAccountId", List(ValidationError("error.path.missing")))
+            (__ \ "equityOwnerId", List(ValidationError("error.path.missing"))),
+            (__ \ "equityAccountId", List(ValidationError("error.path.missing")))
           ))
         )
       }
@@ -151,8 +156,8 @@ class MessageSpec extends FunSpec with Matchers {
       Right(
         Json.obj(
           "zoneId" -> "158842d1-38c7-4ad3-ab83-d4c723c9aaf3",
-          "equityHolderMemberId" -> "1dcf2284-ceb8-47b4-9b2c-daf3ce21f8e3",
-          "equityHolderAccountId" -> "c881da49-f009-427e-8b90-47f15e11ac0d"
+          "equityOwnerId" -> "1dcf2284-ceb8-47b4-9b2c-daf3ce21f8e3",
+          "equityAccountId" -> "c881da49-f009-427e-8b90-47f15e11ac0d"
         )
       ),
       Some(

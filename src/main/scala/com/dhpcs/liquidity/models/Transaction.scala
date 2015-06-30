@@ -11,13 +11,13 @@ case class TransactionId(id: UUID) extends Identifier
 object TransactionId extends IdentifierCompanion[TransactionId]
 
 case class Transaction(description: String,
-                      // TODO: Add creator?
                        from: AccountId,
                        to: AccountId,
-                      // TODO: Rename to value?
-                       amount: BigDecimal,
-                       created: Long) {
-  require(amount > 0)
+                       value: BigDecimal,
+                       creator: MemberId,
+                       created: Long,
+                       metadata: Option[JsObject] = None) {
+  require(value > 0)
   require(created > 0)
 }
 
@@ -27,21 +27,27 @@ object Transaction {
     (JsPath \ "description").format[String] and
       (JsPath \ "from").format[AccountId] and
       (JsPath \ "to").format[AccountId] and
-      (JsPath \ "amount").format(min[BigDecimal](0)) and
-      (JsPath \ "created").format(min[Long](0))
-    )((description, from, to, amount, created) =>
+      (JsPath \ "value").format(min[BigDecimal](0)) and
+      (JsPath \ "creator").format[MemberId] and
+      (JsPath \ "created").format(min[Long](0)) and
+      (JsPath \ "metadata").formatNullable[JsObject]
+    )((description, from, to, value, creator, created, metadata) =>
     Transaction(
       description,
       from,
       to,
-      amount,
-      created
+      value,
+      creator,
+      created,
+      metadata
     ), transaction =>
     (transaction.description,
       transaction.from,
       transaction.to,
-      transaction.amount,
-      transaction.created)
+      transaction.value,
+      transaction.creator,
+      transaction.created,
+      transaction.metadata)
     )
 
 }

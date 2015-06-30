@@ -70,9 +70,9 @@ sealed trait ZoneCommand extends Command {
 }
 
 case class CreateZoneCommand(name: String,
-                             zoneType: String,
-                             equityHolderMember: Member,
-                             equityHolderAccount: Account) extends Command
+                             equityOwner: Member,
+                             equityAccount: Account,
+                             metadata: Option[JsObject] = None) extends Command
 
 case class JoinZoneCommand(zoneId: ZoneId) extends ZoneCommand
 
@@ -94,34 +94,42 @@ case class UpdateAccountCommand(zoneId: ZoneId,
                                 accountId: AccountId, account: Account) extends ZoneCommand
 
 case class AddTransactionCommand(zoneId: ZoneId,
+                                 actingAs: MemberId,
                                  description: String,
                                  from: AccountId,
                                  to: AccountId,
-                                 amount: BigDecimal) extends ZoneCommand {
-  require(amount > 0)
+                                 value: BigDecimal,
+                                 metadata: Option[JsObject] = None) extends ZoneCommand {
+  require(value > 0)
 }
 
 object AddTransactionCommand {
 
   implicit val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
     (JsPath \ "zoneId").format[ZoneId] and
+      (JsPath \ "actingAs").format[MemberId] and
       (JsPath \ "description").format[String] and
       (JsPath \ "from").format[AccountId] and
       (JsPath \ "to").format[AccountId] and
-      (JsPath \ "amount").format(min[BigDecimal](0))
-    )((zoneId, description, from, to, amount) =>
+      (JsPath \ "value").format(min[BigDecimal](0)) and
+      (JsPath \ "metadata").formatNullable[JsObject]
+    )((zoneId, actingAs, description, from, to, value, metadata) =>
     AddTransactionCommand(
       zoneId,
+      actingAs,
       description,
       from,
       to,
-      amount
+      value,
+      metadata
     ), addTransactionCommand =>
     (addTransactionCommand.zoneId,
+      addTransactionCommand.actingAs,
       addTransactionCommand.description,
       addTransactionCommand.from,
       addTransactionCommand.to,
-      addTransactionCommand.amount)
+      addTransactionCommand.value,
+      addTransactionCommand.metadata)
     )
 
 }
@@ -170,8 +178,8 @@ case class ErrorResponse(code: Int, message: String, data: Option[JsValue]) exte
 sealed trait ResultResponse extends Response
 
 case class CreateZoneResponse(zoneId: ZoneId,
-                              equityHolderMemberId: MemberId,
-                              equityHolderAccountId: AccountId) extends ResultResponse
+                              equityOwnerId: MemberId,
+                              equityAccountId: AccountId) extends ResultResponse
 
 case class JoinZoneResponse(zone: Zone,
                             connectedClients: Set[PublicKey]) extends ResultResponse

@@ -60,14 +60,14 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
     } else if (!zone.accounts.contains(transaction.to)) {
       Left(s"Invalid transaction destination account: ${transaction.to}")
     } else {
-      val newSourceBalance = balances.getOrElse(transaction.from, BigDecimal(0)) - transaction.value
-      if (newSourceBalance < 0 && transaction.from != zone.equityAccountId) {
+      val updatedSourceBalance = balances(transaction.from) - transaction.value
+      if (updatedSourceBalance < 0 && transaction.from != zone.equityAccountId) {
         Left(s"Illegal transaction value: ${transaction.value}")
       } else {
-        val newDestinationBalance = balances.getOrElse(transaction.to, BigDecimal(0)) + transaction.value
-        Right(balances
-          + (transaction.from -> newSourceBalance)
-          + (transaction.to -> newDestinationBalance))
+        val updatedDestinationBalance = balances(transaction.to) + transaction.value
+        Right(balances +
+          (transaction.from -> updatedSourceBalance) +
+          (transaction.to -> updatedDestinationBalance))
       }
     }
 
@@ -144,7 +144,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
           context.become(
             withZone(
               zone,
-              Map.empty[AccountId, BigDecimal],
+              Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0)),
               Map.empty[ActorRef, PublicKey]
             )
           )

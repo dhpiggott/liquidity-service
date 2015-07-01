@@ -128,7 +128,8 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 )
             ),
             Map.empty,
-            System.currentTimeMillis
+            System.currentTimeMillis,
+            metadata
           )
 
           sender !

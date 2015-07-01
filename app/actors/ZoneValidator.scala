@@ -18,12 +18,37 @@ object ZoneValidator {
 class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
   def canModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
-    zone.members.get(memberId).fold(false)(_.publicKey == publicKey)
+    zone.members.get(memberId).fold[Either[String, Unit]](Left("Member does not exist"))(member =>
+      if (publicKey != member.publicKey) {
+        Left("Client's public key does not match Member's public key")
+      } else {
+        Right(())
+      }
+    )
 
   def canModify(zone: Zone, accountId: AccountId, publicKey: PublicKey) =
-    zone.accounts.get(accountId).fold(false)(
-      _.owners.exists { memberId =>
-        zone.members.get(memberId).fold(false)(_.publicKey == publicKey)
+    zone.accounts.get(accountId).fold[Either[String, Unit]](Left("Account does not exist"))(account =>
+      if (!account.owners.exists(memberId =>
+        zone.members.get(memberId).fold(false)(publicKey == _.publicKey)
+      )) {
+        Left("Client's public key does not match that of any account owner member")
+      } else {
+        Right(())
+      }
+    )
+
+  def canModify(zone: Zone, accountId: AccountId, actingAs: MemberId, publicKey: PublicKey) =
+    zone.accounts.get(accountId).fold[Either[String, Unit]](Left("Account does not exist"))(account =>
+      if (!account.owners.contains(actingAs)) {
+        Left("Member is not an account owner")
+      } else {
+        zone.members.get(actingAs).fold[Either[String, Unit]](Left("Member does not exist"))(member =>
+          if (publicKey != member.publicKey) {
+            Left("Client's public key does not match Member's public key")
+          } else {
+            Right(())
+          }
+        )
       }
     )
 
@@ -35,11 +60,11 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
     } else if (!zone.accounts.contains(transaction.to)) {
       Left(s"Invalid transaction destination account: ${transaction.to}")
     } else {
-      val newSourceBalance = balances.getOrElse(transaction.from, BigDecimal(0)) - transaction.amount
-      if (newSourceBalance < 0 && transaction.from != zone.equityHolderAccountId) {
-        Left(s"Illegal transaction amount: ${transaction.amount}")
+      val newSourceBalance = balances.getOrElse(transaction.from, BigDecimal(0)) - transaction.value
+      if (newSourceBalance < 0 && transaction.from != zone.equityAccountId) {
+        Left(s"Illegal transaction value: ${transaction.value}")
       } else {
-        val newDestinationBalance = balances.getOrElse(transaction.to, BigDecimal(0)) + transaction.amount
+        val newDestinationBalance = balances.getOrElse(transaction.to, BigDecimal(0)) + transaction.value
         Right(balances
           + (transaction.from -> newSourceBalance)
           + (transaction.to -> newDestinationBalance))
@@ -85,23 +110,21 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
       command match {
 
-        case CreateZoneCommand(name, zoneType, equityHolderMember, equityHolderAccount) =>
+        case CreateZoneCommand(name, equityOwner, equityAccount, metadata) =>
 
-          val equityHolderMemberId = MemberId.generate
-          val equityHolderAccountId = AccountId.generate
+          val equityOwnerId = MemberId.generate
+          val equityAccountId = AccountId.generate
 
           val zone = Zone(
             name,
-            zoneType,
-            equityHolderMemberId,
-            equityHolderAccountId,
+            equityAccountId,
             Map(
-              equityHolderMemberId -> equityHolderMember
+              equityOwnerId -> equityOwner
             ),
             Map(
-              equityHolderAccountId ->
-                equityHolderAccount.copy(
-                  owners = Set(equityHolderMemberId)
+              equityAccountId ->
+                equityAccount.copy(
+                  owners = Set(equityOwnerId)
                 )
             ),
             Map.empty,
@@ -112,8 +135,8 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             ResponseWithId(
               CreateZoneResponse(
                 zoneId,
-                equityHolderMemberId,
-                equityHolderAccountId
+                equityOwnerId,
+                equityAccountId
               ),
               id
             )
@@ -259,35 +282,37 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
         case UpdateMemberCommand(_, memberId, member) =>
 
-          if (!canModify(zone, memberId, publicKey)) {
+          canModify(zone, memberId, publicKey) match {
 
-            sender !
-              ResponseWithId(
-                ErrorResponse(
-                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                  "Member modification forbidden",
-                  None
-                ),
-                id
+            case Left(error) =>
+
+              sender !
+                ResponseWithId(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    error,
+                    None
+                  ),
+                  id
+                )
+
+              log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $memberId")
+
+            case Right(_) =>
+
+              sender !
+                ResponseWithId(
+                  UpdateMemberResponse,
+                  id
+                )
+
+              val newCanonicalZone = zone.copy(
+                members = zone.members + (memberId -> member)
               )
+              val memberUpdatedNotification = MemberUpdatedNotification(zoneId, memberId, member)
+              clientConnections.keys.foreach(_ ! memberUpdatedNotification)
 
-            log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $memberId")
-
-          } else {
-
-            sender !
-              ResponseWithId(
-                UpdateMemberResponse,
-                id
-              )
-
-            val newCanonicalZone = zone.copy(
-              members = zone.members + (memberId -> member)
-            )
-            val memberUpdatedNotification = MemberUpdatedNotification(zoneId, memberId, member)
-            clientConnections.keys.foreach(_ ! memberUpdatedNotification)
-
-            context.become(withZone(newCanonicalZone, balances, clientConnections))
+              context.become(withZone(newCanonicalZone, balances, clientConnections))
 
           }
 
@@ -321,120 +346,126 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
         case UpdateAccountCommand(_, accountId, account) =>
 
-          if (!canModify(zone, accountId, publicKey)) {
+          canModify(zone, accountId, publicKey) match {
 
-            sender !
-              ResponseWithId(
-                ErrorResponse(
-                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                  "Account modification forbidden",
-                  None
-                ),
-                id
+            case Left(error) =>
+
+              sender !
+                ResponseWithId(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    error,
+                    None
+                  ),
+                  id
+                )
+
+              log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $accountId")
+
+            case Right(_) =>
+
+              sender !
+                ResponseWithId(
+                  UpdateAccountResponse,
+                  id
+                )
+
+              val newCanonicalZone = zone.copy(
+                accounts = zone.accounts + (accountId -> account)
               )
+              val accountUpdatedNotification = AccountUpdatedNotification(zoneId, accountId, account)
+              clientConnections.keys.foreach(_ ! accountUpdatedNotification)
 
-            log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $accountId")
-
-          } else {
-
-            sender !
-              ResponseWithId(
-                UpdateAccountResponse,
-                id
-              )
-
-            val newCanonicalZone = zone.copy(
-              accounts = zone.accounts + (accountId -> account)
-            )
-            val accountUpdatedNotification = AccountUpdatedNotification(zoneId, accountId, account)
-            clientConnections.keys.foreach(_ ! accountUpdatedNotification)
-
-            context.become(withZone(newCanonicalZone, balances, clientConnections))
+              context.become(withZone(newCanonicalZone, balances, clientConnections))
 
           }
 
-        case AddTransactionCommand(_, description, from, to, amount: BigDecimal) =>
+        case AddTransactionCommand(_, actingAs, description, from, to, value, metadata) =>
 
-          if (!canModify(zone, from, publicKey)) {
+          canModify(zone, from, actingAs, publicKey) match {
 
-            sender !
-              ResponseWithId(
-                ErrorResponse(
-                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                  "Account modification forbidden",
-                  None
-                ),
-                id
+            case Left(error) =>
+
+              sender !
+                ResponseWithId(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    error,
+                    None
+                  ),
+                  id
+                )
+
+              log.warning(s"Received invalid command from ${publicKey.fingerprint} to add transaction on $from")
+
+            case Right(_) =>
+
+              val transaction = Transaction(
+                description,
+                from,
+                to,
+                value,
+                actingAs,
+                System.currentTimeMillis,
+                metadata
               )
 
-            log.warning(s"Received invalid command from ${publicKey.fingerprint} to add transaction on $from")
+              val eitherErrorOrUpdatedAccountBalances = checkAndUpdateBalances(
+                transaction,
+                zone,
+                balances
+              )
 
-          } else {
+              eitherErrorOrUpdatedAccountBalances match {
 
-            val transaction = Transaction(
-              description,
-              from,
-              to,
-              amount,
-              System.currentTimeMillis
-            )
+                case Left(message) =>
 
-            val eitherErrorOrUpdatedAccountBalances = checkAndUpdateBalances(
-              transaction,
-              zone,
-              balances
-            )
+                  sender !
+                    ResponseWithId(
+                      ErrorResponse(
+                        JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                        message,
+                        None
+                      ),
+                      id
+                    )
 
-            eitherErrorOrUpdatedAccountBalances match {
+                  log.warning(s"Received invalid command from ${publicKey.fingerprint} to add $transaction")
 
-              case Left(message) =>
+                case Right(updatedAccountBalances) =>
 
-                sender !
-                  ResponseWithId(
-                    ErrorResponse(
-                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                      message,
-                      None
-                    ),
-                    id
-                  )
-
-                log.warning(s"Received invalid command from ${publicKey.fingerprint} to add $transaction")
-
-              case Right(updatedAccountBalances) =>
-
-                def freshTransactionId: TransactionId = {
-                  val transactionId = TransactionId.generate
-                  if (!zone.transactions.contains(transactionId)) {
-                    transactionId
-                  } else {
-                    freshTransactionId
+                  def freshTransactionId: TransactionId = {
+                    val transactionId = TransactionId.generate
+                    if (!zone.transactions.contains(transactionId)) {
+                      transactionId
+                    } else {
+                      freshTransactionId
+                    }
                   }
-                }
-                val transactionId = freshTransactionId
+                  val transactionId = freshTransactionId
 
-                sender !
-                  ResponseWithId(
-                    AddTransactionResponse(
-                      transactionId,
-                      transaction.created
-                    ),
-                    id
+                  sender !
+                    ResponseWithId(
+                      AddTransactionResponse(
+                        transactionId,
+                        transaction.created
+                      ),
+                      id
+                    )
+
+                  val newCanonicalZone = zone.copy(
+                    transactions = zone.transactions + (transactionId -> transaction)
                   )
+                  val transactionAddedNotification = TransactionAddedNotification(
+                    zoneId,
+                    transactionId,
+                    transaction
+                  )
+                  clientConnections.keys.foreach(_ ! transactionAddedNotification)
 
-                val newCanonicalZone = zone.copy(
-                  transactions = zone.transactions + (transactionId -> transaction)
-                )
-                val transactionAddedNotification = TransactionAddedNotification(
-                  zoneId,
-                  transactionId,
-                  transaction
-                )
-                clientConnections.keys.foreach(_ ! transactionAddedNotification)
+                  context.become(withZone(newCanonicalZone, updatedAccountBalances, clientConnections))
 
-                context.become(withZone(newCanonicalZone, updatedAccountBalances, clientConnections))
-
-            }
+              }
 
           }
 

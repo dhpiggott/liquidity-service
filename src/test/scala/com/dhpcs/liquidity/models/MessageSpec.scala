@@ -141,7 +141,8 @@ class MessageSpec extends FunSpec with Matchers {
           JsError(List(
             (__ \ "zoneId", List(ValidationError("error.path.missing"))),
             (__ \ "equityOwnerId", List(ValidationError("error.path.missing"))),
-            (__ \ "equityAccountId", List(ValidationError("error.path.missing")))
+            (__ \ "equityAccountId", List(ValidationError("error.path.missing"))),
+            (__ \ "created", List(ValidationError("error.path.missing")))
           ))
         )
       }
@@ -149,7 +150,8 @@ class MessageSpec extends FunSpec with Matchers {
     implicit val createZoneResponse = CreateZoneResponse(
       ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
       MemberId(UUID.fromString("1dcf2284-ceb8-47b4-9b2c-daf3ce21f8e3")),
-      AccountId(UUID.fromString("c881da49-f009-427e-8b90-47f15e11ac0d"))
+      AccountId(UUID.fromString("c881da49-f009-427e-8b90-47f15e11ac0d")),
+      1436179968835L
     )
     implicit val id = Right(0)
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
@@ -157,7 +159,8 @@ class MessageSpec extends FunSpec with Matchers {
         Json.obj(
           "zoneId" -> "158842d1-38c7-4ad3-ab83-d4c723c9aaf3",
           "equityOwnerId" -> "1dcf2284-ceb8-47b4-9b2c-daf3ce21f8e3",
-          "equityAccountId" -> "c881da49-f009-427e-8b90-47f15e11ac0d"
+          "equityAccountId" -> "c881da49-f009-427e-8b90-47f15e11ac0d",
+          "created" -> 1436179968835L
         )
       ),
       Some(

@@ -179,7 +179,8 @@ sealed trait ResultResponse extends Response
 
 case class CreateZoneResponse(zoneId: ZoneId,
                               equityOwnerId: MemberId,
-                              equityAccountId: AccountId) extends ResultResponse
+                              equityAccountId: AccountId,
+                              created: Long) extends ResultResponse
 
 case class JoinZoneResponse(zone: Zone,
                             connectedClients: Set[PublicKey]) extends ResultResponse

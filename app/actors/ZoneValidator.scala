@@ -205,7 +205,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
             ResponseWithId(
               JoinZoneResponse(
                 zone,
-                clientConnections.values.toSet
+                clientConnections.values.toSet + publicKey
               ),
               id
             )

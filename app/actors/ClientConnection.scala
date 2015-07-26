@@ -38,7 +38,7 @@ class ClientConnection(publicKey: PublicKey,
     log.debug(s"Started actor for ${publicKey.fingerprint}")
   }
 
-  def readCommand(jsonString: String):
+  private def readCommand(jsonString: String):
   (Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])]) =
 
     Try(Json.parse(jsonString)) match {

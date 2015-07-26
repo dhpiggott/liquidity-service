@@ -17,7 +17,7 @@ object ZoneValidator {
 
 class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
-  def canModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
+  private def canModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
     zone.members.get(memberId).fold[Either[String, Unit]](Left("Member does not exist"))(member =>
       if (publicKey != member.publicKey) {
         Left("Client's public key does not match Member's public key")
@@ -26,7 +26,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       }
     )
 
-  def canModify(zone: Zone, accountId: AccountId, publicKey: PublicKey) =
+  private def canModify(zone: Zone, accountId: AccountId, publicKey: PublicKey) =
     zone.accounts.get(accountId).fold[Either[String, Unit]](Left("Account does not exist"))(account =>
       if (!account.owners.exists(memberId =>
         zone.members.get(memberId).fold(false)(publicKey == _.publicKey)
@@ -37,7 +37,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       }
     )
 
-  def canModify(zone: Zone, accountId: AccountId, actingAs: MemberId, publicKey: PublicKey) =
+  private def canModify(zone: Zone, accountId: AccountId, actingAs: MemberId, publicKey: PublicKey) =
     zone.accounts.get(accountId).fold[Either[String, Unit]](Left("Account does not exist"))(account =>
       if (!account.owners.contains(actingAs)) {
         Left("Member is not an account owner")
@@ -52,7 +52,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       }
     )
 
-  def checkAccountOwners(zone: Zone, account: Account) = {
+  private def checkAccountOwners(zone: Zone, account: Account) = {
     val invalidAccountOwners = account.owners -- zone.members.keys
     if (invalidAccountOwners.nonEmpty) {
       Left(s"Invalid account owners: $invalidAccountOwners")
@@ -61,7 +61,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
     }
   }
 
-  def checkAndUpdateBalances(transaction: Transaction,
+  private def checkAndUpdateBalances(transaction: Transaction,
                              zone: Zone,
                              balances: Map[AccountId, BigDecimal]): Either[String, Map[AccountId, BigDecimal]] =
     if (!zone.accounts.contains(transaction.from)) {
@@ -80,7 +80,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
       }
     }
 
-  def handleJoin(clientConnection: ActorRef, publicKey: PublicKey, clientConnections: Map[ActorRef, PublicKey]) = {
+  private def handleJoin(clientConnection: ActorRef, publicKey: PublicKey, clientConnections: Map[ActorRef, PublicKey]) = {
     context.watch(clientConnection)
     val wasAlreadyPresent = clientConnections.values.exists(_ == publicKey)
     val newClientConnections = clientConnections + (clientConnection -> publicKey)
@@ -92,7 +92,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
     newClientConnections
   }
 
-  def handleQuit(clientConnection: ActorRef, clientConnections: Map[ActorRef, PublicKey]) = {
+  private def handleQuit(clientConnection: ActorRef, clientConnections: Map[ActorRef, PublicKey]) = {
     context.unwatch(clientConnection)
     val publicKey = clientConnections(clientConnection)
     val newClientConnections = clientConnections - clientConnection

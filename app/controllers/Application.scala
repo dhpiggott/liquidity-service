@@ -7,6 +7,7 @@ import javax.inject._
 import actors.ClientConnection
 import akka.actor.ActorRef
 import com.dhpcs.liquidity.models.PublicKey
+import controllers.Application._
 import org.apache.commons.codec.binary.Base64
 import play.api.Play.current
 import play.api.mvc._
@@ -14,15 +15,15 @@ import play.api.mvc._
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
-class Application @Inject()(@Named("zone-registry") zoneRegistry: ActorRef) extends Controller {
+object Application {
 
-  val pemCertStringMarkers = Seq(
+  private val pemCertStringMarkers = Seq(
     ("-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----"),
     ("-----BEGIN TRUSTED CERTIFICATE-----", "-----END TRUSTED CERTIFICATE-----"),
     ("-----BEGIN X509 CERTIFICATE-----", "-----END X509 CERTIFICATE-----")
   )
 
-  def getPublicKey(headers: Headers) = Try {
+  private def getPublicKey(headers: Headers) = Try {
     val pemStringData = headers.get("X-SSL-Client-Cert").fold(
       sys.error("Client certificate not present")
     ) {
@@ -40,6 +41,10 @@ class Application @Inject()(@Named("zone-registry") zoneRegistry: ActorRef) exte
       ).getPublicKey.getEncoded
     )
   }
+
+}
+
+class Application @Inject()(@Named("zone-registry") zoneRegistry: ActorRef) extends Controller {
 
   def ws = WebSocket.tryAcceptWithActor[String, String] { request =>
     Future.successful(

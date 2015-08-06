@@ -10,6 +10,7 @@ import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.models._
 import play.api.libs.json._
 
+import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object ClientConnection {
@@ -23,12 +24,13 @@ object ClientConnection {
 
 }
 
-// TODO: Receive timeout and/or pings?
 class ClientConnection(publicKey: PublicKey,
                        zoneRegistry: ActorRef,
                        upstream: ActorRef) extends Actor with ActorLogging {
 
   import context.dispatcher
+
+  context.setReceiveTimeout(30.seconds)
 
   override def postStop() {
     log.debug(s"Stopped actor for ${publicKey.fingerprint}")
@@ -107,6 +109,7 @@ class ClientConnection(publicKey: PublicKey,
 
         case Right((command, id)) =>
 
+          // TODO: Need to schedule timeout and retry in case messages are dropped lost between us and receiving actor
           command match {
 
             case command: CreateZoneCommand =>
@@ -165,6 +168,7 @@ class ClientConnection(publicKey: PublicKey,
         )
       )
 
+    // TODO: Need to acknowledge receipt so validator can retransmit lost messages
     case notification: Notification =>
 
       log.debug(s"Received $notification}")
@@ -172,6 +176,16 @@ class ClientConnection(publicKey: PublicKey,
       upstream ! Json.stringify(
         Json.toJson(
           Notification.write(notification)
+        )
+      )
+
+    case ReceiveTimeout =>
+
+      log.debug("Sending KeepAliveNotification")
+
+      upstream ! Json.stringify(
+        Json.toJson(
+          Notification.write(KeepAliveNotification)
         )
       )
 

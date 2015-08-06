@@ -123,6 +123,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           val equityOwnerId = MemberId.generate
           val equityAccountId = AccountId.generate
+          val created = System.currentTimeMillis
 
           val zone = Zone(
             name,
@@ -137,7 +138,7 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
                 )
             ),
             Map.empty,
-            System.currentTimeMillis,
+            created,
             metadata
           )
 
@@ -146,7 +147,8 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
               CreateZoneResponse(
                 zoneId,
                 equityOwnerId,
-                equityAccountId
+                equityAccountId,
+                created
               ),
               id
             )

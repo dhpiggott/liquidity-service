@@ -252,6 +252,8 @@ sealed trait ZoneNotification extends Notification {
 
 }
 
+case object KeepAliveNotification extends Notification
+
 case class ClientJoinedZoneNotification(zoneId: ZoneId,
                                         publicKey: PublicKey) extends ZoneNotification
 
@@ -282,6 +284,7 @@ case class TransactionAddedNotification(zoneId: ZoneId,
 object Notification {
 
   val NotificationFormats = MethodFormats(
+    "keepAlive" -> KeepAliveNotification,
     "clientJoinedZone" -> Json.format[ClientJoinedZoneNotification],
     "clientQuitZone" -> Json.format[ClientQuitZoneNotification],
     "zoneTerminated" -> Json.format[ZoneTerminatedNotification],

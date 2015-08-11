@@ -173,7 +173,7 @@ object Command {
 
 sealed trait Response extends Message
 
-case class ErrorResponse(code: Int, message: String, data: Option[JsValue]) extends Response
+case class ErrorResponse(code: Int, message: String, data: Option[JsValue] = None) extends Response
 
 sealed trait ResultResponse extends Response
 

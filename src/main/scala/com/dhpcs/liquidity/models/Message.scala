@@ -230,7 +230,7 @@ object Response {
   def write(response: Response, id: Either[String, Int]): JsonRpcResponseMessage = {
     val eitherErrorOrResult = response match {
       case ErrorResponse(code, message, data) => Left(
-        JsonRpcResponseError(code, message, data)
+        JsonRpcResponseError.applicationError(code, message, data)
       )
       case resultResponse: ResultResponse =>
         val mapping = ResponseFormats.find(_.matchesInstance(resultResponse))

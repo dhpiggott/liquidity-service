@@ -22,24 +22,6 @@ object ClientConnection {
 
   private case class CacheValidator(zoneId: ZoneId, validator: ActorRef)
 
-}
-
-class ClientConnection(publicKey: PublicKey,
-                       zoneRegistry: ActorRef,
-                       upstream: ActorRef) extends Actor with ActorLogging {
-
-  import context.dispatcher
-
-  context.setReceiveTimeout(30.seconds)
-
-  override def postStop() {
-    log.debug(s"Stopped actor for ${publicKey.fingerprint}")
-  }
-
-  override def preStart() {
-    log.debug(s"Started actor for ${publicKey.fingerprint}")
-  }
-
   private def readCommand(jsonString: String):
   (Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])]) =
 
@@ -89,7 +71,25 @@ class ClientConnection(publicKey: PublicKey,
 
     }
 
-  def receive = receive(Map.empty[ZoneId, ActorRef])
+}
+
+class ClientConnection(publicKey: PublicKey,
+                       zoneRegistry: ActorRef,
+                       upstream: ActorRef) extends Actor with ActorLogging {
+
+  import context.dispatcher
+
+  context.setReceiveTimeout(30.seconds)
+
+  override def postStop() {
+    log.debug(s"Stopped actor for ${publicKey.fingerprint}")
+  }
+
+  override def preStart() {
+    log.debug(s"Started actor for ${publicKey.fingerprint}")
+  }
+
+  override def receive = receive(Map.empty[ZoneId, ActorRef])
 
   def receive(joinedValidators: Map[ZoneId, ActorRef]): Receive = {
 

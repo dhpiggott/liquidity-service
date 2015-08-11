@@ -14,6 +14,7 @@ scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
   "com.dhpcs" %% "liquidity-common" % "0.28.0",
+  "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.12",
   specs2 % Test
 )
 

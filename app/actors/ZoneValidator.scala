@@ -2,10 +2,11 @@ package actors
 
 import java.util.UUID
 
+import actors.ClientConnection.MessageReceivedConfirmation
 import actors.ZoneValidator._
 import akka.actor._
 import akka.contrib.pattern.ShardRegion
-import akka.persistence.PersistentActor
+import akka.persistence.{AtLeastOnceDelivery, RecoveryCompleted, PersistentActor}
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
 import play.api.libs.json.JsObject
@@ -18,11 +19,27 @@ object ZoneValidator {
 
   case class EnvelopedMessage(zoneId: ZoneId, message: Any)
 
-  case class AuthenticatedCommandWithId(publicKey: PublicKey, command: Command, id: Either[String, Int])
+  case class AuthenticatedCommandWithIds(publicKey: PublicKey,
+                                         command: Command,
+                                         correlationId: Either[String, Int],
+                                         sequenceNumber: Long,
+                                         deliveryId: Long)
 
-  case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand)
+  case class CommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long)
 
-  case class ResponseWithId(response: Response, id: Either[String, Int])
+  case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
+                               correlationId: Either[String, Int],
+                               sequenceNumber: Long,
+                               deliveryId: Long)
+
+  case class ZoneRestarted(zoneId: ZoneId, sequenceNumber: Long, deliveryId: Long)
+
+  case class ResponseWithIds(response: Response,
+                             correlationId: Either[String, Int],
+                             sequenceNumber: Long,
+                             deliveryId: Long)
+
+  case class NotificationWithIds(notification: Notification, sequenceNumber: Long, deliveryId: Long)
 
   sealed trait Event
 
@@ -31,6 +48,10 @@ object ZoneValidator {
                               equityAccount: Account,
                               created: Long,
                               metadata: Option[JsObject]) extends Event
+
+  case class ZoneJoinedEvent(clientConnection: ActorRef, publicKey: PublicKey) extends Event
+
+  case class ZoneQuitEvent(clientConnection: ActorRef) extends Event
 
   case class ZoneNameChangedEvent(name: Option[String]) extends Event
 
@@ -52,9 +73,9 @@ object ZoneValidator {
 
       (zoneId.id.toString, message)
 
-    case authenticatedCommandWithId@AuthenticatedCommandWithId(_, zoneCommand: ZoneCommand, _) =>
+    case authenticatedCommandWithIds@AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
 
-      (zoneCommand.zoneId.id.toString, authenticatedCommandWithId)
+      (zoneCommand.zoneId.id.toString, authenticatedCommandWithIds)
 
   }
 
@@ -73,7 +94,7 @@ object ZoneValidator {
 
       (math.abs(zoneId.id.hashCode) % numberOfShards).toString
 
-    case AuthenticatedCommandWithId(_, zoneCommand: ZoneCommand, _) =>
+    case AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
 
       (math.abs(zoneCommand.zoneId.id.hashCode) % numberOfShards).toString
 
@@ -103,6 +124,18 @@ object ZoneValidator {
             created,
             metadata
           )
+        )
+
+      case ZoneJoinedEvent(clientConnection, publicKey) =>
+
+        copy(
+          clientConnections = clientConnections + (clientConnection -> publicKey)
+        )
+
+      case ZoneQuitEvent(clientConnection) =>
+
+        copy(
+          clientConnections = clientConnections - clientConnection
         )
 
       case ZoneNameChangedEvent(name) =>
@@ -159,6 +192,44 @@ object ZoneValidator {
         )
 
     }
+
+  }
+
+  private class PassivationCountdown extends Actor {
+
+    import actors.ZoneValidator.PassivationActor._
+
+    context.setReceiveTimeout(receiveTimeout)
+
+    override def receive: Receive = {
+
+      case ReceiveTimeout =>
+
+        context.parent ! RequestPassivate
+
+      case CommandReceivedEvent =>
+
+      case Start =>
+
+        context.setReceiveTimeout(receiveTimeout)
+
+      case Stop =>
+
+        context.setReceiveTimeout(Duration.Undefined)
+
+    }
+
+  }
+
+  private object PassivationActor {
+
+    case object CommandReceivedEvent
+
+    case object RequestPassivate
+
+    case object Start
+
+    case object Stop
 
   }
 
@@ -226,11 +297,12 @@ object ZoneValidator {
 
 }
 
-class ZoneValidator extends PersistentActor with ActorLogging {
+class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
 
+  import actors.ZoneValidator.PassivationActor._
   import ShardRegion.Passivate
 
-  context.setReceiveTimeout(receiveTimeout)
+  private val passivationActor = context.actorOf(Props[PassivationCountdown])
 
   private val zoneId = ZoneId(UUID.fromString(self.path.name))
 
@@ -240,54 +312,125 @@ class ZoneValidator extends PersistentActor with ActorLogging {
     null
   )
 
-  private def handleJoin(clientConnection: ActorRef, publicKey: PublicKey) {
-    context.watch(clientConnection)
-    val wasAlreadyPresent = state.clientConnections.values.exists(_ == publicKey)
-    val newClientConnections = state.clientConnections + (clientConnection -> publicKey)
-    if (!wasAlreadyPresent) {
-      val clientJoinedZoneNotification = ClientJoinedZoneNotification(zoneId, publicKey)
-      newClientConnections.keys.foreach(_ ! clientJoinedZoneNotification)
-    }
-    log.debug(s"${newClientConnections.size} clients are present")
-    if (state.clientConnections.isEmpty) {
-      context.setReceiveTimeout(Duration.Undefined)
-    }
-    state = state.copy(
-      clientConnections = newClientConnections
-    )
+  private var nextExpectedCommandSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(0L)
+  private var messageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(0L)
+  private var pendingDeliveries = Map.empty[ActorRef, Set[Long]].withDefaultValue(Set.empty)
+
+  private def confirmMessageReceipt: Receive = {
+
+    case MessageReceivedConfirmation(deliveryId) =>
+
+      confirmDelivery(deliveryId)
+
+      pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(sender()) - deliveryId))
+
+      if (pendingDeliveries(sender()).isEmpty) {
+
+        pendingDeliveries = pendingDeliveries - sender()
+
+      }
+
   }
 
-  private def handleQuit(clientConnection: ActorRef) {
-    context.unwatch(clientConnection)
-    val publicKey = state.clientConnections(clientConnection)
-    val newClientConnections = state.clientConnections - clientConnection
-    val isStillPresent = newClientConnections.values.exists(_ == publicKey)
-    if (!isStillPresent) {
-      val clientQuitZoneNotification = ClientQuitZoneNotification(zoneId, publicKey)
-      newClientConnections.keys.foreach(_ ! clientQuitZoneNotification)
-    }
-    log.debug(s"${newClientConnections.size} clients are present")
-    state = state.copy(
-      clientConnections = newClientConnections
-    )
-    if (state.clientConnections.isEmpty) {
-      context.setReceiveTimeout(receiveTimeout)
+  private def deliverNotification(notification: Notification) {
+    state.clientConnections.keys.foreach { clientConnection =>
+      val sequenceNumber = messageSequenceNumbers(clientConnection)
+      messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
+      deliver(clientConnection.path, { deliveryId =>
+        pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(clientConnection) + deliveryId))
+        NotificationWithIds(notification, sequenceNumber, deliveryId)
+      })
     }
   }
+
+  private def deliverResponse(response: Response, commandCorrelationId: Either[String, Int]) {
+    val sequenceNumber = messageSequenceNumbers(sender())
+    messageSequenceNumbers = messageSequenceNumbers + (sender() -> (sequenceNumber + 1))
+    deliver(sender().path, { deliveryId =>
+      pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(sender()) + deliveryId))
+      ResponseWithIds(
+        response,
+        commandCorrelationId,
+        sequenceNumber,
+        deliveryId
+      )
+    })
+  }
+
+  private def handleJoin(clientConnection: ActorRef, publicKey: PublicKey, onStateUpdate: State => Unit = _ => ()) =
+    persist(ZoneJoinedEvent(clientConnection, publicKey)) { zoneJoinedEvent =>
+
+      if (state.clientConnections.isEmpty) {
+        passivationActor ! Stop
+      }
+
+      context.watch(clientConnection)
+
+      val wasAlreadyPresent = state.clientConnections.values.exists(_ == publicKey)
+
+      updateState(zoneJoinedEvent)
+
+      log.debug(s"${state.clientConnections.size} clients are present")
+
+      onStateUpdate(state)
+
+      if (!wasAlreadyPresent) {
+        deliverNotification(ClientJoinedZoneNotification(zoneId, publicKey))
+      }
+
+    }
+
+  private def handleQuit(clientConnection: ActorRef, onStateUpdate: => Unit = ()) =
+    persist(ZoneQuitEvent(clientConnection)) { zoneQuitEvent =>
+
+      val publicKey = state.clientConnections(clientConnection)
+
+      updateState(zoneQuitEvent)
+
+      log.debug(s"${state.clientConnections.size} clients are present")
+
+      onStateUpdate
+
+      val isStillPresent = state.clientConnections.values.exists(_ == publicKey)
+
+      if (!isStillPresent) {
+        deliverNotification(ClientQuitZoneNotification(zoneId, publicKey))
+      }
+
+      context.unwatch(clientConnection)
+
+      if (state.clientConnections.isEmpty) {
+        passivationActor ! Start
+      }
+
+    }
 
   override def persistenceId = zoneId.toString
-
-  override def preRestart(reason: Throwable, message: Option[Any]) {
-    val zoneTerminatedNotification = ZoneTerminatedNotification(zoneId)
-    state.clientConnections.keys.foreach(_ ! zoneTerminatedNotification)
-    super.preRestart(reason, message)
-  }
 
   override def receiveCommand = waitForZone
 
   override def receiveRecover = {
 
-    case event: Event => updateState(event)
+    case event: Event =>
+
+      updateState(event)
+
+    case RecoveryCompleted =>
+
+      state.clientConnections.keys.foreach(context.watch)
+
+      state.clientConnections.keys.foreach { clientConnection =>
+        val sequenceNumber = messageSequenceNumbers(clientConnection)
+        messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
+        deliver(clientConnection.path, { deliveryId =>
+          pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(clientConnection) + deliveryId))
+          ZoneRestarted(zoneId, sequenceNumber, deliveryId)
+        })
+      }
+
+      state = state.copy(
+        clientConnections = Map.empty
+      )
 
   }
 
@@ -300,369 +443,419 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
   private def waitForTimeout: Receive = {
 
-    case ReceiveTimeout =>
-
-      log.debug("Received ReceiveTimeout")
+    case RequestPassivate =>
 
       context.parent ! Passivate(stopMessage = PoisonPill)
 
   }
 
-  private def waitForZone: Receive = waitForTimeout orElse {
+  private def waitForZone: Receive = confirmMessageReceipt orElse waitForTimeout orElse {
 
-    case AuthenticatedCommandWithId(publicKey, command, id) =>
+    case AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber, deliveryId) =>
 
-      command match {
+      passivationActor ! CommandReceivedEvent
 
-        case CreateZoneCommand(name,
-        equityOwnerName,
-        equityOwnerPublicKey,
-        equityOwnerMetadata,
-        equityAccountName,
-        equityAccountMetadata,
-        metadata) =>
+      val nextExpectedCommandSequenceNumber = nextExpectedCommandSequenceNumbers(sender())
 
-          val equityOwnerId = MemberId(0)
-          val equityOwner = Member(equityOwnerId, equityOwnerName, equityOwnerPublicKey, equityOwnerMetadata)
-          val equityAccountId = AccountId(0)
-          val equityAccount = Account(equityAccountId, equityAccountName, Set(equityOwnerId), equityAccountMetadata)
-          val created = System.currentTimeMillis
+      if (sequenceNumber <= nextExpectedCommandSequenceNumber) {
 
-          persist(ZoneCreatedEvent(name, equityOwner, equityAccount, created, metadata)) { zoneCreatedEvent =>
+        sender ! CommandReceivedConfirmation(zoneId, deliveryId)
 
-            updateState(zoneCreatedEvent)
+      }
 
-            sender !
-              ResponseWithId(
+      if (sequenceNumber == nextExpectedCommandSequenceNumber) {
+
+        nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers + (sender() -> (sequenceNumber + 1))
+
+        command match {
+
+          case CreateZoneCommand(name,
+          equityOwnerName,
+          equityOwnerPublicKey,
+          equityOwnerMetadata,
+          equityAccountName,
+          equityAccountMetadata,
+          metadata) =>
+
+            val equityOwner = Member(MemberId(0), equityOwnerName, equityOwnerPublicKey, equityOwnerMetadata)
+            val equityAccount = Account(AccountId(0), equityAccountName, Set(equityOwner.id), equityAccountMetadata)
+            val created = System.currentTimeMillis
+
+            persist(ZoneCreatedEvent(name, equityOwner, equityAccount, created, metadata)) { zoneCreatedEvent =>
+
+              updateState(zoneCreatedEvent)
+
+              deliverResponse(
                 CreateZoneResponse(
                   zoneId,
                   equityOwner,
                   equityAccount,
                   created
                 ),
-                id
+                correlationId
               )
 
-          }
+            }
 
-        case _ =>
+          case _ =>
 
-          sender !
-            ResponseWithId(
+            deliverResponse(
               ErrorResponse(
                 JsonRpcResponseError.ReservedErrorCodeFloor - 1,
                 "Zone does not exist"
               ),
-              id
+              correlationId
             )
+
+        }
 
       }
 
   }
 
-  private def withZone: Receive = waitForTimeout orElse {
+  private def withZone: Receive = confirmMessageReceipt orElse waitForTimeout orElse {
 
-    case AuthenticatedCommandWithId(publicKey, command, id) =>
+    case AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber, deliveryId) =>
 
-      command match {
+      passivationActor ! CommandReceivedEvent
 
-        case createZoneCommand: CreateZoneCommand =>
+      val nextExpectedCommandSequenceNumber = nextExpectedCommandSequenceNumbers(sender())
 
-          sender ! ZoneAlreadyExists(createZoneCommand)
+      if (sequenceNumber <= nextExpectedCommandSequenceNumber) {
 
-        case _: JoinZoneCommand =>
+        sender ! CommandReceivedConfirmation(zoneId, deliveryId)
 
-          sender !
-            ResponseWithId(
-              JoinZoneResponse(
-                state.zone,
-                state.clientConnections.values.toSet + publicKey
-              ),
-              id
-            )
+      }
 
-          if (!state.clientConnections.contains(sender())) {
+      if (sequenceNumber == nextExpectedCommandSequenceNumber) {
 
-            handleJoin(sender(), publicKey)
+        nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers + (sender() -> (sequenceNumber + 1))
 
-          }
+        command match {
 
-        case _: QuitZoneCommand =>
+          case createZoneCommand: CreateZoneCommand =>
 
-          sender !
-            ResponseWithId(
-              QuitZoneResponse,
-              id
-            )
+            val sequenceNumber = messageSequenceNumbers(sender())
+            messageSequenceNumbers = messageSequenceNumbers + (sender() -> (sequenceNumber + 1))
+            deliver(sender().path, { deliveryId =>
+              pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(sender()) + deliveryId))
+              ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId)
+            })
 
-          if (state.clientConnections.contains(sender())) {
+          case JoinZoneCommand(_) =>
 
-            handleQuit(sender())
+            if (state.clientConnections.contains(sender())) {
 
-          }
-
-        case ChangeZoneNameCommand(_, name) =>
-
-          persist(ZoneNameChangedEvent(name)) { zoneNameChangedEvent =>
-
-            updateState(zoneNameChangedEvent)
-
-            sender !
-              ResponseWithId(
-                ChangeZoneNameResponse,
-                id
+              deliverResponse(
+                ErrorResponse(
+                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                  "Zone already joined"
+                ),
+                correlationId
               )
 
-            val zoneNameSetNotification = ZoneNameChangedNotification(
-              zoneId,
-              name
+            } else {
+
+              handleJoin(sender(), publicKey, { state =>
+                deliverResponse(
+                  JoinZoneResponse(
+                    state.zone,
+                    state.clientConnections.values.toSet
+                  ),
+                  correlationId
+                )
+              })
+
+            }
+
+          case QuitZoneCommand(_) =>
+
+            if (!state.clientConnections.contains(sender())) {
+
+              deliverResponse(
+                ErrorResponse(
+                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                  "Zone not joined"
+                ),
+                correlationId
+              )
+
+            } else {
+
+              handleQuit(sender(), {
+                deliverResponse(
+                  QuitZoneResponse,
+                  correlationId
+                )
+              })
+
+            }
+
+          case ChangeZoneNameCommand(_, name) =>
+
+            persist(ZoneNameChangedEvent(name)) { zoneNameChangedEvent =>
+
+              updateState(zoneNameChangedEvent)
+
+              deliverResponse(
+                ChangeZoneNameResponse,
+                correlationId
+              )
+
+              deliverNotification(
+                ZoneNameChangedNotification(
+                  zoneId,
+                  name
+                )
+              )
+
+            }
+
+          case CreateMemberCommand(_, name, ownerPublicKey, metadata) =>
+
+            val member = Member(
+              MemberId(state.zone.members.size),
+              name,
+              ownerPublicKey,
+              metadata
             )
-            state.clientConnections.keys.foreach(_ ! zoneNameSetNotification)
 
-          }
+            persist(MemberCreatedEvent(member)) { memberCreatedEvent =>
 
-        case CreateMemberCommand(_, name, ownerPublicKey, metadata) =>
+              updateState(memberCreatedEvent)
 
-          val memberId = MemberId(state.zone.members.size)
-          val member = Member(
-            memberId,
-            name,
-            ownerPublicKey,
-            metadata
-          )
-
-          persist(MemberCreatedEvent(member)) { memberCreatedEvent =>
-
-            updateState(memberCreatedEvent)
-
-            sender !
-              ResponseWithId(
+              deliverResponse(
                 CreateMemberResponse(
                   member
                 ),
-                id
+                correlationId
               )
 
-            val memberCreatedNotification = MemberCreatedNotification(
-              zoneId,
-              member
-            )
-            state.clientConnections.keys.foreach(_ ! memberCreatedNotification)
-
-          }
-
-        case UpdateMemberCommand(_, member) =>
-
-          canModify(state.zone, member.id, publicKey) match {
-
-            case Left(message) =>
-
-              sender !
-                ResponseWithId(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    message
-                  ),
-                  id
-                )
-
-            case Right(_) =>
-
-              persist(MemberUpdatedEvent(member)) { memberUpdatedEvent =>
-
-                updateState(memberUpdatedEvent)
-
-                sender !
-                  ResponseWithId(
-                    UpdateMemberResponse,
-                    id
-                  )
-
-                val memberUpdatedNotification = MemberUpdatedNotification(
+              deliverNotification(
+                MemberCreatedNotification(
                   zoneId,
                   member
                 )
-                state.clientConnections.keys.foreach(_ ! memberUpdatedNotification)
+              )
 
-              }
+            }
 
-          }
+          case UpdateMemberCommand(_, member) =>
 
-        case CreateAccountCommand(_, name, owners, metadata) =>
+            canModify(state.zone, member.id, publicKey) match {
 
-          checkAccountOwners(state.zone, owners) match {
+              case Left(message) =>
 
-            case Left(message) =>
-
-              sender !
-                ResponseWithId(
+                deliverResponse(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
                     message
                   ),
-                  id
+                  correlationId
                 )
 
-            case Right(_) =>
+              case Right(_) =>
 
-              val accountId = AccountId(state.zone.accounts.size)
-              val account = Account(
-                accountId,
-                name,
-                owners,
-                metadata
-              )
+                persist(MemberUpdatedEvent(member)) { memberUpdatedEvent =>
 
-              persist(AccountCreatedEvent(account)) { accountCreatedEvent =>
+                  updateState(memberUpdatedEvent)
 
-                updateState(accountCreatedEvent)
+                  deliverResponse(
+                    UpdateMemberResponse,
+                    correlationId
+                  )
 
-                sender !
-                  ResponseWithId(
+                  deliverNotification(
+                    MemberUpdatedNotification(
+                      zoneId,
+                      member
+                    )
+                  )
+
+                }
+
+            }
+
+          case CreateAccountCommand(_, name, owners, metadata) =>
+
+            checkAccountOwners(state.zone, owners) match {
+
+              case Left(message) =>
+
+                deliverResponse(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    message
+                  ),
+                  correlationId
+                )
+
+              case Right(_) =>
+
+                val account = Account(
+                  AccountId(state.zone.accounts.size),
+                  name,
+                  owners,
+                  metadata
+                )
+
+                persist(AccountCreatedEvent(account)) { accountCreatedEvent =>
+
+                  updateState(accountCreatedEvent)
+
+                  deliverResponse(
                     CreateAccountResponse(
                       account
                     ),
-                    id
+                    correlationId
                   )
 
-                val accountCreatedNotification = AccountCreatedNotification(
-                  zoneId,
-                  account
-                )
-                state.clientConnections.keys.foreach(_ ! accountCreatedNotification)
-
-              }
-
-          }
-
-        case UpdateAccountCommand(_, account) =>
-
-          canModify(state.zone, account.id, publicKey) match {
-
-            case Left(message) =>
-
-              sender !
-                ResponseWithId(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    message
-                  ),
-                  id
-                )
-
-            case Right(_) =>
-
-              checkAccountOwners(state.zone, account.ownerMemberIds) match {
-
-                case Left(message) =>
-
-                  sender !
-                    ResponseWithId(
-                      ErrorResponse(
-                        JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                        message
-                      ),
-                      id
-                    )
-
-                case Right(_) =>
-
-                  persist(AccountUpdatedEvent(account)) { accountUpdatedEvent =>
-
-                    updateState(accountUpdatedEvent)
-
-                    sender !
-                      ResponseWithId(
-                        UpdateAccountResponse,
-                        id
-                      )
-
-                    val accountUpdatedNotification = AccountUpdatedNotification(
+                  deliverNotification(
+                    AccountCreatedNotification(
                       zoneId,
                       account
                     )
-                    state.clientConnections.keys.foreach(_ ! accountUpdatedNotification)
+                  )
 
-                  }
+                }
 
-              }
+            }
 
-          }
+          case UpdateAccountCommand(_, account) =>
 
-        case AddTransactionCommand(_, actingAs, description, from, to, value, metadata) =>
+            canModify(state.zone, account.id, publicKey) match {
 
-          canModify(state.zone, from, actingAs, publicKey) match {
+              case Left(message) =>
 
-            case Left(message) =>
-
-              sender !
-                ResponseWithId(
+                deliverResponse(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
                     message
                   ),
-                  id
+                  correlationId
                 )
 
-            case Right(_) =>
+              case Right(_) =>
 
-              checkTransaction(from, to, value, state.zone, state.balances) match {
+                checkAccountOwners(state.zone, account.ownerMemberIds) match {
 
-                case Left(message) =>
+                  case Left(message) =>
 
-                  sender !
-                    ResponseWithId(
+                    deliverResponse(
                       ErrorResponse(
                         JsonRpcResponseError.ReservedErrorCodeFloor - 1,
                         message
                       ),
-                      id
+                      correlationId
                     )
 
-                case Right(_) =>
+                  case Right(_) =>
 
-                  val transactionId = TransactionId(state.zone.transactions.size)
-                  val created = System.currentTimeMillis
-                  val transaction = Transaction(
-                    transactionId,
-                    description,
-                    from,
-                    to,
-                    value,
-                    actingAs,
-                    created,
-                    metadata
-                  )
+                    persist(AccountUpdatedEvent(account)) { accountUpdatedEvent =>
 
-                  persist(TransactionAddedEvent(transaction)) { transactionAddedEvent =>
+                      updateState(accountUpdatedEvent)
 
-                    updateState(transactionAddedEvent)
+                      deliverResponse(
+                        UpdateAccountResponse,
+                        correlationId
+                      )
 
-                    sender !
-                      ResponseWithId(
+                      deliverNotification(
+                        AccountUpdatedNotification(
+                          zoneId,
+                          account
+                        )
+                      )
+
+                    }
+
+                }
+
+            }
+
+          case AddTransactionCommand(_, actingAs, description, from, to, value, metadata) =>
+
+            canModify(state.zone, from, actingAs, publicKey) match {
+
+              case Left(message) =>
+
+                deliverResponse(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    message
+                  ),
+                  correlationId
+                )
+
+              case Right(_) =>
+
+                checkTransaction(from, to, value, state.zone, state.balances) match {
+
+                  case Left(message) =>
+
+                    deliverResponse(
+                      ErrorResponse(
+                        JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                        message
+                      ),
+                      correlationId
+                    )
+
+                  case Right(_) =>
+
+                    val transaction = Transaction(
+                      TransactionId(state.zone.transactions.size),
+                      description,
+                      from,
+                      to,
+                      value,
+                      actingAs,
+                      System.currentTimeMillis,
+                      metadata
+                    )
+
+                    persist(TransactionAddedEvent(transaction)) { transactionAddedEvent =>
+
+                      updateState(transactionAddedEvent)
+
+                      deliverResponse(
                         AddTransactionResponse(
                           transaction
                         ),
-                        id
+                        correlationId
                       )
 
-                    val transactionAddedNotification = TransactionAddedNotification(
-                      zoneId,
-                      transaction
-                    )
-                    state.clientConnections.keys.foreach(_ ! transactionAddedNotification)
+                      deliverNotification(
+                        TransactionAddedNotification(
+                          zoneId,
+                          transaction
+                        )
+                      )
 
-                  }
+                    }
 
-              }
+                }
 
-          }
+            }
+
+        }
 
       }
 
     case Terminated(clientConnection) =>
 
-      handleQuit(clientConnection)
+      if (state.clientConnections.contains(sender())) {
+
+        handleQuit(clientConnection)
+
+      }
+
+      nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers - sender()
+
+      messageSequenceNumbers = messageSequenceNumbers - sender()
+
+      pendingDeliveries(sender()).foreach(confirmDelivery)
+      pendingDeliveries = pendingDeliveries - sender()
 
   }
 

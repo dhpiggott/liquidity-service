@@ -5,6 +5,7 @@ import java.util.UUID
 import actors.ClientConnection._
 import actors.ZoneValidator._
 import akka.actor._
+import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.models._
 import play.api.libs.json._
@@ -68,25 +69,65 @@ object ClientConnection {
 
     }
 
+  case class MessageReceivedConfirmation(deliveryId: Long)
+
+  private class KeepAliveGenerator extends Actor {
+
+    import actors.ClientConnection.KeepAliveGenerator._
+
+    context.setReceiveTimeout(receiveTimeout)
+
+    override def receive: Receive = {
+
+      case ReceiveTimeout =>
+
+        context.parent ! SendKeepAlive
+
+      case FrameReceivedEvent | FrameSentEvent =>
+
+    }
+
+  }
+
+  private object KeepAliveGenerator {
+
+    case object FrameReceivedEvent
+
+    case object FrameSentEvent
+
+    case object SendKeepAlive
+
+  }
+
 }
 
 class ClientConnection(publicKey: PublicKey,
                        zoneValidatorShardRegion: ActorRef,
-                       upstream: ActorRef) extends Actor with ActorLogging {
+                       upstream: ActorRef) extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
 
-  context.setReceiveTimeout(receiveTimeout)
+  import actors.ClientConnection.KeepAliveGenerator._
+
+  private val keepAliveActor = context.actorOf(Props[KeepAliveGenerator])
+
+  private var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(0L)
+  private var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
+  private var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
+
+  override def persistenceId: String = s"${publicKey.productPrefix}(${publicKey.fingerprint})"
 
   override def postStop() {
     log.debug(s"Stopped actor for ${publicKey.fingerprint}")
+    super.postStop()
   }
 
   override def preStart() {
     log.debug(s"Started actor for ${publicKey.fingerprint}")
+    super.preStart()
   }
 
-  override def receive = {
+  override def receiveCommand = {
 
-    case ReceiveTimeout =>
+    case SendKeepAlive =>
 
       val keepAliveNotification = KeepAliveNotification
 
@@ -100,6 +141,8 @@ class ClientConnection(publicKey: PublicKey,
 
     case json: String =>
 
+      keepAliveActor ! FrameReceivedEvent
+
       readCommand(json) match {
 
         case Left((jsonRpcResponseError, id)) =>
@@ -112,7 +155,7 @@ class ClientConnection(publicKey: PublicKey,
             )
           )
 
-        case Right((command, id)) =>
+        case Right((command, correlationId)) =>
 
           log.debug(s"Received $command")
 
@@ -120,97 +163,166 @@ class ClientConnection(publicKey: PublicKey,
 
             case createZoneCommand: CreateZoneCommand =>
 
-              val zoneId = ZoneId.generate
-
-              zoneValidatorShardRegion ! EnvelopedMessage(
-                zoneId,
-                AuthenticatedCommandWithId(publicKey, createZoneCommand, id)
-              )
+              createZone(createZoneCommand, correlationId)
 
             case zoneCommand: ZoneCommand =>
 
-              zoneCommand match {
+              val zoneId = zoneCommand.zoneId
 
-                case joinZoneCommand@JoinZoneCommand(zoneId) =>
-
-                  zoneValidatorShardRegion ! EnvelopedMessage(
-                    zoneId,
-                    Identify(AuthenticatedCommandWithId(publicKey, joinZoneCommand, id))
-                  )
-
-                case quitZoneCommand@QuitZoneCommand(zoneId) =>
-
-                  zoneValidatorShardRegion ! EnvelopedMessage(
-                    zoneId,
-                    Identify(AuthenticatedCommandWithId(publicKey, quitZoneCommand, id))
-                  )
-
-                case _ =>
-
-                  zoneValidatorShardRegion ! AuthenticatedCommandWithId(publicKey, zoneCommand, id)
-
-              }
+              val sequenceNumber = commandSequenceNumbers(zoneId)
+              commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+              deliver(zoneValidatorShardRegion.path, { deliveryId =>
+                pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+                AuthenticatedCommandWithIds(
+                  publicKey,
+                  zoneCommand,
+                  correlationId,
+                  sequenceNumber,
+                  deliveryId
+                )
+              })
 
           }
 
       }
 
-    case actorIdentity@
-      ActorIdentity(authenticatedCommandWithId@AuthenticatedCommandWithId(_, _: JoinZoneCommand, _), Some(validator)) =>
+    case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
 
-      log.debug(s"Received $actorIdentity")
+      val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
 
-      context.watch(validator)
+      if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
 
-      zoneValidatorShardRegion ! authenticatedCommandWithId
+        sender ! MessageReceivedConfirmation(deliveryId)
 
-    case actorIdentity@
-      ActorIdentity(authenticatedCommandWithId@AuthenticatedCommandWithId(_, _: QuitZoneCommand, _), Some(validator)) =>
+      }
 
-      log.debug(s"Received $actorIdentity")
+      if (sequenceNumber == nextExpectedMessageSequenceNumber) {
 
-      zoneValidatorShardRegion ! authenticatedCommandWithId
+        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
 
-      context.unwatch(validator)
+        createZone(createZoneCommand, correlationId)
 
-    case ZoneAlreadyExists(createZoneCommand) =>
+      }
 
-      self ! createZoneCommand
+    case ZoneRestarted(zoneId, sequenceNumber, deliveryId) =>
 
-    case ResponseWithId(response, id) =>
+      val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
+
+      if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
+
+        sender ! MessageReceivedConfirmation(deliveryId)
+
+      }
+
+      if (sequenceNumber == nextExpectedMessageSequenceNumber) {
+
+        /*
+         * Remove previous validator entry, add new validator entry.
+         */
+        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys { validator =>
+          ZoneId(UUID.fromString(validator.path.name)) != zoneId
+        } + (sender() -> (sequenceNumber + 1))
+
+        commandSequenceNumbers = commandSequenceNumbers - zoneId
+
+        pendingDeliveries(zoneId).foreach(confirmDelivery)
+        pendingDeliveries = pendingDeliveries - zoneId
+
+        upstream ! Json.stringify(
+          Json.toJson(
+            Notification.write(ZoneTerminatedNotification(zoneId))
+          )
+        )
+
+        keepAliveActor ! FrameSentEvent
+
+      }
+
+    case CommandReceivedConfirmation(zoneId, deliveryId) =>
+
+      confirmDelivery(deliveryId)
+
+      pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) - deliveryId))
+
+      if (pendingDeliveries(zoneId).isEmpty) {
+
+        pendingDeliveries = pendingDeliveries - zoneId
+
+      }
+
+    case ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
 
       log.debug(s"Received $response")
 
-      upstream ! Json.stringify(
-        Json.toJson(
-          Response.write(response, id)
-        )
-      )
+      val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
 
-    case notification: Notification =>
+      if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
+
+        sender ! MessageReceivedConfirmation(deliveryId)
+
+      }
+
+      if (sequenceNumber == nextExpectedMessageSequenceNumber) {
+
+        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
+
+        upstream ! Json.stringify(
+          Json.toJson(
+            Response.write(response, correlationId)
+          )
+        )
+
+        keepAliveActor ! FrameSentEvent
+
+      }
+
+    case NotificationWithIds(notification, sequenceNumber, deliveryId) =>
 
       log.debug(s"Received $notification")
 
-      upstream ! Json.stringify(
-        Json.toJson(
-          Notification.write(notification)
+      val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
+
+      if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
+
+        sender ! MessageReceivedConfirmation(deliveryId)
+
+      }
+
+      if (sequenceNumber == nextExpectedMessageSequenceNumber) {
+
+        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
+
+        upstream ! Json.stringify(
+          Json.toJson(
+            Notification.write(notification)
+          )
         )
-      )
 
-    case Terminated(validator) =>
+        keepAliveActor ! FrameSentEvent
 
-      val zoneId = ZoneId(UUID.fromString(validator.path.name))
-
-      val zoneTerminatedNotification = ZoneTerminatedNotification(zoneId)
-
-      log.debug(s"Sending $zoneTerminatedNotification")
-
-      upstream ! Json.stringify(
-        Json.toJson(
-          Notification.write(zoneTerminatedNotification)
-        )
-      )
+      }
 
   }
+
+  private def createZone(createZoneCommand: CreateZoneCommand, correlationId: Either[String, Int]) {
+    val zoneId = ZoneId.generate
+    val sequenceNumber = commandSequenceNumbers(zoneId)
+    commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+    deliver(zoneValidatorShardRegion.path, { deliveryId =>
+      pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+      EnvelopedMessage(
+        zoneId,
+        AuthenticatedCommandWithIds(
+          publicKey,
+          createZoneCommand,
+          correlationId,
+          sequenceNumber,
+          deliveryId
+        )
+      )
+    })
+  }
+
+  override def receiveRecover = Map.empty
 
 }

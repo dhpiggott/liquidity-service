@@ -100,7 +100,7 @@ case class AddTransactionCommand(zoneId: ZoneId,
                                  to: AccountId,
                                  value: BigDecimal,
                                  metadata: Option[JsObject] = None) extends ZoneCommand {
-  require(value > 0)
+  require(value >= 0)
 }
 
 object AddTransactionCommand {

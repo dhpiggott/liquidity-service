@@ -18,7 +18,7 @@ case class Zone(name: String,
                 transactions: Map[TransactionId, Transaction],
                 created: Long,
                 metadata: Option[JsObject] = None) {
-  require(created > 0)
+  require(created >= 0)
 }
 
 object Zone {

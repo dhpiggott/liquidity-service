@@ -17,8 +17,8 @@ case class Transaction(description: String,
                        creator: MemberId,
                        created: Long,
                        metadata: Option[JsObject] = None) {
-  require(value > 0)
-  require(created > 0)
+  require(value >= 0)
+  require(created >= 0)
 }
 
 object Transaction {

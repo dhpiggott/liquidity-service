@@ -79,7 +79,7 @@ case class JoinZoneCommand(zoneId: ZoneId) extends ZoneCommand
 case class QuitZoneCommand(zoneId: ZoneId) extends ZoneCommand
 
 case class ChangeZoneNameCommand(zoneId: ZoneId,
-                                 name: String) extends ZoneCommand
+                                 name: Option[String]) extends ZoneCommand
 
 case class CreateMemberCommand(zoneId: ZoneId,
                                member: Member) extends ZoneCommand
@@ -263,7 +263,7 @@ case class ClientQuitZoneNotification(zoneId: ZoneId,
 case class ZoneTerminatedNotification(zoneId: ZoneId) extends ZoneNotification
 
 case class ZoneNameChangedNotification(zoneId: ZoneId,
-                                       name: String) extends ZoneNotification
+                                       name: Option[String]) extends ZoneNotification
 
 case class MemberCreatedNotification(zoneId: ZoneId,
                                      memberId: MemberId, member: Member) extends ZoneNotification

@@ -78,8 +78,8 @@ case class JoinZoneCommand(zoneId: ZoneId) extends ZoneCommand
 
 case class QuitZoneCommand(zoneId: ZoneId) extends ZoneCommand
 
-case class SetZoneNameCommand(zoneId: ZoneId,
-                              name: String) extends ZoneCommand
+case class ChangeZoneNameCommand(zoneId: ZoneId,
+                                 name: String) extends ZoneCommand
 
 case class CreateMemberCommand(zoneId: ZoneId,
                                member: Member) extends ZoneCommand
@@ -140,7 +140,7 @@ object Command {
     "createZone" -> Json.format[CreateZoneCommand],
     "joinZone" -> Json.format[JoinZoneCommand],
     "quitZone" -> Json.format[QuitZoneCommand],
-    "setZoneName" -> Json.format[SetZoneNameCommand],
+    "changeZoneName" -> Json.format[ChangeZoneNameCommand],
     "createMember" -> Json.format[CreateMemberCommand],
     "updateMember" -> Json.format[UpdateMemberCommand],
     "createAccount" -> Json.format[CreateAccountCommand],
@@ -187,7 +187,7 @@ case class JoinZoneResponse(zone: Zone,
 
 case object QuitZoneResponse extends ResultResponse
 
-case object SetZoneNameResponse extends ResultResponse
+case object ChangeZoneNameResponse extends ResultResponse
 
 case class CreateMemberResponse(memberId: MemberId) extends ResultResponse
 
@@ -206,7 +206,7 @@ object Response {
     "createZone" -> Json.format[CreateZoneResponse],
     "joinZone" -> Json.format[JoinZoneResponse],
     "quitZone" -> QuitZoneResponse,
-    "setZoneName" -> SetZoneNameResponse,
+    "changeZoneName" -> ChangeZoneNameResponse,
     "createMember" -> Json.format[CreateMemberResponse],
     "updateMember" -> UpdateMemberResponse,
     "createAccount" -> Json.format[CreateAccountResponse],
@@ -262,8 +262,8 @@ case class ClientQuitZoneNotification(zoneId: ZoneId,
 
 case class ZoneTerminatedNotification(zoneId: ZoneId) extends ZoneNotification
 
-case class ZoneNameSetNotification(zoneId: ZoneId,
-                                   name: String) extends ZoneNotification
+case class ZoneNameChangedNotification(zoneId: ZoneId,
+                                       name: String) extends ZoneNotification
 
 case class MemberCreatedNotification(zoneId: ZoneId,
                                      memberId: MemberId, member: Member) extends ZoneNotification
@@ -288,7 +288,7 @@ object Notification {
     "clientJoinedZone" -> Json.format[ClientJoinedZoneNotification],
     "clientQuitZone" -> Json.format[ClientQuitZoneNotification],
     "zoneTerminated" -> Json.format[ZoneTerminatedNotification],
-    "zoneNameSet" -> Json.format[ZoneNameSetNotification],
+    "zoneNameChanged" -> Json.format[ZoneNameChangedNotification],
     "memberCreated" -> Json.format[MemberCreatedNotification],
     "memberUpdated" -> Json.format[MemberUpdatedNotification],
     "accountCreated" -> Json.format[AccountCreatedNotification],

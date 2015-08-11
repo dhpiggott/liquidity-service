@@ -13,7 +13,7 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
 scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
-  "com.dhpcs" %% "liquidity-common" % "0.26.0",
+  "com.dhpcs" %% "liquidity-common" % "0.28.0",
   specs2 % Test
 )
 

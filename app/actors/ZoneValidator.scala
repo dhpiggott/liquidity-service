@@ -248,19 +248,19 @@ class ZoneValidator(zoneId: ZoneId) extends Actor with ActorLogging {
 
           }
 
-        case SetZoneNameCommand(_, name) =>
+        case ChangeZoneNameCommand(_, name) =>
 
           sender !
             ResponseWithId(
-              SetZoneNameResponse,
+              ChangeZoneNameResponse,
               id
             )
 
           val newCanonicalZone = zone.copy(
             name = name
           )
-          val zoneNameSetNotification = ZoneNameSetNotification(zoneId, name)
-          clientConnections.keys.foreach(_ ! zoneNameSetNotification)
+          val zoneNameChangedNotification = ZoneNameChangedNotification(zoneId, name)
+          clientConnections.keys.foreach(_ ! zoneNameChangedNotification)
 
           context.become(withZone(newCanonicalZone, balances, clientConnections))
 

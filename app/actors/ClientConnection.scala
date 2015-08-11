@@ -99,7 +99,7 @@ class ClientConnection(publicKey: PublicKey,
 
         case Left((jsonRpcResponseError, id)) =>
 
-          log.debug(s"Receive error $jsonRpcResponseError}")
+          log.debug(s"Receive error $jsonRpcResponseError")
 
           sender ! Json.stringify(
             Json.toJson(
@@ -114,7 +114,7 @@ class ClientConnection(publicKey: PublicKey,
 
             case command: CreateZoneCommand =>
 
-              log.debug(s"Received $command}")
+              log.debug(s"Received $command")
 
               (zoneRegistry ? CreateValidator)
                 .mapTo[ValidatorCreated]
@@ -124,7 +124,7 @@ class ClientConnection(publicKey: PublicKey,
 
             case command@JoinZoneCommand(zoneId) =>
 
-              log.debug(s"Received $command}")
+              log.debug(s"Received $command")
 
               (zoneRegistry ? GetValidator(zoneId))
                 .mapTo[ValidatorGot]
@@ -135,7 +135,7 @@ class ClientConnection(publicKey: PublicKey,
 
             case command@QuitZoneCommand(zoneId) =>
 
-              log.debug(s"Received $command}")
+              log.debug(s"Received $command")
 
               joinedValidators.get(zoneId).foreach { validator =>
                 validator ! AuthenticatedCommandWithId(publicKey, command, id)
@@ -148,7 +148,7 @@ class ClientConnection(publicKey: PublicKey,
 
             case zoneCommand: ZoneCommand =>
 
-              log.debug(s"Received $zoneCommand}")
+              log.debug(s"Received $zoneCommand")
 
               joinedValidators.get(zoneCommand.zoneId).foreach(
                 _ ! AuthenticatedCommandWithId(publicKey, zoneCommand, id)
@@ -160,7 +160,7 @@ class ClientConnection(publicKey: PublicKey,
 
     case ResponseWithId(response, id) =>
 
-      log.debug(s"Received $response}")
+      log.debug(s"Received $response")
 
       upstream ! Json.stringify(
         Json.toJson(
@@ -171,7 +171,7 @@ class ClientConnection(publicKey: PublicKey,
     // TODO: Need to acknowledge receipt so validator can retransmit lost messages
     case notification: Notification =>
 
-      log.debug(s"Received $notification}")
+      log.debug(s"Received $notification")
 
       upstream ! Json.stringify(
         Json.toJson(
@@ -191,7 +191,7 @@ class ClientConnection(publicKey: PublicKey,
 
     case cacheValidator@CacheValidator(zoneId, validator) =>
 
-      log.debug(s"Received $cacheValidator}")
+      log.debug(s"Received $cacheValidator")
 
       context.watch(validator)
 
@@ -201,7 +201,7 @@ class ClientConnection(publicKey: PublicKey,
 
     case terminated@Terminated(validator) =>
 
-      log.debug(s"Received $terminated}")
+      log.debug(s"Received $terminated")
 
       val newJoinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
         val remove = v == validator

@@ -14,7 +14,6 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
     it should behave like readError(
       Json.parse( """0"""),
       JsError(List(
-        (__ \ "name", List(ValidationError("error.path.missing"))),
         (__ \ "publicKey", List(ValidationError("error.path.missing")))
       ))
     )
@@ -23,14 +22,14 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
   describe("A Member") {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     describe("without metadata") {
-      implicit val member = Member("Dave", PublicKey(publicKeyBytes))
+      implicit val member = Member(Some("Dave"), PublicKey(publicKeyBytes))
       implicit val memberJson = Json.parse( s"""{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}""")
       it should behave like read
       it should behave like write
     }
     describe("with metadata") {
       implicit val member = Member(
-        "Dave",
+        Some("Dave"),
         PublicKey(publicKeyBytes),
         Some(
           Json.obj(

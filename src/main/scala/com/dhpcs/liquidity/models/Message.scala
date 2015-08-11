@@ -69,7 +69,7 @@ sealed trait ZoneCommand extends Command {
 
 }
 
-case class CreateZoneCommand(name: String,
+case class CreateZoneCommand(name: Option[String],
                              equityOwner: Member,
                              equityAccount: Account,
                              metadata: Option[JsObject] = None) extends Command
@@ -95,7 +95,7 @@ case class UpdateAccountCommand(zoneId: ZoneId,
 
 case class AddTransactionCommand(zoneId: ZoneId,
                                  actingAs: MemberId,
-                                 description: String,
+                                 description: Option[String],
                                  from: AccountId,
                                  to: AccountId,
                                  value: BigDecimal,
@@ -108,7 +108,7 @@ object AddTransactionCommand {
   implicit val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
     (JsPath \ "zoneId").format[ZoneId] and
       (JsPath \ "actingAs").format[MemberId] and
-      (JsPath \ "description").format[String] and
+      (JsPath \ "description").formatNullable[String] and
       (JsPath \ "from").format[AccountId] and
       (JsPath \ "to").format[AccountId] and
       (JsPath \ "value").format(min[BigDecimal](0)) and

@@ -15,7 +15,6 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
     it should behave like readError(
       Json.parse( """0"""),
       JsError(List(
-        (__ \ "name", List(ValidationError("error.path.missing"))),
         (__ \ "equityAccountId", List(ValidationError("error.path.missing"))),
         (__ \ "members", List(ValidationError("error.path.missing"))),
         (__ \ "accounts", List(ValidationError("error.path.missing"))),
@@ -29,24 +28,24 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     describe("without metadata") {
       implicit val zone = Zone(
-        "Dave's zone",
+        Some("Dave's zone"),
         AccountId(UUID.fromString("71b60ade-c7f5-4911-b85d-d88719763289")),
         Map(
           MemberId(UUID.fromString("b825a40b-4c05-41e1-a156-0a221d765038")) ->
-            Member("Banker", PublicKey(publicKeyBytes)),
+            Member(Some("Banker"), PublicKey(publicKeyBytes)),
           MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37")) ->
-            Member("Dave", PublicKey(publicKeyBytes))
+            Member(Some("Dave"), PublicKey(publicKeyBytes))
         ),
         Map(
           AccountId(UUID.fromString("71b60ade-c7f5-4911-b85d-d88719763289")) ->
-            Account("Bank", Set(MemberId(UUID.fromString("b825a40b-4c05-41e1-a156-0a221d765038")))),
+            Account(Some("Bank"), Set(MemberId(UUID.fromString("b825a40b-4c05-41e1-a156-0a221d765038")))),
           AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")) ->
-            Account("Dave's account", Set(MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37"))))
+            Account(Some("Dave's account"), Set(MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37"))))
         ),
         Map(
           TransactionId(UUID.fromString("65b1711c-5747-452c-8975-3f0d36e9efa6")) ->
             Transaction(
-              "Dave's lottery win",
+              Some("Dave's lottery win"),
               AccountId(UUID.fromString("89a5e157-a643-4196-be6b-e08bc8e7c28b")),
               AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")),
               BigDecimal(1000000),
@@ -62,24 +61,24 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
     }
     describe("with metadata") {
       implicit val zone = Zone(
-        "Dave's zone",
+        Some("Dave's zone"),
         AccountId(UUID.fromString("71b60ade-c7f5-4911-b85d-d88719763289")),
         Map(
           MemberId(UUID.fromString("b825a40b-4c05-41e1-a156-0a221d765038")) ->
-            Member("Banker", PublicKey(publicKeyBytes)),
+            Member(Some("Banker"), PublicKey(publicKeyBytes)),
           MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37")) ->
-            Member("Dave", PublicKey(publicKeyBytes))
+            Member(Some("Dave"), PublicKey(publicKeyBytes))
         ),
         Map(
           AccountId(UUID.fromString("71b60ade-c7f5-4911-b85d-d88719763289")) ->
-            Account("Bank", Set(MemberId(UUID.fromString("b825a40b-4c05-41e1-a156-0a221d765038")))),
+            Account(Some("Bank"), Set(MemberId(UUID.fromString("b825a40b-4c05-41e1-a156-0a221d765038")))),
           AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")) ->
-            Account("Dave's account", Set(MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37"))))
+            Account(Some("Dave's account"), Set(MemberId(UUID.fromString("fa781d33-368f-42a5-9c64-0e4b43381c37"))))
         ),
         Map(
           TransactionId(UUID.fromString("65b1711c-5747-452c-8975-3f0d36e9efa6")) ->
             Transaction(
-              "Dave's lottery win",
+              Some("Dave's lottery win"),
               AccountId(UUID.fromString("89a5e157-a643-4196-be6b-e08bc8e7c28b")),
               AccountId(UUID.fromString("f2f4613c-0645-4dec-895b-2812382f4523")),
               BigDecimal(1000000),

@@ -10,8 +10,7 @@ case class ZoneId(id: UUID) extends Identifier
 
 object ZoneId extends IdentifierCompanion[ZoneId]
 
-// TODO: Maximum member count, payment state, expiry date
-case class Zone(name: String,
+case class Zone(name: Option[String],
                 equityAccountId: AccountId,
                 members: Map[MemberId, Member],
                 accounts: Map[AccountId, Account],
@@ -24,7 +23,7 @@ case class Zone(name: String,
 object Zone {
 
   implicit val ZoneFormat: Format[Zone] = (
-    (JsPath \ "name").format[String] and
+    (JsPath \ "name").formatNullable[String] and
       (JsPath \ "equityAccountId").format[AccountId] and
       (JsPath \ "members").format[Map[String, Member]] and
       (JsPath \ "accounts").format[Map[String, Account]] and

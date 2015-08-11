@@ -13,7 +13,6 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
     it should behave like readError(
       Json.parse( """0"""),
       JsError(List(
-        (__ \ "description", List(ValidationError("error.path.missing"))),
         (__ \ "from", List(ValidationError("error.path.missing"))),
         (__ \ "to", List(ValidationError("error.path.missing"))),
         (__ \ "value", List(ValidationError("error.path.missing"))),
@@ -26,7 +25,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
   describe("A Transaction") {
     describe("without metadata") {
       implicit val transaction = Transaction(
-        "test",
+        Some("test"),
         AccountId(UUID.fromString("28c331cd-35eb-45b2-a478-82334d7a4593")),
         AccountId(UUID.fromString("a1191a07-fc84-4245-975a-9798a9c26a9e")),
         BigDecimal(1000000),
@@ -39,7 +38,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
     }
     describe("with metadata") {
       implicit val transaction = Transaction(
-        "test",
+        Some("test"),
         AccountId(UUID.fromString("28c331cd-35eb-45b2-a478-82334d7a4593")),
         AccountId(UUID.fromString("a1191a07-fc84-4245-975a-9798a9c26a9e")),
         BigDecimal(1000000),

@@ -10,7 +10,7 @@ case class TransactionId(id: UUID) extends Identifier
 
 object TransactionId extends IdentifierCompanion[TransactionId]
 
-case class Transaction(description: String,
+case class Transaction(description: Option[String],
                        from: AccountId,
                        to: AccountId,
                        value: BigDecimal,
@@ -24,7 +24,7 @@ case class Transaction(description: String,
 object Transaction {
 
   implicit val TransactionFormat: Format[Transaction] = (
-    (JsPath \ "description").format[String] and
+    (JsPath \ "description").formatNullable[String] and
       (JsPath \ "from").format[AccountId] and
       (JsPath \ "to").format[AccountId] and
       (JsPath \ "value").format(min[BigDecimal](0)) and

@@ -8,7 +8,7 @@ case class MemberId(id: UUID) extends Identifier
 
 object MemberId extends IdentifierCompanion[MemberId]
 
-case class Member(name: String,
+case class Member(name: Option[String],
                   publicKey: PublicKey,
                   metadata: Option[JsObject] = None)
 

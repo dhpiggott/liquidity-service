@@ -13,7 +13,6 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
     it should behave like readError(
       Json.parse( """0"""),
       JsError(List(
-        (__ \ "name", List(ValidationError("error.path.missing"))),
         (__ \ "owners", List(ValidationError("error.path.missing")))
       ))
     )
@@ -22,7 +21,7 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
   describe("An Account") {
     describe("without metadata") {
       implicit val account = Account(
-        "Dave's account",
+        Some("Dave's account"),
         Set(MemberId(UUID.fromString("6709b5c8-1f18-491e-b703-d76baa261099")))
       )
       implicit val accountJson = Json.parse( """{"name":"Dave's account","owners":["6709b5c8-1f18-491e-b703-d76baa261099"]}""")
@@ -31,7 +30,7 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
     }
     describe("with metadata") {
       implicit val account = Account(
-        "Dave's account",
+        Some("Dave's account"),
         Set(MemberId(UUID.fromString("6709b5c8-1f18-491e-b703-d76baa261099"))),
         Some(
           Json.obj(

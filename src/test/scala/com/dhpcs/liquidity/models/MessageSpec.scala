@@ -68,7 +68,6 @@ class MessageSpec extends FunSpec with Matchers {
           ),
           Some(
             JsError(List(
-              (__ \ "name", List(ValidationError("error.path.missing"))),
               (__ \ "equityOwner", List(ValidationError("error.path.missing"))),
               (__ \ "equityAccount", List(ValidationError("error.path.missing")))
             ))
@@ -77,9 +76,9 @@ class MessageSpec extends FunSpec with Matchers {
       }
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
       implicit val createZoneCommand = CreateZoneCommand(
-        "Dave's zone",
-        Member("Banker", PublicKey(publicKeyBytes)),
-        Account("Bank", Set.empty),
+        Some("Dave's zone"),
+        Member(Some("Banker"), PublicKey(publicKeyBytes)),
+        Account(Some("Bank"), Set.empty),
         Some(
           Json.obj(
             "currency" -> "GBP"

@@ -109,7 +109,6 @@ class ClientConnection(publicKey: PublicKey,
 
         case Right((command, id)) =>
 
-          // TODO: Need to schedule timeout and retry in case messages are dropped lost between us and receiving actor
           command match {
 
             case command: CreateZoneCommand =>
@@ -168,7 +167,6 @@ class ClientConnection(publicKey: PublicKey,
         )
       )
 
-    // TODO: Need to acknowledge receipt so validator can retransmit lost messages
     case notification: Notification =>
 
       log.debug(s"Received $notification")

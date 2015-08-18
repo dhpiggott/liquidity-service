@@ -1,9 +1,10 @@
 package actors
 
 import actors.ClientConnection._
-import actors.ZoneRegistry.{CreateValidator, GetValidator, ValidatorCreated, ValidatorGot}
-import actors.ZoneValidator.{AuthenticatedCommandWithId, ResponseWithId}
+import actors.ZoneValidator._
 import akka.actor._
+import akka.contrib.pattern.DistributedPubSubExtension
+import akka.contrib.pattern.DistributedPubSubMediator.{Subscribe, SubscribeAck, Unsubscribe, UnsubscribeAck}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
 import com.dhpcs.jsonrpc._
@@ -15,12 +16,10 @@ import scala.util.{Failure, Success, Try}
 
 object ClientConnection {
 
-  implicit val GetValidatorTimeout = Timeout(ZoneRegistry.StoppingChildRetryDelay * 10)
+  implicit val GetValidatorTimeout = Timeout(1.second)
 
-  def props(publicKey: PublicKey, zoneRegistry: ActorRef)(upstream: ActorRef) =
-    Props(new ClientConnection(publicKey, zoneRegistry, upstream))
-
-  private case class CacheValidator(zoneId: ZoneId, validator: ActorRef)
+  def props(publicKey: PublicKey, zoneValidatorShardRegion: ActorRef)(upstream: ActorRef) =
+    Props(new ClientConnection(publicKey, zoneValidatorShardRegion, upstream))
 
   private def readCommand(jsonString: String):
   (Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])]) =
@@ -74,12 +73,14 @@ object ClientConnection {
 }
 
 class ClientConnection(publicKey: PublicKey,
-                       zoneRegistry: ActorRef,
+                       zoneValidatorShardRegion: ActorRef,
                        upstream: ActorRef) extends Actor with ActorLogging {
 
   import context.dispatcher
 
   context.setReceiveTimeout(30.seconds)
+
+  private val mediator = DistributedPubSubExtension(context.system).mediator
 
   override def postStop() {
     log.debug(s"Stopped actor for ${publicKey.fingerprint}")
@@ -89,13 +90,11 @@ class ClientConnection(publicKey: PublicKey,
     log.debug(s"Started actor for ${publicKey.fingerprint}")
   }
 
-  override def receive = receive(Map.empty[ZoneId, ActorRef])
+  override def receive = {
 
-  def receive(joinedValidators: Map[ZoneId, ActorRef]): Receive = {
+    case json: String =>
 
-    case jsonString: String =>
-
-      readCommand(jsonString) match {
+      readCommand(json) match {
 
         case Left((jsonRpcResponseError, id)) =>
 
@@ -111,51 +110,43 @@ class ClientConnection(publicKey: PublicKey,
 
           command match {
 
-            case command: CreateZoneCommand =>
+            case createZoneCommand: CreateZoneCommand =>
 
-              log.debug(s"Received $command")
+              log.debug(s"Received $createZoneCommand")
 
-              (zoneRegistry ? CreateValidator)
-                .mapTo[ValidatorCreated]
-                .foreach { case ValidatorCreated(zoneId, validator) =>
-                validator ! AuthenticatedCommandWithId(publicKey, command, id)
-              }
+              val zoneId = ZoneId.generate
 
-            case command@JoinZoneCommand(zoneId) =>
-
-              log.debug(s"Received $command")
-
-              (zoneRegistry ? GetValidator(zoneId))
-                .mapTo[ValidatorGot]
-                .map { case ValidatorGot(validator) =>
-                validator ! AuthenticatedCommandWithId(publicKey, command, id)
-                CacheValidator(zoneId, validator)
+              (zoneValidatorShardRegion ? EnvelopedAuthenticatedCommandWithId(
+                zoneId,
+                AuthenticatedCommandWithId(publicKey, createZoneCommand, id)
+              )).map {
+                case ZoneAlreadyExists => createZoneCommand
+                case response => response
               }.pipeTo(self)
-
-            case command@QuitZoneCommand(zoneId) =>
-
-              log.debug(s"Received $command")
-
-              joinedValidators.get(zoneId).foreach { validator =>
-                validator ! AuthenticatedCommandWithId(publicKey, command, id)
-                context.unwatch(validator)
-
-                val newJoinedValidators = joinedValidators - zoneId
-
-                context.become(receive(newJoinedValidators))
-              }
 
             case zoneCommand: ZoneCommand =>
 
               log.debug(s"Received $zoneCommand")
 
-              joinedValidators.get(zoneCommand.zoneId).foreach(
-                _ ! AuthenticatedCommandWithId(publicKey, zoneCommand, id)
-              )
+              zoneCommand match {
+                case JoinZoneCommand(zoneId) => mediator ! Subscribe(zoneId.toString, self)
+                case QuitZoneCommand(zoneId) => mediator ! Unsubscribe(zoneId.toString, self)
+                case _ =>
+              }
+
+              zoneValidatorShardRegion ! AuthenticatedCommandWithId(publicKey, zoneCommand, id)
 
           }
 
       }
+
+    case subscribeAck@SubscribeAck(Subscribe(zoneIdString, None, `self`)) =>
+
+      log.debug(s"Received $subscribeAck")
+
+    case unsubscribeAck@UnsubscribeAck(Unsubscribe(zoneIdString, None, `self`)) =>
+
+      log.debug(s"Received $unsubscribeAck")
 
     case ResponseWithId(response, id) =>
 
@@ -179,37 +170,43 @@ class ClientConnection(publicKey: PublicKey,
 
     case ReceiveTimeout =>
 
-      log.debug("Sending KeepAliveNotification")
+      val keepAliveNotification = KeepAliveNotification
+
+      log.debug(s"Sending $keepAliveNotification")
 
       upstream ! Json.stringify(
         Json.toJson(
-          Notification.write(KeepAliveNotification)
+          Notification.write(keepAliveNotification)
         )
       )
 
-    case cacheValidator@CacheValidator(zoneId, validator) =>
+    case ZoneStarting(zoneId) =>
 
-      log.debug(s"Received $cacheValidator")
+      mediator ! Unsubscribe(zoneId.toString, self)
 
-      context.watch(validator)
+      val zoneTerminatedNotification = ZoneTerminatedNotification(zoneId)
 
-      val newJoinedValidators = joinedValidators + (zoneId -> validator)
+      log.debug(s"Sending $zoneTerminatedNotification")
 
-      context.become(receive(newJoinedValidators))
+      upstream ! Json.stringify(
+        Json.toJson(
+          Notification.write(zoneTerminatedNotification)
+        )
+      )
 
-    case terminated@Terminated(validator) =>
+    case ZoneStopped(zoneId) =>
 
-      log.debug(s"Received $terminated")
+      mediator ! Unsubscribe(zoneId.toString, self)
 
-      val newJoinedValidators = joinedValidators.filterNot { case (zoneId, v) =>
-        val remove = v == validator
-        if (remove) {
-          upstream ! Notification.write(ZoneTerminatedNotification(zoneId))
-        }
-        remove
-      }
+      val zoneTerminatedNotification = ZoneTerminatedNotification(zoneId)
 
-      context.become(receive(newJoinedValidators))
+      log.debug(s"Sending $zoneTerminatedNotification")
+
+      upstream ! Json.stringify(
+        Json.toJson(
+          Notification.write(zoneTerminatedNotification)
+        )
+      )
 
   }
 

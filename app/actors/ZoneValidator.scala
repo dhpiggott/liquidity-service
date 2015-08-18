@@ -1,18 +1,31 @@
 package actors
 
-import actors.ZoneRegistry.TerminationRequest
+import java.util.UUID
+
 import actors.ZoneValidator._
 import akka.actor._
+import akka.contrib.pattern.DistributedPubSubMediator.Publish
+import akka.contrib.pattern.{DistributedPubSubExtension, ShardRegion}
 import akka.persistence.PersistentActor
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
 import play.api.libs.json.JsObject
 
+import scala.concurrent.duration._
+
 object ZoneValidator {
 
-  def props(zoneId: ZoneId) = Props(new ZoneValidator(zoneId))
+  def props = Props(new ZoneValidator)
+
+  case class EnvelopedAuthenticatedCommandWithId(zoneId: ZoneId, authenticatedCommandWithId: AuthenticatedCommandWithId)
 
   case class AuthenticatedCommandWithId(publicKey: PublicKey, command: Command, id: Either[String, Int])
+
+  case object ZoneAlreadyExists
+
+  case class ZoneStarting(zoneId: ZoneId)
+
+  case class ZoneStopped(zoneId: ZoneId)
 
   case class ResponseWithId(response: Response, id: Either[String, Int])
 
@@ -37,6 +50,38 @@ object ZoneValidator {
   case class AccountUpdatedEvent(accountId: AccountId, account: Account) extends Event
 
   case class TransactionAddedEvent(transactionId: TransactionId, transaction: Transaction) extends Event
+
+  val idExtractor: ShardRegion.IdExtractor = {
+
+    case EnvelopedAuthenticatedCommandWithId(zoneId, authenticatedCommandWithId) =>
+      (zoneId.id.toString, authenticatedCommandWithId)
+
+    case authenticatedCommandWithId@AuthenticatedCommandWithId(_, zoneCommand: ZoneCommand, _) =>
+      (zoneCommand.zoneId.id.toString, authenticatedCommandWithId)
+
+  }
+
+  /**
+   * From http://doc.akka.io/docs/akka/2.3.12/contrib/cluster-sharding.html:
+   *
+   * "Creating a good sharding algorithm is an interesting challenge in itself.
+   * Try to produce a uniform distribution, i.e. same amount of entries in
+   * each shard. As a rule of thumb, the number of shards should be a factor
+   * ten greater than the planned maximum number of cluster nodes."
+   */
+  private val numberOfShards = 10
+
+  val shardResolver: ShardRegion.ShardResolver = {
+
+    case EnvelopedAuthenticatedCommandWithId(zoneId, _) =>
+      (math.abs(zoneId.id.hashCode) % numberOfShards).toString
+
+    case AuthenticatedCommandWithId(_, zoneCommand: ZoneCommand, _) =>
+      (math.abs(zoneCommand.zoneId.id.hashCode) % numberOfShards).toString
+
+  }
+
+  val shardName = "ZoneValidator"
 
   private case class State(balances: Map[AccountId, BigDecimal],
                            clientConnections: Map[ActorRef, PublicKey],
@@ -183,7 +228,15 @@ object ZoneValidator {
 
 }
 
-class ZoneValidator(zoneId: ZoneId) extends PersistentActor with ActorLogging {
+class ZoneValidator extends PersistentActor with ActorLogging {
+
+  import ShardRegion.Passivate
+
+  context.setReceiveTimeout(2.minutes)
+
+  private val mediator = DistributedPubSubExtension(context.system).mediator
+
+  private val zoneId = ZoneId(UUID.fromString(self.path.name))
 
   private var state: State = State(
     Map.empty.withDefaultValue(BigDecimal(0)),
@@ -214,20 +267,25 @@ class ZoneValidator(zoneId: ZoneId) extends PersistentActor with ActorLogging {
       val clientQuitZoneNotification = ClientQuitZoneNotification(zoneId, publicKey)
       newClientConnections.keys.foreach(_ ! clientQuitZoneNotification)
     }
-    if (newClientConnections.nonEmpty) {
-      log.debug(s"${newClientConnections.size} clients are present")
-    } else {
-      log.debug(s"No clients are present; requesting termination")
-      context.parent ! TerminationRequest
-    }
+    log.debug(s"${newClientConnections.size} clients are present")
     state = state.copy(
       clientConnections = newClientConnections
     )
   }
 
-  override def persistenceId = zoneId.id.toString
+  override def persistenceId = zoneId.toString
 
-  override def receiveCommand = waitingForZone
+  override def postStop() {
+    mediator ! Publish(zoneId.toString, ZoneStopped(zoneId))
+    super.postStop()
+  }
+
+  override def preStart() {
+    mediator ! Publish(zoneId.toString, ZoneStarting(zoneId))
+    super.preStart()
+  }
+
+  override def receiveCommand = waitForZone
 
   override def receiveRecover = {
 
@@ -242,7 +300,23 @@ class ZoneValidator(zoneId: ZoneId) extends PersistentActor with ActorLogging {
     }
   }
 
-  def waitingForZone: Receive = {
+  def waitForTimeout: Receive = {
+
+    case ReceiveTimeout =>
+
+      log.debug("Received ReceiveTimeout")
+
+      if (state.clientConnections.isEmpty) {
+
+        log.debug("No clients are connected, requesting passivation")
+
+        context.parent ! Passivate(stopMessage = PoisonPill)
+
+      }
+
+  }
+
+  def waitForZone: Receive = waitForTimeout orElse {
 
     case AuthenticatedCommandWithId(publicKey, command, id) =>
 
@@ -279,8 +353,7 @@ class ZoneValidator(zoneId: ZoneId) extends PersistentActor with ActorLogging {
             ResponseWithId(
               ErrorResponse(
                 JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Zone does not exist",
-                None
+                "Zone does not exist"
               ),
               id
             )
@@ -291,7 +364,7 @@ class ZoneValidator(zoneId: ZoneId) extends PersistentActor with ActorLogging {
 
   }
 
-  def withZone: Receive = {
+  def withZone: Receive = waitForTimeout orElse {
 
     case AuthenticatedCommandWithId(publicKey, command, id) =>
 
@@ -299,15 +372,7 @@ class ZoneValidator(zoneId: ZoneId) extends PersistentActor with ActorLogging {
 
         case _: CreateZoneCommand =>
 
-          sender !
-            ResponseWithId(
-              ErrorResponse(
-                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Zone already exists",
-                None
-              ),
-              id
-            )
+          sender ! ZoneAlreadyExists
 
           log.warning(s"Received command from ${publicKey.fingerprint} to create already existing zone")
 

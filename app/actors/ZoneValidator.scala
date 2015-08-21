@@ -4,8 +4,7 @@ import java.util.UUID
 
 import actors.ZoneValidator._
 import akka.actor._
-import akka.contrib.pattern.DistributedPubSubMediator.Publish
-import akka.contrib.pattern.{DistributedPubSubExtension, ShardRegion}
+import akka.contrib.pattern.ShardRegion
 import akka.persistence.PersistentActor
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
@@ -17,17 +16,15 @@ object ZoneValidator {
 
   def props = Props(new ZoneValidator)
 
+  case class EnvelopedIdentify(zoneId: ZoneId, identify: Identify)
+
   case class EnvelopedAuthenticatedCommandWithId(zoneId: ZoneId, authenticatedCommandWithId: AuthenticatedCommandWithId)
 
   case class AuthenticatedCommandWithId(publicKey: PublicKey, command: Command, id: Either[String, Int])
 
-  case object ZoneAlreadyExists
-
-  case class ZoneStarting(zoneId: ZoneId)
-
-  case class ZoneStopped(zoneId: ZoneId)
-
   case class ResponseWithId(response: Response, id: Either[String, Int])
+
+  case object ZoneAlreadyExists
 
   sealed trait Event
 
@@ -53,10 +50,16 @@ object ZoneValidator {
 
   val idExtractor: ShardRegion.IdExtractor = {
 
+    case EnvelopedIdentify(zoneId, identify) =>
+
+      (zoneId.id.toString, identify)
+
     case EnvelopedAuthenticatedCommandWithId(zoneId, authenticatedCommandWithId) =>
+
       (zoneId.id.toString, authenticatedCommandWithId)
 
     case authenticatedCommandWithId@AuthenticatedCommandWithId(_, zoneCommand: ZoneCommand, _) =>
+
       (zoneCommand.zoneId.id.toString, authenticatedCommandWithId)
 
   }
@@ -64,19 +67,24 @@ object ZoneValidator {
   /**
    * From http://doc.akka.io/docs/akka/2.3.12/contrib/cluster-sharding.html:
    *
-   * "Creating a good sharding algorithm is an interesting challenge in itself.
-   * Try to produce a uniform distribution, i.e. same amount of entries in
-   * each shard. As a rule of thumb, the number of shards should be a factor
-   * ten greater than the planned maximum number of cluster nodes."
+   * "Creating a good sharding algorithm is an interesting challenge in itself. Try to produce a uniform distribution,
+   * i.e. same amount of entries in each shard. As a rule of thumb, the number of shards should be a factor ten greater
+   * than the planned maximum number of cluster nodes."
    */
   private val numberOfShards = 10
 
   val shardResolver: ShardRegion.ShardResolver = {
 
+    case EnvelopedIdentify(zoneId, _) =>
+
+      (math.abs(zoneId.id.hashCode) % numberOfShards).toString
+
     case EnvelopedAuthenticatedCommandWithId(zoneId, _) =>
+
       (math.abs(zoneId.id.hashCode) % numberOfShards).toString
 
     case AuthenticatedCommandWithId(_, zoneCommand: ZoneCommand, _) =>
+
       (math.abs(zoneCommand.zoneId.id.hashCode) % numberOfShards).toString
 
   }
@@ -234,8 +242,6 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
   context.setReceiveTimeout(2.minutes)
 
-  private val mediator = DistributedPubSubExtension(context.system).mediator
-
   private val zoneId = ZoneId(UUID.fromString(self.path.name))
 
   private var state: State = State(
@@ -275,14 +281,10 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
   override def persistenceId = zoneId.toString
 
-  override def postStop() {
-    mediator ! Publish(zoneId.toString, ZoneStopped(zoneId))
-    super.postStop()
-  }
-
-  override def preStart() {
-    mediator ! Publish(zoneId.toString, ZoneStarting(zoneId))
-    super.preStart()
+  override def preRestart(reason: Throwable, message: Option[Any]) {
+    val zoneTerminatedNotification = ZoneTerminatedNotification(zoneId)
+    state.clientConnections.keys.foreach(_ ! zoneTerminatedNotification)
+    super.preRestart(reason, message)
   }
 
   override def receiveCommand = waitForZone

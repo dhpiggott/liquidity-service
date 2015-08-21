@@ -1,10 +1,10 @@
 package actors
 
+import java.util.UUID
+
 import actors.ClientConnection._
 import actors.ZoneValidator._
 import akka.actor._
-import akka.contrib.pattern.DistributedPubSubExtension
-import akka.contrib.pattern.DistributedPubSubMediator.{Subscribe, SubscribeAck, Unsubscribe, UnsubscribeAck}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
 import com.dhpcs.jsonrpc._
@@ -80,8 +80,6 @@ class ClientConnection(publicKey: PublicKey,
 
   context.setReceiveTimeout(30.seconds)
 
-  private val mediator = DistributedPubSubExtension(context.system).mediator
-
   override def postStop() {
     log.debug(s"Stopped actor for ${publicKey.fingerprint}")
   }
@@ -108,11 +106,11 @@ class ClientConnection(publicKey: PublicKey,
 
         case Right((command, id)) =>
 
+          log.debug(s"Received $command")
+
           command match {
 
             case createZoneCommand: CreateZoneCommand =>
-
-              log.debug(s"Received $createZoneCommand")
 
               val zoneId = ZoneId.generate
 
@@ -126,27 +124,47 @@ class ClientConnection(publicKey: PublicKey,
 
             case zoneCommand: ZoneCommand =>
 
-              log.debug(s"Received $zoneCommand")
-
               zoneCommand match {
-                case JoinZoneCommand(zoneId) => mediator ! Subscribe(zoneId.toString, self)
-                case QuitZoneCommand(zoneId) => mediator ! Unsubscribe(zoneId.toString, self)
-                case _ =>
-              }
 
-              zoneValidatorShardRegion ! AuthenticatedCommandWithId(publicKey, zoneCommand, id)
+                case joinZoneCommand@JoinZoneCommand(zoneId) =>
+
+                  zoneValidatorShardRegion ! EnvelopedIdentify(
+                    zoneId, Identify(AuthenticatedCommandWithId(publicKey, joinZoneCommand, id))
+                  )
+
+                case quitZoneCommand@QuitZoneCommand(zoneId) =>
+
+                  zoneValidatorShardRegion ! EnvelopedIdentify(
+                    zoneId, Identify(AuthenticatedCommandWithId(publicKey, quitZoneCommand, id))
+                  )
+
+                case _ =>
+
+                  zoneValidatorShardRegion ! AuthenticatedCommandWithId(publicKey, zoneCommand, id)
+
+              }
 
           }
 
       }
 
-    case subscribeAck@SubscribeAck(Subscribe(zoneIdString, None, `self`)) =>
+    case actorIdentity@
+      ActorIdentity(authenticatedCommandWithId@AuthenticatedCommandWithId(_, _: JoinZoneCommand, _), Some(validator)) =>
 
-      log.debug(s"Received $subscribeAck")
+      log.debug(s"Received $actorIdentity")
 
-    case unsubscribeAck@UnsubscribeAck(Unsubscribe(zoneIdString, None, `self`)) =>
+      context.watch(validator)
 
-      log.debug(s"Received $unsubscribeAck")
+      zoneValidatorShardRegion ! authenticatedCommandWithId
+
+    case actorIdentity@
+      ActorIdentity(authenticatedCommandWithId@AuthenticatedCommandWithId(_, _: QuitZoneCommand, _), Some(validator)) =>
+
+      log.debug(s"Received $actorIdentity")
+
+      zoneValidatorShardRegion ! authenticatedCommandWithId
+
+      context.unwatch(validator)
 
     case ResponseWithId(response, id) =>
 
@@ -180,23 +198,9 @@ class ClientConnection(publicKey: PublicKey,
         )
       )
 
-    case ZoneStarting(zoneId) =>
+    case Terminated(validator) =>
 
-      mediator ! Unsubscribe(zoneId.toString, self)
-
-      val zoneTerminatedNotification = ZoneTerminatedNotification(zoneId)
-
-      log.debug(s"Sending $zoneTerminatedNotification")
-
-      upstream ! Json.stringify(
-        Json.toJson(
-          Notification.write(zoneTerminatedNotification)
-        )
-      )
-
-    case ZoneStopped(zoneId) =>
-
-      mediator ! Unsubscribe(zoneId.toString, self)
+      val zoneId = ZoneId(UUID.fromString(validator.path.name))
 
       val zoneTerminatedNotification = ZoneTerminatedNotification(zoneId)
 

@@ -458,14 +458,13 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
           canModify(state.zone, memberId, publicKey) match {
 
-            case Left(error) =>
+            case Left(message) =>
 
               sender !
                 ResponseWithId(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error,
-                    None
+                    message
                   ),
                   id
                 )
@@ -499,14 +498,13 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
           checkAccountOwners(state.zone, account) match {
 
-            case Left(error) =>
+            case Left(message) =>
 
               sender !
                 ResponseWithId(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error,
-                    None
+                    message
                   ),
                   id
                 )
@@ -552,14 +550,13 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
           canModify(state.zone, accountId, publicKey) match {
 
-            case Left(error) =>
+            case Left(message) =>
 
               sender !
                 ResponseWithId(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error,
-                    None
+                    message
                   ),
                   id
                 )
@@ -570,14 +567,13 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
               checkAccountOwners(state.zone, account) match {
 
-                case Left(error) =>
+                case Left(message) =>
 
                   sender !
                     ResponseWithId(
                       ErrorResponse(
                         JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                        error,
-                        None
+                        message
                       ),
                       id
                     )
@@ -613,14 +609,13 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
           canModify(state.zone, from, actingAs, publicKey) match {
 
-            case Left(error) =>
+            case Left(message) =>
 
               sender !
                 ResponseWithId(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error,
-                    None
+                    message
                   ),
                   id
                 )
@@ -648,8 +643,7 @@ class ZoneValidator extends PersistentActor with ActorLogging {
                     ResponseWithId(
                       ErrorResponse(
                         JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                        message,
-                        None
+                        message
                       ),
                       id
                     )

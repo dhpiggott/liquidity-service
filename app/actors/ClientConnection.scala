@@ -5,8 +5,6 @@ import java.util.UUID
 import actors.ClientConnection._
 import actors.ZoneValidator._
 import akka.actor._
-import akka.pattern.{ask, pipe}
-import akka.util.Timeout
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.models._
 import play.api.libs.json._
@@ -15,8 +13,6 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object ClientConnection {
-
-  implicit val GetValidatorTimeout = Timeout(1.second)
 
   def props(publicKey: PublicKey, zoneValidatorShardRegion: ActorRef)(upstream: ActorRef) =
     Props(new ClientConnection(publicKey, zoneValidatorShardRegion, upstream))
@@ -76,8 +72,6 @@ class ClientConnection(publicKey: PublicKey,
                        zoneValidatorShardRegion: ActorRef,
                        upstream: ActorRef) extends Actor with ActorLogging {
 
-  import context.dispatcher
-
   context.setReceiveTimeout(30.seconds)
 
   override def postStop() {
@@ -89,6 +83,18 @@ class ClientConnection(publicKey: PublicKey,
   }
 
   override def receive = {
+
+    case ReceiveTimeout =>
+
+      val keepAliveNotification = KeepAliveNotification
+
+      log.debug(s"Sending $keepAliveNotification")
+
+      upstream ! Json.stringify(
+        Json.toJson(
+          Notification.write(keepAliveNotification)
+        )
+      )
 
     case json: String =>
 
@@ -114,13 +120,10 @@ class ClientConnection(publicKey: PublicKey,
 
               val zoneId = ZoneId.generate
 
-              (zoneValidatorShardRegion ? EnvelopedAuthenticatedCommandWithId(
+              zoneValidatorShardRegion ! EnvelopedMessage(
                 zoneId,
                 AuthenticatedCommandWithId(publicKey, createZoneCommand, id)
-              )).map {
-                case ZoneAlreadyExists => createZoneCommand
-                case response => response
-              }.pipeTo(self)
+              )
 
             case zoneCommand: ZoneCommand =>
 
@@ -128,14 +131,16 @@ class ClientConnection(publicKey: PublicKey,
 
                 case joinZoneCommand@JoinZoneCommand(zoneId) =>
 
-                  zoneValidatorShardRegion ! EnvelopedIdentify(
-                    zoneId, Identify(AuthenticatedCommandWithId(publicKey, joinZoneCommand, id))
+                  zoneValidatorShardRegion ! EnvelopedMessage(
+                    zoneId,
+                    Identify(AuthenticatedCommandWithId(publicKey, joinZoneCommand, id))
                   )
 
                 case quitZoneCommand@QuitZoneCommand(zoneId) =>
 
-                  zoneValidatorShardRegion ! EnvelopedIdentify(
-                    zoneId, Identify(AuthenticatedCommandWithId(publicKey, quitZoneCommand, id))
+                  zoneValidatorShardRegion ! EnvelopedMessage(
+                    zoneId,
+                    Identify(AuthenticatedCommandWithId(publicKey, quitZoneCommand, id))
                   )
 
                 case _ =>
@@ -166,6 +171,10 @@ class ClientConnection(publicKey: PublicKey,
 
       context.unwatch(validator)
 
+    case ZoneAlreadyExists(createZoneCommand) =>
+
+      self ! createZoneCommand
+
     case ResponseWithId(response, id) =>
 
       log.debug(s"Received $response")
@@ -183,18 +192,6 @@ class ClientConnection(publicKey: PublicKey,
       upstream ! Json.stringify(
         Json.toJson(
           Notification.write(notification)
-        )
-      )
-
-    case ReceiveTimeout =>
-
-      val keepAliveNotification = KeepAliveNotification
-
-      log.debug(s"Sending $keepAliveNotification")
-
-      upstream ! Json.stringify(
-        Json.toJson(
-          Notification.write(keepAliveNotification)
         )
       )
 

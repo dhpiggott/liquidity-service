@@ -16,15 +16,13 @@ object ZoneValidator {
 
   def props = Props(new ZoneValidator)
 
-  case class EnvelopedIdentify(zoneId: ZoneId, identify: Identify)
-
-  case class EnvelopedAuthenticatedCommandWithId(zoneId: ZoneId, authenticatedCommandWithId: AuthenticatedCommandWithId)
+  case class EnvelopedMessage(zoneId: ZoneId, message: Any)
 
   case class AuthenticatedCommandWithId(publicKey: PublicKey, command: Command, id: Either[String, Int])
 
-  case class ResponseWithId(response: Response, id: Either[String, Int])
+  case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand)
 
-  case object ZoneAlreadyExists
+  case class ResponseWithId(response: Response, id: Either[String, Int])
 
   sealed trait Event
 
@@ -50,13 +48,9 @@ object ZoneValidator {
 
   val idExtractor: ShardRegion.IdExtractor = {
 
-    case EnvelopedIdentify(zoneId, identify) =>
+    case EnvelopedMessage(zoneId, message) =>
 
-      (zoneId.id.toString, identify)
-
-    case EnvelopedAuthenticatedCommandWithId(zoneId, authenticatedCommandWithId) =>
-
-      (zoneId.id.toString, authenticatedCommandWithId)
+      (zoneId.id.toString, message)
 
     case authenticatedCommandWithId@AuthenticatedCommandWithId(_, zoneCommand: ZoneCommand, _) =>
 
@@ -75,11 +69,7 @@ object ZoneValidator {
 
   val shardResolver: ShardRegion.ShardResolver = {
 
-    case EnvelopedIdentify(zoneId, _) =>
-
-      (math.abs(zoneId.id.hashCode) % numberOfShards).toString
-
-    case EnvelopedAuthenticatedCommandWithId(zoneId, _) =>
+    case EnvelopedMessage(zoneId, _) =>
 
       (math.abs(zoneId.id.hashCode) % numberOfShards).toString
 
@@ -302,7 +292,7 @@ class ZoneValidator extends PersistentActor with ActorLogging {
     }
   }
 
-  def waitForTimeout: Receive = {
+  private def waitForTimeout: Receive = {
 
     case ReceiveTimeout =>
 
@@ -318,7 +308,7 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
   }
 
-  def waitForZone: Receive = waitForTimeout orElse {
+  private def waitForZone: Receive = waitForTimeout orElse {
 
     case AuthenticatedCommandWithId(publicKey, command, id) =>
 
@@ -366,17 +356,17 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
   }
 
-  def withZone: Receive = waitForTimeout orElse {
+  private def withZone: Receive = waitForTimeout orElse {
 
     case AuthenticatedCommandWithId(publicKey, command, id) =>
 
       command match {
 
-        case _: CreateZoneCommand =>
+        case createZoneCommand: CreateZoneCommand =>
 
-          sender ! ZoneAlreadyExists
+          sender ! ZoneAlreadyExists(createZoneCommand)
 
-          log.warning(s"Received command from ${publicKey.fingerprint} to create already existing zone")
+          log.info(s"Received command from ${publicKey.fingerprint} to create already existing zone")
 
         case _: JoinZoneCommand =>
 

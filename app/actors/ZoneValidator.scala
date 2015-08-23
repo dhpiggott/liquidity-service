@@ -46,6 +46,8 @@ object ZoneValidator {
 
   case class TransactionAddedEvent(transactionId: TransactionId, transaction: Transaction) extends Event
 
+  private val receiveTimeout = 2.minutes
+
   val idExtractor: ShardRegion.IdExtractor = {
 
     case EnvelopedMessage(zoneId, message) =>
@@ -230,7 +232,7 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
   import ShardRegion.Passivate
 
-  context.setReceiveTimeout(2.minutes)
+  context.setReceiveTimeout(receiveTimeout)
 
   private val zoneId = ZoneId(UUID.fromString(self.path.name))
 
@@ -249,6 +251,9 @@ class ZoneValidator extends PersistentActor with ActorLogging {
       newClientConnections.keys.foreach(_ ! clientJoinedZoneNotification)
     }
     log.debug(s"${newClientConnections.size} clients are present")
+    if (state.clientConnections.isEmpty) {
+      context.setReceiveTimeout(Duration.Undefined)
+    }
     state = state.copy(
       clientConnections = newClientConnections
     )
@@ -267,6 +272,9 @@ class ZoneValidator extends PersistentActor with ActorLogging {
     state = state.copy(
       clientConnections = newClientConnections
     )
+    if (state.clientConnections.isEmpty) {
+      context.setReceiveTimeout(receiveTimeout)
+    }
   }
 
   override def persistenceId = zoneId.toString
@@ -298,13 +306,7 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
       log.debug("Received ReceiveTimeout")
 
-      if (state.clientConnections.isEmpty) {
-
-        log.debug("No clients are connected, requesting passivation")
-
-        context.parent ! Passivate(stopMessage = PoisonPill)
-
-      }
+      context.parent ! Passivate(stopMessage = PoisonPill)
 
   }
 

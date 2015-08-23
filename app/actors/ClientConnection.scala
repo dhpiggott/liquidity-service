@@ -14,6 +14,8 @@ import scala.util.{Failure, Success, Try}
 
 object ClientConnection {
 
+  private val receiveTimeout = 30.seconds
+
   def props(publicKey: PublicKey, zoneValidatorShardRegion: ActorRef)(upstream: ActorRef) =
     Props(new ClientConnection(publicKey, zoneValidatorShardRegion, upstream))
 
@@ -72,7 +74,7 @@ class ClientConnection(publicKey: PublicKey,
                        zoneValidatorShardRegion: ActorRef,
                        upstream: ActorRef) extends Actor with ActorLogging {
 
-  context.setReceiveTimeout(30.seconds)
+  context.setReceiveTimeout(receiveTimeout)
 
   override def postStop() {
     log.debug(s"Stopped actor for ${publicKey.fingerprint}")

@@ -70,8 +70,11 @@ sealed trait ZoneCommand extends Command {
 }
 
 case class CreateZoneCommand(name: Option[String],
-                             equityOwner: Member,
-                             equityAccount: Account,
+                             equityOwnerName: Option[String],
+                             equityOwnerPublicKey: PublicKey,
+                             equityOwnerMetadata: Option[JsObject],
+                             equityAccountName: Option[String],
+                             equityAccountMetadata: Option[JsObject],
                              metadata: Option[JsObject] = None) extends Command
 
 case class JoinZoneCommand(zoneId: ZoneId) extends ZoneCommand
@@ -82,16 +85,20 @@ case class ChangeZoneNameCommand(zoneId: ZoneId,
                                  name: Option[String]) extends ZoneCommand
 
 case class CreateMemberCommand(zoneId: ZoneId,
-                               member: Member) extends ZoneCommand
+                               name: Option[String],
+                               ownerPublicKey: PublicKey,
+                               metadata: Option[JsObject] = None) extends ZoneCommand
 
 case class UpdateMemberCommand(zoneId: ZoneId,
-                               memberId: MemberId, member: Member) extends ZoneCommand
+                               member: Member) extends ZoneCommand
 
 case class CreateAccountCommand(zoneId: ZoneId,
-                                account: Account) extends ZoneCommand
+                                name: Option[String],
+                                ownerMemberIds: Set[MemberId],
+                                metadata: Option[JsObject] = None) extends ZoneCommand
 
 case class UpdateAccountCommand(zoneId: ZoneId,
-                                accountId: AccountId, account: Account) extends ZoneCommand
+                                account: Account) extends ZoneCommand
 
 case class AddTransactionCommand(zoneId: ZoneId,
                                  actingAs: MemberId,
@@ -178,8 +185,8 @@ case class ErrorResponse(code: Int, message: String, data: Option[JsValue] = Non
 sealed trait ResultResponse extends Response
 
 case class CreateZoneResponse(zoneId: ZoneId,
-                              equityOwnerId: MemberId,
-                              equityAccountId: AccountId,
+                              equityOwner: Member,
+                              equityAccount: Account,
                               created: Long) extends ResultResponse
 
 case class JoinZoneResponse(zone: Zone,
@@ -189,16 +196,15 @@ case object QuitZoneResponse extends ResultResponse
 
 case object ChangeZoneNameResponse extends ResultResponse
 
-case class CreateMemberResponse(memberId: MemberId) extends ResultResponse
+case class CreateMemberResponse(member: Member) extends ResultResponse
 
 case object UpdateMemberResponse extends ResultResponse
 
-case class CreateAccountResponse(accountId: AccountId) extends ResultResponse
+case class CreateAccountResponse(account: Account) extends ResultResponse
 
 case object UpdateAccountResponse extends ResultResponse
 
-case class AddTransactionResponse(transactionId: TransactionId,
-                                  created: Long) extends ResultResponse
+case class AddTransactionResponse(transaction: Transaction) extends ResultResponse
 
 object Response {
 
@@ -266,19 +272,18 @@ case class ZoneNameChangedNotification(zoneId: ZoneId,
                                        name: Option[String]) extends ZoneNotification
 
 case class MemberCreatedNotification(zoneId: ZoneId,
-                                     memberId: MemberId, member: Member) extends ZoneNotification
+                                     member: Member) extends ZoneNotification
 
 case class MemberUpdatedNotification(zoneId: ZoneId,
-                                     memberId: MemberId, member: Member) extends ZoneNotification
+                                     member: Member) extends ZoneNotification
 
 case class AccountCreatedNotification(zoneId: ZoneId,
-                                      accountId: AccountId, account: Account) extends ZoneNotification
+                                      account: Account) extends ZoneNotification
 
 case class AccountUpdatedNotification(zoneId: ZoneId,
-                                      accountId: AccountId, account: Account) extends ZoneNotification
+                                      account: Account) extends ZoneNotification
 
 case class TransactionAddedNotification(zoneId: ZoneId,
-                                        transactionId: TransactionId,
                                         transaction: Transaction) extends ZoneNotification
 
 object Notification {

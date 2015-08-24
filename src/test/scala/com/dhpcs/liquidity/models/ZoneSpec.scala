@@ -31,19 +31,20 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         AccountId(0),
         Map(
           MemberId(0) ->
-            Member(Some("Banker"), PublicKey(publicKeyBytes)),
+            Member(MemberId(0), Some("Banker"), PublicKey(publicKeyBytes)),
           MemberId(1) ->
-            Member(Some("Dave"), PublicKey(publicKeyBytes))
+            Member(MemberId(1), Some("Dave"), PublicKey(publicKeyBytes))
         ),
         Map(
           AccountId(0) ->
-            Account(Some("Bank"), Set(MemberId(0))),
+            Account(AccountId(0), Some("Bank"), Set(MemberId(0))),
           AccountId(1) ->
-            Account(Some("Dave's account"), Set(MemberId(1)))
+            Account(AccountId(1), Some("Dave's account"), Set(MemberId(1)))
         ),
         Map(
           TransactionId(0) ->
             Transaction(
+              TransactionId(0),
               Some("Dave's lottery win"),
               AccountId(0),
               AccountId(1),
@@ -54,7 +55,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         ),
         1433611420487L
       )
-      implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","equityAccountId":0,"members":{"0":{"name":"Banker","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},"1":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}},"accounts":{"0":{"name":"Bank","owners":[0]},"1":{"name":"Dave's account","owners":[1]}},"transactions":{"0":{"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}},"created":1433611420487}""")
+      implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},{"id":1,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]},{"id":1,"name":"Dave's account","ownerMemberIds":[1]}],"transactions":[{"id":0,"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}],"created":1433611420487}""")
       it should behave like read
       it should behave like write
     }
@@ -64,19 +65,20 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         AccountId(0),
         Map(
           MemberId(0) ->
-            Member(Some("Banker"), PublicKey(publicKeyBytes)),
+            Member(MemberId(0), Some("Banker"), PublicKey(publicKeyBytes)),
           MemberId(1) ->
-            Member(Some("Dave"), PublicKey(publicKeyBytes))
+            Member(MemberId(1), Some("Dave"), PublicKey(publicKeyBytes))
         ),
         Map(
           AccountId(0) ->
-            Account(Some("Bank"), Set(MemberId(0))),
+            Account(AccountId(0), Some("Bank"), Set(MemberId(0))),
           AccountId(1) ->
-            Account(Some("Dave's account"), Set(MemberId(1)))
+            Account(AccountId(1), Some("Dave's account"), Set(MemberId(1)))
         ),
         Map(
           TransactionId(0) ->
             Transaction(
+              TransactionId(0),
               Some("Dave's lottery win"),
               AccountId(0),
               AccountId(1),
@@ -92,7 +94,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
           )
         )
       )
-      implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","equityAccountId":0,"members":{"0":{"name":"Banker","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},"1":{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}},"accounts":{"0":{"name":"Bank","owners":[0]},"1":{"name":"Dave's account","owners":[1]}},"transactions":{"0":{"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}},"created":1433611420487,"metadata":{"currency":"GBP"}}""")
+      implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},{"id":1,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]},{"id":1,"name":"Dave's account","ownerMemberIds":[1]}],"transactions":[{"id":0,"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}],"created":1433611420487,"metadata":{"currency":"GBP"}}""")
       it should behave like read
       it should behave like write
     }

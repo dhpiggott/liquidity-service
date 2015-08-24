@@ -6,8 +6,9 @@ case class MemberId(id: Int) extends IntIdentifier
 
 object MemberId extends IntIdentifierCompanion[MemberId]
 
-case class Member(name: Option[String],
-                  publicKey: PublicKey,
+case class Member(id: MemberId,
+                  name: Option[String],
+                  ownerPublicKey: PublicKey,
                   metadata: Option[JsObject] = None)
 
 object Member {

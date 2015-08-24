@@ -6,8 +6,9 @@ case class AccountId(id: Int) extends IntIdentifier
 
 object AccountId extends IntIdentifierCompanion[AccountId]
 
-case class Account(name: Option[String],
-                   owners: Set[MemberId],
+case class Account(id: AccountId,
+                   name: Option[String],
+                   ownerMemberIds: Set[MemberId],
                    metadata: Option[JsObject] = None)
 
 object Account {

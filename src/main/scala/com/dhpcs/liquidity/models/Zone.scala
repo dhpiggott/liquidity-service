@@ -25,26 +25,26 @@ object Zone {
   implicit val ZoneFormat: Format[Zone] = (
     (JsPath \ "name").formatNullable[String] and
       (JsPath \ "equityAccountId").format[AccountId] and
-      (JsPath \ "members").format[Map[String, Member]] and
-      (JsPath \ "accounts").format[Map[String, Account]] and
-      (JsPath \ "transactions").format[Map[String, Transaction]] and
+      (JsPath \ "members").format[Seq[Member]] and
+      (JsPath \ "accounts").format[Seq[Account]] and
+      (JsPath \ "transactions").format[Seq[Transaction]] and
       (JsPath \ "created").format(min[Long](0)) and
       (JsPath \ "metadata").formatNullable[JsObject]
     )((name, equityAccountId, members, accounts, transactions, created, metadata) =>
     Zone(
       name,
       equityAccountId,
-      members.map(e => (MemberId(e._1.toInt), e._2)),
-      accounts.map(e => (AccountId(e._1.toInt), e._2)),
-      transactions.map(e => (TransactionId(e._1.toInt), e._2)),
+      members.map(e => e.id -> e).toMap,
+      accounts.map(e => e.id -> e).toMap,
+      transactions.map(e => e.id -> e).toMap,
       created,
       metadata
     ), zone =>
     (zone.name,
       zone.equityAccountId,
-      zone.members.map { case (memberId, member) => (memberId.id.toString, member) },
-      zone.accounts.map { case (accountId, account) => (accountId.id.toString, account) },
-      zone.transactions.map { case (transactionId, transaction) => (transactionId.id.toString, transaction) },
+      zone.members.values.toSeq,
+      zone.accounts.values.toSeq,
+      zone.transactions.values.toSeq,
       zone.created,
       zone.metadata)
     )

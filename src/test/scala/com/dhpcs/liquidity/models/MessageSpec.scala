@@ -21,6 +21,8 @@ class MessageSpec extends FunSpec with Matchers {
       )
     }
 
+  def ordered[A] = new JsResultUniformity[A]
+
   def commandRead(implicit jsonRpcRequestMessage: JsonRpcRequestMessage, command: Command) =
     it(s"should decode to $command") {
       Command.read(jsonRpcRequestMessage) should be(Some(JsSuccess(command)))
@@ -30,8 +32,6 @@ class MessageSpec extends FunSpec with Matchers {
     it(s"should encode to $jsonRpcRequestMessage") {
       Command.write(command, id) should be(jsonRpcRequestMessage)
     }
-
-  def ordered[A] = new JsResultUniformity[A]
 
   describe("A Command") {
     describe("with an invalid method") {
@@ -68,8 +68,7 @@ class MessageSpec extends FunSpec with Matchers {
           ),
           Some(
             JsError(List(
-              (__ \ "equityOwner", List(ValidationError("error.path.missing"))),
-              (__ \ "equityAccount", List(ValidationError("error.path.missing")))
+              (__ \ "equityOwnerPublicKey", List(ValidationError("error.path.missing")))
             ))
           )
         )
@@ -77,8 +76,11 @@ class MessageSpec extends FunSpec with Matchers {
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
       implicit val createZoneCommand = CreateZoneCommand(
         Some("Dave's zone"),
-        Member(Some("Banker"), PublicKey(publicKeyBytes)),
-        Account(Some("Bank"), Set.empty),
+        Some("Banker"),
+        PublicKey(publicKeyBytes),
+        None,
+        None,
+        None,
         Some(
           Json.obj(
             "currency" -> "GBP"
@@ -91,14 +93,8 @@ class MessageSpec extends FunSpec with Matchers {
         Right(
           Json.obj(
             "name" -> "Dave's zone",
-            "equityOwner" -> Json.obj(
-              "name" -> "Banker",
-              "publicKey" -> BaseEncoding.base64.encode(publicKeyBytes)
-            ),
-            "equityAccount" -> Json.obj(
-              "name" -> "Bank",
-              "owners" -> JsArray()
-            ),
+            "equityOwnerName" -> "Banker",
+            "equityOwnerPublicKey" -> BaseEncoding.base64.encode(publicKeyBytes),
             "metadata" -> Json.obj(
               "currency" -> "GBP"
             )
@@ -139,17 +135,28 @@ class MessageSpec extends FunSpec with Matchers {
           "createZone",
           JsError(List(
             (__ \ "zoneId", List(ValidationError("error.path.missing"))),
-            (__ \ "equityOwnerId", List(ValidationError("error.path.missing"))),
-            (__ \ "equityAccountId", List(ValidationError("error.path.missing"))),
+            (__ \ "equityOwner", List(ValidationError("error.path.missing"))),
+            (__ \ "equityAccount", List(ValidationError("error.path.missing"))),
             (__ \ "created", List(ValidationError("error.path.missing")))
           ))
         )
       }
     }
+    val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     implicit val createZoneResponse = CreateZoneResponse(
       ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
-      MemberId(0),
-      AccountId(0),
+      Member(
+        MemberId(0),
+        Some("Dave"),
+        PublicKey(publicKeyBytes),
+        None
+      ),
+      Account(
+        AccountId(0),
+        None,
+        Set(MemberId(0)),
+        None
+      ),
       1436179968835L
     )
     implicit val id = Right(0)
@@ -157,8 +164,8 @@ class MessageSpec extends FunSpec with Matchers {
       Right(
         Json.obj(
           "zoneId" -> "158842d1-38c7-4ad3-ab83-d4c723c9aaf3",
-          "equityOwnerId" -> 0,
-          "equityAccountId" -> 0,
+          "equityOwner" -> Json.parse( s"""{"id":0,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}"""),
+          "equityAccount" -> Json.parse( """{"id":0,"ownerMemberIds":[0]}"""),
           "created" -> 1436179968835L
         )
       ),

@@ -11,7 +11,8 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
     it should behave like readError(
       Json.parse( """0"""),
       JsError(List(
-        (__ \ "owners", List(ValidationError("error.path.missing")))
+        (__ \ "id", List(ValidationError("error.path.missing"))),
+        (__ \ "ownerMemberIds", List(ValidationError("error.path.missing")))
       ))
     )
   }
@@ -19,24 +20,26 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
   describe("An Account") {
     describe("without metadata") {
       implicit val account = Account(
+        AccountId(0),
         Some("Dave's account"),
         Set(MemberId(0))
       )
-      implicit val accountJson = Json.parse( """{"name":"Dave's account","owners":[0]}""")
+      implicit val accountJson = Json.parse( """{"id":0,"name":"Dave's account","ownerMemberIds":[0]}""")
       it should behave like read
       it should behave like write
     }
     describe("with metadata") {
       implicit val account = Account(
+        AccountId(0),
         Some("Dave's account"),
         Set(MemberId(0)),
         Some(
           Json.obj(
-            "colour" -> "0x0000FF"
+            "color" -> "0x0000FF"
           )
         )
       )
-      implicit val accountJson = Json.parse( """{"name":"Dave's account","owners":[0],"metadata":{"colour":"0x0000FF"}}""")
+      implicit val accountJson = Json.parse( """{"id":0,"name":"Dave's account","ownerMemberIds":[0],"metadata":{"color":"0x0000FF"}}""")
       it should behave like read
       it should behave like write
     }

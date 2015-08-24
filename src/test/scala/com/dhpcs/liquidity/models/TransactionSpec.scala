@@ -11,6 +11,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
     it should behave like readError(
       Json.parse( """0"""),
       JsError(List(
+        (__ \ "id", List(ValidationError("error.path.missing"))),
         (__ \ "from", List(ValidationError("error.path.missing"))),
         (__ \ "to", List(ValidationError("error.path.missing"))),
         (__ \ "value", List(ValidationError("error.path.missing"))),
@@ -23,6 +24,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
   describe("A Transaction") {
     describe("without metadata") {
       implicit val transaction = Transaction(
+        TransactionId(0),
         Some("test"),
         AccountId(0),
         AccountId(1),
@@ -30,12 +32,13 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
         MemberId(2),
         1434115187612L
       )
-      implicit val transactionJson = Json.parse( """{"description":"test","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612}""")
+      implicit val transactionJson = Json.parse( """{"id":0,"description":"test","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612}""")
       it should behave like read
       it should behave like write
     }
     describe("with metadata") {
       implicit val transaction = Transaction(
+        TransactionId(0),
         Some("Property purchase"),
         AccountId(0),
         AccountId(1),
@@ -48,7 +51,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
           )
         )
       )
-      implicit val transactionJson = Json.parse( """{"description":"Property purchase","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612,"metadata":{"property":"Mayfair"}}""")
+      implicit val transactionJson = Json.parse( """{"id":0,"description":"Property purchase","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612,"metadata":{"property":"Mayfair"}}""")
       it should behave like read
       it should behave like write
     }

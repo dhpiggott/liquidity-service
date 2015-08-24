@@ -27,24 +27,22 @@ object ZoneValidator {
   sealed trait Event
 
   case class ZoneCreatedEvent(name: Option[String],
-                              equityOwnerId: MemberId,
                               equityOwner: Member,
-                              equityAccountId: AccountId,
                               equityAccount: Account,
                               created: Long,
                               metadata: Option[JsObject]) extends Event
 
   case class ZoneNameChangedEvent(name: Option[String]) extends Event
 
-  case class MemberCreatedEvent(memberId: MemberId, member: Member) extends Event
+  case class MemberCreatedEvent(member: Member) extends Event
 
-  case class MemberUpdatedEvent(memberId: MemberId, member: Member) extends Event
+  case class MemberUpdatedEvent(member: Member) extends Event
 
-  case class AccountCreatedEvent(accountId: AccountId, account: Account) extends Event
+  case class AccountCreatedEvent(account: Account) extends Event
 
-  case class AccountUpdatedEvent(accountId: AccountId, account: Account) extends Event
+  case class AccountUpdatedEvent(account: Account) extends Event
 
-  case class TransactionAddedEvent(transactionId: TransactionId, transaction: Transaction) extends Event
+  case class TransactionAddedEvent(transaction: Transaction) extends Event
 
   private val receiveTimeout = 2.minutes
 
@@ -89,19 +87,17 @@ object ZoneValidator {
 
     def updated(event: Event) = event match {
 
-      case ZoneCreatedEvent(name, equityOwnerId, equityOwner, equityAccountId, equityAccount, created, metadata) =>
+      case ZoneCreatedEvent(name, equityOwner, equityAccount, created, metadata) =>
 
         copy(
           zone = Zone(
             name,
-            equityAccountId,
+            equityAccount.id,
             Map(
-              equityOwnerId -> equityOwner
+              equityOwner.id -> equityOwner
             ),
             Map(
-              equityAccountId -> equityAccount.copy(
-                owners = Set(equityOwnerId)
-              )
+              equityAccount.id -> equityAccount
             ),
             Map.empty,
             created,
@@ -117,39 +113,39 @@ object ZoneValidator {
           )
         )
 
-      case MemberCreatedEvent(memberId, member) =>
+      case MemberCreatedEvent(member) =>
 
         copy(
           zone = zone.copy(
-            members = zone.members + (memberId -> member)
+            members = zone.members + (member.id -> member)
           )
         )
 
-      case MemberUpdatedEvent(memberId, member) =>
+      case MemberUpdatedEvent(member) =>
 
         copy(
           zone = zone.copy(
-            members = zone.members + (memberId -> member)
+            members = zone.members + (member.id -> member)
           )
         )
 
-      case AccountCreatedEvent(accountId, account) =>
+      case AccountCreatedEvent(account) =>
 
         copy(
           zone = zone.copy(
-            accounts = zone.accounts + (accountId -> account)
+            accounts = zone.accounts + (account.id -> account)
           )
         )
 
-      case AccountUpdatedEvent(accountId, account) =>
+      case AccountUpdatedEvent(account) =>
 
         copy(
           zone = zone.copy(
-            accounts = zone.accounts + (accountId -> account)
+            accounts = zone.accounts + (account.id -> account)
           )
         )
 
-      case TransactionAddedEvent(transactionId, transaction) =>
+      case TransactionAddedEvent(transaction) =>
 
         val updatedSourceBalance = balances(transaction.from) - transaction.value
         val updatedDestinationBalance = balances(transaction.to) + transaction.value
@@ -158,7 +154,7 @@ object ZoneValidator {
             (transaction.from -> updatedSourceBalance) +
             (transaction.to -> updatedDestinationBalance),
           zone = zone.copy(
-            transactions = zone.transactions + (transactionId -> transaction)
+            transactions = zone.transactions + (transaction.id -> transaction)
           )
         )
 
@@ -168,7 +164,7 @@ object ZoneValidator {
 
   private def canModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
     zone.members.get(memberId).fold[Either[String, Unit]](Left("Member does not exist"))(member =>
-      if (publicKey != member.publicKey) {
+      if (publicKey != member.ownerPublicKey) {
         Left("Client's public key does not match Member's public key")
       } else {
         Right(())
@@ -177,8 +173,8 @@ object ZoneValidator {
 
   private def canModify(zone: Zone, accountId: AccountId, publicKey: PublicKey) =
     zone.accounts.get(accountId).fold[Either[String, Unit]](Left("Account does not exist"))(account =>
-      if (!account.owners.exists(memberId =>
-        zone.members.get(memberId).fold(false)(publicKey == _.publicKey)
+      if (!account.ownerMemberIds.exists(memberId =>
+        zone.members.get(memberId).fold(false)(publicKey == _.ownerPublicKey)
       )) {
         Left("Client's public key does not match that of any account owner member")
       } else {
@@ -188,11 +184,11 @@ object ZoneValidator {
 
   private def canModify(zone: Zone, accountId: AccountId, actingAs: MemberId, publicKey: PublicKey) =
     zone.accounts.get(accountId).fold[Either[String, Unit]](Left("Account does not exist"))(account =>
-      if (!account.owners.contains(actingAs)) {
+      if (!account.ownerMemberIds.contains(actingAs)) {
         Left("Member is not an account owner")
       } else {
         zone.members.get(actingAs).fold[Either[String, Unit]](Left("Member does not exist"))(member =>
-          if (publicKey != member.publicKey) {
+          if (publicKey != member.ownerPublicKey) {
             Left("Client's public key does not match Member's public key")
           } else {
             Right(())
@@ -201,8 +197,8 @@ object ZoneValidator {
       }
     )
 
-  private def checkAccountOwners(zone: Zone, account: Account) = {
-    val invalidAccountOwners = account.owners -- zone.members.keys
+  private def checkAccountOwners(zone: Zone, owners: Set[MemberId]) = {
+    val invalidAccountOwners = owners -- zone.members.keys
     if (invalidAccountOwners.nonEmpty) {
       Left(s"Invalid account owners: $invalidAccountOwners")
     } else {
@@ -210,17 +206,19 @@ object ZoneValidator {
     }
   }
 
-  private def checkTransaction(transaction: Transaction,
+  private def checkTransaction(from: AccountId,
+                               to: AccountId,
+                               value: BigDecimal,
                                zone: Zone,
                                balances: Map[AccountId, BigDecimal]) =
-    if (!zone.accounts.contains(transaction.from)) {
-      Left(s"Invalid transaction source account: ${transaction.from}")
-    } else if (!zone.accounts.contains(transaction.to)) {
-      Left(s"Invalid transaction destination account: ${transaction.to}")
+    if (!zone.accounts.contains(from)) {
+      Left(s"Invalid transaction source account: $from")
+    } else if (!zone.accounts.contains(to)) {
+      Left(s"Invalid transaction destination account: $to")
     } else {
-      val updatedSourceBalance = balances(transaction.from) - transaction.value
-      if (updatedSourceBalance < 0 && transaction.from != zone.equityAccountId) {
-        Left(s"Illegal transaction value: ${transaction.value}")
+      val updatedSourceBalance = balances(from) - value
+      if (updatedSourceBalance < 0 && from != zone.equityAccountId) {
+        Left(s"Illegal transaction value: $value")
       } else {
         Right(())
       }
@@ -316,15 +314,21 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
       command match {
 
-        case CreateZoneCommand(name, equityOwner, equityAccount, metadata) =>
+        case CreateZoneCommand(name,
+        equityOwnerName,
+        equityOwnerPublicKey,
+        equityOwnerMetadata,
+        equityAccountName,
+        equityAccountMetadata,
+        metadata) =>
 
           val equityOwnerId = MemberId(0)
+          val equityOwner = Member(equityOwnerId, equityOwnerName, equityOwnerPublicKey, equityOwnerMetadata)
           val equityAccountId = AccountId(0)
+          val equityAccount = Account(equityAccountId, equityAccountName, Set(equityOwnerId), equityAccountMetadata)
           val created = System.currentTimeMillis
 
-          persist(
-            ZoneCreatedEvent(name, equityOwnerId, equityOwner, equityAccountId, equityAccount, created, metadata)
-          ) { zoneCreatedEvent =>
+          persist(ZoneCreatedEvent(name, equityOwner, equityAccount, created, metadata)) { zoneCreatedEvent =>
 
             updateState(zoneCreatedEvent)
 
@@ -332,8 +336,8 @@ class ZoneValidator extends PersistentActor with ActorLogging {
               ResponseWithId(
                 CreateZoneResponse(
                   zoneId,
-                  equityOwnerId,
-                  equityAccountId,
+                  equityOwner,
+                  equityAccount,
                   created
                 ),
                 id
@@ -352,8 +356,6 @@ class ZoneValidator extends PersistentActor with ActorLogging {
               id
             )
 
-          log.warning(s"Received command from ${publicKey.fingerprint} to operate on non-existing zone")
-
       }
 
   }
@@ -367,8 +369,6 @@ class ZoneValidator extends PersistentActor with ActorLogging {
         case createZoneCommand: CreateZoneCommand =>
 
           sender ! ZoneAlreadyExists(createZoneCommand)
-
-          log.info(s"Received command from ${publicKey.fingerprint} to create already existing zone")
 
         case _: JoinZoneCommand =>
 
@@ -421,34 +421,39 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
           }
 
-        case CreateMemberCommand(_, member) =>
+        case CreateMemberCommand(_, name, ownerPublicKey, metadata) =>
 
           val memberId = MemberId(state.zone.members.size)
+          val member = Member(
+            memberId,
+            name,
+            ownerPublicKey,
+            metadata
+          )
 
-          persist(MemberCreatedEvent(memberId, member)) { memberCreatedEvent =>
+          persist(MemberCreatedEvent(member)) { memberCreatedEvent =>
 
             updateState(memberCreatedEvent)
 
             sender !
               ResponseWithId(
                 CreateMemberResponse(
-                  memberId
+                  member
                 ),
                 id
               )
 
             val memberCreatedNotification = MemberCreatedNotification(
               zoneId,
-              memberId,
               member
             )
             state.clientConnections.keys.foreach(_ ! memberCreatedNotification)
 
           }
 
-        case UpdateMemberCommand(_, memberId, member) =>
+        case UpdateMemberCommand(_, member) =>
 
-          canModify(state.zone, memberId, publicKey) match {
+          canModify(state.zone, member.id, publicKey) match {
 
             case Left(message) =>
 
@@ -461,11 +466,9 @@ class ZoneValidator extends PersistentActor with ActorLogging {
                   id
                 )
 
-              log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $memberId")
-
             case Right(_) =>
 
-              persist(MemberUpdatedEvent(memberId, member)) { memberUpdatedEvent =>
+              persist(MemberUpdatedEvent(member)) { memberUpdatedEvent =>
 
                 updateState(memberUpdatedEvent)
 
@@ -477,7 +480,6 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
                 val memberUpdatedNotification = MemberUpdatedNotification(
                   zoneId,
-                  memberId,
                   member
                 )
                 state.clientConnections.keys.foreach(_ ! memberUpdatedNotification)
@@ -486,9 +488,9 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
           }
 
-        case CreateAccountCommand(_, account) =>
+        case CreateAccountCommand(_, name, owners, metadata) =>
 
-          checkAccountOwners(state.zone, account) match {
+          checkAccountOwners(state.zone, owners) match {
 
             case Left(message) =>
 
@@ -501,27 +503,30 @@ class ZoneValidator extends PersistentActor with ActorLogging {
                   id
                 )
 
-              log.warning(s"Received invalid command from ${publicKey.fingerprint} to create $account")
-
             case Right(_) =>
 
               val accountId = AccountId(state.zone.accounts.size)
+              val account = Account(
+                accountId,
+                name,
+                owners,
+                metadata
+              )
 
-              persist(AccountCreatedEvent(accountId, account)) { accountCreatedEvent =>
+              persist(AccountCreatedEvent(account)) { accountCreatedEvent =>
 
                 updateState(accountCreatedEvent)
 
                 sender !
                   ResponseWithId(
                     CreateAccountResponse(
-                      accountId
+                      account
                     ),
                     id
                   )
 
                 val accountCreatedNotification = AccountCreatedNotification(
                   zoneId,
-                  accountId,
                   account
                 )
                 state.clientConnections.keys.foreach(_ ! accountCreatedNotification)
@@ -530,9 +535,9 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
           }
 
-        case UpdateAccountCommand(_, accountId, account) =>
+        case UpdateAccountCommand(_, account) =>
 
-          canModify(state.zone, accountId, publicKey) match {
+          canModify(state.zone, account.id, publicKey) match {
 
             case Left(message) =>
 
@@ -545,11 +550,9 @@ class ZoneValidator extends PersistentActor with ActorLogging {
                   id
                 )
 
-              log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $accountId")
-
             case Right(_) =>
 
-              checkAccountOwners(state.zone, account) match {
+              checkAccountOwners(state.zone, account.ownerMemberIds) match {
 
                 case Left(message) =>
 
@@ -562,11 +565,9 @@ class ZoneValidator extends PersistentActor with ActorLogging {
                       id
                     )
 
-                  log.warning(s"Received invalid command from ${publicKey.fingerprint} to update $accountId")
-
                 case Right(_) =>
 
-                  persist(AccountUpdatedEvent(accountId, account)) { accountUpdatedEvent =>
+                  persist(AccountUpdatedEvent(account)) { accountUpdatedEvent =>
 
                     updateState(accountUpdatedEvent)
 
@@ -578,7 +579,6 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
                     val accountUpdatedNotification = AccountUpdatedNotification(
                       zoneId,
-                      accountId,
                       account
                     )
                     state.clientConnections.keys.foreach(_ ! accountUpdatedNotification)
@@ -604,22 +604,9 @@ class ZoneValidator extends PersistentActor with ActorLogging {
                   id
                 )
 
-              log.warning(s"Received invalid command from ${publicKey.fingerprint} to add transaction on $from")
-
             case Right(_) =>
 
-              val created = System.currentTimeMillis
-              val transaction = Transaction(
-                description,
-                from,
-                to,
-                value,
-                actingAs,
-                created,
-                metadata
-              )
-
-              checkTransaction(transaction, state.zone, state.balances) match {
+              checkTransaction(from, to, value, state.zone, state.balances) match {
 
                 case Left(message) =>
 
@@ -632,28 +619,35 @@ class ZoneValidator extends PersistentActor with ActorLogging {
                       id
                     )
 
-                  log.warning(s"Received invalid command from ${publicKey.fingerprint} to add $transaction")
-
                 case Right(_) =>
 
                   val transactionId = TransactionId(state.zone.transactions.size)
+                  val created = System.currentTimeMillis
+                  val transaction = Transaction(
+                    transactionId,
+                    description,
+                    from,
+                    to,
+                    value,
+                    actingAs,
+                    created,
+                    metadata
+                  )
 
-                  persist(TransactionAddedEvent(transactionId, transaction)) { transactionAddedEvent =>
+                  persist(TransactionAddedEvent(transaction)) { transactionAddedEvent =>
 
                     updateState(transactionAddedEvent)
 
                     sender !
                       ResponseWithId(
                         AddTransactionResponse(
-                          transactionId,
-                          created
+                          transaction
                         ),
                         id
                       )
 
                     val transactionAddedNotification = TransactionAddedNotification(
                       zoneId,
-                      transactionId,
                       transaction
                     )
                     state.clientConnections.keys.foreach(_ ! transactionAddedNotification)

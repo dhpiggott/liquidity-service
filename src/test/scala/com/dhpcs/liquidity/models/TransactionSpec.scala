@@ -1,7 +1,5 @@
 package com.dhpcs.liquidity.models
 
-import java.util.UUID
-
 import com.dhpcs.json.FormatBehaviors
 import org.scalatest._
 import play.api.data.validation.ValidationError
@@ -26,23 +24,23 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
     describe("without metadata") {
       implicit val transaction = Transaction(
         Some("test"),
-        AccountId(UUID.fromString("28c331cd-35eb-45b2-a478-82334d7a4593")),
-        AccountId(UUID.fromString("a1191a07-fc84-4245-975a-9798a9c26a9e")),
+        AccountId(0),
+        AccountId(1),
         BigDecimal(1000000),
-        MemberId(UUID.fromString("7fe65834-7353-4fb3-b8b3-fe4c1f3aa2c0")),
+        MemberId(2),
         1434115187612L
       )
-      implicit val transactionJson = Json.parse( """{"description":"test","from":"28c331cd-35eb-45b2-a478-82334d7a4593","to":"a1191a07-fc84-4245-975a-9798a9c26a9e","value":1000000,"creator":"7fe65834-7353-4fb3-b8b3-fe4c1f3aa2c0","created":1434115187612}""")
+      implicit val transactionJson = Json.parse( """{"description":"test","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612}""")
       it should behave like read
       it should behave like write
     }
     describe("with metadata") {
       implicit val transaction = Transaction(
-        Some("test"),
-        AccountId(UUID.fromString("28c331cd-35eb-45b2-a478-82334d7a4593")),
-        AccountId(UUID.fromString("a1191a07-fc84-4245-975a-9798a9c26a9e")),
+        Some("Property purchase"),
+        AccountId(0),
+        AccountId(1),
         BigDecimal(1000000),
-        MemberId(UUID.fromString("7fe65834-7353-4fb3-b8b3-fe4c1f3aa2c0")),
+        MemberId(2),
         1434115187612L,
         Some(
           JsObject(
@@ -50,7 +48,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
           )
         )
       )
-      implicit val transactionJson = Json.parse( """{"description":"test","from":"28c331cd-35eb-45b2-a478-82334d7a4593","to":"a1191a07-fc84-4245-975a-9798a9c26a9e","value":1000000,"creator":"7fe65834-7353-4fb3-b8b3-fe4c1f3aa2c0","created":1434115187612,"metadata":{"property":"Mayfair"}}""")
+      implicit val transactionJson = Json.parse( """{"description":"Property purchase","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612,"metadata":{"property":"Mayfair"}}""")
       it should behave like read
       it should behave like write
     }

@@ -1,12 +1,10 @@
 package com.dhpcs.liquidity.models
 
-import java.util.UUID
-
 import play.api.libs.json._
 
-case class MemberId(id: UUID) extends Identifier
+case class MemberId(id: Int) extends IntIdentifier
 
-object MemberId extends IdentifierCompanion[MemberId]
+object MemberId extends IntIdentifierCompanion[MemberId]
 
 case class Member(name: Option[String],
                   publicKey: PublicKey,

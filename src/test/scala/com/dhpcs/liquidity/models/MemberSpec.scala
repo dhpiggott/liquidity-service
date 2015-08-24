@@ -33,11 +33,11 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
         PublicKey(publicKeyBytes),
         Some(
           Json.obj(
-            "email" -> "david@piggott.me.uk"
+            "hidden" -> true
           )
         )
       )
-      implicit val memberJson = Json.parse( s"""{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","metadata":{"email":"david@piggott.me.uk"}}""")
+      implicit val memberJson = Json.parse( s"""{"name":"Dave","publicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","metadata":{"hidden":true}}""")
       it should behave like read
       it should behave like write
     }

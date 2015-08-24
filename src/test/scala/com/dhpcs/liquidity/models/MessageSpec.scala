@@ -148,8 +148,8 @@ class MessageSpec extends FunSpec with Matchers {
     }
     implicit val createZoneResponse = CreateZoneResponse(
       ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
-      MemberId(UUID.fromString("1dcf2284-ceb8-47b4-9b2c-daf3ce21f8e3")),
-      AccountId(UUID.fromString("c881da49-f009-427e-8b90-47f15e11ac0d")),
+      MemberId(0),
+      AccountId(0),
       1436179968835L
     )
     implicit val id = Right(0)
@@ -157,8 +157,8 @@ class MessageSpec extends FunSpec with Matchers {
       Right(
         Json.obj(
           "zoneId" -> "158842d1-38c7-4ad3-ab83-d4c723c9aaf3",
-          "equityOwnerId" -> "1dcf2284-ceb8-47b4-9b2c-daf3ce21f8e3",
-          "equityAccountId" -> "c881da49-f009-427e-8b90-47f15e11ac0d",
+          "equityOwnerId" -> 0,
+          "equityAccountId" -> 0,
           "created" -> 1436179968835L
         )
       ),

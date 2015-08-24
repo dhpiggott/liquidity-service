@@ -1,14 +1,12 @@
 package com.dhpcs.liquidity.models
 
-import java.util.UUID
-
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
-case class TransactionId(id: UUID) extends Identifier
+case class TransactionId(id: Int) extends IntIdentifier
 
-object TransactionId extends IdentifierCompanion[TransactionId]
+object TransactionId extends IntIdentifierCompanion[TransactionId]
 
 case class Transaction(description: Option[String],
                        from: AccountId,

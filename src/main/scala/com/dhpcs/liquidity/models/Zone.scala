@@ -6,9 +6,9 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 
-case class ZoneId(id: UUID) extends Identifier
+case class ZoneId(id: UUID) extends UUIDIdentifier
 
-object ZoneId extends IdentifierCompanion[ZoneId]
+object ZoneId extends UUIDIdentifierCompanion[ZoneId]
 
 case class Zone(name: Option[String],
                 equityAccountId: AccountId,
@@ -34,9 +34,9 @@ object Zone {
     Zone(
       name,
       equityAccountId,
-      members.map(e => (MemberId(UUID.fromString(e._1)), e._2)),
-      accounts.map(e => (AccountId(UUID.fromString(e._1)), e._2)),
-      transactions.map(e => (TransactionId(UUID.fromString(e._1)), e._2)),
+      members.map(e => (MemberId(e._1.toInt), e._2)),
+      accounts.map(e => (AccountId(e._1.toInt), e._2)),
+      transactions.map(e => (TransactionId(e._1.toInt), e._2)),
       created,
       metadata
     ), zone =>

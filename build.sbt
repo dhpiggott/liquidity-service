@@ -13,7 +13,7 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
 scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
-  "com.dhpcs" %% "liquidity-common" % "0.29.0",
+  "com.dhpcs" %% "liquidity-common" % "0.30.0",
   "com.typesafe.akka" %% "akka-cluster" % "2.3.12",
   "com.typesafe.akka" %% "akka-contrib" % "2.3.12",
   "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.12",

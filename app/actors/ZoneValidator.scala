@@ -318,8 +318,8 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
         case CreateZoneCommand(name, equityOwner, equityAccount, metadata) =>
 
-          val equityOwnerId = MemberId.generate
-          val equityAccountId = AccountId.generate
+          val equityOwnerId = MemberId(0)
+          val equityAccountId = AccountId(0)
           val created = System.currentTimeMillis
 
           persist(
@@ -423,15 +423,7 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
         case CreateMemberCommand(_, member) =>
 
-          def freshMemberId: MemberId = {
-            val memberId = MemberId.generate
-            if (!state.zone.members.contains(memberId)) {
-              memberId
-            } else {
-              freshMemberId
-            }
-          }
-          val memberId = freshMemberId
+          val memberId = MemberId(state.zone.members.size)
 
           persist(MemberCreatedEvent(memberId, member)) { memberCreatedEvent =>
 
@@ -513,15 +505,7 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
             case Right(_) =>
 
-              def freshAccountId: AccountId = {
-                val accountId = AccountId.generate
-                if (!state.zone.accounts.contains(accountId)) {
-                  accountId
-                } else {
-                  freshAccountId
-                }
-              }
-              val accountId = freshAccountId
+              val accountId = AccountId(state.zone.accounts.size)
 
               persist(AccountCreatedEvent(accountId, account)) { accountCreatedEvent =>
 
@@ -652,15 +636,7 @@ class ZoneValidator extends PersistentActor with ActorLogging {
 
                 case Right(_) =>
 
-                  def freshTransactionId: TransactionId = {
-                    val transactionId = TransactionId.generate
-                    if (!state.zone.transactions.contains(transactionId)) {
-                      transactionId
-                    } else {
-                      freshTransactionId
-                    }
-                  }
-                  val transactionId = freshTransactionId
+                  val transactionId = TransactionId(state.zone.transactions.size)
 
                   persist(TransactionAddedEvent(transactionId, transaction)) { transactionAddedEvent =>
 

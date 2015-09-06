@@ -116,12 +116,12 @@ class ClientConnection(publicKey: PublicKey,
   override def persistenceId: String = s"${publicKey.productPrefix}(${publicKey.fingerprint})"
 
   override def postStop() {
-    log.debug(s"Stopped actor for ${publicKey.fingerprint}")
+    log.info(s"Stopped actor for ${publicKey.fingerprint}")
     super.postStop()
   }
 
   override def preStart() {
-    log.debug(s"Started actor for ${publicKey.fingerprint}")
+    log.info(s"Started actor for ${publicKey.fingerprint}")
     super.preStart()
   }
 
@@ -129,13 +129,9 @@ class ClientConnection(publicKey: PublicKey,
 
     case SendKeepAlive =>
 
-      val keepAliveNotification = KeepAliveNotification
-
-      log.debug(s"Sending $keepAliveNotification")
-
       upstream ! Json.stringify(
         Json.toJson(
-          Notification.write(keepAliveNotification)
+          Notification.write(KeepAliveNotification)
         )
       )
 
@@ -147,7 +143,7 @@ class ClientConnection(publicKey: PublicKey,
 
         case Left((jsonRpcResponseError, id)) =>
 
-          log.debug(s"Receive error $jsonRpcResponseError")
+          log.warning(s"Receive error: $jsonRpcResponseError")
 
           sender ! Json.stringify(
             Json.toJson(
@@ -156,8 +152,6 @@ class ClientConnection(publicKey: PublicKey,
           )
 
         case Right((command, correlationId)) =>
-
-          log.debug(s"Received $command")
 
           command match {
 
@@ -252,8 +246,6 @@ class ClientConnection(publicKey: PublicKey,
 
     case ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
 
-      log.debug(s"Received $response")
-
       val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
 
       if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
@@ -277,8 +269,6 @@ class ClientConnection(publicKey: PublicKey,
       }
 
     case NotificationWithIds(notification, sequenceNumber, deliveryId) =>
-
-      log.debug(s"Received $notification")
 
       val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
 

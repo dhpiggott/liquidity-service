@@ -370,7 +370,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
       updateState(zoneJoinedEvent)
 
-      log.debug(s"${state.clientConnections.size} clients are present")
+      log.info(s"${state.clientConnections.size} clients are present")
 
       onStateUpdate(state)
 
@@ -387,7 +387,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
       updateState(zoneQuitEvent)
 
-      log.debug(s"${state.clientConnections.size} clients are present")
+      log.info(s"${state.clientConnections.size} clients are present")
 
       onStateUpdate
 

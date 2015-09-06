@@ -27,78 +27,77 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
 
   describe("A Zone") {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    describe("without metadata") {
+    describe("without a name or metadata") {
       implicit val zone = Zone(
         ZoneId(UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")),
-        Some("Dave's zone"),
         AccountId(0),
         Map(
           MemberId(0) ->
-            Member(MemberId(0), Some("Banker"), PublicKey(publicKeyBytes)),
+            Member(MemberId(0), PublicKey(publicKeyBytes), Some("Banker")),
           MemberId(1) ->
-            Member(MemberId(1), Some("Dave"), PublicKey(publicKeyBytes))
+            Member(MemberId(1), PublicKey(publicKeyBytes), Some("Dave"))
         ),
         Map(
           AccountId(0) ->
-            Account(AccountId(0), Some("Bank"), Set(MemberId(0))),
+            Account(AccountId(0), Set(MemberId(0)), Some("Bank")),
           AccountId(1) ->
-            Account(AccountId(1), Some("Dave's account"), Set(MemberId(1)))
+            Account(AccountId(1), Set(MemberId(1)), Some("Dave's account"))
         ),
         Map(
           TransactionId(0) ->
             Transaction(
               TransactionId(0),
-              Some("Dave's lottery win"),
               AccountId(0),
               AccountId(1),
               BigDecimal(1000000),
               MemberId(0),
-              1433611420487L
+              1433611420487L,
+              Some("Dave's lottery win")
             )
         ),
         1433611420487L
       )
-      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},{"id":1,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]},{"id":1,"name":"Dave's account","ownerMemberIds":[1]}],"transactions":[{"id":0,"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}],"created":1433611420487}""")
+      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Banker"},{"id":1,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487}""")
       it should behave like read
       it should behave like write
     }
-    describe("with metadata") {
+    describe("with a name and metadata") {
       implicit val zone = Zone(
         ZoneId(UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")),
-        Some("Dave's zone"),
         AccountId(0),
         Map(
           MemberId(0) ->
-            Member(MemberId(0), Some("Banker"), PublicKey(publicKeyBytes)),
+            Member(MemberId(0), PublicKey(publicKeyBytes), Some("Banker")),
           MemberId(1) ->
-            Member(MemberId(1), Some("Dave"), PublicKey(publicKeyBytes))
+            Member(MemberId(1), PublicKey(publicKeyBytes), Some("Dave"))
         ),
         Map(
           AccountId(0) ->
-            Account(AccountId(0), Some("Bank"), Set(MemberId(0))),
+            Account(AccountId(0), Set(MemberId(0)), Some("Bank")),
           AccountId(1) ->
-            Account(AccountId(1), Some("Dave's account"), Set(MemberId(1)))
+            Account(AccountId(1), Set(MemberId(1)), Some("Dave's account"))
         ),
         Map(
           TransactionId(0) ->
             Transaction(
               TransactionId(0),
-              Some("Dave's lottery win"),
               AccountId(0),
               AccountId(1),
               BigDecimal(1000000),
               MemberId(0),
-              1433611420487L
+              1433611420487L,
+              Some("Dave's lottery win")
             )
         ),
         1433611420487L,
+        Some("Dave's zone"),
         Some(
           Json.obj(
             "currency" -> "GBP"
           )
         )
       )
-      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},{"id":1,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]},{"id":1,"name":"Dave's account","ownerMemberIds":[1]}],"transactions":[{"id":0,"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}],"created":1433611420487,"metadata":{"currency":"GBP"}}""")
+      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Banker"},{"id":1,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487,"name":"Dave's zone","metadata":{"currency":"GBP"}}""")
       it should behave like read
       it should behave like write
     }

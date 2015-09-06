@@ -22,36 +22,35 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
   }
 
   describe("A Transaction") {
-    describe("without metadata") {
+    describe("without a description or metadata") {
       implicit val transaction = Transaction(
         TransactionId(0),
-        Some("test"),
         AccountId(0),
         AccountId(1),
         BigDecimal(1000000),
         MemberId(2),
         1434115187612L
       )
-      implicit val transactionJson = Json.parse( """{"id":0,"description":"test","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612}""")
+      implicit val transactionJson = Json.parse( """{"id":0,"from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612}""")
       it should behave like read
       it should behave like write
     }
-    describe("with metadata") {
+    describe("with a description and metadata") {
       implicit val transaction = Transaction(
         TransactionId(0),
-        Some("Property purchase"),
         AccountId(0),
         AccountId(1),
         BigDecimal(1000000),
         MemberId(2),
         1434115187612L,
+        Some("Property purchase"),
         Some(
           JsObject(
             Seq("property" -> JsString("The TARDIS"))
           )
         )
       )
-      implicit val transactionJson = Json.parse( """{"id":0,"description":"Property purchase","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612,"metadata":{"property":"The TARDIS"}}""")
+      implicit val transactionJson = Json.parse( """{"id":0,"from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612,"description":"Property purchase","metadata":{"property":"The TARDIS"}}""")
       it should behave like read
       it should behave like write
     }

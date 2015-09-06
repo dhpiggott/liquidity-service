@@ -18,28 +18,27 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
   }
 
   describe("An Account") {
-    describe("without metadata") {
+    describe("without a name or metadata") {
       implicit val account = Account(
         AccountId(0),
-        Some("Dave's account"),
         Set(MemberId(0))
       )
-      implicit val accountJson = Json.parse( """{"id":0,"name":"Dave's account","ownerMemberIds":[0]}""")
+      implicit val accountJson = Json.parse( """{"id":0,"ownerMemberIds":[0]}""")
       it should behave like read
       it should behave like write
     }
-    describe("with metadata") {
+    describe("with a name and metadata") {
       implicit val account = Account(
         AccountId(0),
-        Some("Dave's account"),
         Set(MemberId(0)),
+        Some("Dave's account"),
         Some(
           Json.obj(
             "hidden" -> true
           )
         )
       )
-      implicit val accountJson = Json.parse( """{"id":0,"name":"Dave's account","ownerMemberIds":[0],"metadata":{"hidden":true}}""")
+      implicit val accountJson = Json.parse( """{"id":0,"ownerMemberIds":[0],"name":"Dave's account","metadata":{"hidden":true}}""")
       it should behave like read
       it should behave like write
     }

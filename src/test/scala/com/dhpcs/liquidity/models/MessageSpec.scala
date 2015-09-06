@@ -75,12 +75,12 @@ class MessageSpec extends FunSpec with Matchers {
       }
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
       implicit val createZoneCommand = CreateZoneCommand(
-        Some("Dave's zone"),
-        Some("Banker"),
         PublicKey(publicKeyBytes),
+        Some("Banker"),
         None,
+        Some("Bank"),
         None,
-        None,
+        Some("Dave's zone"),
         Some(
           Json.obj(
             "currency" -> "GBP"
@@ -92,9 +92,10 @@ class MessageSpec extends FunSpec with Matchers {
         "createZone",
         Right(
           Json.obj(
-            "name" -> "Dave's zone",
-            "equityOwnerName" -> "Banker",
             "equityOwnerPublicKey" -> BaseEncoding.base64.encode(publicKeyBytes),
+            "equityOwnerName" -> "Banker",
+            "equityAccountName" -> "Bank",
+            "name" -> "Dave's zone",
             "metadata" -> Json.obj(
               "currency" -> "GBP"
             )
@@ -143,25 +144,25 @@ class MessageSpec extends FunSpec with Matchers {
     implicit val createZoneResponse = CreateZoneResponse(
       Zone(
         ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
-        Some("Dave's zone"),
         AccountId(0),
         Map(
           MemberId(0) ->
-            Member(MemberId(0), Some("Banker"), PublicKey(publicKeyBytes))
+            Member(MemberId(0), PublicKey(publicKeyBytes), Some("Banker"))
         ),
         Map(
           AccountId(0) ->
-            Account(AccountId(0), Some("Bank"), Set(MemberId(0)))
+            Account(AccountId(0), Set(MemberId(0)), Some("Bank"))
         ),
         Map.empty,
-        1436179968835L
+        1436179968835L,
+        Some("Dave's zone")
       )
     )
     implicit val id = Right(0)
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
       Right(
         Json.obj(
-          "zone" -> Json.parse( s"""{"id":"158842d1-38c7-4ad3-ab83-d4c723c9aaf3","name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]}],"transactions":[],"created":1436179968835}""")
+          "zone" -> Json.parse( s"""{"id":"158842d1-38c7-4ad3-ab83-d4c723c9aaf3","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Banker"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"}],"transactions":[],"created":1436179968835,"name":"Dave's zone"}""")
         )
       ),
       Some(

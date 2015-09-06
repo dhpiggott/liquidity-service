@@ -69,12 +69,12 @@ sealed trait ZoneCommand extends Command {
 
 }
 
-case class CreateZoneCommand(name: Option[String],
+case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                              equityOwnerName: Option[String],
-                             equityOwnerPublicKey: PublicKey,
                              equityOwnerMetadata: Option[JsObject],
                              equityAccountName: Option[String],
                              equityAccountMetadata: Option[JsObject],
+                             name: Option[String] = None,
                              metadata: Option[JsObject] = None) extends Command
 
 case class JoinZoneCommand(zoneId: ZoneId) extends ZoneCommand
@@ -85,16 +85,16 @@ case class ChangeZoneNameCommand(zoneId: ZoneId,
                                  name: Option[String]) extends ZoneCommand
 
 case class CreateMemberCommand(zoneId: ZoneId,
-                               name: Option[String],
                                ownerPublicKey: PublicKey,
+                               name: Option[String] = None,
                                metadata: Option[JsObject] = None) extends ZoneCommand
 
 case class UpdateMemberCommand(zoneId: ZoneId,
                                member: Member) extends ZoneCommand
 
 case class CreateAccountCommand(zoneId: ZoneId,
-                                name: Option[String],
                                 ownerMemberIds: Set[MemberId],
+                                name: Option[String] = None,
                                 metadata: Option[JsObject] = None) extends ZoneCommand
 
 case class UpdateAccountCommand(zoneId: ZoneId,
@@ -102,10 +102,10 @@ case class UpdateAccountCommand(zoneId: ZoneId,
 
 case class AddTransactionCommand(zoneId: ZoneId,
                                  actingAs: MemberId,
-                                 description: Option[String],
                                  from: AccountId,
                                  to: AccountId,
                                  value: BigDecimal,
+                                 description: Option[String] = None,
                                  metadata: Option[JsObject] = None) extends ZoneCommand {
   require(value >= 0)
 }
@@ -115,27 +115,27 @@ object AddTransactionCommand {
   implicit val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
     (JsPath \ "zoneId").format[ZoneId] and
       (JsPath \ "actingAs").format[MemberId] and
-      (JsPath \ "description").formatNullable[String] and
       (JsPath \ "from").format[AccountId] and
       (JsPath \ "to").format[AccountId] and
       (JsPath \ "value").format(min[BigDecimal](0)) and
+      (JsPath \ "description").formatNullable[String] and
       (JsPath \ "metadata").formatNullable[JsObject]
-    )((zoneId, actingAs, description, from, to, value, metadata) =>
+    )((zoneId, actingAs, from, to, value, description, metadata) =>
     AddTransactionCommand(
       zoneId,
       actingAs,
-      description,
       from,
       to,
       value,
+      description,
       metadata
     ), addTransactionCommand =>
     (addTransactionCommand.zoneId,
       addTransactionCommand.actingAs,
-      addTransactionCommand.description,
       addTransactionCommand.from,
       addTransactionCommand.to,
       addTransactionCommand.value,
+      addTransactionCommand.description,
       addTransactionCommand.metadata)
     )
 
@@ -180,7 +180,9 @@ object Command {
 
 sealed trait Response extends Message
 
-case class ErrorResponse(code: Int, message: String, data: Option[JsValue] = None) extends Response
+case class ErrorResponse(code: Int,
+                         message: String,
+                         data: Option[JsValue] = None) extends Response
 
 sealed trait ResultResponse extends Response
 
@@ -257,31 +259,23 @@ sealed trait ZoneNotification extends Notification {
 
 case object KeepAliveNotification extends Notification
 
-case class ClientJoinedZoneNotification(zoneId: ZoneId,
-                                        publicKey: PublicKey) extends ZoneNotification
+case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
 
-case class ClientQuitZoneNotification(zoneId: ZoneId,
-                                      publicKey: PublicKey) extends ZoneNotification
+case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
 
 case class ZoneTerminatedNotification(zoneId: ZoneId) extends ZoneNotification
 
-case class ZoneNameChangedNotification(zoneId: ZoneId,
-                                       name: Option[String]) extends ZoneNotification
+case class ZoneNameChangedNotification(zoneId: ZoneId, name: Option[String]) extends ZoneNotification
 
-case class MemberCreatedNotification(zoneId: ZoneId,
-                                     member: Member) extends ZoneNotification
+case class MemberCreatedNotification(zoneId: ZoneId, member: Member) extends ZoneNotification
 
-case class MemberUpdatedNotification(zoneId: ZoneId,
-                                     member: Member) extends ZoneNotification
+case class MemberUpdatedNotification(zoneId: ZoneId, member: Member) extends ZoneNotification
 
-case class AccountCreatedNotification(zoneId: ZoneId,
-                                      account: Account) extends ZoneNotification
+case class AccountCreatedNotification(zoneId: ZoneId, account: Account) extends ZoneNotification
 
-case class AccountUpdatedNotification(zoneId: ZoneId,
-                                      account: Account) extends ZoneNotification
+case class AccountUpdatedNotification(zoneId: ZoneId, account: Account) extends ZoneNotification
 
-case class TransactionAddedNotification(zoneId: ZoneId,
-                                        transaction: Transaction) extends ZoneNotification
+case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
 
 object Notification {
 

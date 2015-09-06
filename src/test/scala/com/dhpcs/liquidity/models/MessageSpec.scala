@@ -13,6 +13,8 @@ import play.api.libs.json._
 
 class MessageSpec extends FunSpec with Matchers {
 
+  def ordered[A] = new JsResultUniformity[A]
+
   def commandReadError(jsonRpcRequestMessage: JsonRpcRequestMessage, jsError: Option[JsError]) =
     it(s"should fail to decode with error $jsError") {
       val jsResult = Command.read(jsonRpcRequestMessage)
@@ -20,8 +22,6 @@ class MessageSpec extends FunSpec with Matchers {
         jsResult.value should equal(_)(after being ordered[Command])
       )
     }
-
-  def ordered[A] = new JsResultUniformity[A]
 
   def commandRead(implicit jsonRpcRequestMessage: JsonRpcRequestMessage, command: Command) =
     it(s"should decode to $command") {
@@ -134,39 +134,34 @@ class MessageSpec extends FunSpec with Matchers {
           ),
           "createZone",
           JsError(List(
-            (__ \ "zoneId", List(ValidationError("error.path.missing"))),
-            (__ \ "equityOwner", List(ValidationError("error.path.missing"))),
-            (__ \ "equityAccount", List(ValidationError("error.path.missing"))),
-            (__ \ "created", List(ValidationError("error.path.missing")))
+            (__ \ "zone", List(ValidationError("error.path.missing")))
           ))
         )
       }
     }
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     implicit val createZoneResponse = CreateZoneResponse(
-      ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
-      Member(
-        MemberId(0),
-        Some("Dave"),
-        PublicKey(publicKeyBytes),
-        None
-      ),
-      Account(
+      Zone(
+        ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
+        Some("Dave's zone"),
         AccountId(0),
-        None,
-        Set(MemberId(0)),
-        None
-      ),
-      1436179968835L
+        Map(
+          MemberId(0) ->
+            Member(MemberId(0), Some("Banker"), PublicKey(publicKeyBytes))
+        ),
+        Map(
+          AccountId(0) ->
+            Account(AccountId(0), Some("Bank"), Set(MemberId(0)))
+        ),
+        Map.empty,
+        1436179968835L
+      )
     )
     implicit val id = Right(0)
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
       Right(
         Json.obj(
-          "zoneId" -> "158842d1-38c7-4ad3-ab83-d4c723c9aaf3",
-          "equityOwner" -> Json.parse( s"""{"id":0,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}"""),
-          "equityAccount" -> Json.parse( """{"id":0,"ownerMemberIds":[0]}"""),
-          "created" -> 1436179968835L
+          "zone" -> Json.parse( s"""{"id":"158842d1-38c7-4ad3-ab83-d4c723c9aaf3","name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]}],"transactions":[],"created":1436179968835}""")
         )
       ),
       Some(

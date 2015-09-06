@@ -184,10 +184,7 @@ case class ErrorResponse(code: Int, message: String, data: Option[JsValue] = Non
 
 sealed trait ResultResponse extends Response
 
-case class CreateZoneResponse(zoneId: ZoneId,
-                              equityOwner: Member,
-                              equityAccount: Account,
-                              created: Long) extends ResultResponse
+case class CreateZoneResponse(zone: Zone) extends ResultResponse
 
 case class JoinZoneResponse(zone: Zone,
                             connectedClients: Set[PublicKey]) extends ResultResponse

@@ -10,7 +10,8 @@ case class ZoneId(id: UUID) extends UUIDIdentifier
 
 object ZoneId extends UUIDIdentifierCompanion[ZoneId]
 
-case class Zone(name: Option[String],
+case class Zone(id: ZoneId,
+                name: Option[String],
                 equityAccountId: AccountId,
                 members: Map[MemberId, Member],
                 accounts: Map[AccountId, Account],
@@ -23,15 +24,17 @@ case class Zone(name: Option[String],
 object Zone {
 
   implicit val ZoneFormat: Format[Zone] = (
-    (JsPath \ "name").formatNullable[String] and
+    (JsPath \ "id").format[ZoneId] and
+      (JsPath \ "name").formatNullable[String] and
       (JsPath \ "equityAccountId").format[AccountId] and
       (JsPath \ "members").format[Seq[Member]] and
       (JsPath \ "accounts").format[Seq[Account]] and
       (JsPath \ "transactions").format[Seq[Transaction]] and
       (JsPath \ "created").format(min[Long](0)) and
       (JsPath \ "metadata").formatNullable[JsObject]
-    )((name, equityAccountId, members, accounts, transactions, created, metadata) =>
+    )((id, name, equityAccountId, members, accounts, transactions, created, metadata) =>
     Zone(
+      id,
       name,
       equityAccountId,
       members.map(e => e.id -> e).toMap,
@@ -40,7 +43,8 @@ object Zone {
       created,
       metadata
     ), zone =>
-    (zone.name,
+    (zone.id,
+      zone.name,
       zone.equityAccountId,
       zone.members.values.toSeq,
       zone.accounts.values.toSeq,

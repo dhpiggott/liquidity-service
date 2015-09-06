@@ -35,11 +35,11 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
         Set(MemberId(0)),
         Some(
           Json.obj(
-            "color" -> "0x0000FF"
+            "hidden" -> true
           )
         )
       )
-      implicit val accountJson = Json.parse( """{"id":0,"name":"Dave's account","ownerMemberIds":[0],"metadata":{"color":"0x0000FF"}}""")
+      implicit val accountJson = Json.parse( """{"id":0,"name":"Dave's account","ownerMemberIds":[0],"metadata":{"hidden":true}}""")
       it should behave like read
       it should behave like write
     }

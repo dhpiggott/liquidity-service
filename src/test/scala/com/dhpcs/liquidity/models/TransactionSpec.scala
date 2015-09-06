@@ -47,11 +47,11 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
         1434115187612L,
         Some(
           JsObject(
-            Seq("property" -> JsString("Mayfair"))
+            Seq("property" -> JsString("The TARDIS"))
           )
         )
       )
-      implicit val transactionJson = Json.parse( """{"id":0,"description":"Property purchase","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612,"metadata":{"property":"Mayfair"}}""")
+      implicit val transactionJson = Json.parse( """{"id":0,"description":"Property purchase","from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612,"metadata":{"property":"The TARDIS"}}""")
       it should behave like read
       it should behave like write
     }

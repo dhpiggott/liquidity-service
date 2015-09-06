@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.models
 
 import java.security.KeyPairGenerator
+import java.util.UUID
 
 import com.dhpcs.json.FormatBehaviors
 import com.google.common.io.BaseEncoding
@@ -14,6 +15,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
     it should behave like readError(
       Json.parse( """0"""),
       JsError(List(
+        (__ \ "id", List(ValidationError("error.path.missing"))),
         (__ \ "equityAccountId", List(ValidationError("error.path.missing"))),
         (__ \ "members", List(ValidationError("error.path.missing"))),
         (__ \ "accounts", List(ValidationError("error.path.missing"))),
@@ -27,6 +29,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     describe("without metadata") {
       implicit val zone = Zone(
+        ZoneId(UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")),
         Some("Dave's zone"),
         AccountId(0),
         Map(
@@ -55,12 +58,13 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         ),
         1433611420487L
       )
-      implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},{"id":1,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]},{"id":1,"name":"Dave's account","ownerMemberIds":[1]}],"transactions":[{"id":0,"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}],"created":1433611420487}""")
+      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},{"id":1,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]},{"id":1,"name":"Dave's account","ownerMemberIds":[1]}],"transactions":[{"id":0,"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}],"created":1433611420487}""")
       it should behave like read
       it should behave like write
     }
     describe("with metadata") {
       implicit val zone = Zone(
+        ZoneId(UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")),
         Some("Dave's zone"),
         AccountId(0),
         Map(
@@ -94,7 +98,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
           )
         )
       )
-      implicit val zoneJson = Json.parse( s"""{"name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},{"id":1,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]},{"id":1,"name":"Dave's account","ownerMemberIds":[1]}],"transactions":[{"id":0,"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}],"created":1433611420487,"metadata":{"currency":"GBP"}}""")
+      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","name":"Dave's zone","equityAccountId":0,"members":[{"id":0,"name":"Banker","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"},{"id":1,"name":"Dave","ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}],"accounts":[{"id":0,"name":"Bank","ownerMemberIds":[0]},{"id":1,"name":"Dave's account","ownerMemberIds":[1]}],"transactions":[{"id":0,"description":"Dave's lottery win","from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487}],"created":1433611420487,"metadata":{"currency":"GBP"}}""")
       it should behave like read
       it should behave like write
     }

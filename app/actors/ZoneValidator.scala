@@ -6,10 +6,9 @@ import actors.ClientConnection.MessageReceivedConfirmation
 import actors.ZoneValidator._
 import akka.actor._
 import akka.contrib.pattern.ShardRegion
-import akka.persistence.{AtLeastOnceDelivery, RecoveryCompleted, PersistentActor}
+import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
-import play.api.libs.json.JsObject
 
 import scala.concurrent.duration._
 
@@ -43,11 +42,7 @@ object ZoneValidator {
 
   sealed trait Event
 
-  case class ZoneCreatedEvent(name: Option[String],
-                              equityOwner: Member,
-                              equityAccount: Account,
-                              created: Long,
-                              metadata: Option[JsObject]) extends Event
+  case class ZoneCreatedEvent(zone: Zone) extends Event
 
   case class ZoneJoinedEvent(clientConnection: ActorRef, publicKey: PublicKey) extends Event
 
@@ -102,28 +97,16 @@ object ZoneValidator {
 
   val shardName = "ZoneValidator"
 
-  private case class State(balances: Map[AccountId, BigDecimal],
-                           clientConnections: Map[ActorRef, PublicKey],
-                           zone: Zone) {
+  private case class State(zone: Zone,
+                           balances: Map[AccountId, BigDecimal],
+                           clientConnections: Map[ActorRef, PublicKey]) {
 
     def updated(event: Event) = event match {
 
-      case ZoneCreatedEvent(name, equityOwner, equityAccount, created, metadata) =>
+      case zoneCreatedEvent: ZoneCreatedEvent =>
 
         copy(
-          zone = Zone(
-            name,
-            equityAccount.id,
-            Map(
-              equityOwner.id -> equityOwner
-            ),
-            Map(
-              equityAccount.id -> equityAccount
-            ),
-            Map.empty,
-            created,
-            metadata
-          )
+          zone = zoneCreatedEvent.zone
         )
 
       case ZoneJoinedEvent(clientConnection, publicKey) =>
@@ -299,17 +282,17 @@ object ZoneValidator {
 
 class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
 
-  import actors.ZoneValidator.PassivationActor._
   import ShardRegion.Passivate
+  import actors.ZoneValidator.PassivationActor._
 
   private val passivationActor = context.actorOf(Props[PassivationCountdown])
 
   private val zoneId = ZoneId(UUID.fromString(self.path.name))
 
   private var state: State = State(
+    null,
     Map.empty.withDefaultValue(BigDecimal(0)),
-    Map.empty[ActorRef, PublicKey],
-    null
+    Map.empty[ActorRef, PublicKey]
   )
 
   private var nextExpectedCommandSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(0L)
@@ -364,9 +347,9 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
         passivationActor ! Stop
       }
 
-      context.watch(clientConnection)
+      context.watch(zoneJoinedEvent.clientConnection)
 
-      val wasAlreadyPresent = state.clientConnections.values.exists(_ == publicKey)
+      val wasAlreadyPresent = state.clientConnections.values.exists(_ == zoneJoinedEvent.publicKey)
 
       updateState(zoneJoinedEvent)
 
@@ -375,7 +358,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
       onStateUpdate(state)
 
       if (!wasAlreadyPresent) {
-        deliverNotification(ClientJoinedZoneNotification(zoneId, publicKey))
+        deliverNotification(ClientJoinedZoneNotification(zoneId, zoneJoinedEvent.publicKey))
       }
 
     }
@@ -383,7 +366,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
   private def handleQuit(clientConnection: ActorRef, onStateUpdate: => Unit = ()) =
     persist(ZoneQuitEvent(clientConnection)) { zoneQuitEvent =>
 
-      val publicKey = state.clientConnections(clientConnection)
+      val publicKey = state.clientConnections(zoneQuitEvent.clientConnection)
 
       updateState(zoneQuitEvent)
 
@@ -397,7 +380,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
         deliverNotification(ClientQuitZoneNotification(zoneId, publicKey))
       }
 
-      context.unwatch(clientConnection)
+      context.unwatch(zoneQuitEvent.clientConnection)
 
       if (state.clientConnections.isEmpty) {
         passivationActor ! Start
@@ -469,28 +452,42 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
         command match {
 
-          case CreateZoneCommand(name,
-          equityOwnerName,
+          case CreateZoneCommand(
           equityOwnerPublicKey,
+          equityOwnerName,
           equityOwnerMetadata,
           equityAccountName,
           equityAccountMetadata,
-          metadata) =>
+          name,
+          metadata
+          ) =>
 
-            val equityOwner = Member(MemberId(0), equityOwnerName, equityOwnerPublicKey, equityOwnerMetadata)
-            val equityAccount = Account(AccountId(0), equityAccountName, Set(equityOwner.id), equityAccountMetadata)
+            val equityOwner = Member(MemberId(0), equityOwnerPublicKey, equityOwnerName, equityOwnerMetadata)
+            val equityAccount = Account(AccountId(0), Set(equityOwner.id), equityAccountName, equityAccountMetadata)
             val created = System.currentTimeMillis
 
-            persist(ZoneCreatedEvent(name, equityOwner, equityAccount, created, metadata)) { zoneCreatedEvent =>
+            val zone = Zone(
+              zoneId,
+              equityAccount.id,
+              Map(
+                equityOwner.id -> equityOwner
+              ),
+              Map(
+                equityAccount.id -> equityAccount
+              ),
+              Map.empty,
+              created,
+              name,
+              metadata
+            )
+
+            persist(ZoneCreatedEvent(zone)) { zoneCreatedEvent =>
 
               updateState(zoneCreatedEvent)
 
               deliverResponse(
                 CreateZoneResponse(
-                  zoneId,
-                  equityOwner,
-                  equityAccount,
-                  created
+                  zoneCreatedEvent.zone
                 ),
                 correlationId
               )
@@ -605,18 +602,18 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               deliverNotification(
                 ZoneNameChangedNotification(
                   zoneId,
-                  name
+                  zoneNameChangedEvent.name
                 )
               )
 
             }
 
-          case CreateMemberCommand(_, name, ownerPublicKey, metadata) =>
+          case CreateMemberCommand(_, ownerPublicKey, name, metadata) =>
 
             val member = Member(
               MemberId(state.zone.members.size),
-              name,
               ownerPublicKey,
+              name,
               metadata
             )
 
@@ -626,7 +623,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
               deliverResponse(
                 CreateMemberResponse(
-                  member
+                  memberCreatedEvent.member
                 ),
                 correlationId
               )
@@ -634,7 +631,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               deliverNotification(
                 MemberCreatedNotification(
                   zoneId,
-                  member
+                  memberCreatedEvent.member
                 )
               )
 
@@ -668,7 +665,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   deliverNotification(
                     MemberUpdatedNotification(
                       zoneId,
-                      member
+                      memberUpdatedEvent.member
                     )
                   )
 
@@ -676,7 +673,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
             }
 
-          case CreateAccountCommand(_, name, owners, metadata) =>
+          case CreateAccountCommand(_, owners, name, metadata) =>
 
             checkAccountOwners(state.zone, owners) match {
 
@@ -694,8 +691,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
                 val account = Account(
                   AccountId(state.zone.accounts.size),
-                  name,
                   owners,
+                  name,
                   metadata
                 )
 
@@ -705,7 +702,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
                   deliverResponse(
                     CreateAccountResponse(
-                      account
+                      accountCreatedEvent.account
                     ),
                     correlationId
                   )
@@ -713,7 +710,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   deliverNotification(
                     AccountCreatedNotification(
                       zoneId,
-                      account
+                      accountCreatedEvent.account
                     )
                   )
 
@@ -763,7 +760,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                       deliverNotification(
                         AccountUpdatedNotification(
                           zoneId,
-                          account
+                          accountUpdatedEvent.account
                         )
                       )
 
@@ -773,7 +770,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
             }
 
-          case AddTransactionCommand(_, actingAs, description, from, to, value, metadata) =>
+          case AddTransactionCommand(_, actingAs, from, to, value, description, metadata) =>
 
             canModify(state.zone, from, actingAs, publicKey) match {
 
@@ -805,12 +802,12 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
                     val transaction = Transaction(
                       TransactionId(state.zone.transactions.size),
-                      description,
                       from,
                       to,
                       value,
                       actingAs,
                       System.currentTimeMillis,
+                      description,
                       metadata
                     )
 
@@ -820,7 +817,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
                       deliverResponse(
                         AddTransactionResponse(
-                          transaction
+                          transactionAddedEvent.transaction
                         ),
                         correlationId
                       )
@@ -828,7 +825,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                       deliverNotification(
                         TransactionAddedNotification(
                           zoneId,
-                          transaction
+                          transactionAddedEvent.transaction
                         )
                       )
 

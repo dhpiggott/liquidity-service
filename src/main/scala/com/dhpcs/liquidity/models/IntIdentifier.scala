@@ -10,7 +10,7 @@ trait IntIdentifier {
 
 abstract class IntIdentifierCompanion[A <: IntIdentifier] {
 
-  implicit val LongIdentifierFormat = ValueFormat[A, Int](apply, _.id)
+  implicit val IntIdentifierFormat = ValueFormat[A, Int](apply, _.id)
 
   def apply(id: Int): A
 

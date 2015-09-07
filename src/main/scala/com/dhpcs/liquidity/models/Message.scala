@@ -152,7 +152,7 @@ object Command {
     "updateMember" -> Json.format[UpdateMemberCommand],
     "createAccount" -> Json.format[CreateAccountCommand],
     "updateAccount" -> Json.format[UpdateAccountCommand],
-    "addTransaction" -> AddTransactionCommand.AddTransactionCommandFormat
+    "addTransaction" -> Json.format[AddTransactionCommand]
   )
 
   def read(jsonRpcRequestMessage: JsonRpcRequestMessage): Option[JsResult[Command]] =

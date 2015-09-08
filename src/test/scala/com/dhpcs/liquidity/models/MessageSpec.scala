@@ -155,6 +155,7 @@ class MessageSpec extends FunSpec with Matchers {
         ),
         Map.empty,
         1436179968835L,
+        1436179968835L,
         Some("Dave's zone")
       )
     )
@@ -162,7 +163,7 @@ class MessageSpec extends FunSpec with Matchers {
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
       Right(
         Json.obj(
-          "zone" -> Json.parse( s"""{"id":"158842d1-38c7-4ad3-ab83-d4c723c9aaf3","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"}],"transactions":[],"created":1436179968835,"name":"Dave's zone"}""")
+          "zone" -> Json.parse( s"""{"id":"158842d1-38c7-4ad3-ab83-d4c723c9aaf3","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"}],"transactions":[],"created":1436179968835,"expires":1436179968835,"name":"Dave's zone"}""")
         )
       ),
       Some(

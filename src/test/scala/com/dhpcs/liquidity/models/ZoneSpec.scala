@@ -20,7 +20,8 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         (__ \ "members", List(ValidationError("error.path.missing"))),
         (__ \ "accounts", List(ValidationError("error.path.missing"))),
         (__ \ "transactions", List(ValidationError("error.path.missing"))),
-        (__ \ "created", List(ValidationError("error.path.missing")))
+        (__ \ "created", List(ValidationError("error.path.missing"))),
+        (__ \ "expires", List(ValidationError("error.path.missing")))
       ))
     )
   }
@@ -55,9 +56,10 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
               Some("Dave's lottery win")
             )
         ),
+        1433611420487L,
         1433611420487L
       )
-      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},{"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487}""")
+      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},{"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487,"expires":1433611420487}""")
       it should behave like read
       it should behave like write
     }
@@ -90,6 +92,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
             )
         ),
         1433611420487L,
+        1433611420487L,
         Some("Dave's zone"),
         Some(
           Json.obj(
@@ -97,7 +100,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
           )
         )
       )
-      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},{"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487,"name":"Dave's zone","metadata":{"currency":"GBP"}}""")
+      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},{"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487,"expires":1433611420487,"name":"Dave's zone","metadata":{"currency":"GBP"}}""")
       it should behave like read
       it should behave like write
     }

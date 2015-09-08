@@ -16,9 +16,11 @@ case class Zone(id: ZoneId,
                 accounts: Map[AccountId, Account],
                 transactions: Map[TransactionId, Transaction],
                 created: Long,
+                expires: Long,
                 name: Option[String] = None,
                 metadata: Option[JsObject] = None) {
   require(created >= 0)
+  require(expires >= 0)
 }
 
 object Zone {
@@ -30,9 +32,10 @@ object Zone {
       (JsPath \ "accounts").format[Seq[Account]] and
       (JsPath \ "transactions").format[Seq[Transaction]] and
       (JsPath \ "created").format(min[Long](0)) and
+      (JsPath \ "expires").format(min[Long](0)) and
       (JsPath \ "name").formatNullable[String] and
       (JsPath \ "metadata").formatNullable[JsObject]
-    )((id, equityAccountId, members, accounts, transactions, created, name, metadata) =>
+    )((id, equityAccountId, members, accounts, transactions, created, expires, name, metadata) =>
     Zone(
       id,
       equityAccountId,
@@ -40,6 +43,7 @@ object Zone {
       accounts.map(e => e.id -> e).toMap,
       transactions.map(e => e.id -> e).toMap,
       created,
+      expires,
       name,
       metadata
     ), zone =>
@@ -49,6 +53,7 @@ object Zone {
       zone.accounts.values.toSeq,
       zone.transactions.values.toSeq,
       zone.created,
+      zone.expires,
       zone.name,
       zone.metadata)
     )

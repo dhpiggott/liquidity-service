@@ -5,7 +5,7 @@ import java.util.UUID
 
 import com.dhpcs.json.JsResultUniformity
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
-import com.google.common.io.BaseEncoding
+import okio.ByteString
 import org.scalatest.OptionValues._
 import org.scalatest._
 import play.api.data.validation.ValidationError
@@ -92,7 +92,7 @@ class MessageSpec extends FunSpec with Matchers {
         "createZone",
         Right(
           Json.obj(
-            "equityOwnerPublicKey" -> BaseEncoding.base64.encode(publicKeyBytes),
+            "equityOwnerPublicKey" -> ByteString.of(publicKeyBytes: _*).base64,
             "equityOwnerName" -> "Banker",
             "equityAccountName" -> "Bank",
             "name" -> "Dave's zone",
@@ -162,7 +162,7 @@ class MessageSpec extends FunSpec with Matchers {
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
       Right(
         Json.obj(
-          "zone" -> Json.parse( s"""{"id":"158842d1-38c7-4ad3-ab83-d4c723c9aaf3","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Banker"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"}],"transactions":[],"created":1436179968835,"name":"Dave's zone"}""")
+          "zone" -> Json.parse( s"""{"id":"158842d1-38c7-4ad3-ab83-d4c723c9aaf3","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"}],"transactions":[],"created":1436179968835,"name":"Dave's zone"}""")
         )
       ),
       Some(
@@ -240,7 +240,7 @@ class MessageSpec extends FunSpec with Matchers {
         Right(
           Json.obj(
             "zoneId" -> "a52e984e-f0aa-4481-802b-74622cb3f6f6",
-            "publicKey" -> BaseEncoding.base64.encode(publicKeyBytes)
+            "publicKey" -> ByteString.of(publicKeyBytes: _*).base64
           )
         )
       )

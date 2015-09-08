@@ -1,14 +1,13 @@
 package com.dhpcs.liquidity.models
 
-import java.security.MessageDigest
 import java.util
 
 import com.dhpcs.json.ValueFormat
-import com.google.common.io.BaseEncoding
+import okio.ByteString
 
 case class PublicKey(value: Array[Byte]) {
 
-  lazy val fingerprint = BaseEncoding.base16.encode(MessageDigest.getInstance("SHA-1").digest(value))
+  lazy val fingerprint = ByteString.of(value: _*).sha256.hex
 
   override def equals(that: Any) = that match {
 
@@ -20,14 +19,14 @@ case class PublicKey(value: Array[Byte]) {
 
   override def hashCode = util.Arrays.hashCode(value)
 
-  override def toString = s"$productPrefix(${BaseEncoding.base64.encode(value)})"
+  override def toString = s"$productPrefix(${ByteString.of(value: _*).base64})"
 
 }
 
 object PublicKey {
 
   implicit val PublicKeyFormat = ValueFormat[PublicKey, String](
-    publicKeyBase64 => PublicKey(BaseEncoding.base64.decode(publicKeyBase64)),
-    publicKey => BaseEncoding.base64.encode(publicKey.value))
+    publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64).toByteArray),
+    publicKey => ByteString.of(publicKey.value: _*).base64)
 
 }

@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.models
 import java.security.KeyPairGenerator
 
 import com.dhpcs.json.FormatBehaviors
-import com.google.common.io.BaseEncoding
+import okio.ByteString
 import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
@@ -24,7 +24,7 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     describe("without a name or metadata") {
       implicit val member = Member(MemberId(0), PublicKey(publicKeyBytes))
-      implicit val memberJson = Json.parse( s"""{"id":0,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}"}""")
+      implicit val memberJson = Json.parse( s"""{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}"}""")
       it should behave like read
       it should behave like write
     }
@@ -39,7 +39,7 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
           )
         )
       )
-      implicit val memberJson = Json.parse( s"""{"id":0,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Dave","metadata":{"color":"0x0000FF"}}""")
+      implicit val memberJson = Json.parse( s"""{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave","metadata":{"color":"0x0000FF"}}""")
       it should behave like read
       it should behave like write
     }

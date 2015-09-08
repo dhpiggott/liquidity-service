@@ -4,7 +4,7 @@ import java.security.KeyPairGenerator
 import java.util.UUID
 
 import com.dhpcs.json.FormatBehaviors
-import com.google.common.io.BaseEncoding
+import okio.ByteString
 import org.scalatest._
 import play.api.data.validation.ValidationError
 import play.api.libs.json._
@@ -57,7 +57,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         ),
         1433611420487L
       )
-      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Banker"},{"id":1,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487}""")
+      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},{"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487}""")
       it should behave like read
       it should behave like write
     }
@@ -97,7 +97,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
           )
         )
       )
-      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Banker"},{"id":1,"ownerPublicKey":"${BaseEncoding.base64.encode(publicKeyBytes)}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487,"name":"Dave's zone","metadata":{"currency":"GBP"}}""")
+      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},{"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487,"name":"Dave's zone","metadata":{"currency":"GBP"}}""")
       it should behave like read
       it should behave like write
     }

@@ -63,6 +63,8 @@ object ZoneValidator {
 
   private val receiveTimeout = 2.minutes
 
+  private val zoneLifetime = 2.days
+
   val idExtractor: ShardRegion.IdExtractor = {
 
     case EnvelopedMessage(zoneId, message) =>
@@ -501,6 +503,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   equityAccountMetadata
                 )
                 val created = System.currentTimeMillis
+                val expires = created + zoneLifetime.toMillis
 
                 val zone = Zone(
                   zoneId,
@@ -513,6 +516,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   ),
                   Map.empty,
                   created,
+                  expires,
                   name,
                   metadata
                 )

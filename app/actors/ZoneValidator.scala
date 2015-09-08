@@ -41,25 +41,29 @@ object ZoneValidator {
 
   case class NotificationWithIds(notification: Notification, sequenceNumber: Long, deliveryId: Long)
 
-  sealed trait Event
+  sealed trait Event {
 
-  case class ZoneCreatedEvent(zone: Zone) extends Event
+    def timestamp: Long
 
-  case class ZoneJoinedEvent(clientConnection: ActorRef, publicKey: PublicKey) extends Event
+  }
 
-  case class ZoneQuitEvent(clientConnection: ActorRef) extends Event
+  case class ZoneCreatedEvent(timestamp: Long, zone: Zone) extends Event
 
-  case class ZoneNameChangedEvent(name: Option[String]) extends Event
+  case class ZoneJoinedEvent(timestamp: Long, clientConnection: ActorRef, publicKey: PublicKey) extends Event
 
-  case class MemberCreatedEvent(member: Member) extends Event
+  case class ZoneQuitEvent(timestamp: Long, clientConnection: ActorRef) extends Event
 
-  case class MemberUpdatedEvent(member: Member) extends Event
+  case class ZoneNameChangedEvent(timestamp: Long, name: Option[String]) extends Event
 
-  case class AccountCreatedEvent(account: Account) extends Event
+  case class MemberCreatedEvent(timestamp: Long, member: Member) extends Event
 
-  case class AccountUpdatedEvent(account: Account) extends Event
+  case class MemberUpdatedEvent(timestamp: Long, member: Member) extends Event
 
-  case class TransactionAddedEvent(transaction: Transaction) extends Event
+  case class AccountCreatedEvent(timestamp: Long, account: Account) extends Event
+
+  case class AccountUpdatedEvent(timestamp: Long, account: Account) extends Event
+
+  case class TransactionAddedEvent(timestamp: Long, transaction: Transaction) extends Event
 
   private val receiveTimeout = 2.minutes
 
@@ -112,19 +116,19 @@ object ZoneValidator {
           zone = zoneCreatedEvent.zone
         )
 
-      case ZoneJoinedEvent(clientConnection, publicKey) =>
+      case ZoneJoinedEvent(timestamp, clientConnection, publicKey) =>
 
         copy(
           clientConnections = clientConnections + (clientConnection -> publicKey)
         )
 
-      case ZoneQuitEvent(clientConnection) =>
+      case ZoneQuitEvent(timestamp, clientConnection) =>
 
         copy(
           clientConnections = clientConnections - clientConnection
         )
 
-      case ZoneNameChangedEvent(name) =>
+      case ZoneNameChangedEvent(timestamp, name) =>
 
         copy(
           zone = zone.copy(
@@ -132,7 +136,7 @@ object ZoneValidator {
           )
         )
 
-      case MemberCreatedEvent(member) =>
+      case MemberCreatedEvent(timestamp, member) =>
 
         copy(
           zone = zone.copy(
@@ -140,7 +144,7 @@ object ZoneValidator {
           )
         )
 
-      case MemberUpdatedEvent(member) =>
+      case MemberUpdatedEvent(timestamp, member) =>
 
         copy(
           zone = zone.copy(
@@ -148,7 +152,7 @@ object ZoneValidator {
           )
         )
 
-      case AccountCreatedEvent(account) =>
+      case AccountCreatedEvent(timestamp, account) =>
 
         copy(
           zone = zone.copy(
@@ -156,7 +160,7 @@ object ZoneValidator {
           )
         )
 
-      case AccountUpdatedEvent(account) =>
+      case AccountUpdatedEvent(timestamp, account) =>
 
         copy(
           zone = zone.copy(
@@ -164,7 +168,7 @@ object ZoneValidator {
           )
         )
 
-      case TransactionAddedEvent(transaction) =>
+      case TransactionAddedEvent(timestamp, transaction) =>
 
         val updatedSourceBalance = balances(transaction.from) - transaction.value
         val updatedDestinationBalance = balances(transaction.to) + transaction.value
@@ -353,7 +357,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
   }
 
   private def handleJoin(clientConnection: ActorRef, publicKey: PublicKey, onStateUpdate: State => Unit = _ => ()) =
-    persist(ZoneJoinedEvent(clientConnection, publicKey)) { zoneJoinedEvent =>
+    persist(ZoneJoinedEvent(System.currentTimeMillis, clientConnection, publicKey)) { zoneJoinedEvent =>
 
       if (state.clientConnections.isEmpty) {
         passivationActor ! Stop
@@ -376,7 +380,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
     }
 
   private def handleQuit(clientConnection: ActorRef, onStateUpdate: => Unit = ()) =
-    persist(ZoneQuitEvent(clientConnection)) { zoneQuitEvent =>
+    persist(ZoneQuitEvent(System.currentTimeMillis, clientConnection)) { zoneQuitEvent =>
 
       val publicKey = state.clientConnections(zoneQuitEvent.clientConnection)
 
@@ -521,7 +525,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   metadata
                 )
 
-                persist(ZoneCreatedEvent(zone)) { zoneCreatedEvent =>
+                persist(ZoneCreatedEvent(System.currentTimeMillis, zone)) { zoneCreatedEvent =>
 
                   updateState(zoneCreatedEvent)
 
@@ -646,7 +650,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
               case None =>
 
-                persist(ZoneNameChangedEvent(name)) { zoneNameChangedEvent =>
+                persist(ZoneNameChangedEvent(System.currentTimeMillis, name)) { zoneNameChangedEvent =>
 
                   updateState(zoneNameChangedEvent)
 
@@ -689,7 +693,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   metadata
                 )
 
-                persist(MemberCreatedEvent(member)) { memberCreatedEvent =>
+                persist(MemberCreatedEvent(System.currentTimeMillis, member)) { memberCreatedEvent =>
 
                   updateState(memberCreatedEvent)
 
@@ -728,7 +732,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
               case None =>
 
-                persist(MemberUpdatedEvent(member)) { memberUpdatedEvent =>
+                persist(MemberUpdatedEvent(System.currentTimeMillis, member)) { memberUpdatedEvent =>
 
                   updateState(memberUpdatedEvent)
 
@@ -772,7 +776,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   metadata
                 )
 
-                persist(AccountCreatedEvent(account)) { accountCreatedEvent =>
+                persist(AccountCreatedEvent(System.currentTimeMillis, account)) { accountCreatedEvent =>
 
                   updateState(accountCreatedEvent)
 
@@ -812,7 +816,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
               case None =>
 
-                persist(AccountUpdatedEvent(account)) { accountUpdatedEvent =>
+                persist(AccountUpdatedEvent(System.currentTimeMillis, account)) { accountUpdatedEvent =>
 
                   updateState(accountUpdatedEvent)
 
@@ -861,7 +865,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   metadata
                 )
 
-                persist(TransactionAddedEvent(transaction)) { transactionAddedEvent =>
+                persist(TransactionAddedEvent(System.currentTimeMillis, transaction)) { transactionAddedEvent =>
 
                   updateState(transactionAddedEvent)
 

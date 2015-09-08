@@ -113,6 +113,25 @@ class ClientConnection(publicKey: PublicKey,
   private var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
   private var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
+  private def createZone(createZoneCommand: CreateZoneCommand, correlationId: Either[String, Int]) {
+    val zoneId = ZoneId.generate
+    val sequenceNumber = commandSequenceNumbers(zoneId)
+    commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+    deliver(zoneValidatorShardRegion.path, { deliveryId =>
+      pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+      EnvelopedMessage(
+        zoneId,
+        AuthenticatedCommandWithIds(
+          publicKey,
+          createZoneCommand,
+          correlationId,
+          sequenceNumber,
+          deliveryId
+        )
+      )
+    })
+  }
+
   override def persistenceId: String = s"${publicKey.productPrefix}(${publicKey.fingerprint})"
 
   override def postStop() {
@@ -292,25 +311,6 @@ class ClientConnection(publicKey: PublicKey,
 
       }
 
-  }
-
-  private def createZone(createZoneCommand: CreateZoneCommand, correlationId: Either[String, Int]) {
-    val zoneId = ZoneId.generate
-    val sequenceNumber = commandSequenceNumbers(zoneId)
-    commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-    deliver(zoneValidatorShardRegion.path, { deliveryId =>
-      pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      EnvelopedMessage(
-        zoneId,
-        AuthenticatedCommandWithIds(
-          publicKey,
-          createZoneCommand,
-          correlationId,
-          sequenceNumber,
-          deliveryId
-        )
-      )
-    })
   }
 
   override def receiveRecover = Map.empty

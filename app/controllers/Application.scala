@@ -4,6 +4,7 @@ import java.io.{ByteArrayInputStream, IOException}
 import java.net.InetSocketAddress
 import java.nio.channels.SocketChannel
 import java.security.cert.CertificateFactory
+import java.security.interfaces.RSAPublicKey
 import javax.inject._
 
 import actors.{ClientConnection, ZoneValidator}
@@ -30,21 +31,31 @@ object Application {
 
   private def getPublicKey(headers: Headers) = Try {
     val pemStringData = headers.get("X-SSL-Client-Cert").fold(
-      sys.error("Client certificate not present")
-    ) {
-      pemString =>
-        pemCertStringMarkers.collectFirst {
-          case marker if pemString.startsWith(marker._1) && pemString.endsWith(marker._2)
-          => pemString.stripPrefix(marker._1).stripSuffix(marker._2)
-        }
+      sys.error("Client certificate not presented")
+    ) { pemString =>
+      pemCertStringMarkers.collectFirst {
+        case marker if pemString.startsWith(marker._1) && pemString.endsWith(marker._2) =>
+          pemString.stripPrefix(marker._1).stripSuffix(marker._2)
+      }
     }
-    new PublicKey(
-      CertificateFactory.getInstance("X.509").generateCertificate(
-        new ByteArrayInputStream(
-          Base64.decodeBase64(pemStringData.getOrElse(sys.error("Client certificate PEM string is not valid")))
+    CertificateFactory.getInstance("X.509").generateCertificate(
+      new ByteArrayInputStream(
+        Base64.decodeBase64(
+          pemStringData.getOrElse(
+            sys.error("Client certificate PEM string is not valid")
+          )
         )
-      ).getPublicKey.getEncoded
-    )
+      )
+    ).getPublicKey match {
+      case rsaPublicKey: RSAPublicKey =>
+        if (rsaPublicKey.getModulus.bitLength != 2048) {
+          sys.error("Invalid client key length")
+        } else {
+          new PublicKey(rsaPublicKey.getEncoded)
+        }
+      case _ =>
+        sys.error("Invalid client key type")
+    }
   }
 
   private def isContactPointAvailable(contactPoint: InetSocketAddress) = {

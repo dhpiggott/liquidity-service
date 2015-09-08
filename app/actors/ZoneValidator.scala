@@ -9,6 +9,7 @@ import akka.contrib.pattern.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
+import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.duration._
 
@@ -216,49 +217,58 @@ object ZoneValidator {
 
   }
 
-  private def canModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
-    zone.members.get(memberId).fold[Either[String, Unit]](Left("Member does not exist"))(member =>
+  private def checkAccountOwners(zone: Zone, owners: Set[MemberId]) = {
+    val invalidAccountOwners = owners -- zone.members.keys
+    if (invalidAccountOwners.nonEmpty) {
+      Some(s"Invalid account owners: $invalidAccountOwners")
+    } else {
+      None
+    }
+  }
+
+  private def checkCanModify(zone: Zone, memberId: MemberId, publicKey: PublicKey) =
+    zone.members.get(memberId).fold[Option[String]](Some("Member does not exist"))(member =>
       if (publicKey != member.ownerPublicKey) {
-        Left("Client's public key does not match Member's public key")
+        Some("Client's public key does not match Member's public key")
       } else {
-        Right(())
+        None
       }
     )
 
-  private def canModify(zone: Zone, accountId: AccountId, publicKey: PublicKey) =
-    zone.accounts.get(accountId).fold[Either[String, Unit]](Left("Account does not exist"))(account =>
+  private def checkCanModify(zone: Zone, accountId: AccountId, publicKey: PublicKey) =
+    zone.accounts.get(accountId).fold[Option[String]](Some("Account does not exist"))(account =>
       if (!account.ownerMemberIds.exists(memberId =>
         zone.members.get(memberId).fold(false)(publicKey == _.ownerPublicKey)
       )) {
-        Left("Client's public key does not match that of any account owner member")
+        Some("Client's public key does not match that of any account owner member")
       } else {
-        Right(())
+        None
       }
     )
 
-  private def canModify(zone: Zone, accountId: AccountId, actingAs: MemberId, publicKey: PublicKey) =
-    zone.accounts.get(accountId).fold[Either[String, Unit]](Left("Account does not exist"))(account =>
+  private def checkCanModify(zone: Zone, accountId: AccountId, actingAs: MemberId, publicKey: PublicKey) =
+    zone.accounts.get(accountId).fold[Option[String]](Some("Account does not exist"))(account =>
       if (!account.ownerMemberIds.contains(actingAs)) {
-        Left("Member is not an account owner")
+        Some("Member is not an account owner")
       } else {
-        zone.members.get(actingAs).fold[Either[String, Unit]](Left("Member does not exist"))(member =>
+        zone.members.get(actingAs).fold[Option[String]](Some("Member does not exist"))(member =>
           if (publicKey != member.ownerPublicKey) {
-            Left("Client's public key does not match Member's public key")
+            Some("Client's public key does not match Member's public key")
           } else {
-            Right(())
+            None
           }
         )
       }
     )
 
-  private def checkAccountOwners(zone: Zone, owners: Set[MemberId]) = {
-    val invalidAccountOwners = owners -- zone.members.keys
-    if (invalidAccountOwners.nonEmpty) {
-      Left(s"Invalid account owners: $invalidAccountOwners")
-    } else {
-      Right(())
-    }
-  }
+  private def checkTagAndMetadata(tag: Option[String], metadata: Option[JsObject]) =
+    tag.collect {
+      case excessiveTag if excessiveTag.length > MaxStringLength =>
+        s"Tag length exceeds maximum ($MaxStringLength): $excessiveTag"
+    }.orElse(metadata.map(Json.stringify).collect {
+      case excessiveMetadataString if excessiveMetadataString.length > MaxMetadataSize =>
+        s"Metadata size exceeds maximum ($MaxMetadataSize): $excessiveMetadataString"
+    })
 
   private def checkTransaction(from: AccountId,
                                to: AccountId,
@@ -266,15 +276,15 @@ object ZoneValidator {
                                zone: Zone,
                                balances: Map[AccountId, BigDecimal]) =
     if (!zone.accounts.contains(from)) {
-      Left(s"Invalid transaction source account: $from")
+      Some(s"Invalid transaction source account: $from")
     } else if (!zone.accounts.contains(to)) {
-      Left(s"Invalid transaction destination account: $to")
+      Some(s"Invalid transaction destination account: $to")
     } else {
       val updatedSourceBalance = balances(from) - value
       if (updatedSourceBalance < 0 && from != zone.equityAccountId) {
-        Left(s"Illegal transaction value: $value")
+        Some(s"Illegal transaction value: $value")
       } else {
-        Right(())
+        None
       }
     }
 
@@ -462,35 +472,63 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
           metadata
           ) =>
 
-            val equityOwner = Member(MemberId(0), equityOwnerPublicKey, equityOwnerName, equityOwnerMetadata)
-            val equityAccount = Account(AccountId(0), Set(equityOwner.id), equityAccountName, equityAccountMetadata)
-            val created = System.currentTimeMillis
+            checkTagAndMetadata(equityOwnerName, equityOwnerMetadata)
+              .orElse(checkTagAndMetadata(equityAccountName, equityAccountMetadata))
+              .orElse(checkTagAndMetadata(name, metadata)) match {
 
-            val zone = Zone(
-              zoneId,
-              equityAccount.id,
-              Map(
-                equityOwner.id -> equityOwner
-              ),
-              Map(
-                equityAccount.id -> equityAccount
-              ),
-              Map.empty,
-              created,
-              name,
-              metadata
-            )
+              case Some(error) =>
 
-            persist(ZoneCreatedEvent(zone)) { zoneCreatedEvent =>
+                deliverResponse(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    error
+                  ),
+                  correlationId
+                )
 
-              updateState(zoneCreatedEvent)
+              case None =>
 
-              deliverResponse(
-                CreateZoneResponse(
-                  zoneCreatedEvent.zone
-                ),
-                correlationId
-              )
+                val equityOwner = Member(
+                  MemberId(0),
+                  equityOwnerPublicKey,
+                  equityOwnerName,
+                  equityOwnerMetadata
+                )
+                val equityAccount = Account(
+                  AccountId(0),
+                  Set(equityOwner.id),
+                  equityAccountName,
+                  equityAccountMetadata
+                )
+                val created = System.currentTimeMillis
+
+                val zone = Zone(
+                  zoneId,
+                  equityAccount.id,
+                  Map(
+                    equityOwner.id -> equityOwner
+                  ),
+                  Map(
+                    equityAccount.id -> equityAccount
+                  ),
+                  Map.empty,
+                  created,
+                  name,
+                  metadata
+                )
+
+                persist(ZoneCreatedEvent(zone)) { zoneCreatedEvent =>
+
+                  updateState(zoneCreatedEvent)
+
+                  deliverResponse(
+                    CreateZoneResponse(
+                      zoneCreatedEvent.zone
+                    ),
+                    correlationId
+                  )
+
+                }
 
             }
 
@@ -590,68 +628,101 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
           case ChangeZoneNameCommand(_, name) =>
 
-            persist(ZoneNameChangedEvent(name)) { zoneNameChangedEvent =>
+            checkTagAndMetadata(name, None) match {
 
-              updateState(zoneNameChangedEvent)
+              case Some(error) =>
 
-              deliverResponse(
-                ChangeZoneNameResponse,
-                correlationId
-              )
-
-              deliverNotification(
-                ZoneNameChangedNotification(
-                  zoneId,
-                  zoneNameChangedEvent.name
+                deliverResponse(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    error
+                  ),
+                  correlationId
                 )
-              )
+
+              case None =>
+
+                persist(ZoneNameChangedEvent(name)) { zoneNameChangedEvent =>
+
+                  updateState(zoneNameChangedEvent)
+
+                  deliverResponse(
+                    ChangeZoneNameResponse,
+                    correlationId
+                  )
+
+                  deliverNotification(
+                    ZoneNameChangedNotification(
+                      zoneId,
+                      zoneNameChangedEvent.name
+                    )
+                  )
+
+                }
 
             }
 
           case CreateMemberCommand(_, ownerPublicKey, name, metadata) =>
 
-            val member = Member(
-              MemberId(state.zone.members.size),
-              ownerPublicKey,
-              name,
-              metadata
-            )
+            checkTagAndMetadata(name, metadata) match {
 
-            persist(MemberCreatedEvent(member)) { memberCreatedEvent =>
+              case Some(error) =>
 
-              updateState(memberCreatedEvent)
-
-              deliverResponse(
-                CreateMemberResponse(
-                  memberCreatedEvent.member
-                ),
-                correlationId
-              )
-
-              deliverNotification(
-                MemberCreatedNotification(
-                  zoneId,
-                  memberCreatedEvent.member
+                deliverResponse(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    error
+                  ),
+                  correlationId
                 )
-              )
+
+              case None =>
+
+                val member = Member(
+                  MemberId(state.zone.members.size),
+                  ownerPublicKey,
+                  name,
+                  metadata
+                )
+
+                persist(MemberCreatedEvent(member)) { memberCreatedEvent =>
+
+                  updateState(memberCreatedEvent)
+
+                  deliverResponse(
+                    CreateMemberResponse(
+                      memberCreatedEvent.member
+                    ),
+                    correlationId
+                  )
+
+                  deliverNotification(
+                    MemberCreatedNotification(
+                      zoneId,
+                      memberCreatedEvent.member
+                    )
+                  )
+
+                }
 
             }
 
           case UpdateMemberCommand(_, member) =>
 
-            canModify(state.zone, member.id, publicKey) match {
+            checkCanModify(state.zone, member.id, publicKey)
+              .orElse(checkTagAndMetadata(member.name, member.metadata)) match {
 
-              case Left(message) =>
+              case Some(error) =>
 
                 deliverResponse(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    message
+                    error
                   ),
                   correlationId
                 )
 
-              case Right(_) =>
+              case None =>
 
                 persist(MemberUpdatedEvent(member)) { memberUpdatedEvent =>
 
@@ -675,19 +746,20 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
           case CreateAccountCommand(_, owners, name, metadata) =>
 
-            checkAccountOwners(state.zone, owners) match {
+            checkAccountOwners(state.zone, owners)
+              .orElse(checkTagAndMetadata(name, metadata)) match {
 
-              case Left(message) =>
+              case Some(error) =>
 
                 deliverResponse(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    message
+                    error
                   ),
                   correlationId
                 )
 
-              case Right(_) =>
+              case None =>
 
                 val account = Account(
                   AccountId(state.zone.accounts.size),
@@ -720,51 +792,37 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
           case UpdateAccountCommand(_, account) =>
 
-            canModify(state.zone, account.id, publicKey) match {
+            checkCanModify(state.zone, account.id, publicKey)
+              .orElse(checkAccountOwners(state.zone, account.ownerMemberIds)
+              .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
 
-              case Left(message) =>
+              case Some(error) =>
 
                 deliverResponse(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    message
+                    error
                   ),
                   correlationId
                 )
 
-              case Right(_) =>
+              case None =>
 
-                checkAccountOwners(state.zone, account.ownerMemberIds) match {
+                persist(AccountUpdatedEvent(account)) { accountUpdatedEvent =>
 
-                  case Left(message) =>
+                  updateState(accountUpdatedEvent)
 
-                    deliverResponse(
-                      ErrorResponse(
-                        JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                        message
-                      ),
-                      correlationId
+                  deliverResponse(
+                    UpdateAccountResponse,
+                    correlationId
+                  )
+
+                  deliverNotification(
+                    AccountUpdatedNotification(
+                      zoneId,
+                      accountUpdatedEvent.account
                     )
-
-                  case Right(_) =>
-
-                    persist(AccountUpdatedEvent(account)) { accountUpdatedEvent =>
-
-                      updateState(accountUpdatedEvent)
-
-                      deliverResponse(
-                        UpdateAccountResponse,
-                        correlationId
-                      )
-
-                      deliverNotification(
-                        AccountUpdatedNotification(
-                          zoneId,
-                          accountUpdatedEvent.account
-                        )
-                      )
-
-                    }
+                  )
 
                 }
 
@@ -772,64 +830,50 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
           case AddTransactionCommand(_, actingAs, from, to, value, description, metadata) =>
 
-            canModify(state.zone, from, actingAs, publicKey) match {
+            checkCanModify(state.zone, from, actingAs, publicKey)
+              .orElse(checkTransaction(from, to, value, state.zone, state.balances)
+              .orElse(checkTagAndMetadata(description, metadata))) match {
 
-              case Left(message) =>
+              case Some(error) =>
 
                 deliverResponse(
                   ErrorResponse(
                     JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    message
+                    error
                   ),
                   correlationId
                 )
 
-              case Right(_) =>
+              case None =>
 
-                checkTransaction(from, to, value, state.zone, state.balances) match {
+                val transaction = Transaction(
+                  TransactionId(state.zone.transactions.size),
+                  from,
+                  to,
+                  value,
+                  actingAs,
+                  System.currentTimeMillis,
+                  description,
+                  metadata
+                )
 
-                  case Left(message) =>
+                persist(TransactionAddedEvent(transaction)) { transactionAddedEvent =>
 
-                    deliverResponse(
-                      ErrorResponse(
-                        JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                        message
-                      ),
-                      correlationId
+                  updateState(transactionAddedEvent)
+
+                  deliverResponse(
+                    AddTransactionResponse(
+                      transactionAddedEvent.transaction
+                    ),
+                    correlationId
+                  )
+
+                  deliverNotification(
+                    TransactionAddedNotification(
+                      zoneId,
+                      transactionAddedEvent.transaction
                     )
-
-                  case Right(_) =>
-
-                    val transaction = Transaction(
-                      TransactionId(state.zone.transactions.size),
-                      from,
-                      to,
-                      value,
-                      actingAs,
-                      System.currentTimeMillis,
-                      description,
-                      metadata
-                    )
-
-                    persist(TransactionAddedEvent(transaction)) { transactionAddedEvent =>
-
-                      updateState(transactionAddedEvent)
-
-                      deliverResponse(
-                        AddTransactionResponse(
-                          transactionAddedEvent.transaction
-                        ),
-                        correlationId
-                      )
-
-                      deliverNotification(
-                        TransactionAddedNotification(
-                          zoneId,
-                          transactionAddedEvent.transaction
-                        )
-                      )
-
-                    }
+                  )
 
                 }
 

@@ -23,17 +23,19 @@ import scala.util.{Failure, Success, Try}
 
 object Application {
 
-  private val pemCertStringMarkers = Seq(
+  private val PemCertStringMarkers = Seq(
     ("-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----"),
     ("-----BEGIN TRUSTED CERTIFICATE-----", "-----END TRUSTED CERTIFICATE-----"),
     ("-----BEGIN X509 CERTIFICATE-----", "-----END X509 CERTIFICATE-----")
   )
 
+  private val RequiredKeyLength = 2048
+
   private def getPublicKey(headers: Headers) = Try {
     val pemStringData = headers.get("X-SSL-Client-Cert").fold(
       sys.error("Client certificate not presented")
     ) { pemString =>
-      pemCertStringMarkers.collectFirst {
+      PemCertStringMarkers.collectFirst {
         case marker if pemString.startsWith(marker._1) && pemString.endsWith(marker._2) =>
           pemString.stripPrefix(marker._1).stripSuffix(marker._2)
       }
@@ -48,7 +50,7 @@ object Application {
       )
     ).getPublicKey match {
       case rsaPublicKey: RSAPublicKey =>
-        if (rsaPublicKey.getModulus.bitLength != 2048) {
+        if (rsaPublicKey.getModulus.bitLength != RequiredKeyLength) {
           sys.error("Invalid client key length")
         } else {
           new PublicKey(rsaPublicKey.getEncoded)

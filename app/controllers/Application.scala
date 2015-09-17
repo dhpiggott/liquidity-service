@@ -19,46 +19,43 @@ import play.api.Play.current
 import play.api.mvc._
 
 import scala.concurrent.Future
-import scala.util.{Failure, Success, Try}
 
 object Application {
 
   private val PemCertStringMarkers = Seq(
-    ("-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----"),
-    ("-----BEGIN TRUSTED CERTIFICATE-----", "-----END TRUSTED CERTIFICATE-----"),
-    ("-----BEGIN X509 CERTIFICATE-----", "-----END X509 CERTIFICATE-----")
+    ("-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----")
   )
 
-  private val RequiredKeyLength = 2048
+  val RequiredKeyLength = 2048
 
-  private def getPublicKey(headers: Headers) = Try {
-    val pemStringData = headers.get("X-SSL-Client-Cert").fold(
-      sys.error("Client certificate not presented")
+  private def getPublicKey(headers: Headers) =
+    headers.get("X-SSL-Client-Cert").fold[Either[String, PublicKey]](
+      Left("Client certificate not presented")
     ) { pemString =>
       PemCertStringMarkers.collectFirst {
         case marker if pemString.startsWith(marker._1) && pemString.endsWith(marker._2) =>
           pemString.stripPrefix(marker._1).stripSuffix(marker._2)
-      }
-    }
-    CertificateFactory.getInstance("X.509").generateCertificate(
-      new ByteArrayInputStream(
-        Base64.decodeBase64(
-          pemStringData.getOrElse(
-            sys.error("Client certificate PEM string is not valid")
+      }.fold[Either[String, PublicKey]](
+          Left("Client certificate PEM string is not valid")
+        )(pemData =>
+        CertificateFactory.getInstance("X.509").generateCertificate(
+          new ByteArrayInputStream(
+            Base64.decodeBase64(
+              pemData
+            )
           )
-        )
-      )
-    ).getPublicKey match {
-      case rsaPublicKey: RSAPublicKey =>
-        if (rsaPublicKey.getModulus.bitLength != RequiredKeyLength) {
-          sys.error("Invalid client key length")
-        } else {
-          new PublicKey(rsaPublicKey.getEncoded)
+        ).getPublicKey match {
+          case rsaPublicKey: RSAPublicKey =>
+            if (rsaPublicKey.getModulus.bitLength != RequiredKeyLength) {
+              Left("Invalid client public key length")
+            } else {
+              Right(PublicKey(rsaPublicKey.getEncoded))
+            }
+          case _ =>
+            Left("Invalid client public key type")
         }
-      case _ =>
-        sys.error("Invalid client key type")
+      )
     }
-  }
 
   private def isContactPointAvailable(contactPoint: InetSocketAddress) = {
     try {
@@ -94,10 +91,10 @@ class Application @Inject()(system: ActorSystem) extends Controller {
   def ws = WebSocket.tryAcceptWithActor[String, String] { request =>
     Future.successful(
       getPublicKey(request.headers) match {
-        case Failure(exception) => Left(
-          BadRequest(exception.getMessage)
+        case Left(error) => Left(
+          BadRequest(error)
         )
-        case Success(publicKey) => Right(
+        case Right(publicKey) => Right(
           ClientConnection.props(publicKey, zoneValidatorShardRegion)
         )
       }

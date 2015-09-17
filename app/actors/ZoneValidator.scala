@@ -1,5 +1,8 @@
 package actors
 
+import java.security.KeyFactory
+import java.security.interfaces.RSAPublicKey
+import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.util.UUID
 
 import actors.ClientConnection.MessageReceivedConfirmation
@@ -9,6 +12,7 @@ import akka.contrib.pattern.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.liquidity.models._
+import controllers.Application
 import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.duration._
@@ -266,6 +270,20 @@ object ZoneValidator {
         )
       }
     )
+
+  private def checkOwnerPublicKey(ownerPublicKey: PublicKey) =
+    try {
+      if (KeyFactory.getInstance("RSA")
+        .generatePublic(new X509EncodedKeySpec(ownerPublicKey.value))
+        .asInstanceOf[RSAPublicKey].getModulus.bitLength != Application.RequiredKeyLength) {
+        Some("Invalid owner public key length")
+      } else {
+        None
+      }
+    } catch {
+      case _: InvalidKeySpecException =>
+        Some("Invalid owner public key type")
+    }
 
   private def checkTagAndMetadata(tag: Option[String], metadata: Option[JsObject]) =
     tag.collect {
@@ -672,7 +690,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
           case CreateMemberCommand(_, ownerPublicKey, name, metadata) =>
 
-            checkTagAndMetadata(name, metadata) match {
+            checkOwnerPublicKey(ownerPublicKey)
+              .orElse(checkTagAndMetadata(name, metadata)) match {
 
               case Some(error) =>
 
@@ -718,6 +737,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
           case UpdateMemberCommand(_, member) =>
 
             checkCanModify(state.zone, member.id, publicKey)
+              .orElse(checkOwnerPublicKey(member.ownerPublicKey))
               .orElse(checkTagAndMetadata(member.name, member.metadata)) match {
 
               case Some(error) =>

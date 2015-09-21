@@ -21,46 +21,41 @@ object ClientConnection {
     Props(new ClientConnection(publicKey, zoneValidatorShardRegion, upstream))
 
   private def readCommand(jsonString: String):
-  (Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])]) =
+  (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
 
     Try(Json.parse(jsonString)) match {
 
       case Failure(e) =>
 
-        Left(
-          JsonRpcResponseError.parseError(e),
-          None
+        None -> Left(
+          JsonRpcResponseError.parseError(e)
         )
 
       case Success(jsValue) =>
 
         Json.fromJson[JsonRpcRequestMessage](jsValue).fold(
 
-          errors => Left(
-            JsonRpcResponseError.invalidRequest(errors),
-            None
+          errors => None -> Left(
+            JsonRpcResponseError.invalidRequest(errors)
           ),
 
           jsonRpcRequestMessage =>
 
             Command.read(jsonRpcRequestMessage)
-              .fold[(Either[(JsonRpcResponseError, Option[Either[String, Int]]), (Command, Either[String, Int])])](
+              .fold[(Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command])](
 
-                Left(
-                  JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method),
-                  Some(jsonRpcRequestMessage.id)
+                jsonRpcRequestMessage.id -> Left(
+                  JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method)
                 )
 
               )(commandJsResult => commandJsResult.fold(
 
-              errors => Left(
-                JsonRpcResponseError.invalidParams(errors),
-                Some(jsonRpcRequestMessage.id)
+              errors => jsonRpcRequestMessage.id -> Left(
+                JsonRpcResponseError.invalidParams(errors)
               ),
 
-              command => Right(
-                command,
-                jsonRpcRequestMessage.id
+              command => jsonRpcRequestMessage.id -> Right(
+                command
               )
 
             ))
@@ -113,7 +108,7 @@ class ClientConnection(publicKey: PublicKey,
   private var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
   private var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
-  private def createZone(createZoneCommand: CreateZoneCommand, correlationId: Either[String, Int]) {
+  private def createZone(createZoneCommand: CreateZoneCommand, correlationId: Option[Either[String, BigDecimal]]) {
     val zoneId = ZoneId.generate
     val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
@@ -160,7 +155,7 @@ class ClientConnection(publicKey: PublicKey,
 
       readCommand(json) match {
 
-        case Left((jsonRpcResponseError, id)) =>
+        case (id, Left(jsonRpcResponseError)) =>
 
           log.warning(s"Receive error: $jsonRpcResponseError")
 
@@ -170,7 +165,7 @@ class ClientConnection(publicKey: PublicKey,
             )
           )
 
-        case Right((command, correlationId)) =>
+        case (correlationId, Right(command)) =>
 
           command match {
 

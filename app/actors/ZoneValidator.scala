@@ -25,21 +25,21 @@ object ZoneValidator {
 
   case class AuthenticatedCommandWithIds(publicKey: PublicKey,
                                          command: Command,
-                                         correlationId: Either[String, Int],
+                                         correlationId: Option[Either[String, BigDecimal]],
                                          sequenceNumber: Long,
                                          deliveryId: Long)
 
   case class CommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long)
 
   case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
-                               correlationId: Either[String, Int],
+                               correlationId: Option[Either[String, BigDecimal]],
                                sequenceNumber: Long,
                                deliveryId: Long)
 
   case class ZoneRestarted(zoneId: ZoneId, sequenceNumber: Long, deliveryId: Long)
 
   case class ResponseWithIds(response: Response,
-                             correlationId: Either[String, Int],
+                             correlationId: Option[Either[String, BigDecimal]],
                              sequenceNumber: Long,
                              deliveryId: Long)
 
@@ -360,7 +360,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
     }
   }
 
-  private def deliverResponse(response: Response, commandCorrelationId: Either[String, Int]) {
+  private def deliverResponse(response: Response, commandCorrelationId: Option[Either[String, BigDecimal]]) {
     val sequenceNumber = messageSequenceNumbers(sender())
     messageSequenceNumbers = messageSequenceNumbers + (sender() -> (sequenceNumber + 1))
     deliver(sender().path, { deliveryId =>

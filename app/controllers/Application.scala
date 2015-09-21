@@ -53,8 +53,7 @@ object Application {
             }
           case _ =>
             Left("Invalid client public key type")
-        }
-      )
+        })
     }
 
   private def isContactPointAvailable(contactPoint: InetSocketAddress) = {

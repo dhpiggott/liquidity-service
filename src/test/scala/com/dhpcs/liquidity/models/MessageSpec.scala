@@ -28,9 +28,11 @@ class MessageSpec extends FunSpec with Matchers {
       Command.read(jsonRpcRequestMessage) should be(Some(JsSuccess(command)))
     }
 
-  def commandWrite(implicit command: Command, id: Either[String, Int], jsonRpcRequestMessage: JsonRpcRequestMessage) =
+  def commandWrite(implicit command: Command,
+                   id: Either[String, BigDecimal],
+                   jsonRpcRequestMessage: JsonRpcRequestMessage) =
     it(s"should encode to $jsonRpcRequestMessage") {
-      Command.write(command, id) should be(jsonRpcRequestMessage)
+      Command.write(command, Some(id)) should be(jsonRpcRequestMessage)
     }
 
   describe("A Command") {
@@ -39,7 +41,7 @@ class MessageSpec extends FunSpec with Matchers {
         JsonRpcRequestMessage(
           "invalidMethod",
           Right(Json.obj()),
-          Right(0)
+          Some(Right(1))
         ),
         None
       )
@@ -50,13 +52,13 @@ class MessageSpec extends FunSpec with Matchers {
           JsonRpcRequestMessage(
             "createZone",
             Left(Json.arr()),
-            Right(0)
+            Some(Right(1))
           ),
-          Some(
-            JsError(List(
+          Some(JsError(
+            List(
               (__, List(ValidationError("command parameters must be named")))
-            ))
-          )
+            )
+          ))
         )
       }
       describe("with empty params") {
@@ -64,13 +66,13 @@ class MessageSpec extends FunSpec with Matchers {
           JsonRpcRequestMessage(
             "createZone",
             Right(Json.obj()),
-            Right(0)
+            Some(Right(1))
           ),
-          Some(
-            JsError(List(
+          Some(JsError(
+            List(
               (__ \ "equityOwnerPublicKey", List(ValidationError("error.path.missing")))
-            ))
-          )
+            )
+          ))
         )
       }
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
@@ -87,7 +89,7 @@ class MessageSpec extends FunSpec with Matchers {
           )
         )
       )
-      implicit val id = Right(0)
+      implicit val id = Right(BigDecimal(1))
       implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
         "createZone",
         Right(
@@ -101,7 +103,7 @@ class MessageSpec extends FunSpec with Matchers {
             )
           )
         ),
-        Right(0)
+        Some(Right(1))
       )
       it should behave like commandRead
       it should behave like commandWrite
@@ -119,10 +121,10 @@ class MessageSpec extends FunSpec with Matchers {
     }
 
   def responseWrite(implicit response: Response,
-                    id: Either[String, Int],
+                    id: Either[String, BigDecimal],
                     jsonRpcResponseMessage: JsonRpcResponseMessage) =
     it(s"should encode to $jsonRpcResponseMessage") {
-      Response.write(response, id) should be(jsonRpcResponseMessage)
+      Response.write(response, Some(id)) should be(jsonRpcResponseMessage)
     }
 
   describe("A Response") {
@@ -134,9 +136,11 @@ class MessageSpec extends FunSpec with Matchers {
             Some(Right(0))
           ),
           "createZone",
-          JsError(List(
-            (__ \ "zone", List(ValidationError("error.path.missing")))
-          ))
+          JsError(
+            List(
+              (__ \ "zone", List(ValidationError("error.path.missing")))
+            )
+          )
         )
       }
     }
@@ -159,16 +163,14 @@ class MessageSpec extends FunSpec with Matchers {
         Some("Dave's zone")
       )
     )
-    implicit val id = Right(0)
+    implicit val id = Right(BigDecimal(1))
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
       Right(
         Json.obj(
           "zone" -> Json.parse( s"""{"id":"158842d1-38c7-4ad3-ab83-d4c723c9aaf3","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"}],"transactions":[],"created":1436179968835,"expires":1436179968835,"name":"Dave's zone"}""")
         )
       ),
-      Some(
-        Right(0)
-      )
+      Some(Right(1))
     )
     implicit val method = "createZone"
     it should behave like responseRead
@@ -210,11 +212,11 @@ class MessageSpec extends FunSpec with Matchers {
             "clientJoinedZone",
             Left(Json.arr())
           ),
-          Some(
-            JsError(List(
+          Some(JsError(
+            List(
               (__, List(ValidationError("notification parameters must be named")))
-            ))
-          )
+            )
+          ))
         )
       }
       describe("with empty params") {
@@ -223,12 +225,12 @@ class MessageSpec extends FunSpec with Matchers {
             "clientJoinedZone",
             Right(Json.obj())
           ),
-          Some(
-            JsError(List(
+          Some(JsError(
+            List(
               (__ \ "zoneId", List(ValidationError("error.path.missing"))),
               (__ \ "publicKey", List(ValidationError("error.path.missing")))
-            ))
-          )
+            )
+          ))
         )
       }
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded

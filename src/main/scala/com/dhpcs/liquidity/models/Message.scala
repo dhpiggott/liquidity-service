@@ -170,7 +170,7 @@ object Command {
       valid => JsSuccess(valid)
     ))
 
-  def write(command: Command, id: Either[String, Int]): JsonRpcRequestMessage = {
+  def write(command: Command, id: Option[Either[String, BigDecimal]]): JsonRpcRequestMessage = {
     val mapping = CommandTypeFormats.find(_.matchesInstance(command))
       .getOrElse(sys.error(s"No format found for ${command.getClass}"))
     JsonRpcRequestMessage(mapping.methodName, Right(mapping.toJson(command).asInstanceOf[JsObject]), id)
@@ -232,7 +232,7 @@ object Response {
         valid => JsSuccess(valid)
       )
 
-  def write(response: Response, id: Either[String, Int]): JsonRpcResponseMessage = {
+  def write(response: Response, id: Option[Either[String, BigDecimal]]): JsonRpcResponseMessage = {
     val eitherErrorOrResult = response match {
       case ErrorResponse(code, message, data) => Left(
         JsonRpcResponseError.applicationError(code, message, data)
@@ -242,7 +242,7 @@ object Response {
           .getOrElse(sys.error(s"No format found for ${response.getClass}"))
         Right(mapping.toJson(response))
     }
-    JsonRpcResponseMessage(eitherErrorOrResult, Some(id))
+    JsonRpcResponseMessage(eitherErrorOrResult, id)
   }
 
 }

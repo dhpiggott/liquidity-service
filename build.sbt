@@ -1,6 +1,8 @@
-name := """liquidity-server"""
+name := "liquidity-server"
 
 version := "1.0-SNAPSHOT"
+
+scalaVersion := "2.11.7"
 
 dockerBaseImage := "java:8-jre"
 
@@ -9,8 +11,6 @@ dockerExposedPorts := Seq(80)
 daemonUser in Docker := "root"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
-
-scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
   "com.dhpcs" %% "liquidity-common" % "0.37.0",

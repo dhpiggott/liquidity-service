@@ -1,6 +1,6 @@
-name := """liquidity-common"""
-
 organization := "com.dhpcs"
+
+name := "liquidity-common"
 
 version := "0.38.0-SNAPSHOT"
 

@@ -25,15 +25,15 @@ object ClientConnection {
 
     Try(Json.parse(jsonString)) match {
 
-      case Failure(e) =>
+      case Failure(exception) =>
 
         None -> Left(
-          JsonRpcResponseError.parseError(e)
+          JsonRpcResponseError.parseError(exception)
         )
 
-      case Success(jsValue) =>
+      case Success(json) =>
 
-        Json.fromJson[JsonRpcRequestMessage](jsValue).fold(
+        Json.fromJson[JsonRpcRequestMessage](json).fold(
 
           errors => None -> Left(
             JsonRpcResponseError.invalidRequest(errors)

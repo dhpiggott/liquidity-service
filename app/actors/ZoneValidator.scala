@@ -10,7 +10,7 @@ import actors.ZoneValidator._
 import akka.actor._
 import akka.contrib.pattern.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
-import com.dhpcs.jsonrpc.JsonRpcResponseError
+import com.dhpcs.jsonrpc.{ErrorResponse, JsonRpcResponseError}
 import com.dhpcs.liquidity.models._
 import controllers.Application
 import play.api.libs.json.{JsObject, Json}
@@ -38,7 +38,7 @@ object ZoneValidator {
 
   case class ZoneRestarted(zoneId: ZoneId, sequenceNumber: Long, deliveryId: Long)
 
-  case class ResponseWithIds(response: Response,
+  case class ResponseWithIds(response: Either[ErrorResponse, ResultResponse],
                              correlationId: Option[Either[String, BigDecimal]],
                              sequenceNumber: Long,
                              deliveryId: Long)
@@ -360,7 +360,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
     }
   }
 
-  private def deliverResponse(response: Response, commandCorrelationId: Option[Either[String, BigDecimal]]) {
+  private def deliverResponse(response: Either[ErrorResponse, ResultResponse],
+                              commandCorrelationId: Option[Either[String, BigDecimal]]) {
     val sequenceNumber = messageSequenceNumbers(sender())
     messageSequenceNumbers = messageSequenceNumbers + (sender() -> (sequenceNumber + 1))
     deliver(sender().path, { deliveryId =>
@@ -503,9 +504,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               case Some(error) =>
 
                 deliverResponse(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error
+                  Left(
+                    ErrorResponse(
+                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                      error
+                    )
                   ),
                   correlationId
                 )
@@ -548,8 +551,10 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   updateState(zoneCreatedEvent)
 
                   deliverResponse(
-                    CreateZoneResponse(
-                      zoneCreatedEvent.zone
+                    Right(
+                      CreateZoneResponse(
+                        zoneCreatedEvent.zone
+                      )
                     ),
                     correlationId
                   )
@@ -561,9 +566,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
           case _ =>
 
             deliverResponse(
-              ErrorResponse(
-                JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                "Zone does not exist"
+              Left(
+                ErrorResponse(
+                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                  "Zone does not exist"
+                )
               ),
               correlationId
             )
@@ -608,9 +615,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
             if (state.clientConnections.contains(sender())) {
 
               deliverResponse(
-                ErrorResponse(
-                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                  "Zone already joined"
+                Left(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    "Zone already joined"
+                  )
                 ),
                 correlationId
               )
@@ -619,9 +628,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
               handleJoin(sender(), publicKey, { state =>
                 deliverResponse(
-                  JoinZoneResponse(
-                    state.zone,
-                    state.clientConnections.values.toSet
+                  Right(
+                    JoinZoneResponse(
+                      state.zone,
+                      state.clientConnections.values.toSet
+                    )
                   ),
                   correlationId
                 )
@@ -634,9 +645,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
             if (!state.clientConnections.contains(sender())) {
 
               deliverResponse(
-                ErrorResponse(
-                  JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                  "Zone not joined"
+                Left(
+                  ErrorResponse(
+                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                    "Zone not joined"
+                  )
                 ),
                 correlationId
               )
@@ -645,7 +658,9 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
               handleQuit(sender(), {
                 deliverResponse(
-                  QuitZoneResponse,
+                  Right(
+                    QuitZoneResponse
+                  ),
                   correlationId
                 )
               })
@@ -659,9 +674,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               case Some(error) =>
 
                 deliverResponse(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error
+                  Left(
+                    ErrorResponse(
+                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                      error
+                    )
                   ),
                   correlationId
                 )
@@ -673,7 +690,9 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   updateState(zoneNameChangedEvent)
 
                   deliverResponse(
-                    ChangeZoneNameResponse,
+                    Right(
+                      ChangeZoneNameResponse
+                    ),
                     correlationId
                   )
 
@@ -696,9 +715,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               case Some(error) =>
 
                 deliverResponse(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error
+                  Left(
+                    ErrorResponse(
+                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                      error
+                    )
                   ),
                   correlationId
                 )
@@ -717,8 +738,10 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   updateState(memberCreatedEvent)
 
                   deliverResponse(
-                    CreateMemberResponse(
-                      memberCreatedEvent.member
+                    Right(
+                      CreateMemberResponse(
+                        memberCreatedEvent.member
+                      )
                     ),
                     correlationId
                   )
@@ -743,9 +766,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               case Some(error) =>
 
                 deliverResponse(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error
+                  Left(
+                    ErrorResponse(
+                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                      error
+                    )
                   ),
                   correlationId
                 )
@@ -757,7 +782,9 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   updateState(memberUpdatedEvent)
 
                   deliverResponse(
-                    UpdateMemberResponse,
+                    Right(
+                      UpdateMemberResponse
+                    ),
                     correlationId
                   )
 
@@ -780,9 +807,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               case Some(error) =>
 
                 deliverResponse(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error
+                  Left(
+                    ErrorResponse(
+                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                      error
+                    )
                   ),
                   correlationId
                 )
@@ -801,8 +830,10 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   updateState(accountCreatedEvent)
 
                   deliverResponse(
-                    CreateAccountResponse(
-                      accountCreatedEvent.account
+                    Right(
+                      CreateAccountResponse(
+                        accountCreatedEvent.account
+                      )
                     ),
                     correlationId
                   )
@@ -827,9 +858,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               case Some(error) =>
 
                 deliverResponse(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error
+                  Left(
+                    ErrorResponse(
+                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                      error
+                    )
                   ),
                   correlationId
                 )
@@ -841,7 +874,9 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   updateState(accountUpdatedEvent)
 
                   deliverResponse(
-                    UpdateAccountResponse,
+                    Right(
+                      UpdateAccountResponse
+                    ),
                     correlationId
                   )
 
@@ -865,9 +900,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               case Some(error) =>
 
                 deliverResponse(
-                  ErrorResponse(
-                    JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-                    error
+                  Left(
+                    ErrorResponse(
+                      JsonRpcResponseError.ReservedErrorCodeFloor - 1,
+                      error
+                    )
                   ),
                   correlationId
                 )
@@ -890,8 +927,10 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   updateState(transactionAddedEvent)
 
                   deliverResponse(
-                    AddTransactionResponse(
-                      transactionAddedEvent.transaction
+                    Right(
+                      AddTransactionResponse(
+                        transactionAddedEvent.transaction
+                      )
                     ),
                     correlationId
                   )

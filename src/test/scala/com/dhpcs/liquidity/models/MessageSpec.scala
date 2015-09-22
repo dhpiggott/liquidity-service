@@ -4,7 +4,7 @@ import java.security.KeyPairGenerator
 import java.util.UUID
 
 import com.dhpcs.json.JsResultUniformity
-import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
+import com.dhpcs.jsonrpc._
 import okio.ByteString
 import org.scalatest.OptionValues._
 import org.scalatest._
@@ -112,19 +112,22 @@ class MessageSpec extends FunSpec with Matchers {
 
   def responseReadError(jsonRpcResponseMessage: JsonRpcResponseMessage, method: String, jsError: JsError) =
     it(s"should fail to decode with error $jsError") {
-      (Response.read(jsonRpcResponseMessage, method) should equal(jsError))(after being ordered[Response])
+      (Response.read(jsonRpcResponseMessage, method)
+        should equal(jsError))(after being ordered[Either[ErrorResponse, ResultResponse]])
     }
 
-  def responseRead(implicit jsonRpcResponseMessage: JsonRpcResponseMessage, method: String, response: Response) =
-    it(s"should decode to $response") {
-      Response.read(jsonRpcResponseMessage, method) should be(JsSuccess(response))
+  def responseRead(implicit jsonRpcResponseMessage: JsonRpcResponseMessage,
+                   method: String,
+                   errorOrResponse: Either[ErrorResponse, ResultResponse]) =
+    it(s"should decode to $errorOrResponse") {
+      Response.read(jsonRpcResponseMessage, method) should be(JsSuccess(errorOrResponse))
     }
 
-  def responseWrite(implicit response: Response,
+  def responseWrite(implicit errorOrResponse: Either[ErrorResponse, ResultResponse],
                     id: Either[String, BigDecimal],
                     jsonRpcResponseMessage: JsonRpcResponseMessage) =
     it(s"should encode to $jsonRpcResponseMessage") {
-      Response.write(response, Some(id)) should be(jsonRpcResponseMessage)
+      Response.write(errorOrResponse, Some(id)) should be(jsonRpcResponseMessage)
     }
 
   describe("A Response") {
@@ -145,7 +148,7 @@ class MessageSpec extends FunSpec with Matchers {
       }
     }
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    implicit val createZoneResponse = CreateZoneResponse(
+    implicit val createZoneResponse = Right(CreateZoneResponse(
       Zone(
         ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
         AccountId(0),
@@ -162,7 +165,7 @@ class MessageSpec extends FunSpec with Matchers {
         1436179968835L,
         Some("Dave's zone")
       )
-    )
+    ))
     implicit val id = Right(BigDecimal(1))
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
       Right(

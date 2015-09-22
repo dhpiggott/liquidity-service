@@ -249,8 +249,6 @@ object Response {
 
 sealed trait Notification extends Message
 
-sealed abstract class NotificationMethodName(val name: String)
-
 sealed trait ZoneNotification extends Notification {
 
   val zoneId: ZoneId

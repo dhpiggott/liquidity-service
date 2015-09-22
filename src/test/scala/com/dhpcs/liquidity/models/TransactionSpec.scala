@@ -45,8 +45,8 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
         1434115187612L,
         Some("Property purchase"),
         Some(
-          JsObject(
-            Seq("property" -> JsString("The TARDIS"))
+          Json.obj(
+            "property" -> "The TARDIS"
           )
         )
       )

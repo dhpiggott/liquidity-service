@@ -151,6 +151,8 @@ sealed trait ZoneNotification extends Notification {
 
 }
 
+case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Int]) extends Notification
+
 case object KeepAliveNotification extends Notification
 
 case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
@@ -174,6 +176,7 @@ case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction
 object Notification extends NotificationCompanion[Notification] {
 
   override val NotificationFormats = MethodFormats(
+    "supportedVersions" -> Json.format[SupportedVersionsNotification],
     "keepAlive" -> KeepAliveNotification,
     "clientJoinedZone" -> Json.format[ClientJoinedZoneNotification],
     "clientQuitZone" -> Json.format[ClientQuitZoneNotification],

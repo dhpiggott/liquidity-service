@@ -108,6 +108,14 @@ class ClientConnection(publicKey: PublicKey,
   private var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
   private var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
+  upstream ! Json.stringify(
+    Json.toJson(
+      Notification.write(SupportedVersionsNotification(
+        CompatibleVersionNumbers
+      ))
+    )
+  )
+
   private def createZone(createZoneCommand: CreateZoneCommand, correlationId: Option[Either[String, BigDecimal]]) {
     val zoneId = ZoneId.generate
     val sequenceNumber = commandSequenceNumbers(zoneId)

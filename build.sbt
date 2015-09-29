@@ -13,7 +13,7 @@ daemonUser in Docker := "root"
 lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
 
 libraryDependencies ++= Seq(
-  "com.dhpcs" %% "liquidity-common" % "0.39.0",
+  "com.dhpcs" %% "liquidity-common" % "1.0.0",
   "com.typesafe.akka" %% "akka-cluster" % "2.3.13",
   "com.typesafe.akka" %% "akka-contrib" % "2.3.13",
   "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.13",

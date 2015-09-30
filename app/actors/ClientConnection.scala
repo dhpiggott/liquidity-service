@@ -167,11 +167,14 @@ class ClientConnection(publicKey: PublicKey,
 
           log.warning(s"Receive error: $jsonRpcResponseError")
 
-          sender ! Json.stringify(
-            Json.toJson(
-              JsonRpcResponseMessage(Left(jsonRpcResponseError), id)
+          sender ! Json.stringify(Json.toJson(
+            JsonRpcResponseMessage(
+              Left(
+                jsonRpcResponseError
+              ),
+              id
             )
-          )
+          ))
 
         case (correlationId, Right(command)) =>
 
@@ -244,11 +247,13 @@ class ClientConnection(publicKey: PublicKey,
         pendingDeliveries(zoneId).foreach(confirmDelivery)
         pendingDeliveries = pendingDeliveries - zoneId
 
-        upstream ! Json.stringify(
-          Json.toJson(
-            Notification.write(ZoneTerminatedNotification(zoneId))
+        upstream ! Json.stringify(Json.toJson(
+          Notification.write(
+            ZoneTerminatedNotification(
+              zoneId
+            )
           )
-        )
+        ))
 
         keepAliveActor ! FrameSentEvent
 
@@ -280,11 +285,12 @@ class ClientConnection(publicKey: PublicKey,
 
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
 
-        upstream ! Json.stringify(
-          Json.toJson(
-            Response.write(response, correlationId)
+        upstream ! Json.stringify(Json.toJson(
+          Response.write(
+            response,
+            correlationId
           )
-        )
+        ))
 
         keepAliveActor ! FrameSentEvent
 
@@ -304,11 +310,11 @@ class ClientConnection(publicKey: PublicKey,
 
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
 
-        upstream ! Json.stringify(
-          Json.toJson(
-            Notification.write(notification)
+        upstream ! Json.stringify(Json.toJson(
+          Notification.write(
+            notification
           )
-        )
+        ))
 
         keepAliveActor ! FrameSentEvent
 

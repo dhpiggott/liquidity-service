@@ -3,8 +3,11 @@ package actors
 import java.util.UUID
 
 import actors.ClientConnection._
+import actors.ClientsMonitor.ActiveClientSummary
 import actors.ZoneValidator._
 import akka.actor._
+import akka.cluster.pubsub.DistributedPubSub
+import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.models._
@@ -17,6 +20,40 @@ object ClientConnection {
 
   def props(publicKey: PublicKey, zoneValidatorShardRegion: ActorRef)(upstream: ActorRef) =
     Props(new ClientConnection(publicKey, zoneValidatorShardRegion, upstream))
+
+  case class MessageReceivedConfirmation(deliveryId: Long)
+
+  private case object PublishStatus
+
+  private class KeepAliveGenerator extends Actor {
+
+    import actors.ClientConnection.KeepAliveGenerator._
+
+    context.setReceiveTimeout(keepAliveInterval)
+
+    override def receive: Receive = {
+
+      case ReceiveTimeout =>
+
+        context.parent ! SendKeepAlive
+
+      case FrameReceivedEvent | FrameSentEvent =>
+
+    }
+
+  }
+
+  private object KeepAliveGenerator {
+
+    private val keepAliveInterval = 30.seconds
+
+    case object FrameReceivedEvent
+
+    case object FrameSentEvent
+
+    case object SendKeepAlive
+
+  }
 
   private def readCommand(jsonString: String):
   (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
@@ -62,38 +99,6 @@ object ClientConnection {
 
     }
 
-  case class MessageReceivedConfirmation(deliveryId: Long)
-
-  private class KeepAliveGenerator extends Actor {
-
-    import actors.ClientConnection.KeepAliveGenerator._
-
-    context.setReceiveTimeout(keepAliveInterval)
-
-    override def receive: Receive = {
-
-      case ReceiveTimeout =>
-
-        context.parent ! SendKeepAlive
-
-      case FrameReceivedEvent | FrameSentEvent =>
-
-    }
-
-  }
-
-  private object KeepAliveGenerator {
-
-    private val keepAliveInterval = 30.seconds
-
-    case object FrameReceivedEvent
-
-    case object FrameSentEvent
-
-    case object SendKeepAlive
-
-  }
-
 }
 
 class ClientConnection(publicKey: PublicKey,
@@ -101,6 +106,11 @@ class ClientConnection(publicKey: PublicKey,
                        upstream: ActorRef) extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
 
   import actors.ClientConnection.KeepAliveGenerator._
+  import context.dispatcher
+
+  private val mediator = DistributedPubSub(context.system).mediator
+
+  private val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
 
   private val keepAliveActor = context.actorOf(Props[KeepAliveGenerator])
 
@@ -108,13 +118,13 @@ class ClientConnection(publicKey: PublicKey,
   private var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
   private var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
-  upstream ! Json.stringify(
-    Json.toJson(
-      Notification.write(SupportedVersionsNotification(
+  upstream ! Json.stringify(Json.toJson(
+    Notification.write(
+      SupportedVersionsNotification(
         CompatibleVersionNumbers
-      ))
+      )
     )
-  )
+  ))
 
   private def createZone(createZoneCommand: CreateZoneCommand, correlationId: Option[Either[String, BigDecimal]]) {
     val zoneId = ZoneId.generate
@@ -139,6 +149,7 @@ class ClientConnection(publicKey: PublicKey,
 
   override def postStop() {
     log.info(s"Stopped actor for ${publicKey.fingerprint}")
+    publishStatusTick.cancel()
     super.postStop()
   }
 
@@ -148,6 +159,10 @@ class ClientConnection(publicKey: PublicKey,
   }
 
   override def receiveCommand = {
+
+    case PublishStatus =>
+
+      mediator ! Publish(ClientsMonitor.Topic, ActiveClientSummary(publicKey))
 
     case SendKeepAlive =>
 

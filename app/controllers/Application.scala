@@ -7,26 +7,34 @@ import java.security.cert.CertificateFactory
 import java.security.interfaces.RSAPublicKey
 import javax.inject._
 
-import actors.{ClientConnection, ZoneValidator}
+import actors.ClientsMonitor.{ActiveClientSummary, ActiveClientsSummary, GetActiveClientsSummary}
+import actors.ZonesMonitor.{ActiveZoneSummary, ActiveZonesSummary, GetActiveZonesSummary}
+import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
 import akka.actor.ActorSystem
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.pattern.ask
 import akka.persistence.cassandra.CassandraPluginConfig
+import akka.util.Timeout
 import com.dhpcs.liquidity.models.PublicKey
 import controllers.Application._
 import org.apache.commons.codec.binary.Base64
 import play.api.Logger
 import play.api.Play.current
+import play.api.http.ContentTypes
+import play.api.libs.concurrent.Execution.Implicits.defaultContext
+import play.api.libs.json.Json
 import play.api.mvc._
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 object Application {
+
+  val RequiredKeyLength = 2048
 
   private val PemCertStringMarkers = Seq(
     ("-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----")
   )
-
-  val RequiredKeyLength = 2048
 
   private def getPublicKey(headers: Headers) =
     headers.get("X-SSL-Client-Cert").fold[Either[String, PublicKey]](
@@ -76,9 +84,12 @@ class Application @Inject()(system: ActorSystem) extends Controller {
     val config = new CassandraPluginConfig(system.settings.config.getConfig("cassandra-journal"))
     while (!config.contactPoints.exists(isContactPointAvailable)) {
       Logger.info("No contact points were available, retrying in 5 seconds...")
-      Thread.sleep(5000)
+      Thread.sleep(5.seconds.toMillis)
     }
   }
+
+  private val clientsMonitor = system.actorOf(ClientsMonitor.props, "clients-monitor")
+  private val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
 
   private val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidator.shardName,
@@ -87,6 +98,21 @@ class Application @Inject()(system: ActorSystem) extends Controller {
     extractEntityId = ZoneValidator.extractEntityId,
     extractShardId = ZoneValidator.extractShardId
   )
+
+  private implicit val statusTimeout: Timeout = 5.seconds
+
+  def clients = Action.async {
+    (clientsMonitor ? GetActiveClientsSummary)
+      .mapTo[ActiveClientsSummary]
+      .map { case ActiveClientsSummary(activeClientSummaries) =>
+        Ok(Json.prettyPrint(Json.obj(
+          "count" -> activeClientSummaries.size,
+          "fingerprints" -> activeClientSummaries.map { case ActiveClientSummary(publicKey) =>
+            publicKey.fingerprint
+          }
+        ))).as(ContentTypes.JSON)
+      }
+  }
 
   def ws = WebSocket.tryAcceptWithActor[String, String] { request =>
     Future.successful(
@@ -99,6 +125,19 @@ class Application @Inject()(system: ActorSystem) extends Controller {
         )
       }
     )
+  }
+
+  def zones = Action.async {
+    (zonesMonitor ? GetActiveZonesSummary)
+      .mapTo[ActiveZonesSummary]
+      .map { case ActiveZonesSummary(activeZoneSummaries) =>
+        Ok(Json.prettyPrint(Json.obj(
+          "count" -> activeZoneSummaries.size,
+          "zoneIds" -> activeZoneSummaries.map { case ActiveZoneSummary(zoneId) =>
+            zoneId
+          }
+        ))).as(ContentTypes.JSON)
+      }
   }
 
 }

@@ -2,4 +2,6 @@
 # This file defines all application routes (Higher priority routes first)
 # ~~~~
 
+GET     /clients                    controllers.Application.clients
 GET     /ws                         controllers.Application.ws
+GET     /zones                      controllers.Application.zones

@@ -7,7 +7,10 @@ import java.util.UUID
 
 import actors.ClientConnection.MessageReceivedConfirmation
 import actors.ZoneValidator._
+import actors.ZonesMonitor.ActiveZoneSummary
 import akka.actor._
+import akka.cluster.pubsub.DistributedPubSub
+import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import com.dhpcs.jsonrpc.{ErrorResponse, JsonRpcResponseError}
@@ -187,6 +190,8 @@ object ZoneValidator {
 
   }
 
+  private case object PublishStatus
+
   private class PassivationCountdown extends Actor {
 
     import actors.ZoneValidator.PassivationCountdown._
@@ -318,6 +323,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
   import ShardRegion.Passivate
   import actors.ZoneValidator.PassivationCountdown._
+  import context.dispatcher
+
+  private val mediator = DistributedPubSub(context.system).mediator
+
+  private val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
 
   private val passivationActor = context.actorOf(Props[PassivationCountdown])
 
@@ -388,8 +398,6 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
       updateState(zoneJoinedEvent)
 
-      log.info(s"${state.clientConnections.size} clients are present")
-
       onStateUpdate(state)
 
       if (!wasAlreadyPresent) {
@@ -404,8 +412,6 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
       val publicKey = state.clientConnections(zoneQuitEvent.clientConnection)
 
       updateState(zoneQuitEvent)
-
-      log.info(s"${state.clientConnections.size} clients are present")
 
       onStateUpdate
 
@@ -424,6 +430,25 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
     }
 
   override def persistenceId = zoneId.toString
+
+  def publishStatus: Receive = {
+
+    case PublishStatus =>
+
+      mediator ! Publish(ZonesMonitor.Topic, ActiveZoneSummary(zoneId))
+
+  }
+
+  override def postStop() {
+    log.info(s"Stopped actor for ${zoneId.id}")
+    publishStatusTick.cancel()
+    super.postStop()
+  }
+
+  override def preStart() {
+    log.info(s"Started actor for ${zoneId.id}")
+    super.preStart()
+  }
 
   override def receiveCommand = waitForZone
 
@@ -467,7 +492,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
   }
 
-  private def waitForZone: Receive = confirmMessageReceipt orElse waitForTimeout orElse {
+  private def waitForZone: Receive = publishStatus orElse confirmMessageReceipt orElse waitForTimeout orElse {
 
     case AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber, deliveryId) =>
 
@@ -581,7 +606,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
   }
 
-  private def withZone: Receive = confirmMessageReceipt orElse waitForTimeout orElse {
+  private def withZone: Receive = publishStatus orElse confirmMessageReceipt orElse waitForTimeout orElse {
 
     case AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber, deliveryId) =>
 
@@ -853,7 +878,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
             checkCanModify(state.zone, account.id, publicKey)
               .orElse(checkAccountOwners(state.zone, account.ownerMemberIds)
-              .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
+                .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
 
               case Some(error) =>
 
@@ -895,7 +920,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
             checkCanModify(state.zone, from, actingAs, publicKey)
               .orElse(checkTransaction(from, to, value, state.zone, state.balances)
-              .orElse(checkTagAndMetadata(description, metadata))) match {
+                .orElse(checkTagAndMetadata(description, metadata))) match {
 
               case Some(error) =>
 

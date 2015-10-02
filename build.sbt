@@ -14,9 +14,9 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
 
 libraryDependencies ++= Seq(
   "com.dhpcs" %% "liquidity-common" % "1.0.0",
-  "com.typesafe.akka" %% "akka-cluster" % "2.3.13",
-  "com.typesafe.akka" %% "akka-contrib" % "2.3.13",
-  "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.13",
+  "com.typesafe.akka" %% "akka-cluster" % "2.3.14",
+  "com.typesafe.akka" %% "akka-contrib" % "2.3.14",
+  "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.14",
   "com.github.krasserm" %% "akka-persistence-cassandra" % "0.3.9",
   specs2 % Test
 )

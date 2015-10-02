@@ -8,7 +8,7 @@ import java.util.UUID
 import actors.ClientConnection.MessageReceivedConfirmation
 import actors.ZoneValidator._
 import akka.actor._
-import akka.contrib.pattern.ShardRegion
+import akka.cluster.sharding.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import com.dhpcs.jsonrpc.{ErrorResponse, JsonRpcResponseError}
 import com.dhpcs.liquidity.models._
@@ -73,7 +73,7 @@ object ZoneValidator {
 
   private val zoneLifetime = 2.days
 
-  val idExtractor: ShardRegion.IdExtractor = {
+  val extractEntityId: ShardRegion.ExtractEntityId = {
 
     case EnvelopedMessage(zoneId, message) =>
 
@@ -94,7 +94,7 @@ object ZoneValidator {
    */
   private val numberOfShards = 10
 
-  val shardResolver: ShardRegion.ShardResolver = {
+  val extractShardId: ShardRegion.ExtractShardId = {
 
     case EnvelopedMessage(zoneId, _) =>
 
@@ -353,10 +353,10 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
     state.clientConnections.keys.foreach { clientConnection =>
       val sequenceNumber = messageSequenceNumbers(clientConnection)
       messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
-      deliver(clientConnection.path, { deliveryId =>
+      deliver(clientConnection.path) { deliveryId =>
         pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(clientConnection) + deliveryId))
         NotificationWithIds(notification, sequenceNumber, deliveryId)
-      })
+      }
     }
   }
 
@@ -364,7 +364,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                               commandCorrelationId: Option[Either[String, BigDecimal]]) {
     val sequenceNumber = messageSequenceNumbers(sender())
     messageSequenceNumbers = messageSequenceNumbers + (sender() -> (sequenceNumber + 1))
-    deliver(sender().path, { deliveryId =>
+    deliver(sender().path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(sender()) + deliveryId))
       ResponseWithIds(
         response,
@@ -372,7 +372,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
         sequenceNumber,
         deliveryId
       )
-    })
+    }
   }
 
   private def handleJoin(clientConnection: ActorRef, publicKey: PublicKey, onStateUpdate: State => Unit = _ => ()) =
@@ -440,10 +440,10 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
       state.clientConnections.keys.foreach { clientConnection =>
         val sequenceNumber = messageSequenceNumbers(clientConnection)
         messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
-        deliver(clientConnection.path, { deliveryId =>
+        deliver(clientConnection.path) { deliveryId =>
           pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(clientConnection) + deliveryId))
           ZoneRestarted(zoneId, sequenceNumber, deliveryId)
-        })
+        }
       }
 
       state = state.copy(
@@ -605,10 +605,10 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
             val sequenceNumber = messageSequenceNumbers(sender())
             messageSequenceNumbers = messageSequenceNumbers + (sender() -> (sequenceNumber + 1))
-            deliver(sender().path, { deliveryId =>
+            deliver(sender().path) { deliveryId =>
               pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(sender()) + deliveryId))
               ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId)
-            })
+            }
 
           case JoinZoneCommand(_) =>
 

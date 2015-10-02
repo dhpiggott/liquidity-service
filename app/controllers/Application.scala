@@ -9,7 +9,7 @@ import javax.inject._
 
 import actors.{ClientConnection, ZoneValidator}
 import akka.actor.ActorSystem
-import akka.contrib.pattern.ClusterSharding
+import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.persistence.cassandra.CassandraPluginConfig
 import com.dhpcs.liquidity.models.PublicKey
 import controllers.Application._
@@ -82,9 +82,10 @@ class Application @Inject()(system: ActorSystem) extends Controller {
 
   private val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidator.shardName,
-    entryProps = Some(ZoneValidator.props),
-    idExtractor = ZoneValidator.idExtractor,
-    shardResolver = ZoneValidator.shardResolver
+    entityProps = ZoneValidator.props,
+    settings = ClusterShardingSettings(system),
+    extractEntityId = ZoneValidator.extractEntityId,
+    extractShardId = ZoneValidator.extractShardId
   )
 
   def ws = WebSocket.tryAcceptWithActor[String, String] { request =>

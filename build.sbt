@@ -14,16 +14,17 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
 
 libraryDependencies ++= Seq(
   "com.dhpcs" %% "liquidity-common" % "1.0.0",
-  "com.typesafe.akka" %% "akka-cluster" % "2.3.14",
-  "com.typesafe.akka" %% "akka-contrib" % "2.3.14",
-  "com.typesafe.akka" %% "akka-persistence-experimental" % "2.3.14",
-  "com.github.krasserm" %% "akka-persistence-cassandra" % "0.3.9",
+  "com.typesafe.akka" %% "akka-actor" % "2.4.0",
+  "com.typesafe.akka" %% "akka-cluster" % "2.4.0",
+  "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.0",
+  "com.typesafe.akka" %% "akka-persistence" % "2.4.0",
+  "com.github.krasserm" %% "akka-persistence-cassandra" % "0.4-SNAPSHOT",
   specs2 % Test
 )
 
 resolvers ++= Seq(
   "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases",
-  "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
+  "OJO Snapshots" at "https://oss.jfrog.org/oss-snapshot-local"
 )
 
 javaOptions in Universal ++= Seq(

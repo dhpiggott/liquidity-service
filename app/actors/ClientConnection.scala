@@ -120,7 +120,7 @@ class ClientConnection(publicKey: PublicKey,
     val zoneId = ZoneId.generate
     val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-    deliver(zoneValidatorShardRegion.path, { deliveryId =>
+    deliver(zoneValidatorShardRegion.path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
       EnvelopedMessage(
         zoneId,
@@ -132,7 +132,7 @@ class ClientConnection(publicKey: PublicKey,
           deliveryId
         )
       )
-    })
+    }
   }
 
   override def persistenceId: String = s"${publicKey.productPrefix}(${publicKey.fingerprint})"
@@ -190,7 +190,7 @@ class ClientConnection(publicKey: PublicKey,
 
               val sequenceNumber = commandSequenceNumbers(zoneId)
               commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-              deliver(zoneValidatorShardRegion.path, { deliveryId =>
+              deliver(zoneValidatorShardRegion.path) { deliveryId =>
                 pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
                 AuthenticatedCommandWithIds(
                   publicKey,
@@ -199,7 +199,7 @@ class ClientConnection(publicKey: PublicKey,
                   sequenceNumber,
                   deliveryId
                 )
-              })
+              }
 
           }
 

@@ -101,17 +101,24 @@ class Application @Inject()(system: ActorSystem) extends Controller {
 
   private implicit val statusTimeout: Timeout = 5.seconds
 
-  def clients = Action.async {
-    (clientsMonitor ? GetActiveClientsSummary)
-      .mapTo[ActiveClientsSummary]
-      .map { case ActiveClientsSummary(activeClientSummaries) =>
-        Ok(Json.prettyPrint(Json.obj(
-          "count" -> activeClientSummaries.size,
-          "fingerprints" -> activeClientSummaries.map { case ActiveClientSummary(publicKey) =>
-            publicKey.fingerprint
-          }
-        ))).as(ContentTypes.JSON)
-      }
+  def status = Action.async {
+    for {
+      activeClientsSummary <- (clientsMonitor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
+      activeZonesSummary <- (zonesMonitor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
+    } yield Ok(Json.prettyPrint(Json.obj(
+      "clients" -> Json.obj(
+        "count" -> activeClientsSummary.activeClientSummaries.size,
+        "fingerprints" -> activeClientsSummary.activeClientSummaries.map { case ActiveClientSummary(publicKey) =>
+          publicKey.fingerprint
+        }
+      ),
+      "zones" -> Json.obj(
+        "count" -> activeZonesSummary.activeZoneSummaries.size,
+        "zoneIds" -> activeZonesSummary.activeZoneSummaries.map { case ActiveZoneSummary(zoneId) =>
+          zoneId
+        }
+      )
+    ))).as(ContentTypes.JSON)
   }
 
   def ws = WebSocket.tryAcceptWithActor[String, String] { request =>
@@ -125,19 +132,6 @@ class Application @Inject()(system: ActorSystem) extends Controller {
         )
       }
     )
-  }
-
-  def zones = Action.async {
-    (zonesMonitor ? GetActiveZonesSummary)
-      .mapTo[ActiveZonesSummary]
-      .map { case ActiveZonesSummary(activeZoneSummaries) =>
-        Ok(Json.prettyPrint(Json.obj(
-          "count" -> activeZoneSummaries.size,
-          "zoneIds" -> activeZoneSummaries.map { case ActiveZoneSummary(zoneId) =>
-            zoneId
-          }
-        ))).as(ContentTypes.JSON)
-      }
   }
 
 }

@@ -15,8 +15,6 @@ import scala.util.{Failure, Success, Try}
 
 object ClientConnection {
 
-  private val receiveTimeout = 30.seconds
-
   def props(publicKey: PublicKey, zoneValidatorShardRegion: ActorRef)(upstream: ActorRef) =
     Props(new ClientConnection(publicKey, zoneValidatorShardRegion, upstream))
 
@@ -70,7 +68,7 @@ object ClientConnection {
 
     import actors.ClientConnection.KeepAliveGenerator._
 
-    context.setReceiveTimeout(receiveTimeout)
+    context.setReceiveTimeout(keepAliveInterval)
 
     override def receive: Receive = {
 
@@ -85,6 +83,8 @@ object ClientConnection {
   }
 
   private object KeepAliveGenerator {
+
+    private val keepAliveInterval = 30.seconds
 
     case object FrameReceivedEvent
 

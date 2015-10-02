@@ -69,8 +69,6 @@ object ZoneValidator {
 
   case class TransactionAddedEvent(timestamp: Long, transaction: Transaction) extends Event
 
-  private val receiveTimeout = 2.minutes
-
   private val zoneLifetime = 2.days
 
   val extractEntityId: ShardRegion.ExtractEntityId = {
@@ -191,9 +189,9 @@ object ZoneValidator {
 
   private class PassivationCountdown extends Actor {
 
-    import actors.ZoneValidator.PassivationActor._
+    import actors.ZoneValidator.PassivationCountdown._
 
-    context.setReceiveTimeout(receiveTimeout)
+    context.setReceiveTimeout(passivationTimeout)
 
     override def receive: Receive = {
 
@@ -205,7 +203,7 @@ object ZoneValidator {
 
       case Start =>
 
-        context.setReceiveTimeout(receiveTimeout)
+        context.setReceiveTimeout(passivationTimeout)
 
       case Stop =>
 
@@ -215,7 +213,9 @@ object ZoneValidator {
 
   }
 
-  private object PassivationActor {
+  private object PassivationCountdown {
+
+    private val passivationTimeout = 2.minutes
 
     case object CommandReceivedEvent
 
@@ -317,7 +317,7 @@ object ZoneValidator {
 class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
 
   import ShardRegion.Passivate
-  import actors.ZoneValidator.PassivationActor._
+  import actors.ZoneValidator.PassivationCountdown._
 
   private val passivationActor = context.actorOf(Props[PassivationCountdown])
 

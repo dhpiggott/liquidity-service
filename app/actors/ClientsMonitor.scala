@@ -6,6 +6,8 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import com.dhpcs.liquidity.models.PublicKey
 
+import scala.concurrent.duration._
+
 object ClientsMonitor {
 
   def props = Props(new ClientsMonitor)
@@ -18,17 +20,32 @@ object ClientsMonitor {
 
   case object GetActiveClientsSummary
 
+  private case object PublishStatus
+
 }
 
 class ClientsMonitor extends Actor with ActorLogging {
 
+  import context.dispatcher
+
   private val mediator = DistributedPubSub(context.system).mediator
+
+  private val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 
   private var activeClientSummaries = Map.empty[ActorRef, ActiveClientSummary]
 
   mediator ! Subscribe(ClientsMonitor.Topic, self)
 
+  override def postStop() {
+    publishStatusTick.cancel()
+    super.postStop()
+  }
+
   override def receive = {
+
+    case PublishStatus =>
+
+      log.info(s"${activeClientSummaries.size} clients are active")
 
     case activeClientSummary: ActiveClientSummary =>
 

@@ -435,7 +435,17 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
     case PublishStatus =>
 
-      mediator ! Publish(ZonesMonitor.Topic, ActiveZoneSummary(zoneId))
+      mediator ! Publish(
+        ZonesMonitor.Topic,
+        ActiveZoneSummary(
+          zoneId,
+          state.zone.metadata,
+          state.zone.members.values.toSet,
+          state.zone.accounts.values.toSet,
+          state.zone.transactions.values.toSet,
+          state.clientConnections.values.toSet
+        )
+      )
 
   }
 
@@ -474,6 +484,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
       state = state.copy(
         clientConnections = Map.empty
       )
+
+      self ! PublishStatus
 
   }
 
@@ -584,6 +596,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     correlationId
                   )
 
+                  self ! PublishStatus
+
                 }
 
             }
@@ -652,6 +666,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
             } else {
 
               handleJoin(sender(), publicKey, { state =>
+
                 deliverResponse(
                   Right(
                     JoinZoneResponse(
@@ -661,6 +676,9 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                   ),
                   correlationId
                 )
+
+                self ! PublishStatus
+
               })
 
             }
@@ -682,12 +700,16 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
             } else {
 
               handleQuit(sender(), {
+
                 deliverResponse(
                   Right(
                     QuitZoneResponse
                   ),
                   correlationId
                 )
+
+                self ! PublishStatus
+
               })
 
             }
@@ -720,6 +742,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     ),
                     correlationId
                   )
+
+                  self ! PublishStatus
 
                   deliverNotification(
                     ZoneNameChangedNotification(
@@ -771,6 +795,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     correlationId
                   )
 
+                  self ! PublishStatus
+
                   deliverNotification(
                     MemberCreatedNotification(
                       zoneId,
@@ -812,6 +838,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     ),
                     correlationId
                   )
+
+                  self ! PublishStatus
 
                   deliverNotification(
                     MemberUpdatedNotification(
@@ -863,6 +891,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     correlationId
                   )
 
+                  self ! PublishStatus
+
                   deliverNotification(
                     AccountCreatedNotification(
                       zoneId,
@@ -904,6 +934,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     ),
                     correlationId
                   )
+
+                  self ! PublishStatus
 
                   deliverNotification(
                     AccountUpdatedNotification(
@@ -960,6 +992,8 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     correlationId
                   )
 
+                  self ! PublishStatus
+
                   deliverNotification(
                     TransactionAddedNotification(
                       zoneId,
@@ -979,7 +1013,11 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
       if (state.clientConnections.contains(sender())) {
 
-        handleQuit(clientConnection)
+        handleQuit(clientConnection, {
+
+          self ! PublishStatus
+
+        })
 
       }
 

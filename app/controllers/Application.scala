@@ -17,6 +17,7 @@ import akka.persistence.cassandra.CassandraPluginConfig
 import akka.util.Timeout
 import com.dhpcs.liquidity.models.PublicKey
 import controllers.Application._
+import okio.ByteString
 import org.apache.commons.codec.binary.Base64
 import play.api.Logger
 import play.api.Play.current
@@ -107,16 +108,40 @@ class Application @Inject()(system: ActorSystem) extends Controller {
       activeZonesSummary <- (zonesMonitor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
     } yield Ok(Json.prettyPrint(Json.obj(
       "clients" -> Json.obj(
-        "count" -> activeClientsSummary.activeClientSummaries.size,
-        "fingerprints" -> activeClientsSummary.activeClientSummaries.map { case ActiveClientSummary(publicKey) =>
-          publicKey.fingerprint
-        }
+        "count" ->
+          activeClientsSummary.activeClientSummaries.size,
+        "publicKeyFingerprints" ->
+          activeClientsSummary.activeClientSummaries.map {
+            case ActiveClientSummary(publicKey) =>
+              publicKey.fingerprint
+          }
       ),
       "zones" -> Json.obj(
-        "count" -> activeZonesSummary.activeZoneSummaries.size,
-        "zoneIds" -> activeZonesSummary.activeZoneSummaries.map { case ActiveZoneSummary(zoneId) =>
-          zoneId
-        }
+        "count" ->
+          activeZonesSummary.activeZoneSummaries.size,
+        "zones" ->
+          activeZonesSummary.activeZoneSummaries.map {
+            case ActiveZoneSummary(zoneId, metadata, members, accounts, transactions, clientConnections) =>
+              Json.obj(
+                "zoneIdFingerprint" ->
+                  ByteString.encodeUtf8(zoneId.id.toString).sha256.hex,
+                "metadata" -> metadata,
+                "members" -> Json.obj(
+                  "count" -> members.size
+                ),
+                "accounts" -> Json.obj(
+                  "count" -> accounts.size
+                ),
+                "transactions" -> Json.obj(
+                  "count" -> transactions.size
+                ),
+                "clientConnections" -> Json.obj(
+                  "count" -> clientConnections.size,
+                  "publicKeyFingerprints" ->
+                    clientConnections.map(_.fingerprint)
+                )
+              )
+          }
       )
     ))).as(ContentTypes.JSON)
   }

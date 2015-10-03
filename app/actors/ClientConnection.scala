@@ -162,7 +162,12 @@ class ClientConnection(publicKey: PublicKey,
 
     case PublishStatus =>
 
-      mediator ! Publish(ClientsMonitor.Topic, ActiveClientSummary(publicKey))
+      mediator ! Publish(
+        ClientsMonitor.Topic,
+        ActiveClientSummary(
+          publicKey
+        )
+      )
 
     case SendKeepAlive =>
 

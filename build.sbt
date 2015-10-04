@@ -19,13 +19,13 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.0",
   "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.0",
   "com.typesafe.akka" %% "akka-persistence" % "2.4.0",
-  "com.github.krasserm" %% "akka-persistence-cassandra" % "0.4-SNAPSHOT",
+  "com.github.krasserm" %% "akka-persistence-cassandra" % "0.4",
   specs2 % Test
 )
 
 resolvers ++= Seq(
   "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases",
-  "OJO Snapshots" at "https://oss.jfrog.org/oss-snapshot-local"
+  "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
 )
 
 javaOptions in Universal ++= Seq(

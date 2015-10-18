@@ -3,7 +3,7 @@
 set -e
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-sudo docker run -d -p 443:443 \
+docker run -d -p 443:443 \
     --restart always \
     --name nginx \
     -v $DIR/nginx/dh2048.pem:/etc/nginx/certs/dh2048.pem:ro \

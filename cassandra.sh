@@ -2,7 +2,7 @@
 
 set -e
 
-sudo docker run -d \
+docker run -d \
     --restart always \
     --name cassandra \
     cassandra:2

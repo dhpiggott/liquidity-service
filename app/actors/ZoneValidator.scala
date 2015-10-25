@@ -87,7 +87,7 @@ object ZoneValidator {
   }
 
   /**
-   * From http://doc.akka.io/docs/akka/2.3.12/contrib/cluster-sharding.html:
+   * From hhttp://doc.akka.io/docs/akka/2.4.0/scala/cluster-sharding.html:
    *
    * "Creating a good sharding algorithm is an interesting challenge in itself. Try to produce a uniform distribution,
    * i.e. same amount of entries in each shard. As a rule of thumb, the number of shards should be a factor ten greater
@@ -437,17 +437,21 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
     case PublishStatus =>
 
-      mediator ! Publish(
-        ZonesMonitor.Topic,
-        ActiveZoneSummary(
-          zoneId,
-          state.zone.metadata,
-          state.zone.members.values.toSet,
-          state.zone.accounts.values.toSet,
-          state.zone.transactions.values.toSet,
-          state.clientConnections.values.toSet
+      if (state.zone != null) {
+
+        mediator ! Publish(
+          ZonesMonitor.Topic,
+          ActiveZoneSummary(
+            zoneId,
+            state.zone.metadata,
+            state.zone.members.values.toSet,
+            state.zone.accounts.values.toSet,
+            state.zone.transactions.values.toSet,
+            state.clientConnections.values.toSet
+          )
         )
-      )
+
+      }
 
   }
 

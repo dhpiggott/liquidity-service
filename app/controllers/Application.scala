@@ -1,8 +1,6 @@
 package controllers
 
-import java.io.{ByteArrayInputStream, IOException}
-import java.net.InetSocketAddress
-import java.nio.channels.SocketChannel
+import java.io.ByteArrayInputStream
 import java.security.cert.CertificateFactory
 import java.security.interfaces.RSAPublicKey
 import javax.inject._
@@ -13,13 +11,11 @@ import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
 import akka.actor.ActorSystem
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.pattern.ask
-import akka.persistence.cassandra.CassandraPluginConfig
 import akka.util.Timeout
 import com.dhpcs.liquidity.models.PublicKey
 import controllers.Application._
 import okio.ByteString
 import org.apache.commons.codec.binary.Base64
-import play.api.Logger
 import play.api.Play.current
 import play.api.http.ContentTypes
 import play.api.libs.concurrent.Execution.Implicits.defaultContext
@@ -45,8 +41,8 @@ object Application {
         case marker if pemString.startsWith(marker._1) && pemString.endsWith(marker._2) =>
           pemString.stripPrefix(marker._1).stripSuffix(marker._2)
       }.fold[Either[String, PublicKey]](
-          Left("Client certificate PEM string is not valid")
-        )(pemData =>
+        Left("Client certificate PEM string is not valid")
+      )(pemData =>
         CertificateFactory.getInstance("X.509").generateCertificate(
           new ByteArrayInputStream(
             Base64.decodeBase64(
@@ -65,29 +61,9 @@ object Application {
         })
     }
 
-  private def isContactPointAvailable(contactPoint: InetSocketAddress) = {
-    try {
-      SocketChannel.open(contactPoint).close()
-      Logger.info(s"Contact point $contactPoint is available")
-      true
-    } catch {
-      case _: IOException =>
-        Logger.info(s"Contact point $contactPoint is not available")
-        false
-    }
-  }
-
 }
 
 class Application @Inject()(system: ActorSystem) extends Controller {
-
-  {
-    val config = new CassandraPluginConfig(system.settings.config.getConfig("cassandra-journal"))
-    while (!config.contactPoints.exists(isContactPointAvailable)) {
-      Logger.info("No contact points were available, retrying in 5 seconds...")
-      Thread.sleep(5.seconds.toMillis)
-    }
-  }
 
   private val clientsMonitor = system.actorOf(ClientsMonitor.props, "clients-monitor")
   private val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")

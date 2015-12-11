@@ -19,7 +19,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.1",
   "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.1",
   "com.typesafe.akka" %% "akka-persistence" % "2.4.1",
-  "com.github.krasserm" %% "akka-persistence-cassandra" % "0.4",
+  "com.github.krasserm" %% "akka-persistence-cassandra" % "0.6",
   specs2 % Test
 )
 

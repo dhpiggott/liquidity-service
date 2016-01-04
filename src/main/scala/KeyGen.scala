@@ -95,7 +95,7 @@ object KeyGen {
     } finally {
       keyFileWriter.close()
     }
-    val trustStore = KeyStore.getInstance("BKS")
+    val trustStore = KeyStore.getInstance("BKS-V1")
     val trustStoreFile = new File(TrustStoreFilename)
     trustStore.load(null, null)
     trustStore.setCertificateEntry(

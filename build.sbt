@@ -24,8 +24,8 @@ libraryDependencies ++= Seq(
 )
 
 resolvers ++= Seq(
-  "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases",
-  "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
+  "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
+  "krasserm at bintray" at "https://dl.bintray.com/krasserm/maven"
 )
 
 javaOptions in Universal ++= Seq(

@@ -19,12 +19,10 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.2",
   "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.2",
   "com.typesafe.akka" %% "akka-persistence" % "2.4.2",
-  "com.github.krasserm" %% "akka-persistence-cassandra" % "0.6",
-  specs2 % Test
+  "com.github.krasserm" %% "akka-persistence-cassandra" % "0.6"
 )
 
 resolvers ++= Seq(
-  "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
   "krasserm at bintray" at "https://dl.bintray.com/krasserm/maven"
 )
 

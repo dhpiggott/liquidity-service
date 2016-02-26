@@ -87,12 +87,12 @@ object ZoneValidator {
   }
 
   /**
-   * From hhttp://doc.akka.io/docs/akka/2.4.0/scala/cluster-sharding.html:
-   *
-   * "Creating a good sharding algorithm is an interesting challenge in itself. Try to produce a uniform distribution,
-   * i.e. same amount of entries in each shard. As a rule of thumb, the number of shards should be a factor ten greater
-   * than the planned maximum number of cluster nodes."
-   */
+    * From http://doc.akka.io/docs/akka/2.4.0/scala/cluster-sharding.html:
+    *
+    * "Creating a good sharding algorithm is an interesting challenge in itself. Try to produce a uniform distribution,
+    * i.e. same amount of entries in each shard. As a rule of thumb, the number of shards should be a factor ten greater
+    * than the planned maximum number of cluster nodes."
+    */
   private val numberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {

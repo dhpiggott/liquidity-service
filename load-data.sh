@@ -18,4 +18,4 @@ docker run --rm \
 docker run --rm \
     -v $1/messages.csv:/mnt/import \
     --link cassandra:cassandra \
-    cassandra:2 sh -c 'exec cqlsh -e "COPY akka.messages FROM '\''/mnt/import'\'';" cassandra'
+    cassandra:2 sh -c 'exec cqlsh -e "COPY akka.messages FROM '\''/mnt/import'\'' WITH NUMPROCESSES=1 AND CHUNKSIZE=1 AND MAXBATCHSIZE=1;" cassandra'

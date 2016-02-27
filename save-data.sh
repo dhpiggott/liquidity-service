@@ -18,4 +18,4 @@ touch $1/messages.csv
 docker run --rm \
     -v $1/messages.csv:/mnt/export \
     --link cassandra:cassandra \
-    cassandra:2 sh -c 'exec cqlsh -e "COPY akka.messages TO '\''/mnt/export'\'';" cassandra'
+    cassandra:2 sh -c 'exec cqlsh -e "COPY akka.messages TO '\''/mnt/export'\'' WITH NUMPROCESSES=1 AND CHUNKSIZE=1 AND MAXREQUESTS=1;" cassandra'

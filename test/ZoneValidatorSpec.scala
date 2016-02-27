@@ -1,4 +1,5 @@
 import java.security.KeyPairGenerator
+import java.util.UUID
 
 import actors.ClientConnection.MessageReceivedConfirmation
 import actors.ZoneValidator
@@ -97,6 +98,31 @@ class ZoneValidatorSpec(_system: ActorSystem) extends TestKit(_system) with Defa
       }
       val zoneDeliveryId = expectMsgPF() {
         case ResponseWithIds(Right(CreateZoneResponse(_)), `unusedClientCorrelationId`, _, id) => id
+      }
+      lastSender ! MessageReceivedConfirmation(zoneDeliveryId)
+    }
+  }
+
+  "A ZoneValidator" must {
+    "send a JoinZoneResponse when joined" in {
+      val zoneId = ZoneId(UUID.fromString("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"))
+      val sequenceNumber = commandSequenceNumbers(zoneId)
+      commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+      zoneValidatorShardRegion ! AuthenticatedCommandWithIds(
+        publicKey,
+        JoinZoneCommand(
+          zoneId
+        ),
+        unusedClientCorrelationId,
+        sequenceNumber,
+        unusedClientDeliveryId
+      )
+      expectMsgPF(10.seconds) {
+        case CommandReceivedConfirmation(`zoneId`, _) =>
+      }
+      val expectedConnectedClients = Set(publicKey)
+      val zoneDeliveryId = expectMsgPF() {
+        case ResponseWithIds(Right(JoinZoneResponse(_, `expectedConnectedClients`)), `unusedClientCorrelationId`, _, id) => id
       }
       lastSender ! MessageReceivedConfirmation(zoneDeliveryId)
     }

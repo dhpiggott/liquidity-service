@@ -21,6 +21,9 @@ cp nginx.sh $DIR/stage/
 cp save-data.sh $DIR/stage/
 cp load-data.sh $DIR/stage/
 
+cp migrate-plugin-0.6-to-0.7.sh $DIR/stage/
+cp v0.7-schema.cql $DIR/stage/
+
 rsync --archive \
     --compress \
     --delete \

@@ -21,8 +21,6 @@ cp nginx.sh $DIR/stage/
 cp save-data.sh $DIR/stage/
 cp load-data.sh $DIR/stage/
 
-cp migrate-cassandra-2-to-3.sh $DIR/stage/
-
 rsync --archive \
     --compress \
     --delete \

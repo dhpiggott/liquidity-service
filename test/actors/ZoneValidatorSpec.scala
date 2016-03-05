@@ -1,8 +1,9 @@
+package actors
+
 import java.security.KeyPairGenerator
 import java.util.UUID
 
 import actors.ClientConnection.MessageReceivedConfirmation
-import actors.ZoneValidator
 import actors.ZoneValidator.{AuthenticatedCommandWithIds, CommandReceivedConfirmation, EnvelopedMessage, ResponseWithIds}
 import akka.actor.ActorSystem
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}

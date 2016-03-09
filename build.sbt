@@ -2,7 +2,7 @@ name := "liquidity-server"
 
 version := "1.0-SNAPSHOT"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
 dockerBaseImage := "java:8-jre"
 

@@ -87,11 +87,11 @@ object ZoneValidator {
   }
 
   /**
-    * From http://doc.akka.io/docs/akka/2.4.0/scala/cluster-sharding.html:
+    * From http://doc.akka.io/docs/akka/2.4.2/scala/cluster-sharding.html:
     *
     * "Creating a good sharding algorithm is an interesting challenge in itself. Try to produce a uniform distribution,
-    * i.e. same amount of entries in each shard. As a rule of thumb, the number of shards should be a factor ten greater
-    * than the planned maximum number of cluster nodes."
+    * i.e. same amount of entities in each shard. As a rule of thumb, the number of shards should be a factor ten
+    * greater than the planned maximum number of cluster nodes."
     */
   private val numberOfShards = 10
 
@@ -335,7 +335,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
   private val zoneId = ZoneId(UUID.fromString(self.path.name))
 
-  private var state: State = State(
+  private var state = State(
     null,
     Map.empty.withDefaultValue(BigDecimal(0)),
     Map.empty[ActorRef, PublicKey]

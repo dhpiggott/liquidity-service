@@ -145,7 +145,7 @@ class ClientConnection(publicKey: PublicKey,
     }
   }
 
-  override def persistenceId: String = s"${publicKey.productPrefix}(${publicKey.fingerprint})"
+  override def persistenceId = s"${publicKey.productPrefix}(${publicKey.fingerprint})"
 
   override def postStop() {
     log.info(s"Stopped actor for ${publicKey.fingerprint}")

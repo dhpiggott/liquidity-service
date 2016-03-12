@@ -6,33 +6,35 @@ import java.security.cert.CertificateFactory
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Keep
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.models._
 import org.apache.commons.codec.binary.Base64
 import org.scalatestplus.play.{OneServerPerSuite, PlaySpec}
-import play.api.libs.concurrent.Akka
 import play.api.libs.json.Json
 
 import scala.io.Source
 
 class ApplicationSpec extends PlaySpec with OneServerPerSuite {
 
-  private val clientCertificateString = Source.fromFile("nginx/liquidity.dhpcs.com.crt").mkString.replaceAllLiterally("\n", "")
+  private val clientCertificateString = Source
+    .fromFile("nginx/liquidity.dhpcs.com.crt")
+    .mkString.replaceAllLiterally("\n", "")
   private val publicKey = PublicKey(
     CertificateFactory.getInstance("X.509").generateCertificate(
       new ByteArrayInputStream(
         Base64.decodeBase64(
-          clientCertificateString.stripPrefix("-----BEGIN CERTIFICATE-----").stripSuffix("-----End CERTIFICATE-----")
+          clientCertificateString
+            .stripPrefix("-----BEGIN CERTIFICATE-----")
+            .stripSuffix("-----End CERTIFICATE-----")
         )
       )
     ).getPublicKey.getEncoded
   )
 
-  private implicit val system = Akka.system(app)
-  private implicit val materializer = ActorMaterializer()
+  private implicit val system = app.actorSystem
+  private implicit val materializer = app.materializer
 
   "The WebSocket API" must {
     "send a SupportedVersionsNotification when connected" in {

@@ -11,15 +11,16 @@ import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
 import akka.actor.ActorSystem
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.pattern.ask
+import akka.stream.{Materializer, OverflowStrategy}
 import akka.util.Timeout
 import com.dhpcs.liquidity.models.PublicKey
 import controllers.Application._
 import okio.ByteString
 import org.apache.commons.codec.binary.Base64
-import play.api.Play.current
 import play.api.http.ContentTypes
 import play.api.libs.concurrent.Execution.Implicits.defaultContext
 import play.api.libs.json.Json
+import play.api.libs.streams.ActorFlow
 import play.api.mvc._
 
 import scala.concurrent.Future
@@ -63,7 +64,7 @@ object Application {
 
 }
 
-class Application @Inject()(system: ActorSystem) extends Controller {
+class Application @Inject()(implicit system: ActorSystem, materializer: Materializer) extends Controller {
 
   private val clientsMonitor = system.actorOf(ClientsMonitor.props, "clients-monitor")
   private val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
@@ -109,14 +110,18 @@ class Application @Inject()(system: ActorSystem) extends Controller {
     ))).as(ContentTypes.JSON)
   }
 
-  def ws = WebSocket.tryAcceptWithActor[String, String] { request =>
+  def ws = WebSocket.acceptOrResult[String, String] { request: RequestHeader =>
     Future.successful(
       getPublicKey(request.headers) match {
         case Left(error) => Left(
           BadRequest(error)
         )
         case Right(publicKey) => Right(
-          ClientConnection.props(publicKey, zoneValidatorShardRegion)
+          ActorFlow.actorRef(
+            ClientConnection.props(publicKey, zoneValidatorShardRegion),
+            bufferSize = 16,
+            overflowStrategy = OverflowStrategy.fail
+          )
         )
       }
     )

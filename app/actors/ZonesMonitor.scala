@@ -1,9 +1,15 @@
 package actors
 
+import java.util.UUID
+
 import actors.ZonesMonitor._
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
+import akka.pattern.pipe
+import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
+import akka.persistence.query.PersistenceQuery
+import akka.stream.ActorMaterializer
 import com.dhpcs.liquidity.models._
 import play.api.libs.json.JsObject
 
@@ -15,6 +21,8 @@ object ZonesMonitor {
 
   val Topic = "zones"
 
+  case object GetActiveZonesSummary
+
   case class ActiveZoneSummary(zoneId: ZoneId,
                                metadata: Option[JsObject],
                                members: Set[Member],
@@ -24,9 +32,13 @@ object ZonesMonitor {
 
   case class ActiveZonesSummary(activeZoneSummaries: Set[ActiveZoneSummary])
 
-  case object GetActiveZonesSummary
+  case object GetZoneCount
+
+  case class ZoneCount(count: Int)
 
   private case object PublishStatus
+
+  private val ZoneIdStringPattern = """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
 
 }
 
@@ -41,6 +53,11 @@ class ZonesMonitor extends Actor with ActorLogging {
   private var activeZoneSummaries = Map.empty[ActorRef, ActiveZoneSummary]
 
   mediator ! Subscribe(Topic, self)
+
+  private implicit val materializer = ActorMaterializer()
+
+  private val readJournal = PersistenceQuery(context.system)
+    .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
 
   override def postStop() {
     publishStatusTick.cancel()
@@ -62,6 +79,18 @@ class ZonesMonitor extends Actor with ActorLogging {
       }
 
       activeZoneSummaries = activeZoneSummaries + (sender -> activeZoneSummary)
+
+    case GetZoneCount =>
+
+      val requester = sender()
+
+      readJournal.currentPersistenceIds()
+        .collect { case ZoneIdStringPattern(zoneIdString) =>
+          ZoneId(UUID.fromString(zoneIdString))
+        }
+        .runFold(0)((count, _) => count + 1)
+        .map(ZoneCount)
+        .pipeTo(requester)
 
     case GetActiveZonesSummary =>
 

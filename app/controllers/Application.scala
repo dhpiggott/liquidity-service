@@ -6,7 +6,7 @@ import java.security.interfaces.RSAPublicKey
 import javax.inject._
 
 import actors.ClientsMonitor.{ActiveClientSummary, ActiveClientsSummary, GetActiveClientsSummary}
-import actors.ZonesMonitor.{ActiveZoneSummary, ActiveZonesSummary, GetActiveZonesSummary}
+import actors.ZonesMonitor._
 import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
 import akka.actor.ActorSystem
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
@@ -83,6 +83,7 @@ class Application @Inject()(implicit system: ActorSystem, materializer: Material
     for {
       activeClientsSummary <- (clientsMonitor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
       activeZonesSummary <- (zonesMonitor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
+      totalZonesCount <- (zonesMonitor ? GetZoneCount).mapTo[ZoneCount]
     } yield Ok(Json.prettyPrint(Json.obj(
       "clients" -> Json.obj(
         "count" -> activeClientsSummary.activeClientSummaries.size,
@@ -90,7 +91,8 @@ class Application @Inject()(implicit system: ActorSystem, materializer: Material
           case ActiveClientSummary(publicKey) => publicKey.fingerprint
         }.sorted
       ),
-      "zones" -> Json.obj(
+      "totalZonesCount" -> totalZonesCount.count,
+      "activeZones" -> Json.obj(
         "count" -> activeZonesSummary.activeZoneSummaries.size,
         "zones" -> activeZonesSummary.activeZoneSummaries.toSeq.sortBy(_.zoneId.id).map {
           case ActiveZoneSummary(zoneId, metadata, members, accounts, transactions, clientConnections) =>

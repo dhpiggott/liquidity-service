@@ -16,7 +16,7 @@ import scala.concurrent.duration._
 import scala.util.Left
 
 class ZoneValidatorSpec(system: ActorSystem) extends TestKit(system)
-  with WordSpecLike with DefaultTimeout with BeforeAndAfterAll {
+  with DefaultTimeout with WordSpecLike with BeforeAndAfterAll {
 
   private val publicKey = {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
@@ -40,7 +40,7 @@ class ZoneValidatorSpec(system: ActorSystem) extends TestKit(system)
 
   def this() = this(ActorSystem("application"))
 
-  override def afterAll() = TestKit.shutdownActorSystem(system)
+  override def afterAll() = shutdown()
 
   "A ZoneValidator" must {
     "send an error response when joined before creation" in {

@@ -43,7 +43,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
         TestSink.probe[Message],
         TestSource.probe[Message]
       )(Keep.both)
-      val (_, (sub, _)) = Http().singleWebSocketRequest(
+      val (_, (sub, pub)) = Http().singleWebSocketRequest(
         WebSocketRequest(
           s"ws://localhost:$port/ws",
           List(
@@ -60,6 +60,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
             .flatMap(Notification.read)
             .exists(_.asOpt.exists(_.isInstanceOf[SupportedVersionsNotification])) =>
       }
+      pub.sendComplete()
     }
     "send a CreateZoneReponse after a CreateZoneCommand" in {
       val flow = Flow.fromSinkAndSourceMat(
@@ -107,6 +108,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
             .flatMap(_.right.toOption)
             .exists(_.isInstanceOf[CreateZoneResponse]) =>
       }
+      pub.sendComplete()
     }
     "send a JoinZoneReponse after a JoinZoneCommand" in {
       val flow = Flow.fromSinkAndSourceMat(
@@ -178,6 +180,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
             .flatMap(_.right.toOption)
             .exists(_.isInstanceOf[JoinZoneResponse]) =>
       }
+      pub.sendComplete()
     }
   }
 

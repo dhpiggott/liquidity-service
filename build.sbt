@@ -21,7 +21,10 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-persistence" % "2.4.2",
   "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.9",
   "org.scalatest" %% "scalatest" % "2.2.6" % "test",
-  "com.typesafe.akka" %% "akka-testkit" % "2.4.2" % "test"
+  "com.typesafe.akka" %% "akka-testkit" % "2.4.2" % "test",
+  "org.scalatestplus" %% "play" % "1.4.0" % "test",
+  "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.2" % "test",
+  "com.typesafe.akka" %% "akka-http-core" % "2.4.2" % "test"
 )
 
 javaOptions in Test += "-Dconfig.resource=test.conf"

@@ -15,7 +15,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
 import scala.concurrent.duration._
 import scala.util.Left
 
-class ZoneValidatorSpec(_system: ActorSystem) extends TestKit(_system) with DefaultTimeout with ImplicitSender
+class ZoneValidatorSpec(system: ActorSystem) extends TestKit(system) with DefaultTimeout with ImplicitSender
   with WordSpecLike with BeforeAndAfterAll {
 
   private val publicKey = {

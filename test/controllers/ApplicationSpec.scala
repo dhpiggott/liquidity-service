@@ -18,9 +18,10 @@ import scala.io.Source
 
 class ApplicationSpec extends PlaySpec with OneServerPerSuite {
 
-  private val clientCertificateString = Source
-    .fromFile("nginx/liquidity.dhpcs.com.crt")
-    .mkString.replaceAllLiterally("\n", "")
+  private val clientCertificateString = {
+    val lines = Source.fromFile("nginx/liquidity.dhpcs.com.crt").getLines.toList
+    (lines.head :: lines.tail.map("\t" + _)).mkString
+  }
   private val publicKey = PublicKey(
     CertificateFactory.getInstance("X.509").generateCertificate(
       new ByteArrayInputStream(

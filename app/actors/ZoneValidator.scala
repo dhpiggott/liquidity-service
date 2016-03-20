@@ -109,9 +109,9 @@ object ZoneValidator {
 
   val shardName = "ZoneValidator"
 
-  private case class State(zone: Zone,
-                           balances: Map[AccountId, BigDecimal],
-                           clientConnections: Map[ActorRef, PublicKey]) {
+  private case class State(zone: Zone = null,
+                           balances: Map[AccountId, BigDecimal] = Map.empty.withDefaultValue(BigDecimal(0)),
+                           clientConnections: Map[ActorRef, PublicKey] = Map.empty[ActorRef, PublicKey]) {
 
     def updated(event: Event) = event match {
 
@@ -335,11 +335,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
   private val zoneId = ZoneId(UUID.fromString(self.path.name))
 
-  private var state = State(
-    null,
-    Map.empty.withDefaultValue(BigDecimal(0)),
-    Map.empty[ActorRef, PublicKey]
-  )
+  private var state = State()
 
   private var nextExpectedCommandSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(0L)
   private var messageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(0L)

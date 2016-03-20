@@ -77,9 +77,6 @@ class ZoneValidatorSpec(system: ActorSystem) extends TestKit(system)
         MessageReceivedConfirmation(zoneDeliveryId)
       )
     }
-  }
-
-  "A ZoneValidator" must {
     "send a create zone response when a zone is created" in {
       val testProbe = TestProbe()
       val zoneId = ZoneId.generate
@@ -116,9 +113,6 @@ class ZoneValidatorSpec(system: ActorSystem) extends TestKit(system)
         MessageReceivedConfirmation(zoneDeliveryId)
       )
     }
-  }
-
-  "A ZoneValidator" must {
     "send a JoinZoneResponse when joined" in {
       val testProbe = TestProbe()
       val zoneId = ZoneId(UUID.fromString("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"))

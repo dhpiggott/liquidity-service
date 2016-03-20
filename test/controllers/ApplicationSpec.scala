@@ -6,7 +6,7 @@ import java.security.cert.CertificateFactory
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
-import akka.stream.scaladsl.Keep
+import akka.stream.scaladsl.{Flow, Keep}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.models._
@@ -38,18 +38,19 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
 
   "The WebSocket API" must {
     "send a SupportedVersionsNotification when connected" in {
-      val webSocketFlow = Http().webSocketClientFlow(
+      val flow = Flow.fromSinkAndSourceMat(
+        TestSink.probe[Message],
+        TestSource.probe[Message]
+      )(Keep.both)
+      val (_, (sub, _)) = Http().singleWebSocketRequest(
         WebSocketRequest(
           s"ws://localhost:$port/ws",
           List(
             RawHeader("X-SSL-Client-Cert", clientCertificateString)
           )
-        )
+        ),
+        flow
       )
-      val sub = TestSource.probe[Message]
-        .via(webSocketFlow)
-        .toMat(TestSink.probe[Message])(Keep.right)
-        .run()
       sub.request(1)
       sub.expectNextPF {
         case TextMessage.Strict(text)
@@ -60,18 +61,19 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
       }
     }
     "send a CreateZoneReponse after a CreateZoneCommand" in {
-      val webSocketFlow = Http().webSocketClientFlow(
+      val flow = Flow.fromSinkAndSourceMat(
+        TestSink.probe[Message],
+        TestSource.probe[Message]
+      )(Keep.both)
+      val (_, (sub, pub)) = Http().singleWebSocketRequest(
         WebSocketRequest(
           s"ws://localhost:$port/ws",
           List(
             RawHeader("X-SSL-Client-Cert", clientCertificateString)
           )
-        )
+        ),
+        flow
       )
-      val (pub, sub) = TestSource.probe[Message]
-        .via(webSocketFlow)
-        .toMat(TestSink.probe[Message])(Keep.both)
-        .run()
       sub.request(1)
       sub.expectNextPF {
         case TextMessage.Strict(text)
@@ -106,18 +108,19 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
       }
     }
     "send a JoinZoneReponse after a JoinZoneCommand" in {
-      val webSocketFlow = Http().webSocketClientFlow(
+      val flow = Flow.fromSinkAndSourceMat(
+        TestSink.probe[Message],
+        TestSource.probe[Message]
+      )(Keep.both)
+      val (_, (sub, pub)) = Http().singleWebSocketRequest(
         WebSocketRequest(
           s"ws://localhost:$port/ws",
           List(
             RawHeader("X-SSL-Client-Cert", clientCertificateString)
           )
-        )
+        ),
+        flow
       )
-      val (pub, sub) = TestSource.probe[Message]
-        .via(webSocketFlow)
-        .toMat(TestSink.probe[Message])(Keep.both)
-        .run()
       sub.request(1)
       sub.expectNextPF {
         case TextMessage.Strict(text)

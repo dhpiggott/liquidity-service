@@ -38,7 +38,8 @@ object ZonesMonitor {
 
   private case object PublishStatus
 
-  private val ZoneIdStringPattern = """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
+  private val ZoneIdStringPattern =
+    """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
 
 }
 
@@ -84,9 +85,9 @@ class ZonesMonitor extends Actor with ActorLogging {
 
       val requester = sender()
 
-      readJournal.currentPersistenceIds()
-        .collect { case ZoneIdStringPattern(zoneIdString) =>
-          ZoneId(UUID.fromString(zoneIdString))
+      readJournal.currentPersistenceIds
+        .collect { case ZoneIdStringPattern(uuidString) =>
+          ZoneId(UUID.fromString(uuidString))
         }
         .runFold(0)((count, _) => count + 1)
         .map(ZoneCount)

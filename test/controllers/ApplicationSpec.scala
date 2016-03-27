@@ -10,29 +10,40 @@ import akka.stream.scaladsl.{Flow, Keep}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.models._
+import controllers.ApplicationSpec._
 import org.apache.commons.codec.binary.Base64
 import org.scalatestplus.play.{OneServerPerSuite, PlaySpec}
 import play.api.libs.json.Json
 
 import scala.io.Source
 
-class ApplicationSpec extends PlaySpec with OneServerPerSuite {
+object ApplicationSpec {
 
-  private val clientCertificateString = {
+  private val ClientNginxPemCertificateHeaderString = {
     val lines = Source.fromFile("nginx/liquidity.dhpcs.com.crt").getLines.toList
+
+    /**
+      * Nginx prepends all but the first line with tabs when encoding certificates as PEM strings in its
+      * X-SSL-Client-Cert header.
+      */
     (lines.head :: lines.tail.map("\t" + _)).mkString
   }
-  private val publicKey = PublicKey(
+
+  private val ClientPublicKey = PublicKey(
     CertificateFactory.getInstance("X.509").generateCertificate(
       new ByteArrayInputStream(
         Base64.decodeBase64(
-          clientCertificateString
+          ClientNginxPemCertificateHeaderString
             .stripPrefix("-----BEGIN CERTIFICATE-----")
             .stripSuffix("-----End CERTIFICATE-----")
         )
       )
     ).getPublicKey.getEncoded
   )
+
+}
+
+class ApplicationSpec extends PlaySpec with OneServerPerSuite {
 
   private implicit val system = app.actorSystem
   private implicit val materializer = app.materializer
@@ -47,7 +58,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
         WebSocketRequest(
           s"ws://localhost:$port/ws",
           List(
-            RawHeader("X-SSL-Client-Cert", clientCertificateString)
+            RawHeader("X-SSL-Client-Cert", ClientNginxPemCertificateHeaderString)
           )
         ),
         flow
@@ -71,7 +82,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
         WebSocketRequest(
           s"ws://localhost:$port/ws",
           List(
-            RawHeader("X-SSL-Client-Cert", clientCertificateString)
+            RawHeader("X-SSL-Client-Cert", ClientNginxPemCertificateHeaderString)
           )
         ),
         flow
@@ -88,7 +99,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
         TextMessage.Strict(Json.stringify(Json.toJson(
           Command.write(
             CreateZoneCommand(
-              publicKey,
+              ClientPublicKey,
               Some("Dave"),
               None,
               None,
@@ -119,7 +130,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
         WebSocketRequest(
           s"ws://localhost:$port/ws",
           List(
-            RawHeader("X-SSL-Client-Cert", clientCertificateString)
+            RawHeader("X-SSL-Client-Cert", ClientNginxPemCertificateHeaderString)
           )
         ),
         flow
@@ -136,7 +147,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
         TextMessage.Strict(Json.stringify(Json.toJson(
           Command.write(
             CreateZoneCommand(
-              publicKey,
+              ClientPublicKey,
               Some("Dave"),
               None,
               None,

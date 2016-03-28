@@ -16,11 +16,7 @@ libraryDependencies ++= Seq(
   // TODO: Update when a play-json-rpc built for 2.5.0 is released
   "com.typesafe.play" %% "play-json" % "2.4.6" force(),
   "com.dhpcs" %% "liquidity-common" % "1.0.0",
-  "com.typesafe.akka" %% "akka-actor" % "2.4.2",
-  "com.typesafe.akka" %% "akka-cluster" % "2.4.2",
   "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.2",
-  "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.2",
-  "com.typesafe.akka" %% "akka-persistence" % "2.4.2",
   "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.9",
   "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.2",
   "org.scalatest" %% "scalatest" % "2.2.6" % "test",

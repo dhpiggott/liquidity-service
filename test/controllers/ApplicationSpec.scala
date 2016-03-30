@@ -73,7 +73,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
       }
       pub.sendComplete()
     }
-    "send a CreateZoneReponse after a CreateZoneCommand" in {
+    "send a CreateZoneResponse after a CreateZoneCommand" in {
       val flow = Flow.fromSinkAndSourceMat(
         TestSink.probe[Message],
         TestSource.probe[Message]

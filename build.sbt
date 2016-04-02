@@ -13,7 +13,6 @@ daemonUser in Docker := "root"
 lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
 
 libraryDependencies ++= Seq(
-  // TODO: Update when a play-json-rpc built for 2.5.0 is released
   "com.typesafe.play" %% "play-json" % "2.4.6" force(),
   "com.dhpcs" %% "liquidity-common" % "1.0.0",
   "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.3",

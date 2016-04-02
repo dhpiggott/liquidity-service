@@ -10,13 +10,13 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.{DefaultTimeout, TestKit, TestProbe}
 import com.dhpcs.jsonrpc.{ErrorResponse, JsonRpcResponseError}
 import com.dhpcs.liquidity.models._
-import org.scalatest.{BeforeAndAfterAll, WordSpecLike}
+import org.scalatest.WordSpecLike
 
 import scala.concurrent.duration._
 import scala.util.Left
 
-class ZoneValidatorSpec(system: ActorSystem) extends TestKit(system)
-  with DefaultTimeout with WordSpecLike with BeforeAndAfterAll {
+class ZoneValidatorSpec(implicit system: ActorSystem) extends TestKit(system)
+  with DefaultTimeout with WordSpecLike {
 
   private val publicKey = {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
@@ -31,16 +31,10 @@ class ZoneValidatorSpec(system: ActorSystem) extends TestKit(system)
     extractShardId = ZoneValidator.extractShardId
   )
 
-  private implicit val sys = system
-
   private val unusedClientCorrelationId = Option(Left("unused"))
   private val unusedClientDeliveryId = 0L
 
   private var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
-
-  def this() = this(ActorSystem("application"))
-
-  override def afterAll() = shutdown()
 
   "A ZoneValidator" must {
     "send an error response when joined before creation" in {

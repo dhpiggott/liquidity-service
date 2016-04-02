@@ -1,7 +1,6 @@
 TODO
 ====
 
-* Figure out how actor tests pass without port binding errors
 * Rewrite ApplicationSpec using WSProbe(?), remove akka-http-core test dependency
 * Review whether PassivationCountdown actor is still needed
 * Make test styles consistent -- use WordSpec(Like) -- review akka persistence cassandra for example (https://github.com/akka/akka-persistence-cassandra/blob/master/src/test/scala/akka/persistence/cassandra/journal/CassandraIntegrationSpec.scala)

@@ -1,7 +1,6 @@
 TODO
 ====
 
-* Rewrite ApplicationSpec using WSProbe(?), remove akka-http-core test dependency
 * Review whether PassivationCountdown actor is still needed
 * Make test styles consistent -- use WordSpec(Like) -- review akka persistence cassandra for example (https://github.com/akka/akka-persistence-cassandra/blob/master/src/test/scala/akka/persistence/cassandra/journal/CassandraIntegrationSpec.scala)
 * Reinject sidelined 0.10 Zone, switch to a sensible serialization format:
@@ -20,3 +19,4 @@ TODO
 * Release play-json-rpc 1.0.1/1.1.0
 * Apply Clean Code chapter 5 to liquidity-tools, liquidity-server and liquidity
 * Convert to using Akka HTTP directly (no Play framework) -- see http://doc.akka.io/docs/akka/2.4.3/intro/deployment-scenarios.html#deployment-scenarios
+  * Then rewrite ApplicationSpec using WSProbe and remove akka-http-core test dependency

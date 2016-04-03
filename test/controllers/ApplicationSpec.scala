@@ -15,6 +15,7 @@ import org.apache.commons.codec.binary.Base64
 import org.scalatestplus.play.{OneServerPerSuite, PlaySpec}
 import play.api.libs.json.Json
 
+import scala.concurrent.duration._
 import scala.io.Source
 
 object ApplicationSpec {
@@ -70,6 +71,40 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
             .asOpt[JsonRpcNotificationMessage]
             .flatMap(Notification.read)
             .exists(_.asOpt.exists(_.isInstanceOf[SupportedVersionsNotification])) =>
+      }
+      pub.sendComplete()
+    }
+    "send a KeepAliveNotification when left idle" in {
+      val flow = Flow.fromSinkAndSourceMat(
+        TestSink.probe[Message],
+        TestSource.probe[Message]
+      )(Keep.both)
+      val (_, (sub, pub)) = Http().singleWebSocketRequest(
+        WebSocketRequest(
+          s"ws://localhost:$port/ws",
+          List(
+            RawHeader("X-SSL-Client-Cert", ClientNginxPemCertificateHeaderString)
+          )
+        ),
+        flow
+      )
+      sub.request(1)
+      sub.expectNextPF {
+        case TextMessage.Strict(text)
+          if Json.parse(text)
+            .asOpt[JsonRpcNotificationMessage]
+            .flatMap(Notification.read)
+            .exists(_.asOpt.exists(_.isInstanceOf[SupportedVersionsNotification])) =>
+      }
+      sub.within(30.seconds) {
+        sub.request(1)
+        sub.expectNextPF {
+          case TextMessage.Strict(text)
+            if Json.parse(text)
+              .asOpt[JsonRpcNotificationMessage]
+              .flatMap(Notification.read)
+              .exists(_.asOpt.exists(_ == KeepAliveNotification)) =>
+        }
       }
       pub.sendComplete()
     }

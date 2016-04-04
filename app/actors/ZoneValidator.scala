@@ -1013,22 +1013,18 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
     case Terminated(clientConnection) =>
 
-      if (state.clientConnections.contains(sender())) {
+      handleQuit(clientConnection, {
 
-        handleQuit(clientConnection, {
+        self ! PublishStatus
 
-          self ! PublishStatus
+      })
 
-        })
+      nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers - clientConnection
 
-      }
+      messageSequenceNumbers = messageSequenceNumbers - clientConnection
 
-      nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers - sender()
-
-      messageSequenceNumbers = messageSequenceNumbers - sender()
-
-      pendingDeliveries(sender()).foreach(confirmDelivery)
-      pendingDeliveries = pendingDeliveries - sender()
+      pendingDeliveries(clientConnection).foreach(confirmDelivery)
+      pendingDeliveries = pendingDeliveries - clientConnection
 
   }
 

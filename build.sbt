@@ -22,7 +22,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-testkit" % "2.4.3" % "test",
   "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.0" % "test",
   "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.3" % "test",
-  "com.typesafe.akka" %% "akka-http-core" % "2.4.3" % "test"
+  "com.typesafe.akka" %% "akka-http-experimental" % "2.4.3" % "test"
 )
 
 javaOptions in Test += "-Dconfig.resource=test.conf"

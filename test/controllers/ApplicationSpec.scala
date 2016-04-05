@@ -96,7 +96,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
             .flatMap(Notification.read)
             .exists(_.asOpt.exists(_.isInstanceOf[SupportedVersionsNotification])) =>
       }
-      sub.within(30.seconds) {
+      sub.within(35.seconds) {
         sub.request(1)
         sub.expectNextPF {
           case TextMessage.Strict(text)

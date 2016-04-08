@@ -5,7 +5,7 @@ import java.security.cert.CertificateFactory
 import java.security.interfaces.RSAPublicKey
 import javax.inject._
 
-import actors.ClientsMonitor.{ActiveClientSummary, ActiveClientsSummary, GetActiveClientsSummary}
+import actors.ClientsMonitor.{ActiveClientsSummary, GetActiveClientsSummary}
 import actors.ZonesMonitor._
 import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
 import akka.actor.ActorSystem
@@ -88,14 +88,14 @@ class Application @Inject()(implicit system: ActorSystem, materializer: Material
       "clients" -> Json.obj(
         "count" -> activeClientsSummary.activeClientSummaries.size,
         "publicKeyFingerprints" -> activeClientsSummary.activeClientSummaries.map {
-          case ActiveClientSummary(publicKey) => publicKey.fingerprint
+          case ClientConnection.ActiveClientSummary(publicKey) => publicKey.fingerprint
         }.sorted
       ),
       "totalZonesCount" -> totalZonesCount.count,
       "activeZones" -> Json.obj(
         "count" -> activeZonesSummary.activeZoneSummaries.size,
         "zones" -> activeZonesSummary.activeZoneSummaries.toSeq.sortBy(_.zoneId.id).map {
-          case ActiveZoneSummary(zoneId, metadata, members, accounts, transactions, clientConnections) =>
+          case ZoneValidator.ActiveZoneSummary(zoneId, metadata, members, accounts, transactions, clientConnections) =>
             Json.obj(
               "zoneIdFingerprint" -> ByteString.encodeUtf8(zoneId.id.toString).sha256.hex,
               "metadata" -> metadata,

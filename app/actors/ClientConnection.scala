@@ -3,8 +3,6 @@ package actors
 import java.util.UUID
 
 import actors.ClientConnection._
-import actors.ClientsMonitor.ActiveClientSummary
-import actors.ZoneValidator._
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
@@ -21,7 +19,11 @@ object ClientConnection {
   def props(publicKey: PublicKey, zoneValidatorShardRegion: ActorRef)(upstream: ActorRef) =
     Props(new ClientConnection(publicKey, zoneValidatorShardRegion, upstream))
 
+  val Topic = "Client"
+
   case class MessageReceivedConfirmation(deliveryId: Long)
+
+  case class ActiveClientSummary(publicKey: PublicKey)
 
   private case object PublishStatus
 
@@ -79,11 +81,11 @@ object ClientConnection {
             Command.read(jsonRpcRequestMessage)
               .fold[(Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command])](
 
-                jsonRpcRequestMessage.id -> Left(
-                  JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method)
-                )
+              jsonRpcRequestMessage.id -> Left(
+                JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method)
+              )
 
-              )(commandJsResult => commandJsResult.fold(
+            )(commandJsResult => commandJsResult.fold(
 
               errors => jsonRpcRequestMessage.id -> Left(
                 JsonRpcResponseError.invalidParams(errors)
@@ -132,9 +134,9 @@ class ClientConnection(publicKey: PublicKey,
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      EnvelopedMessage(
+      ZoneValidator.EnvelopedMessage(
         zoneId,
-        AuthenticatedCommandWithIds(
+        ZoneValidator.AuthenticatedCommandWithIds(
           publicKey,
           createZoneCommand,
           correlationId,
@@ -163,7 +165,7 @@ class ClientConnection(publicKey: PublicKey,
     case PublishStatus =>
 
       mediator ! Publish(
-        ClientsMonitor.Topic,
+        Topic,
         ActiveClientSummary(
           publicKey
         )
@@ -212,7 +214,7 @@ class ClientConnection(publicKey: PublicKey,
               commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
               deliver(zoneValidatorShardRegion.path) { deliveryId =>
                 pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-                AuthenticatedCommandWithIds(
+                ZoneValidator.AuthenticatedCommandWithIds(
                   publicKey,
                   zoneCommand,
                   correlationId,
@@ -225,7 +227,7 @@ class ClientConnection(publicKey: PublicKey,
 
       }
 
-    case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
+    case ZoneValidator.ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
 
       val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
 
@@ -243,7 +245,7 @@ class ClientConnection(publicKey: PublicKey,
 
       }
 
-    case ZoneRestarted(zoneId, sequenceNumber, deliveryId) =>
+    case ZoneValidator.ZoneRestarted(zoneId, sequenceNumber, deliveryId) =>
 
       val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
 
@@ -279,7 +281,7 @@ class ClientConnection(publicKey: PublicKey,
 
       }
 
-    case CommandReceivedConfirmation(zoneId, deliveryId) =>
+    case ZoneValidator.CommandReceivedConfirmation(zoneId, deliveryId) =>
 
       confirmDelivery(deliveryId)
 
@@ -291,7 +293,7 @@ class ClientConnection(publicKey: PublicKey,
 
       }
 
-    case ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
+    case ZoneValidator.ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
 
       val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
 
@@ -316,7 +318,7 @@ class ClientConnection(publicKey: PublicKey,
 
       }
 
-    case NotificationWithIds(notification, sequenceNumber, deliveryId) =>
+    case ZoneValidator.NotificationWithIds(notification, sequenceNumber, deliveryId) =>
 
       val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
 

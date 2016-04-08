@@ -3,8 +3,7 @@ package actors
 import actors.ClientsMonitor._
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
-import com.dhpcs.liquidity.models.PublicKey
+import akka.cluster.pubsub.DistributedPubSubMediator.{Subscribe, Unsubscribe}
 
 import scala.concurrent.duration._
 
@@ -12,11 +11,7 @@ object ClientsMonitor {
 
   def props = Props(new ClientsMonitor)
 
-  val Topic = "clients"
-
-  case class ActiveClientSummary(publicKey: PublicKey)
-
-  case class ActiveClientsSummary(activeClientSummaries: Seq[ActiveClientSummary])
+  case class ActiveClientsSummary(activeClientSummaries: Seq[ClientConnection.ActiveClientSummary])
 
   case object GetActiveClientsSummary
 
@@ -32,12 +27,13 @@ class ClientsMonitor extends Actor with ActorLogging {
 
   private val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 
-  private var activeClientSummaries = Map.empty[ActorRef, ActiveClientSummary]
+  private var activeClientSummaries = Map.empty[ActorRef, ClientConnection.ActiveClientSummary]
 
-  mediator ! Subscribe(ClientsMonitor.Topic, self)
+  mediator ! Subscribe(ClientConnection.Topic, self)
 
   override def postStop() {
     publishStatusTick.cancel()
+    mediator ! Unsubscribe(ClientConnection.Topic, self)
     super.postStop()
   }
 
@@ -47,7 +43,7 @@ class ClientsMonitor extends Actor with ActorLogging {
 
       log.info(s"${activeClientSummaries.size} clients are active")
 
-    case activeClientSummary: ActiveClientSummary =>
+    case activeClientSummary: ClientConnection.ActiveClientSummary =>
 
       if (!activeClientSummaries.contains(sender())) {
 

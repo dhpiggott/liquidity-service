@@ -7,7 +7,6 @@ import java.util.UUID
 
 import actors.ClientConnection.MessageReceivedConfirmation
 import actors.ZoneValidator._
-import actors.ZonesMonitor.ActiveZoneSummary
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
@@ -23,6 +22,8 @@ import scala.concurrent.duration._
 object ZoneValidator {
 
   def props = Props(new ZoneValidator)
+
+  val Topic = "Zone"
 
   case class EnvelopedMessage(zoneId: ZoneId, message: Any)
 
@@ -47,6 +48,13 @@ object ZoneValidator {
                              deliveryId: Long)
 
   case class NotificationWithIds(notification: Notification, sequenceNumber: Long, deliveryId: Long)
+
+  case class ActiveZoneSummary(zoneId: ZoneId,
+                               metadata: Option[JsObject],
+                               members: Set[Member],
+                               accounts: Set[Account],
+                               transactions: Set[Transaction],
+                               clientConnections: Set[PublicKey])
 
   sealed trait Event {
 
@@ -436,7 +444,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
       if (state.zone != null) {
 
         mediator ! Publish(
-          ZonesMonitor.Topic,
+          Topic,
           ActiveZoneSummary(
             zoneId,
             state.zone.metadata,

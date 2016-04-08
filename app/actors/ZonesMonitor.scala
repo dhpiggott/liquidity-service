@@ -5,13 +5,12 @@ import java.util.UUID
 import actors.ZonesMonitor._
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
+import akka.cluster.pubsub.DistributedPubSubMediator.{Subscribe, Unsubscribe}
 import akka.pattern.pipe
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.stream.ActorMaterializer
 import com.dhpcs.liquidity.models._
-import play.api.libs.json.JsObject
 
 import scala.concurrent.duration._
 
@@ -19,18 +18,9 @@ object ZonesMonitor {
 
   def props = Props(new ZonesMonitor)
 
-  val Topic = "zones"
-
   case object GetActiveZonesSummary
 
-  case class ActiveZoneSummary(zoneId: ZoneId,
-                               metadata: Option[JsObject],
-                               members: Set[Member],
-                               accounts: Set[Account],
-                               transactions: Set[Transaction],
-                               clientConnections: Set[PublicKey])
-
-  case class ActiveZonesSummary(activeZoneSummaries: Set[ActiveZoneSummary])
+  case class ActiveZonesSummary(activeZoneSummaries: Set[ZoneValidator.ActiveZoneSummary])
 
   case object GetZoneCount
 
@@ -51,9 +41,9 @@ class ZonesMonitor extends Actor with ActorLogging {
 
   private val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 
-  private var activeZoneSummaries = Map.empty[ActorRef, ActiveZoneSummary]
+  private var activeZoneSummaries = Map.empty[ActorRef, ZoneValidator.ActiveZoneSummary]
 
-  mediator ! Subscribe(Topic, self)
+  mediator ! Subscribe(ZoneValidator.Topic, self)
 
   private implicit val materializer = ActorMaterializer()
 
@@ -62,6 +52,7 @@ class ZonesMonitor extends Actor with ActorLogging {
 
   override def postStop() {
     publishStatusTick.cancel()
+    mediator ! Unsubscribe(ZoneValidator.Topic, self)
     super.postStop()
   }
 
@@ -71,7 +62,7 @@ class ZonesMonitor extends Actor with ActorLogging {
 
       log.info(s"${activeZoneSummaries.size} zones are active")
 
-    case activeZoneSummary: ActiveZoneSummary =>
+    case activeZoneSummary: ZoneValidator.ActiveZoneSummary =>
 
       if (!activeZoneSummaries.contains(sender())) {
 

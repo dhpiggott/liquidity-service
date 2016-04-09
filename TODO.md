@@ -12,6 +12,7 @@ TODO
   * https://github.com/muvr/muvr-server/blob/develop/main/src/main/resources/main.conf
   * http://www.lagomframework.com/documentation/1.0.x/Serialization.html
   * https://github.com/akka/akka-persistence-cassandra/commit/f40e25110b62ce0f7d8b52fe6c76ce656fc5b74e
+* Apply renaming (adding Actor suffixes)
 * Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.3/scala/persistence.html: "Note that Cluster
   Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."
 * Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html

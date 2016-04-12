@@ -1,6 +1,7 @@
 TODO
 ====
 
+* Revert the ActorSuite change
 * Make test styles consistent -- use WordSpec(Like) -- review akka persistence cassandra for example
   (https://github.com/akka/akka-persistence-cassandra/blob/master/src/test/scala/akka/persistence/cassandra/journal/CassandraIntegrationSpec.scala)
 * Reinject sidelined 0.10 Zone, switch to a sensible serialization format:
@@ -27,3 +28,4 @@ TODO
   http://doc.akka.io/docs/akka/2.4.3/intro/deployment-scenarios.html#deployment-scenarios
   * Then rewrite ApplicationSpec using WSProbe and remove akka-http-core test dependency
   * Then replace KeepAliveNotification with PongMessage
+* Investigate using Docker Compose and making SBT itself push the Docker image

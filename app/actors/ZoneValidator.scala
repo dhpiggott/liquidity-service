@@ -437,7 +437,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
 
   override def persistenceId = zoneId.toString
 
-  def publishStatus: Receive = {
+  private def publishStatus: Receive = {
 
     case PublishStatus =>
 

@@ -1,6 +1,7 @@
 TODO
 ====
 
+* Add a healthcheck/post-deployment test
 * Revert the ActorSuite change
 * Make test styles consistent -- use WordSpec(Like) -- review akka persistence cassandra for example
   (https://github.com/akka/akka-persistence-cassandra/blob/master/src/test/scala/akka/persistence/cassandra/journal/CassandraIntegrationSpec.scala)

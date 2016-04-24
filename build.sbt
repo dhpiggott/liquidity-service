@@ -20,7 +20,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.4",
   "org.scalatest" %% "scalatest" % "2.2.6" % "test",
   "com.typesafe.akka" %% "akka-testkit" % "2.4.4" % "test",
-  "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.0" % "test",
+  "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.1" % "test",
   "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.4" % "test",
   "com.typesafe.akka" %% "akka-http-experimental" % "2.4.4" % "test"
 )

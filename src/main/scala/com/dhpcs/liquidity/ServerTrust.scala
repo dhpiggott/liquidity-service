@@ -3,7 +3,7 @@ package com.dhpcs.liquidity
 import java.io.InputStream
 import java.security.cert.{CertificateException, X509Certificate}
 import java.security.{KeyStore, PublicKey}
-import javax.net.ssl.{TrustManager, X509TrustManager}
+import javax.net.ssl.X509TrustManager
 
 import okio.ByteString
 
@@ -11,7 +11,7 @@ import scala.collection.JavaConverters._
 
 object ServerTrust {
 
-  private val TrustManagers = Array[TrustManager](new X509TrustManager() {
+  private val TrustManager = new X509TrustManager() {
 
     @throws(classOf[CertificateException])
     override def checkClientTrusted(chain: Array[X509Certificate], authType: String) =
@@ -33,13 +33,13 @@ object ServerTrust {
 
     override def getAcceptedIssuers = Array.empty[X509Certificate]
 
-  })
+  }
 
   private var trustedKeys: Set[PublicKey] = _
 
-  def getTrustManagers(keyStoreInputStream: InputStream) = {
+  def getTrustManager(keyStoreInputStream: InputStream) = {
     loadTrustedKeys(keyStoreInputStream)
-    TrustManagers
+    TrustManager
   }
 
   private def loadTrustedKeys(keyStoreInputStream: InputStream) {

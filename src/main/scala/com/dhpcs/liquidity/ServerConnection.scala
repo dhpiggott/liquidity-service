@@ -216,14 +216,17 @@ class ServerConnection private(filesDir: File,
                                handlerWrapperFactory: HandlerWrapperFactory)
   extends WebSocketListener {
 
-  private lazy val client = new OkHttpClient.Builder()
-    .sslSocketFactory(createSslSocketFactory(
-      ClientKey.getKeyManagers(filesDir, clientId),
-      ServerTrust.getTrustManagers(keyStoreInputStreamProvider.get())
-    ))
-    .readTimeout(0, TimeUnit.SECONDS)
-    .writeTimeout(0, TimeUnit.SECONDS)
-    .build()
+  private lazy val client = {
+    val trustManager = ServerTrust.getTrustManager(keyStoreInputStreamProvider.get())
+    new OkHttpClient.Builder()
+      .sslSocketFactory(createSslSocketFactory(
+        ClientKey.getKeyManagers(filesDir, clientId),
+        Array(trustManager)
+      ), trustManager)
+      .readTimeout(0, TimeUnit.SECONDS)
+      .writeTimeout(0, TimeUnit.SECONDS)
+      .build()
+  }
 
   private val connectivityStatePublisher = connectivityStatePublisherBuilder.build(this)
 

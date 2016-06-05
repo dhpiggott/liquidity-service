@@ -18,15 +18,14 @@ TODO
 * Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.3/scala/persistence.html: "Note that Cluster
   Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."
 * Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html
-* Update play-json-rpc to play-json 2.5.1, update README, remove play-json dependency override
-* Merge one or more of the liquidity projects into one or more multi-project SBT builds
-* Update .gitignores (for play-json-rpc, liquidity-common, liquidity-tools, liquidity-server and liquidity)
-* Release play-json-rpc 1.0.1/1.1.0
+* Update .gitignores (for play-json-rpc, liquidity-common, liquidity-tools, liquidity-server and liquidity-boardgame)
+* Release play-json-rpc 1.0.1
 * Review whether PassivationCountdown actor is still needed
 * Add ClientConnectionSpec
-* Apply Clean Code chapter 5 to liquidity-tools, liquidity-server and liquidity
+* Apply Clean Code chapter 5 to liquidity-tools, liquidity-server, liquidity-boardgame and liquidity
 * Convert to using Akka HTTP directly (no Play framework) -- see
   http://doc.akka.io/docs/akka/2.4.3/intro/deployment-scenarios.html#deployment-scenarios
   * Then rewrite ApplicationSpec using WSProbe and remove akka-http-core test dependency
   * Then replace KeepAliveNotification with PongMessage
-* Investigate using Docker Compose and making SBT itself push the Docker image
+* Switch to Docker Compose
+* Update to Cassandra 3.5

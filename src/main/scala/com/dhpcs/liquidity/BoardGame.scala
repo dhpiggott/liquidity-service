@@ -14,6 +14,16 @@ import scala.util.Try
 
 object BoardGame {
 
+  trait GameDatabase {
+
+    def insertGame(zoneId: ZoneId, created: Long, expires: Long, name: String): Long
+
+    def checkAndUpdateGame(zoneId: ZoneId, name: String): java.lang.Long
+
+    def updateGameName(gameId: Long, name: String): Unit
+
+  }
+
   sealed trait JoinState
 
   case object UNAVAILABLE extends JoinState
@@ -148,16 +158,6 @@ object BoardGame {
     def onTransfersInitialized(transfers: Iterable[TransferWithCurrency])
 
     def onTransfersUpdated(transfers: Map[TransactionId, TransferWithCurrency])
-
-  }
-
-  trait GameDatabase {
-
-    def insertGame(zoneId: ZoneId, created: Long, expires: Long, name: String): Long
-
-    def checkAndUpdateGame(zoneId: ZoneId, expires: Long, name: String): java.lang.Long
-
-    def updateGameName(gameId: Long, name: String): Unit
 
   }
 
@@ -601,13 +601,12 @@ class BoardGame private(serverConnection: ServerConnection,
             partiallyCreatedIdentities.foreach(createAccount)
 
             /*
-             * Since we must only prompt for a required identity if none exist yet and since having
-             * one or more partially created identities implies that gameId would be set, we can
-             * proceed here without checking that partiallyCreatedIdentityIds is non empty.
+             * Since we must only prompt for a required identity if none exist yet and since having one or more
+             * partially created identities implies that gameId would be set, we can proceed here without checking that
+             * partiallyCreatedIdentityIds is non empty.
              *
-             * The second condition isn't usually of significance but exists to prevent incorrectly
-             * prompting for an identity if a user rejoins a game by scanning its code again rather
-             * than by clicking its list item.
+             * The second condition isn't usually of significance but exists to prevent incorrectly prompting for an
+             * identity if a user rejoins a game by scanning its code again rather than by clicking its list item.
              */
             if (gameId.isEmpty && !(identities ++ hiddenIdentities).values.exists(
               _.account.id != joinZoneResponse.zone.equityAccountId
@@ -616,22 +615,20 @@ class BoardGame private(serverConnection: ServerConnection,
             }
 
             /*
-             * We don't set gameId until now as it also indicates above whether we've prompted for
-             * the required identity - which we must do at most once.
+             * We don't set gameId until now as it also indicates above whether we've prompted for the required
+             * identity - which we must do at most once.
              */
             gameId = gameId.fold(
               Some(
                 Future(
 
                   /*
-                   * This is in case a user rejoins a game by scanning its code again rather than
-                   * by clicking its list item - in such cases we mustn't attempt to insert an
-                   * entry as that would silently fail (as it happens on the Future's worker
-                   * thread), but we may need to update the existing entries name.
+                   * This is in case a user rejoins a game by scanning its code again rather than by clicking its list
+                   * item - in such cases we mustn't attempt to insert an entry as that would silently fail (as it
+                   * happens on the Future's worker thread), but we may need to update the existing entries name.
                    */
                   Option(gameDatabase.checkAndUpdateGame(
                     zoneId,
-                    joinZoneResponse.zone.expires,
                     joinZoneResponse.zone.name.orNull
                   )).map(_.toLong).getOrElse {
                     gameDatabase.insertGame(
@@ -648,7 +645,6 @@ class BoardGame private(serverConnection: ServerConnection,
                 Future(
                   gameDatabase.checkAndUpdateGame(
                     zoneId,
-                    joinZoneResponse.zone.expires,
                     joinZoneResponse.zone.name.orNull
                   )
                 )

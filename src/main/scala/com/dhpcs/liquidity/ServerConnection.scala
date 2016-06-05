@@ -829,8 +829,7 @@ class ServerConnection private(filesDir: File,
           } catch {
 
             /*
-             * We do nothing here because we count on receiving a call to onFailure due to a
-             * matching read error.
+             * We do nothing here because we count on receiving a call to onFailure due to a matching read error.
              */
             case _: IOException =>
           }

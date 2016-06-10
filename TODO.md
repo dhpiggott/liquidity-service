@@ -6,6 +6,7 @@ TODO
 * Make test styles consistent -- use WordSpec(Like) -- review akka persistence cassandra for example
   (https://github.com/akka/akka-persistence-cassandra/blob/master/src/test/scala/akka/persistence/cassandra/journal/CassandraIntegrationSpec.scala)
 * Reinject sidelined 0.10 Zone, switch to a sensible serialization format:
+  * https://github.com/dnvriend/akka-serialization-test
   * http://doc.akka.io/docs/akka/2.4.2/scala/persistence-schema-evolution.html
   * http://doc.akka.io/docs/akka/2.4.2/scala/persistence.html#event-adapters
   * http://doc.akka.io/docs/akka/2.4.2/scala/persistence.html#custom-serialization

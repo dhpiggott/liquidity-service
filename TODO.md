@@ -26,6 +26,7 @@ TODO
 * Apply Clean Code chapter 5 to liquidity-tools, liquidity-server, liquidity-boardgame and liquidity
 * Convert to using Akka HTTP directly (no Play framework) -- see
   http://doc.akka.io/docs/akka/2.4.3/intro/deployment-scenarios.html#deployment-scenarios
+  and https://github.com/owainlewis/activator-akka-http
   * Then rewrite ApplicationSpec using WSProbe and remove akka-http-core test dependency
   * Then replace KeepAliveNotification with PongMessage
 * Switch to Docker Compose

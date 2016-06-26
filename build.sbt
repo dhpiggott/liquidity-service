@@ -10,7 +10,12 @@ dockerExposedPorts := Seq(80)
 
 daemonUser in Docker := "root"
 
-lazy val root = (project in file(".")).enablePlugins(PlayScala, DockerPlugin)
+lazy val root = (project in file("."))
+  .enablePlugins(PlayScala, DockerPlugin)
+  .disablePlugins(PlayLayoutPlugin)
+
+PlayKeys.playMonitoredFiles ++= 
+  (sourceDirectories in (Compile, TwirlKeys.compileTemplates)).value
 
 libraryDependencies ++= Seq(
   "com.typesafe.play" %% "play-json" % "2.4.6" force(),

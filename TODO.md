@@ -29,5 +29,4 @@ TODO
   and https://github.com/owainlewis/activator-akka-http
   * Then rewrite ApplicationSpec using WSProbe and remove akka-http-core test dependency
   * Then replace KeepAliveNotification with PongMessage
-* Switch to Docker Compose
 * Update to Cassandra 3.5

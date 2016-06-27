@@ -14,7 +14,7 @@ import org.bouncycastle.openssl.jcajce.JcaMiscPEMGenerator
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import org.bouncycastle.util.io.pem.PemWriter
 
-object KeyGen {
+object CertGen {
 
   private val CommonName = "liquidity.dhpcs.com"
   private val KeyLength = 2048

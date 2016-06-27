@@ -11,7 +11,7 @@ fi
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 rm -rf $DIR/stage && mkdir $DIR/stage
 
-(cd $DIR && sbt docker:stage)
+(cd $DIR/../ && sbt server/docker:stage)
 cp -r $DIR/target/docker/stage $DIR/stage/liquidity
 cp -r $DIR/nginx $DIR/stage/nginx
 

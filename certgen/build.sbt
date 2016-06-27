@@ -1,4 +1,4 @@
-name := "liquidity-tools"
+name := "liquidity-certgen"
 
 version := "1.0-SNAPSHOT"
 

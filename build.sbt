@@ -2,10 +2,10 @@ import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.11.8"
 
-lazy val server = project.in(file("server"))
+lazy val certgen = project.in(file("certgen"))
   .settings(commonSettings)
 
-lazy val tools = project.in(file("tools"))
+lazy val server = project.in(file("server"))
   .settings(commonSettings)
 
 lazy val commonSettings = Seq(

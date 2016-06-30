@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.models
 
-import play.api.libs.json._
+import play.api.libs.json.{JsObject, Json}
 
 case class AccountId(id: Int) extends IntIdentifier
 
@@ -12,7 +12,5 @@ case class Account(id: AccountId,
                    metadata: Option[JsObject] = None)
 
 object Account {
-
   implicit val AccountFormat = Json.format[Account]
-
 }

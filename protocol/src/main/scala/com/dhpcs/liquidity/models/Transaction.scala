@@ -1,8 +1,8 @@
 package com.dhpcs.liquidity.models
 
 import play.api.libs.functional.syntax._
-import play.api.libs.json.Reads._
-import play.api.libs.json._
+import play.api.libs.json.Reads.min
+import play.api.libs.json.{Format, JsObject, JsPath}
 
 case class TransactionId(id: Int) extends IntIdentifier
 
@@ -21,7 +21,6 @@ case class Transaction(id: TransactionId,
 }
 
 object Transaction {
-
   implicit val TransactionFormat: Format[Transaction] = (
     (JsPath \ "id").format[TransactionId] and
       (JsPath \ "from").format[AccountId] and
@@ -31,7 +30,7 @@ object Transaction {
       (JsPath \ "created").format(min[Long](0)) and
       (JsPath \ "description").formatNullable[String] and
       (JsPath \ "metadata").formatNullable[JsObject]
-    )((id, from, to, value, creator, created, description, metadata) =>
+    ) ((id, from, to, value, creator, created, description, metadata) =>
     Transaction(
       id,
       from,
@@ -50,6 +49,5 @@ object Transaction {
       transaction.created,
       transaction.description,
       transaction.metadata)
-    )
-
+  )
 }

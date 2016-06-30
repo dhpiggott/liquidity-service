@@ -1,19 +1,17 @@
 package com.dhpcs.liquidity.models
 
 import com.dhpcs.jsonrpc.Message.MethodFormats
-import com.dhpcs.jsonrpc._
+import com.dhpcs.jsonrpc.{CommandCompanion, NotificationCompanion, ResponseCompanion}
 import play.api.libs.functional.syntax._
-import play.api.libs.json.Reads._
-import play.api.libs.json._
+import play.api.libs.json.Reads.min
+import play.api.libs.json.{Format, JsObject, JsPath, Json}
 
 sealed trait Message
 
 sealed trait Command extends Message
 
 sealed trait ZoneCommand extends Command {
-
   val zoneId: ZoneId
-
 }
 
 case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
@@ -58,7 +56,6 @@ case class AddTransactionCommand(zoneId: ZoneId,
 }
 
 object AddTransactionCommand {
-
   implicit val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
     (JsPath \ "zoneId").format[ZoneId] and
       (JsPath \ "actingAs").format[MemberId] and
@@ -67,7 +64,7 @@ object AddTransactionCommand {
       (JsPath \ "value").format(min[BigDecimal](0)) and
       (JsPath \ "description").formatNullable[String] and
       (JsPath \ "metadata").formatNullable[JsObject]
-    )((zoneId, actingAs, from, to, value, description, metadata) =>
+    ) ((zoneId, actingAs, from, to, value, description, metadata) =>
     AddTransactionCommand(
       zoneId,
       actingAs,
@@ -84,12 +81,10 @@ object AddTransactionCommand {
       addTransactionCommand.value,
       addTransactionCommand.description,
       addTransactionCommand.metadata)
-    )
-
+  )
 }
 
 object Command extends CommandCompanion[Command] {
-
   override val CommandTypeFormats = MethodFormats(
     "createZone" -> Json.format[CreateZoneCommand],
     "joinZone" -> Json.format[JoinZoneCommand],
@@ -101,7 +96,6 @@ object Command extends CommandCompanion[Command] {
     "updateAccount" -> Json.format[UpdateAccountCommand],
     "addTransaction" -> Json.format[AddTransactionCommand]
   )
-
 }
 
 sealed trait Response extends Message
@@ -128,7 +122,6 @@ case object UpdateAccountResponse extends ResultResponse
 case class AddTransactionResponse(transaction: Transaction) extends ResultResponse
 
 object Response extends ResponseCompanion[ResultResponse] {
-
   override val ResponseFormats = MethodFormats(
     "createZone" -> Json.format[CreateZoneResponse],
     "joinZone" -> Json.format[JoinZoneResponse],
@@ -140,15 +133,12 @@ object Response extends ResponseCompanion[ResultResponse] {
     "updateAccount" -> UpdateAccountResponse,
     "addTransaction" -> Json.format[AddTransactionResponse]
   )
-
 }
 
 sealed trait Notification extends Message
 
 sealed trait ZoneNotification extends Notification {
-
   val zoneId: ZoneId
-
 }
 
 case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Int]) extends Notification
@@ -174,7 +164,6 @@ case class AccountUpdatedNotification(zoneId: ZoneId, account: Account) extends 
 case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
 
 object Notification extends NotificationCompanion[Notification] {
-
   override val NotificationFormats = MethodFormats(
     "supportedVersions" -> Json.format[SupportedVersionsNotification],
     "keepAlive" -> KeepAliveNotification,
@@ -188,5 +177,4 @@ object Notification extends NotificationCompanion[Notification] {
     "accountUpdated" -> Json.format[AccountUpdatedNotification],
     "transactionAdded" -> Json.format[TransactionAddedNotification]
   )
-
 }

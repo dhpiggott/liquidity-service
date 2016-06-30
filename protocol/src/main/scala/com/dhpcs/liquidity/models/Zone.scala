@@ -3,8 +3,8 @@ package com.dhpcs.liquidity.models
 import java.util.UUID
 
 import play.api.libs.functional.syntax._
-import play.api.libs.json.Reads._
-import play.api.libs.json._
+import play.api.libs.json.Reads.min
+import play.api.libs.json.{Format, JsObject, JsPath}
 
 case class ZoneId(id: UUID) extends UUIDIdentifier
 
@@ -24,7 +24,6 @@ case class Zone(id: ZoneId,
 }
 
 object Zone {
-
   implicit val ZoneFormat: Format[Zone] = (
     (JsPath \ "id").format[ZoneId] and
       (JsPath \ "equityAccountId").format[AccountId] and
@@ -35,7 +34,7 @@ object Zone {
       (JsPath \ "expires").format(min[Long](0)) and
       (JsPath \ "name").formatNullable[String] and
       (JsPath \ "metadata").formatNullable[JsObject]
-    )((id, equityAccountId, members, accounts, transactions, created, expires, name, metadata) =>
+    ) ((id, equityAccountId, members, accounts, transactions, created, expires, name, metadata) =>
     Zone(
       id,
       equityAccountId,
@@ -56,6 +55,5 @@ object Zone {
       zone.expires,
       zone.name,
       zone.metadata)
-    )
-
+  )
 }

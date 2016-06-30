@@ -1,15 +1,17 @@
 package com.dhpcs.liquidity.models
 
 import com.dhpcs.json.FormatBehaviors
-import org.scalatest._
+import org.scalatest.{FunSpec, Matchers}
 import play.api.data.validation.ValidationError
-import play.api.libs.json._
+import play.api.libs.json.{JsError, Json, __}
 
 class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Matchers {
-
-  describe("A JsValue of the wrong type") {
+  describe("A JsValue of the wrong type")(
     it should behave like readError(
-      Json.parse( """0"""),
+      Json.parse(
+        """
+          |0""".stripMargin
+      ),
       JsError(List(
         (__ \ "id", List(ValidationError("error.path.missing"))),
         (__ \ "from", List(ValidationError("error.path.missing"))),
@@ -19,7 +21,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
         (__ \ "created", List(ValidationError("error.path.missing")))
       ))
     )
-  }
+  )
 
   describe("A Transaction") {
     describe("without a description or metadata") {
@@ -31,7 +33,17 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
         MemberId(2),
         1434115187612L
       )
-      implicit val transactionJson = Json.parse( """{"id":0,"from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612}""")
+      implicit val transactionJson = Json.parse(
+        """
+          |{
+          |  "id":0,
+          |  "from":0,
+          |  "to":1,
+          |  "value":1000000,
+          |  "creator":2,
+          |  "created":1434115187612
+          |}""".stripMargin
+      )
       it should behave like read
       it should behave like write
     }
@@ -50,10 +62,21 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
           )
         )
       )
-      implicit val transactionJson = Json.parse( """{"id":0,"from":0,"to":1,"value":1000000,"creator":2,"created":1434115187612,"description":"Property purchase","metadata":{"property":"The TARDIS"}}""")
+      implicit val transactionJson = Json.parse(
+        """
+          |{
+          |  "id":0,
+          |  "from":0,
+          |  "to":1,
+          |  "value":1000000,
+          |  "creator":2,
+          |  "created":1434115187612,
+          |  "description":"Property purchase",
+          |  "metadata":{"property":"The TARDIS"}
+          |}""".stripMargin
+      )
       it should behave like read
       it should behave like write
     }
   }
-
 }

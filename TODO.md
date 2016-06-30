@@ -1,8 +1,8 @@
 TODO
 ====
 
-* Add type ascriptions to method result types, review member visibilities (protocol, server and boardgame)
-* Apply Clean Code chapter 5 to protocol, server and boardgame
+* Add type ascriptions to method result types, review member visibilities (server and boardgame)
+* Apply Clean Code chapter 5 to server and boardgame
 * Convert to using Akka HTTP directly (no Play framework) -- see
   http://doc.akka.io/docs/akka/2.4.3/intro/deployment-scenarios.html#deployment-scenarios
   and https://github.com/owainlewis/activator-akka-http

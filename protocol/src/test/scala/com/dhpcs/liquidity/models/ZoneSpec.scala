@@ -5,15 +5,17 @@ import java.util.UUID
 
 import com.dhpcs.json.FormatBehaviors
 import okio.ByteString
-import org.scalatest._
+import org.scalatest.{FunSpec, Matchers}
 import play.api.data.validation.ValidationError
-import play.api.libs.json._
+import play.api.libs.json.{JsError, Json, __}
 
 class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
-
-  describe("A JsValue of the wrong type") {
+  describe("A JsValue of the wrong type")(
     it should behave like readError(
-      Json.parse( """0"""),
+      Json.parse(
+        """
+          |0""".stripMargin
+      ),
       JsError(List(
         (__ \ "id", List(ValidationError("error.path.missing"))),
         (__ \ "equityAccountId", List(ValidationError("error.path.missing"))),
@@ -24,13 +26,15 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         (__ \ "expires", List(ValidationError("error.path.missing")))
       ))
     )
-  }
+  )
 
   describe("A Zone") {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     describe("without a name or metadata") {
       implicit val zone = Zone(
-        ZoneId(UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")),
+        ZoneId(
+          UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")
+        ),
         AccountId(0),
         Map(
           MemberId(0) ->
@@ -59,13 +63,42 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         1433611420487L,
         1433611420487L
       )
-      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},{"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487,"expires":1433611420487}""")
+      implicit val zoneJson = Json.parse(
+        s"""
+           |{
+           |  "id":"b0c608d4-22f5-460e-8872-15a10d79daf2",
+           |  "equityAccountId":0,
+           |  "members":[
+           |    {"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},
+           |    {"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}
+           |  ],
+           |  "accounts":[
+           |    {"id":0,"ownerMemberIds":[0],"name":"Bank"},
+           |    {"id":1,"ownerMemberIds":[1],"name":"Dave's account"}
+           |  ],
+           |  "transactions":[
+           |    {
+           |      "id":0,
+           |      "from":0,
+           |      "to":1,
+           |      "value":1000000,
+           |      "creator":0,
+           |      "created":1433611420487,
+           |      "description":"Dave's lottery win"
+           |    }
+           |  ],
+           |  "created":1433611420487,
+           |  "expires":1433611420487
+           |}""".stripMargin
+      )
       it should behave like read
       it should behave like write
     }
     describe("with a name and metadata") {
       implicit val zone = Zone(
-        ZoneId(UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")),
+        ZoneId(
+          UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")
+        ),
         AccountId(0),
         Map(
           MemberId(0) ->
@@ -100,10 +133,38 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
           )
         )
       )
-      implicit val zoneJson = Json.parse( s"""{"id":"b0c608d4-22f5-460e-8872-15a10d79daf2","equityAccountId":0,"members":[{"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},{"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}],"accounts":[{"id":0,"ownerMemberIds":[0],"name":"Bank"},{"id":1,"ownerMemberIds":[1],"name":"Dave's account"}],"transactions":[{"id":0,"from":0,"to":1,"value":1000000,"creator":0,"created":1433611420487,"description":"Dave's lottery win"}],"created":1433611420487,"expires":1433611420487,"name":"Dave's zone","metadata":{"currency":"GBP"}}""")
+      implicit val zoneJson = Json.parse(
+        s"""
+           |{
+           |  "id":"b0c608d4-22f5-460e-8872-15a10d79daf2",
+           |  "equityAccountId":0,
+           |  "members":[
+           |    {"id":0,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Banker"},
+           |    {"id":1,"ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}","name":"Dave"}
+           |  ],
+           |  "accounts":[
+           |    {"id":0,"ownerMemberIds":[0],"name":"Bank"},
+           |    {"id":1,"ownerMemberIds":[1],"name":"Dave's account"}
+           |  ],
+           |  "transactions":[
+           |    {
+           |      "id":0,
+           |      "from":0,
+           |      "to":1,
+           |      "value":1000000,
+           |      "creator":0,
+           |      "created":1433611420487,
+           |      "description":"Dave's lottery win"
+           |    }
+           |  ],
+           |  "created":1433611420487,
+           |  "expires":1433611420487,
+           |  "name":"Dave's zone",
+           |  "metadata":{"currency":"GBP"}
+           |}""".stripMargin
+      )
       it should behave like read
       it should behave like write
     }
   }
-
 }

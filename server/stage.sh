@@ -9,7 +9,13 @@ if [ -z "$1" ]
 fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-rm -rf $DIR/stage && mkdir $DIR/stage
+
+function finish {
+    rm -rf $DIR/stage
+}
+trap finish EXIT
+
+mkdir $DIR/stage
 
 (cd $DIR/../ && sbt server/docker:stage)
 cp -r $DIR/target/docker/stage $DIR/stage/liquidity

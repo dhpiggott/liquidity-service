@@ -16,7 +16,7 @@ PlayKeys.playMonitoredFiles ++=
   (sourceDirectories in (Compile, TwirlKeys.compileTemplates)).value
 
 libraryDependencies ++= Seq(
-  "com.typesafe.play" %% "play-json" % "2.4.6" force(),
+  "com.typesafe.play" %% "play-json" % "2.4.8" force(),
   "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.7",
   "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.9",
   "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.7",

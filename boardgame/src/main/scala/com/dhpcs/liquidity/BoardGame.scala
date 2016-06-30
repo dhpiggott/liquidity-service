@@ -2,7 +2,7 @@ package com.dhpcs.liquidity
 
 import java.util.Currency
 
-import com.dhpcs.jsonrpc.ErrorResponse
+import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.BoardGame._
 import com.dhpcs.liquidity.ServerConnection._
 import com.dhpcs.liquidity.models._

@@ -4,6 +4,7 @@ import java.io.{File, IOException, InputStream}
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.{KeyManager, SSLContext, SSLException, TrustManager}
 
+import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.ServerConnection._
 import com.dhpcs.liquidity.models._

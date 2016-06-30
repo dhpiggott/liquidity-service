@@ -12,7 +12,8 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
-import com.dhpcs.jsonrpc.{ErrorResponse, JsonRpcResponseError}
+import com.dhpcs.jsonrpc.JsonRpcResponseError
+import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.models._
 import controllers.Application
 import play.api.libs.json.{JsObject, Json}

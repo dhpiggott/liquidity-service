@@ -8,7 +8,8 @@ import actors.ZoneValidator.{AuthenticatedCommandWithIds, CommandReceivedConfirm
 import akka.actor.ActorSystem
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.{DefaultTimeout, TestKit, TestProbe}
-import com.dhpcs.jsonrpc.{ErrorResponse, JsonRpcResponseError}
+import com.dhpcs.jsonrpc.JsonRpcResponseError
+import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.models._
 import org.scalatest.WordSpecLike
 

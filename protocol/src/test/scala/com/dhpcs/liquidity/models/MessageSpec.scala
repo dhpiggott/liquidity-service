@@ -4,7 +4,8 @@ import java.security.KeyPairGenerator
 import java.util.UUID
 
 import com.dhpcs.json.JsResultUniformity
-import com.dhpcs.jsonrpc.{ErrorResponse, JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
+import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
 import okio.ByteString
 import org.scalatest.OptionValues._
 import org.scalatest.{FunSpec, Matchers}

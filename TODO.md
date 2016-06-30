@@ -19,7 +19,6 @@ TODO
 * Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.3/scala/persistence.html: "Note that Cluster
   Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."
 * Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html
-* Release play-json-rpc 1.0.1
 * Review whether PassivationCountdown actor is still needed
 * Add ClientConnectionSpec
 * Apply Clean Code chapter 5 to liquidity-tools, liquidity-server, liquidity-boardgame and liquidity

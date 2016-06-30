@@ -94,7 +94,7 @@ object Command extends CommandCompanion[Command] {
     "updateMember" -> Json.format[UpdateMemberCommand],
     "createAccount" -> Json.format[CreateAccountCommand],
     "updateAccount" -> Json.format[UpdateAccountCommand],
-    "addTransaction" -> Json.format[AddTransactionCommand]
+    "addTransaction" -> implicitly[Format[AddTransactionCommand]]
   )
 }
 
@@ -145,23 +145,31 @@ case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Int]) ext
 
 case object KeepAliveNotification extends Notification
 
-case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+case class ClientJoinedZoneNotification(zoneId: ZoneId,
+                                        publicKey: PublicKey) extends ZoneNotification
 
-case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey) extends ZoneNotification
+case class ClientQuitZoneNotification(zoneId: ZoneId,
+                                      publicKey: PublicKey) extends ZoneNotification
 
 case class ZoneTerminatedNotification(zoneId: ZoneId) extends ZoneNotification
 
-case class ZoneNameChangedNotification(zoneId: ZoneId, name: Option[String]) extends ZoneNotification
+case class ZoneNameChangedNotification(zoneId: ZoneId,
+                                       name: Option[String]) extends ZoneNotification
 
-case class MemberCreatedNotification(zoneId: ZoneId, member: Member) extends ZoneNotification
+case class MemberCreatedNotification(zoneId: ZoneId,
+                                     member: Member) extends ZoneNotification
 
-case class MemberUpdatedNotification(zoneId: ZoneId, member: Member) extends ZoneNotification
+case class MemberUpdatedNotification(zoneId: ZoneId,
+                                     member: Member) extends ZoneNotification
 
-case class AccountCreatedNotification(zoneId: ZoneId, account: Account) extends ZoneNotification
+case class AccountCreatedNotification(zoneId: ZoneId,
+                                      account: Account) extends ZoneNotification
 
-case class AccountUpdatedNotification(zoneId: ZoneId, account: Account) extends ZoneNotification
+case class AccountUpdatedNotification(zoneId: ZoneId,
+                                      account: Account) extends ZoneNotification
 
-case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
+case class TransactionAddedNotification(zoneId: ZoneId,
+                                        transaction: Transaction) extends ZoneNotification
 
 object Notification extends NotificationCompanion[Notification] {
   override val NotificationFormats = MethodFormats(

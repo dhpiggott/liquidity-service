@@ -97,6 +97,30 @@ class MessageSpec extends FunSpec with Matchers {
       it should behave like commandRead
       it should behave like commandWrite
     }
+    describe("of type AddTransactionCommand")(
+      describe("with a negative value")(
+        it should behave like commandReadError(
+          JsonRpcRequestMessage(
+            "addTransaction",
+            Right(
+              Json.obj(
+                "zoneId" -> "6b5f604d-f116-44f8-9807-d26324c81034",
+                "actingAs" -> 0,
+                "from" -> 0,
+                "to" -> 1,
+                "value" -> -1
+              )
+            ),
+            Some(
+              Right(1)
+            )
+          ),
+          Some(
+            JsError(List((__ \ "value", List(ValidationError("error.min", 0)))))
+          )
+        )
+      )
+    )
   }
 
   describe("A Response") {

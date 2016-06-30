@@ -10,7 +10,7 @@ import akka.pattern.pipe
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.stream.ActorMaterializer
-import com.dhpcs.liquidity.models._
+import com.dhpcs.liquidity.protocol._
 
 import scala.concurrent.duration._
 

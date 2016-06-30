@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity
 
-package object models {
+package object protocol {
   val VersionNumber = 1
   val CompatibleVersionNumbers = Set(1)
 

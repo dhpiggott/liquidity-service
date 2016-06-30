@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.models
+package com.dhpcs.liquidity.protocol
 
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads.min

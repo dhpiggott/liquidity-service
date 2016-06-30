@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.models
+package com.dhpcs.liquidity.protocol
 
 import com.dhpcs.json.ValueFormat
 

@@ -7,7 +7,7 @@ import javax.net.ssl.{KeyManager, SSLContext, SSLException, TrustManager}
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.ServerConnection._
-import com.dhpcs.liquidity.models._
+import com.dhpcs.liquidity.protocol._
 import okhttp3.ws.{WebSocket, WebSocketCall, WebSocketListener}
 import okhttp3.{OkHttpClient, RequestBody, ResponseBody}
 import okio.Buffer

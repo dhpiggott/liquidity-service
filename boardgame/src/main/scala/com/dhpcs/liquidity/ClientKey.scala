@@ -7,7 +7,7 @@ import java.security.{KeyPairGenerator, KeyStore}
 import java.util.{Calendar, Locale}
 import javax.net.ssl.{KeyManager, KeyManagerFactory}
 
-import com.dhpcs.liquidity.models.PublicKey
+import com.dhpcs.liquidity.protocol.PublicKey
 import org.spongycastle.asn1.x500.X500NameBuilder
 import org.spongycastle.asn1.x500.style.BCStyle
 import org.spongycastle.asn1.x509.{Extension, Time}

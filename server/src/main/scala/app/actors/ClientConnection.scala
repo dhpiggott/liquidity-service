@@ -8,7 +8,7 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import com.dhpcs.jsonrpc._
-import com.dhpcs.liquidity.models._
+import com.dhpcs.liquidity.protocol._
 import play.api.libs.json._
 
 import scala.concurrent.duration._

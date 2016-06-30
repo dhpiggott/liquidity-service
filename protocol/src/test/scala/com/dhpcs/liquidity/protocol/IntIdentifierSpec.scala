@@ -1,7 +1,7 @@
-package com.dhpcs.liquidity.models
+package com.dhpcs.liquidity.protocol
 
 import com.dhpcs.json.FormatBehaviors
-import com.dhpcs.liquidity.models.IntIdentifierSpec.TestIntIdentifier
+import com.dhpcs.liquidity.protocol.IntIdentifierSpec.TestIntIdentifier
 import org.scalatest.{FunSpec, Matchers}
 import play.api.data.validation.ValidationError
 import play.api.libs.json.{JsError, Json, __}

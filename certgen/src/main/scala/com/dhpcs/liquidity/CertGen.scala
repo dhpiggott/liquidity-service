@@ -1,7 +1,9 @@
+package com.dhpcs.liquidity
+
 import java.io.{File, FileOutputStream, FileWriter}
 import java.math.BigInteger
-import java.security.cert.Certificate
-import java.security.{KeyPairGenerator, KeyStore, Security}
+import java.security.cert.{Certificate, X509Certificate}
+import java.security.{KeyPairGenerator, KeyStore, PrivateKey, Security}
 import java.util.{Calendar, Locale}
 
 import org.bouncycastle.asn1.x500.X500NameBuilder
@@ -31,31 +33,7 @@ object CertGen {
   private val CertificateFilename = "liquidity.dhpcs.com.crt"
   private val KeyFilename = "liquidity.dhpcs.com.key"
 
-  private def generateCertKeyPair = {
-    val identity = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
-    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(KeyLength)
-    val keyPair = keyPairGenerator.generateKeyPair
-    val certificate = new JcaX509CertificateConverter().getCertificate(
-      new JcaX509v3CertificateBuilder(
-        identity,
-        BigInteger.ONE,
-        new Time(new ASN1UTCTime(Calendar.getInstance.getTime, Locale.US)),
-        new Time(new ASN1GeneralizedTime("99991231235959Z")),
-        identity,
-        keyPair.getPublic
-      ).addExtension(
-          Extension.subjectKeyIdentifier,
-          false,
-          new JcaX509ExtensionUtils().createSubjectKeyIdentifier(keyPair.getPublic)
-        ).build(
-          new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate)
-        )
-    )
-    (certificate, keyPair.getPrivate)
-  }
-
-  def main(args: Array[String]) {
+  def main(args: Array[String]): Unit = {
     Security.addProvider(new BouncyCastleProvider)
     val (certificate, privateKey) = generateCertKeyPair
     val keyStore = KeyStore.getInstance("JKS")
@@ -110,4 +88,27 @@ object CertGen {
     }
   }
 
+  private def generateCertKeyPair: (X509Certificate, PrivateKey) = {
+    val identity = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(KeyLength)
+    val keyPair = keyPairGenerator.generateKeyPair
+    val certificate = new JcaX509CertificateConverter().getCertificate(
+      new JcaX509v3CertificateBuilder(
+        identity,
+        BigInteger.ONE,
+        new Time(new ASN1UTCTime(Calendar.getInstance.getTime, Locale.US)),
+        new Time(new ASN1GeneralizedTime("99991231235959Z")),
+        identity,
+        keyPair.getPublic
+      ).addExtension(
+        Extension.subjectKeyIdentifier,
+        false,
+        new JcaX509ExtensionUtils().createSubjectKeyIdentifier(keyPair.getPublic)
+      ).build(
+        new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate)
+      )
+    )
+    (certificate, keyPair.getPrivate)
+  }
 }

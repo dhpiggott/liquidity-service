@@ -12,6 +12,10 @@ lazy val server = project.in(file("server"))
   .settings(commonSettings)
   .dependsOn(protocol)
 
+lazy val boardgame = project.in(file("boardgame"))
+  .settings(commonSettings)
+  .dependsOn(protocol)
+
 lazy val commonSettings = Seq(
   scalaVersion := "2.11.8"
 )

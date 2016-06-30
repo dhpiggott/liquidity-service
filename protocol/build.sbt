@@ -1,8 +1,6 @@
-organization := "com.dhpcs"
-
 name := "liquidity-protocol"
 
-version := "1.0.0"
+version := "1.0-SNAPSHOT"
 
 libraryDependencies ++= Seq(
   "com.squareup.okio" % "okio" % "1.8.0",

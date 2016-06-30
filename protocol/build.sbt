@@ -1,6 +1,6 @@
 organization := "com.dhpcs"
 
-name := "liquidity-common"
+name := "liquidity-protocol"
 
 version := "1.0.0"
 

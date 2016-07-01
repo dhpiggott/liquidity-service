@@ -9,7 +9,7 @@ trait UUIDIdentifier {
 }
 
 trait UUIDIdentifierCompanion[A <: UUIDIdentifier] {
-  implicit val UUIDIdentifierFormat = ValueFormat[A, UUID](apply, _.id)
+  implicit final val UUIDIdentifierFormat = ValueFormat[A, UUID](apply, _.id)
 
   def apply(id: UUID): A
 

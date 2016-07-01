@@ -56,7 +56,7 @@ case class AddTransactionCommand(zoneId: ZoneId,
 }
 
 object AddTransactionCommand {
-  implicit val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
+  implicit final val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
     (JsPath \ "zoneId").format[ZoneId] and
       (JsPath \ "actingAs").format[MemberId] and
       (JsPath \ "from").format[AccountId] and
@@ -85,7 +85,7 @@ object AddTransactionCommand {
 }
 
 object Command extends CommandCompanion[Command] {
-  override val CommandTypeFormats = MethodFormats(
+  override final val CommandTypeFormats = MethodFormats(
     "createZone" -> Json.format[CreateZoneCommand],
     "joinZone" -> Json.format[JoinZoneCommand],
     "quitZone" -> Json.format[QuitZoneCommand],
@@ -122,7 +122,7 @@ case object UpdateAccountResponse extends ResultResponse
 case class AddTransactionResponse(transaction: Transaction) extends ResultResponse
 
 object Response extends ResponseCompanion[ResultResponse] {
-  override val ResponseFormats = MethodFormats(
+  override final val ResponseFormats = MethodFormats(
     "createZone" -> Json.format[CreateZoneResponse],
     "joinZone" -> Json.format[JoinZoneResponse],
     "quitZone" -> QuitZoneResponse,
@@ -172,7 +172,7 @@ case class TransactionAddedNotification(zoneId: ZoneId,
                                         transaction: Transaction) extends ZoneNotification
 
 object Notification extends NotificationCompanion[Notification] {
-  override val NotificationFormats = MethodFormats(
+  override final val NotificationFormats = MethodFormats(
     "supportedVersions" -> Json.format[SupportedVersionsNotification],
     "keepAlive" -> KeepAliveNotification,
     "clientJoinedZone" -> Json.format[ClientJoinedZoneNotification],

@@ -12,5 +12,5 @@ case class Account(id: AccountId,
                    metadata: Option[JsObject] = None)
 
 object Account {
-  implicit val AccountFormat = Json.format[Account]
+  implicit final val AccountFormat = Json.format[Account]
 }

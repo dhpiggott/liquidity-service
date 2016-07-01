@@ -12,5 +12,5 @@ case class Member(id: MemberId,
                   metadata: Option[JsObject] = None)
 
 object Member {
-  implicit val MemberFormat = Json.format[Member]
+  implicit final val MemberFormat = Json.format[Member]
 }

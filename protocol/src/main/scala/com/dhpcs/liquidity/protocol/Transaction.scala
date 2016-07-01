@@ -21,7 +21,7 @@ case class Transaction(id: TransactionId,
 }
 
 object Transaction {
-  implicit val TransactionFormat: Format[Transaction] = (
+  implicit final val TransactionFormat: Format[Transaction] = (
     (JsPath \ "id").format[TransactionId] and
       (JsPath \ "from").format[AccountId] and
       (JsPath \ "to").format[AccountId] and

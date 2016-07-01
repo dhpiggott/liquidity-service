@@ -10,7 +10,7 @@ import akka.stream.scaladsl.{Flow, Keep}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.protocol._
-import controllers.ApplicationSpec._
+import controllers.ApplicationSpec.{ClientNginxPemCertificateHeaderString, ClientPublicKey}
 import org.apache.commons.codec.binary.Base64
 import org.scalatestplus.play.{OneServerPerSuite, PlaySpec}
 import play.api.libs.json.Json
@@ -19,18 +19,14 @@ import scala.concurrent.duration._
 import scala.io.Source
 
 object ApplicationSpec {
-
-  private val ClientNginxPemCertificateHeaderString = {
+  private final val ClientNginxPemCertificateHeaderString = {
     val lines = Source.fromFile("nginx/liquidity.dhpcs.com.crt").getLines.toList
-
-    /**
-      * Nginx prepends all but the first line with tabs when encoding certificates as PEM strings in its
-      * X-SSL-Client-Cert header.
-      */
+    // Nginx prepends all but the first line with tabs when encoding certificates as PEM strings in its
+    // X-SSL-Client-Cert header.
     (lines.head :: lines.tail.map("\t" + _)).mkString
   }
 
-  private val ClientPublicKey = PublicKey(
+  private final val ClientPublicKey = PublicKey(
     CertificateFactory.getInstance("X.509").generateCertificate(
       new ByteArrayInputStream(
         Base64.decodeBase64(
@@ -41,13 +37,11 @@ object ApplicationSpec {
       )
     ).getPublicKey.getEncoded
   )
-
 }
 
 class ApplicationSpec extends PlaySpec with OneServerPerSuite {
-
-  private implicit val system = app.actorSystem
-  private implicit val materializer = app.materializer
+  private[this] implicit val system = app.actorSystem
+  private[this] implicit val mat = app.materializer
 
   "The WebSocket API" must {
     "send a SupportedVersionsNotification when connected" in {
@@ -156,7 +150,7 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
       }
       pub.sendComplete()
     }
-    "send a JoinZoneReponse after a JoinZoneCommand" in {
+    "send a JoinZoneResponse after a JoinZoneCommand" in {
       val flow = Flow.fromSinkAndSourceMat(
         TestSink.probe[Message],
         TestSource.probe[Message]
@@ -229,5 +223,4 @@ class ApplicationSpec extends PlaySpec with OneServerPerSuite {
       pub.sendComplete()
     }
   }
-
 }

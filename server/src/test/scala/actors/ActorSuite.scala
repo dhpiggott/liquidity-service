@@ -8,9 +8,7 @@ class ActorSuite(system: ActorSystem) extends Suites(
   new ZonesMonitorSpec()(system),
   new ZoneValidatorSpec()(system)
 ) with BeforeAndAfterAll {
-
   def this() = this(ActorSystem("application"))
 
-  override def afterAll() = TestKit.shutdownActorSystem(system)
-
+  override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 }

@@ -3,10 +3,10 @@ package controllers
 import java.io.ByteArrayInputStream
 import java.security.cert.CertificateFactory
 import java.security.interfaces.RSAPublicKey
-import javax.inject._
+import javax.inject.Inject
 
 import actors.ClientsMonitor.{ActiveClientsSummary, GetActiveClientsSummary}
-import actors.ZonesMonitor._
+import actors.ZonesMonitor.{ActiveZonesSummary, GetActiveZonesSummary, GetZoneCount, ZoneCount}
 import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
 import akka.actor.ActorSystem
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
@@ -27,22 +27,21 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object Application {
+  final val RequiredKeyLength = 2048
 
-  val RequiredKeyLength = 2048
-
-  private val PemCertStringMarkers = Seq(
+  private final val PemCertStringMarkers = Seq(
     ("-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----")
   )
 
-  private def getPublicKey(headers: Headers) =
+  private def getPublicKey(headers: Headers): Either[String, PublicKey] =
     headers.get("X-SSL-Client-Cert").fold[Either[String, PublicKey]](
-      Left("Client certificate not presented")
-    ) { pemString =>
+      ifEmpty = Left("Client certificate not presented")
+    )(pemString =>
       PemCertStringMarkers.collectFirst {
         case marker if pemString.startsWith(marker._1) && pemString.endsWith(marker._2) =>
           pemString.stripPrefix(marker._1).stripSuffix(marker._2)
       }.fold[Either[String, PublicKey]](
-        Left("Client certificate PEM string is not valid")
+        ifEmpty = Left("Client certificate PEM string is not valid")
       )(pemData =>
         CertificateFactory.getInstance("X.509").generateCertificate(
           new ByteArrayInputStream(
@@ -60,16 +59,14 @@ object Application {
           case _ =>
             Left("Invalid client public key type")
         })
-    }
-
+    )
 }
 
 class Application @Inject()(implicit system: ActorSystem, materializer: Materializer) extends Controller {
+  private[this] val clientsMonitor = system.actorOf(ClientsMonitor.props, "clients-monitor")
+  private[this] val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
 
-  private val clientsMonitor = system.actorOf(ClientsMonitor.props, "clients-monitor")
-  private val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
-
-  private val zoneValidatorShardRegion = ClusterSharding(system).start(
+  private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidator.shardName,
     entityProps = ZoneValidator.props,
     settings = ClusterShardingSettings(system),
@@ -77,9 +74,9 @@ class Application @Inject()(implicit system: ActorSystem, materializer: Material
     extractShardId = ZoneValidator.extractShardId
   )
 
-  private implicit val statusTimeout: Timeout = 5.seconds
+  private[this] implicit val statusTimeout: Timeout = 5.seconds
 
-  def status = Action.async {
+  def status: Action[AnyContent] = Action.async(
     for {
       activeClientsSummary <- (clientsMonitor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
       activeZonesSummary <- (zonesMonitor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
@@ -110,9 +107,9 @@ class Application @Inject()(implicit system: ActorSystem, materializer: Material
         }
       )
     ))).as(ContentTypes.JSON)
-  }
+  )
 
-  def ws = WebSocket.acceptOrResult[String, String] { request: RequestHeader =>
+  def ws: WebSocket = WebSocket.acceptOrResult[String, String](request =>
     Future.successful(
       getPublicKey(request.headers) match {
         case Left(error) => Left(
@@ -127,6 +124,5 @@ class Application @Inject()(implicit system: ActorSystem, materializer: Material
         )
       }
     )
-  }
-
+  )
 }

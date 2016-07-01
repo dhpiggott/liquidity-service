@@ -19,7 +19,7 @@ case class PublicKey(value: Array[Byte]) {
 }
 
 object PublicKey {
-  implicit val PublicKeyFormat = ValueFormat[PublicKey, String](
+  implicit final val PublicKeyFormat = ValueFormat[PublicKey, String](
     publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64).toByteArray),
     publicKey => ByteString.of(publicKey.value: _*).base64)
 }

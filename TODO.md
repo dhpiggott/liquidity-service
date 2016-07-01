@@ -1,8 +1,11 @@
 TODO
 ====
 
-* Add type ascriptions to method result types, review member visibilities (server and boardgame)
-* Apply Clean Code chapter 5 to server and boardgame
+* Boardgame:
+  * Make all constants final
+  * Comment style
+  * Add type ascriptions to method result types and review member visibilities
+  * Apply Clean Code chapter 5
 * Convert to using Akka HTTP directly (no Play framework) -- see
   http://doc.akka.io/docs/akka/2.4.3/intro/deployment-scenarios.html#deployment-scenarios
   and https://github.com/owainlewis/activator-akka-http

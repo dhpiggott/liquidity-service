@@ -10,7 +10,7 @@ object ValueFormatSpec {
   case class TestValue(value: String)
 
   object TestValue {
-    implicit val TestFormat = ValueFormat[TestValue, String](TestValue(_), _.value)
+    implicit final val TestFormat = ValueFormat[TestValue, String](TestValue(_), _.value)
   }
 
 }

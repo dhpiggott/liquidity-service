@@ -24,7 +24,7 @@ case class Zone(id: ZoneId,
 }
 
 object Zone {
-  implicit val ZoneFormat: Format[Zone] = (
+  implicit final val ZoneFormat: Format[Zone] = (
     (JsPath \ "id").format[ZoneId] and
       (JsPath \ "equityAccountId").format[AccountId] and
       (JsPath \ "members").format[Seq[Member]] and

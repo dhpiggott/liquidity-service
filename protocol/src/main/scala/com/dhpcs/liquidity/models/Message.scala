@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.protocol
+package com.dhpcs.liquidity.models
 
 import com.dhpcs.jsonrpc.Message.MethodFormats
 import com.dhpcs.jsonrpc.{CommandCompanion, NotificationCompanion, ResponseCompanion}

@@ -13,7 +13,7 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.pattern.ask
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.util.Timeout
-import com.dhpcs.liquidity.protocol.PublicKey
+import com.dhpcs.liquidity.models.PublicKey
 import controllers.Application._
 import okio.ByteString
 import org.apache.commons.codec.binary.Base64

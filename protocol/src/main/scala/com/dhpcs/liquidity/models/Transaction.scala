@@ -1,9 +1,10 @@
-package com.dhpcs.liquidity.protocol
+package com.dhpcs.liquidity.models
 
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads.min
 import play.api.libs.json.{Format, JsObject, JsPath}
 
+@SerialVersionUID(-1493946661525521370L)
 case class TransactionId(id: Int) extends IntIdentifier
 
 object TransactionId extends IntIdentifierCompanion[TransactionId]

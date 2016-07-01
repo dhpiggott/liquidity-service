@@ -1,9 +1,9 @@
-package com.dhpcs.liquidity.protocol
+package com.dhpcs.liquidity.models
 
 import java.util.UUID
 
 import com.dhpcs.json.FormatBehaviors
-import com.dhpcs.liquidity.protocol.UUIDIdentifierSpec.TestUUIDIdentifier
+import com.dhpcs.liquidity.models.UUIDIdentifierSpec.TestUUIDIdentifier
 import org.scalatest.{FunSpec, Matchers}
 import play.api.data.validation.ValidationError
 import play.api.libs.json.{JsError, Json, __}

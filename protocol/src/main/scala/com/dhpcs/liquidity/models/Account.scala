@@ -1,7 +1,8 @@
-package com.dhpcs.liquidity.protocol
+package com.dhpcs.liquidity.models
 
 import play.api.libs.json.{JsObject, Json}
 
+@SerialVersionUID(7841209810226048195L)
 case class AccountId(id: Int) extends IntIdentifier
 
 object AccountId extends IntIdentifierCompanion[AccountId]

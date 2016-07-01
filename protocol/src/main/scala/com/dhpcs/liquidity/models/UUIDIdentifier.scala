@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.protocol
+package com.dhpcs.liquidity.models
 
 import java.util.UUID
 

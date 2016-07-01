@@ -14,7 +14,7 @@ import akka.cluster.sharding.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
-import com.dhpcs.liquidity.protocol._
+import com.dhpcs.liquidity.models._
 import controllers.Application
 import play.api.libs.json.{JsObject, Json}
 
@@ -60,6 +60,7 @@ object ZoneValidator {
     def timestamp: Long
   }
 
+  @SerialVersionUID(7985567655962831754L)
   case class ZoneCreatedEvent(timestamp: Long, zone: Zone) extends Event
 
   case class ZoneJoinedEvent(timestamp: Long, clientConnection: ActorRef, publicKey: PublicKey) extends Event

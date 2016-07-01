@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.protocol
+package com.dhpcs.liquidity.models
 
 import java.util.UUID
 
@@ -6,6 +6,7 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads.min
 import play.api.libs.json.{Format, JsObject, JsPath}
 
+@SerialVersionUID(-8002926089768713775L)
 case class ZoneId(id: UUID) extends UUIDIdentifier
 
 object ZoneId extends UUIDIdentifierCompanion[ZoneId]

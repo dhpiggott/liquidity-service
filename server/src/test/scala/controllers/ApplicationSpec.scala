@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import akka.stream.scaladsl.{Flow, Keep}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
-import com.dhpcs.liquidity.protocol._
+import com.dhpcs.liquidity.models._
 import controllers.ApplicationSpec.{ClientNginxPemCertificateHeaderString, ClientPublicKey}
 import org.apache.commons.codec.binary.Base64
 import org.scalatestplus.play.{OneServerPerSuite, PlaySpec}

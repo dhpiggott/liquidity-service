@@ -21,9 +21,9 @@ mkdir $DIR/stage
 cp -r $DIR/target/docker/stage $DIR/stage/liquidity
 cp -r $DIR/nginx $DIR/stage/nginx
 
-cp docker-compose.yml $DIR/stage/
-cp save-data.sh $DIR/stage/
-cp load-data.sh $DIR/stage/
+cp $DIR/docker-compose.yml $DIR/stage/
+cp $DIR/save-data.sh $DIR/stage/
+cp $DIR/load-data.sh $DIR/stage/
 
 rsync --archive \
     --compress \

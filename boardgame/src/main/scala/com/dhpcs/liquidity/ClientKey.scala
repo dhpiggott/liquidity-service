@@ -2,8 +2,8 @@ package com.dhpcs.liquidity
 
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.math.BigInteger
-import java.security.cert.Certificate
-import java.security.{KeyPairGenerator, KeyStore}
+import java.security.cert.X509Certificate
+import java.security.{KeyPairGenerator, KeyStore, PrivateKey}
 import java.util.{Calendar, Locale}
 import javax.net.ssl.{KeyManager, KeyManagerFactory}
 
@@ -16,16 +16,66 @@ import org.spongycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509Extensi
 import org.spongycastle.operator.jcajce.JcaContentSignerBuilder
 
 object ClientKey {
-
-  private val KeystoreFilename = "client.keystore"
-  private val EntryAlias = "identity"
-  private val KeyLength = 2048
+  private final val KeystoreFilename = "client.keystore"
+  private final val EntryAlias = "identity"
+  private final val KeyLength = 2048
 
   private var keyStore: KeyStore = _
   private var publicKey: PublicKey = _
   private var keyManagers: Array[KeyManager] = _
 
-  private def generateCertKeyPair(clientId: String) = {
+  def getKeyManagers(filesDir: File, clientId: String): Array[KeyManager] = {
+    if (keyManagers == null) {
+      val keyStore = getOrLoadOrCreateKeyStore(filesDir, clientId)
+      val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
+      keyManagerFactory.init(keyStore, Array.emptyCharArray)
+      keyManagers = keyManagerFactory.getKeyManagers
+    }
+    keyManagers
+  }
+
+  def getPublicKey(filesDir: File, clientId: String): PublicKey = {
+    if (publicKey == null) {
+      val keyStore = getOrLoadOrCreateKeyStore(filesDir, clientId)
+      publicKey = PublicKey(
+        keyStore.getCertificate(ClientKey.EntryAlias).getPublicKey.getEncoded
+      )
+    }
+    publicKey
+  }
+
+  private def getOrLoadOrCreateKeyStore(filesDir: File, clientId: String): KeyStore = {
+    if (keyStore == null) {
+      keyStore = KeyStore.getInstance("BKS")
+      val keyStoreFile = new File(filesDir, KeystoreFilename)
+      if (!keyStoreFile.exists) {
+        val (certificate, privateKey) = generateCertKeyPair(clientId)
+        keyStore.load(null, null)
+        keyStore.setKeyEntry(
+          EntryAlias,
+          privateKey,
+          Array.emptyCharArray,
+          Array(certificate)
+        )
+        val keyStoreFileOutputStream = new FileOutputStream(keyStoreFile)
+        try {
+          keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
+        } finally {
+          keyStoreFileOutputStream.close()
+        }
+      } else {
+        val keyStoreFileInputStream = new FileInputStream(keyStoreFile)
+        try {
+          keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
+        } finally {
+          keyStoreFileInputStream.close()
+        }
+      }
+    }
+    keyStore
+  }
+
+  private def generateCertKeyPair(clientId: String): (X509Certificate, PrivateKey) = {
     val clientIdentity = new X500NameBuilder().addRDN(BCStyle.CN, clientId).build
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(KeyLength)
@@ -48,56 +98,4 @@ object ClientKey {
     )
     (certificate, keyPair.getPrivate)
   }
-
-  def getKeyManagers(filesDir: File, clientId: String) = {
-    if (keyManagers == null) {
-      val keyStore = getOrLoadOrCreateKeyStore(filesDir, clientId)
-      val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
-      keyManagerFactory.init(keyStore, Array.emptyCharArray)
-      keyManagers = keyManagerFactory.getKeyManagers
-    }
-    keyManagers
-  }
-
-  private def getOrLoadOrCreateKeyStore(filesDir: File, clientId: String) = {
-    if (keyStore == null) {
-      keyStore = KeyStore.getInstance("BKS")
-      val keyStoreFile = new File(filesDir, KeystoreFilename)
-      if (!keyStoreFile.exists) {
-        val (certificate, privateKey) = generateCertKeyPair(clientId)
-        keyStore.load(null, null)
-        keyStore.setKeyEntry(
-          EntryAlias,
-          privateKey,
-          Array.emptyCharArray,
-          Array[Certificate](certificate)
-        )
-        val keyStoreFileOutputStream = new FileOutputStream(keyStoreFile)
-        try {
-          keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
-        } finally {
-          keyStoreFileOutputStream.close()
-        }
-      } else {
-        val keyStoreFileInputStream = new FileInputStream(keyStoreFile)
-        try {
-          keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
-        } finally {
-          keyStoreFileInputStream.close()
-        }
-      }
-    }
-    keyStore
-  }
-
-  def getPublicKey(filesDir: File, clientId: String) = {
-    if (publicKey == null) {
-      val keyStore = getOrLoadOrCreateKeyStore(filesDir, clientId)
-      publicKey = PublicKey(
-        keyStore.getCertificate(ClientKey.EntryAlias).getPublicKey.getEncoded
-      )
-    }
-    publicKey
-  }
-
 }

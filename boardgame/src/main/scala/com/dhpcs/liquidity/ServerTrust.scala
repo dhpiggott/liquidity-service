@@ -10,19 +10,17 @@ import okio.ByteString
 import scala.collection.JavaConverters._
 
 object ServerTrust {
-
-  private val TrustManager = new X509TrustManager() {
-
+  private final val TrustManager = new X509TrustManager {
     @throws(classOf[CertificateException])
-    override def checkClientTrusted(chain: Array[X509Certificate], authType: String) =
+    override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
       checkTrusted(chain)
 
     @throws(classOf[CertificateException])
-    override def checkServerTrusted(chain: Array[X509Certificate], authType: String) =
+    override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
       checkTrusted(chain)
 
     @throws(classOf[CertificateException])
-    private def checkTrusted(chain: Array[X509Certificate]) {
+    private def checkTrusted(chain: Array[X509Certificate]): Unit = {
       val publicKey = chain(0).getPublicKey
       if (!trustedKeys.contains(publicKey)) {
         throw new CertificateException(
@@ -31,18 +29,17 @@ object ServerTrust {
       }
     }
 
-    override def getAcceptedIssuers = Array.empty[X509Certificate]
-
+    override def getAcceptedIssuers: Array[X509Certificate] = Array.empty[X509Certificate]
   }
 
   private var trustedKeys: Set[PublicKey] = _
 
-  def getTrustManager(keyStoreInputStream: InputStream) = {
+  def getTrustManager(keyStoreInputStream: InputStream): X509TrustManager = {
     loadTrustedKeys(keyStoreInputStream)
     TrustManager
   }
 
-  private def loadTrustedKeys(keyStoreInputStream: InputStream) {
+  private def loadTrustedKeys(keyStoreInputStream: InputStream): Unit = {
     if (trustedKeys == null) {
       val keyStore = KeyStore.getInstance("BKS")
       try {
@@ -56,5 +53,4 @@ object ServerTrust {
       }
     }
   }
-
 }

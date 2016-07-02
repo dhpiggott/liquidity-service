@@ -19,7 +19,6 @@ mkdir $DIR/stage
 
 (cd $DIR/../ && sbt server/docker:stage)
 cp -r $DIR/target/docker/stage $DIR/stage/liquidity
-cp -r $DIR/nginx $DIR/stage/nginx
 
 cp $DIR/docker-compose.yml $DIR/stage/
 cp $DIR/save-data.sh $DIR/stage/

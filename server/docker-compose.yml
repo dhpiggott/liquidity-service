@@ -8,16 +8,10 @@ services:
   liquidity:
     build: liquidity
     image: dhpcs/liquidity.dhpcs.com
-    restart: always
-    links:
-      - cassandra
-  nginx:
-    build: nginx
-    image: dhpcs/liquidity.dhpcs.com-nginx
     ports:
      - '443:443'
     restart: always
     links:
-      - liquidity
+      - cassandra
 volumes:
   cassandra-data:

@@ -4,8 +4,8 @@ import java.io.{File, IOException, InputStream}
 import java.util.concurrent.TimeUnit
 import javax.net.ssl._
 
-import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.ServerConnection._
 import com.dhpcs.liquidity.models._
 import okhttp3.ws.{WebSocket, WebSocketCall, WebSocketListener}

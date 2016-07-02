@@ -15,7 +15,6 @@ import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.models._
-import controllers.Application
 import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.duration._
@@ -23,7 +22,34 @@ import scala.concurrent.duration._
 object ZoneValidator {
   def props: Props = Props(new ZoneValidator)
 
+  final val ShardName = "ZoneValidator"
+
+  val extractEntityId: ShardRegion.ExtractEntityId = {
+    case EnvelopedMessage(zoneId, message) =>
+      (zoneId.id.toString, message)
+    case authenticatedCommandWithIds@AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
+      (zoneCommand.zoneId.id.toString, authenticatedCommandWithIds)
+  }
+
+  /*
+    * From http://doc.akka.io/docs/akka/2.4.8/scala/cluster-sharding.html:
+    *
+    * "Creating a good sharding algorithm is an interesting challenge in itself. Try to produce a uniform distribution,
+    * i.e. same amount of entities in each shard. As a rule of thumb, the number of shards should be a factor ten
+    * greater than the planned maximum number of cluster nodes."
+    */
+  private val numberOfShards = 10
+
+  val extractShardId: ShardRegion.ExtractShardId = {
+    case EnvelopedMessage(zoneId, _) =>
+      (math.abs(zoneId.id.hashCode) % numberOfShards).toString
+    case AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
+      (math.abs(zoneCommand.zoneId.id.hashCode) % numberOfShards).toString
+  }
+
   final val Topic = "Zone"
+
+  private final val RequiredOwnerKeyLength = 2048
 
   case class EnvelopedMessage(zoneId: ZoneId, message: Any)
 
@@ -80,31 +106,6 @@ object ZoneValidator {
   case class TransactionAddedEvent(timestamp: Long, transaction: Transaction) extends Event
 
   private val zoneLifetime = 2.days
-
-  val extractEntityId: ShardRegion.ExtractEntityId = {
-    case EnvelopedMessage(zoneId, message) =>
-      (zoneId.id.toString, message)
-    case authenticatedCommandWithIds@AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
-      (zoneCommand.zoneId.id.toString, authenticatedCommandWithIds)
-  }
-
-  /**
-    * From http://doc.akka.io/docs/akka/2.4.7/scala/cluster-sharding.html:
-    *
-    * "Creating a good sharding algorithm is an interesting challenge in itself. Try to produce a uniform distribution,
-    * i.e. same amount of entities in each shard. As a rule of thumb, the number of shards should be a factor ten
-    * greater than the planned maximum number of cluster nodes."
-    */
-  private val numberOfShards = 10
-
-  val extractShardId: ShardRegion.ExtractShardId = {
-    case EnvelopedMessage(zoneId, _) =>
-      (math.abs(zoneId.id.hashCode) % numberOfShards).toString
-    case AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
-      (math.abs(zoneCommand.zoneId.id.hashCode) % numberOfShards).toString
-  }
-
-  val shardName = "ZoneValidator"
 
   private case class State(zone: Zone = null,
                            balances: Map[AccountId, BigDecimal] = Map.empty.withDefaultValue(BigDecimal(0)),
@@ -251,7 +252,7 @@ object ZoneValidator {
     try {
       if (KeyFactory.getInstance("RSA")
         .generatePublic(new X509EncodedKeySpec(ownerPublicKey.value))
-        .asInstanceOf[RSAPublicKey].getModulus.bitLength != Application.RequiredKeyLength) {
+        .asInstanceOf[RSAPublicKey].getModulus.bitLength != RequiredOwnerKeyLength) {
         Some("Invalid owner public key length")
       } else {
         None

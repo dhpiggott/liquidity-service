@@ -17,21 +17,20 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import org.bouncycastle.util.io.pem.PemWriter
 
 object CertGen {
+  private final val CommonName = "liquidity.dhpcs.com"
+  private final val KeyLength = 2048
 
-  private val CommonName = "liquidity.dhpcs.com"
-  private val KeyLength = 2048
+  private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore"
+  private final val KeyStorePassword = Array.emptyCharArray
+  private final val KeyStoreEntryAlias = "identity"
+  private final val KeyStoreEntryPassword = Array.emptyCharArray
 
-  private val KeyStoreFilename = "liquidity.dhpcs.com.keystore"
-  private val KeyStorePassword = Array.emptyCharArray
-  private val KeyStoreEntryAlias = "identity"
-  private val KeyStoreEntryPassword = Array.emptyCharArray
+  private final val TrustStoreFilename = "liquidity.dhpcs.com.truststore"
+  private final val TrustStorePassword = Array.emptyCharArray
+  private final val TrustStoreEntryAlias = "identity"
 
-  private val TrustStoreFilename = "liquidity.dhpcs.com.truststore"
-  private val TrustStorePassword = Array.emptyCharArray
-  private val TrustStoreEntryAlias = "identity"
-
-  private val CertificateFilename = "liquidity.dhpcs.com.crt"
-  private val KeyFilename = "liquidity.dhpcs.com.key"
+  private final val CertificateFilename = "liquidity.dhpcs.com.crt"
+  private final val KeyFilename = "liquidity.dhpcs.com.key"
 
   def main(args: Array[String]): Unit = {
     Security.addProvider(new BouncyCastleProvider)

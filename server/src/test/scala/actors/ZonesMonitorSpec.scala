@@ -1,19 +1,17 @@
 package actors
 
 import actors.ZonesMonitor.{GetZoneCount, ZoneCount}
-import akka.actor.ActorSystem
-import akka.testkit.{DefaultTimeout, TestKit, TestProbe}
-import org.scalatest.WordSpecLike
+import akka.testkit.TestProbe
+import org.scalatest.WordSpec
 
 import scala.concurrent.duration._
 
-class ZonesMonitorSpec(implicit system: ActorSystem) extends TestKit(system)
-  with DefaultTimeout with WordSpecLike {
-  private[this] val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
+class ZonesMonitorSpec extends WordSpec with ZoneValidatorShardRegionProvider {
 
-  "A ZonesValidatorMonitor" must {
-    "report the total number of zones created" in {
+  "A ZonesMonitor" must {
+    "report on the number of zones" in {
       val testProbe = TestProbe()
+      val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
       testProbe.send(
         zonesMonitor,
         GetZoneCount

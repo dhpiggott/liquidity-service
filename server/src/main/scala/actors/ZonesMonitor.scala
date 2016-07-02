@@ -35,7 +35,7 @@ class ZonesMonitor extends Actor with ActorLogging {
 
   import context.dispatcher
 
-  private[this] implicit val mat = ActorMaterializer()
+  private[this] implicit val materializer = ActorMaterializer()
 
   private[this] val readJournal = PersistenceQuery(context.system)
     .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)

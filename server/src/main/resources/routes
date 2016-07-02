@@ -1,6 +1,0 @@
-# Routes
-# This file defines all application routes (Higher priority routes first)
-# ~~~~
-
-GET     /status                     controllers.Application.status
-GET     /ws                         controllers.Application.ws

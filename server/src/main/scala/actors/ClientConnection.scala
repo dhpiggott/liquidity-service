@@ -3,10 +3,15 @@ package actors
 import java.util.UUID
 
 import actors.ClientConnection._
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, OneForOneStrategy, PoisonPill, Props, ReceiveTimeout, Status, SupervisorStrategy, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
+import akka.http.scaladsl.model.RemoteAddress
+import akka.http.scaladsl.model.ws.{TextMessage, Message => WsMessage}
+import akka.pattern.pipe
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.stream.{Materializer, OverflowStrategy}
 import com.dhpcs.jsonrpc.{JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.models._
 import play.api.libs.json.Json
@@ -15,8 +20,29 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object ClientConnection {
-  def props(publicKey: PublicKey, zoneValidatorShardRegion: ActorRef)(upstream: ActorRef): Props =
-    Props(new ClientConnection(publicKey, zoneValidatorShardRegion, upstream))
+  def webSocketFlow(ip: RemoteAddress,
+                    publicKey: PublicKey,
+                    zoneValidatorShardRegion: ActorRef)
+                   (implicit factory: ActorRefFactory, materializer: Materializer): Flow[WsMessage, WsMessage, Any] =
+    actorRef(
+      props = props(ip, publicKey, zoneValidatorShardRegion),
+      name = publicKey.fingerprint,
+      overflowStrategy = OverflowStrategy.fail
+    )
+
+  def props(ip: RemoteAddress,
+            publicKey: PublicKey,
+            zoneValidatorShardRegion: ActorRef)
+           (upstream: ActorRef)
+           (implicit materializer: Materializer): Props =
+    Props(
+      new ClientConnection(
+        ip,
+        publicKey,
+        zoneValidatorShardRegion,
+        upstream
+      )
+    )
 
   final val Topic = "Client"
 
@@ -51,6 +77,38 @@ object ClientConnection {
     }
   }
 
+  private def actorRef[In, Out](props: ActorRef => Props,
+                                name: String,
+                                bufferSize: Int = 16,
+                                overflowStrategy: OverflowStrategy = OverflowStrategy.dropNew)
+                               (implicit factory: ActorRefFactory, materializer: Materializer): Flow[In, Out, _] = {
+    val (outActor, publisher) = Source.actorRef[Out](bufferSize, overflowStrategy)
+      .toMat(Sink.asPublisher(false))(Keep.both).run()
+    Flow.fromSinkAndSource(
+      Sink.actorRef(factory.actorOf(Props(new Actor {
+        val flowActor = context.watch(context.actorOf(props(outActor), name))
+
+        override def receive = {
+          case Status.Success(_) | Status.Failure(_) =>
+            flowActor ! PoisonPill
+            outActor ! Status.Success(())
+          case Terminated =>
+            println("Child terminated, stopping")
+            context.stop(self)
+          case other =>
+            flowActor ! other
+        }
+
+        override def supervisorStrategy = OneForOneStrategy() {
+          case _ =>
+            println("Stopping actor due to exception")
+            SupervisorStrategy.Stop
+        }
+      })), Status.Success(())),
+      Source.fromPublisher(publisher)
+    )
+  }
+
   private def readCommand(jsonString: String):
   (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
     Try(Json.parse(jsonString)) match {
@@ -81,9 +139,14 @@ object ClientConnection {
     }
 }
 
-class ClientConnection(publicKey: PublicKey,
+class ClientConnection(ip: RemoteAddress,
+                       publicKey: PublicKey,
                        zoneValidatorShardRegion: ActorRef,
-                       upstream: ActorRef) extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
+                       upstream: ActorRef)
+                      (implicit materializer: Materializer)
+  extends PersistentActor
+    with ActorLogging
+    with AtLeastOnceDelivery {
 
   import actors.ClientConnection.KeepAliveGenerator._
   import context.dispatcher
@@ -96,23 +159,22 @@ class ClientConnection(publicKey: PublicKey,
   private[this] var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
   private[this] var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
-  upstream ! Json.stringify(Json.toJson(
-    Notification.write(
-      SupportedVersionsNotification(
-        CompatibleVersionNumbers
-      )
-    )
-  ))
-
   override def persistenceId: String = s"${publicKey.productPrefix}(${publicKey.fingerprint})"
 
   override def preStart(): Unit = {
     super.preStart()
-    log.info(s"Started actor for ${publicKey.fingerprint}")
+    upstream ! TextMessage.Strict(Json.stringify(Json.toJson(
+      Notification.write(
+        SupportedVersionsNotification(
+          CompatibleVersionNumbers
+        )
+      )
+    )))
+    log.info(s"Started actor for ${ip.toOption.getOrElse("unknown")} (${publicKey.fingerprint})")
   }
 
   override def postStop(): Unit = {
-    log.info(s"Stopped actor for ${publicKey.fingerprint}")
+    log.info(s"Stopped actor for ${ip.toOption.getOrElse("unknown")} (${publicKey.fingerprint})")
     publishStatusTick.cancel()
     super.postStop()
   }
@@ -126,24 +188,28 @@ class ClientConnection(publicKey: PublicKey,
         )
       )
     case SendKeepAlive =>
-      upstream ! Json.stringify(
+      upstream ! TextMessage.Strict(Json.stringify(
         Json.toJson(
           Notification.write(KeepAliveNotification)
         )
-      )
-    case json: String =>
+      ))
+    case TextMessage.Streamed(jsonStream) =>
+      val json = jsonStream.runFold("")(_ + _)
+      // We don't expect to receive streamed messages, but it's worth handling them just in case.
+      json.pipeTo(self)
+    case TextMessage.Strict(json) =>
       keepAliveActor ! FrameReceivedEvent
       readCommand(json) match {
         case (id, Left(jsonRpcResponseError)) =>
           log.warning(s"Receive error: $jsonRpcResponseError")
-          sender() ! Json.stringify(Json.toJson(
+          sender() ! TextMessage.Strict(Json.stringify(Json.toJson(
             JsonRpcResponseMessage(
               Left(
                 jsonRpcResponseError
               ),
               id
             )
-          ))
+          )))
         case (correlationId, Right(command)) =>
           command match {
             case createZoneCommand: CreateZoneCommand =>
@@ -186,13 +252,13 @@ class ClientConnection(publicKey: PublicKey,
         commandSequenceNumbers = commandSequenceNumbers - zoneId
         pendingDeliveries(zoneId).foreach(confirmDelivery)
         pendingDeliveries = pendingDeliveries - zoneId
-        upstream ! Json.stringify(Json.toJson(
+        upstream ! TextMessage.Strict(Json.stringify(Json.toJson(
           Notification.write(
             ZoneTerminatedNotification(
               zoneId
             )
           )
-        ))
+        )))
         keepAliveActor ! FrameSentEvent
       }
     case ZoneValidator.CommandReceivedConfirmation(zoneId, deliveryId) =>
@@ -208,12 +274,12 @@ class ClientConnection(publicKey: PublicKey,
       }
       if (sequenceNumber == nextExpectedMessageSequenceNumber) {
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
-        upstream ! Json.stringify(Json.toJson(
+        upstream ! TextMessage.Strict(Json.stringify(Json.toJson(
           Response.write(
             response,
             correlationId
           )
-        ))
+        )))
         keepAliveActor ! FrameSentEvent
       }
     case ZoneValidator.NotificationWithIds(notification, sequenceNumber, deliveryId) =>
@@ -223,11 +289,11 @@ class ClientConnection(publicKey: PublicKey,
       }
       if (sequenceNumber == nextExpectedMessageSequenceNumber) {
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
-        upstream ! Json.stringify(Json.toJson(
+        upstream ! TextMessage.Strict(Json.stringify(Json.toJson(
           Notification.write(
             notification
           )
-        ))
+        )))
         keepAliveActor ! FrameSentEvent
       }
   }

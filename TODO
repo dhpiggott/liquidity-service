@@ -1,4 +1,3 @@
-* Update to Cassandra 3.7
 * Restore test coverage (see http://typesafehub.github.io/ssl-config/TestingSSL.html)
 * Finalise cipher config (see http://typesafehub.github.io/ssl-config/CipherSuites.html, be sure to test Android 4.0.4,
   but also use https://www.ssllabs.com/ssltest/analyze.html?d=liquidity.dhpcs.com&hideResults=on)

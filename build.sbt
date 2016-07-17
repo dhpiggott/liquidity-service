@@ -43,7 +43,7 @@ lazy val server = project.in(file("server"))
       "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.8",
       "org.scalatest" %% "scalatest" % "2.2.6" % "test",
       "com.typesafe.akka" %% "akka-http-testkit" % "2.4.8" % "test",
-      "org.apache.cassandra" % "cassandra-all" % "3.4" % "test"
+      "org.apache.cassandra" % "cassandra-all" % "3.7" % "test"
     ),
     parallelExecution in Test := false,
     testGrouping in Test <<= (definedTests in Test).map(_.map(test =>

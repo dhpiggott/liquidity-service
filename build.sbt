@@ -2,6 +2,12 @@ import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.11.8"
 
+lazy val commonSettings = Seq(
+  scalaVersion := "2.11.8",
+  organization := "com.dhpcs.liquidity",
+  version := "1.2.0"
+)
+
 lazy val protocol = project.in(file("protocol"))
   .settings(commonSettings)
   .settings(Seq(
@@ -58,16 +64,9 @@ lazy val boardgame = project.in(file("boardgame"))
   .settings(commonSettings)
   .settings(Seq(
     name := "boardgame",
-    version := "1.2.0",
     libraryDependencies ++= Seq(
       "com.madgag.spongycastle" % "pkix" % "1.54.0.0",
       "com.squareup.okhttp3" % "okhttp-ws" % "3.3.1"
     )
   ))
   .dependsOn(protocol)
-
-lazy val commonSettings = Seq(
-  scalaVersion := "2.11.8",
-  organization := "com.dhpcs.liquidity",
-  version := "1.0-SNAPSHOT"
-)

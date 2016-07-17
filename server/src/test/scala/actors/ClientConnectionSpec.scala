@@ -5,6 +5,7 @@ import java.security.KeyPairGenerator
 
 import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.ws.TextMessage
+import akka.stream.ActorMaterializer
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.models._
@@ -14,6 +15,8 @@ import play.api.libs.json.Json
 import scala.concurrent.duration._
 
 class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvider {
+  private[this] implicit val materializer = ActorMaterializer()
+
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded

@@ -15,7 +15,6 @@
 * Review compiler linting/warning settings
 * Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html
 * ?s/KeepAliveNotification/Heartbeat/
-* Add a healthcheck/post-deployment test
 * Improve logs
 * Apply renaming (adding Actor suffixes, models package -> protocol)
 * Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.8/scala/persistence.html: "Note that Cluster

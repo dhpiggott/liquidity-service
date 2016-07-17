@@ -58,6 +58,7 @@ lazy val server = project.in(file("server"))
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048"
   ))
   .dependsOn(protocol)
+  .dependsOn(certgen % "test")
   .enablePlugins(JavaAppPackaging, DockerPlugin)
 
 lazy val boardgame = project.in(file("boardgame"))

@@ -19,12 +19,9 @@ object CertGen {
   private final val KeyLength = 2048
 
   private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore"
-  private final val KeyStorePassword = Array.emptyCharArray
   private final val KeyStoreEntryAlias = "identity"
-  private final val KeyStoreEntryPassword = Array.emptyCharArray
 
   private final val TrustStoreFilename = "liquidity.dhpcs.com.truststore"
-  private final val TrustStorePassword = Array.emptyCharArray
   private final val TrustStoreEntryAlias = "identity"
 
   def main(args: Array[String]): Unit = {
@@ -36,12 +33,12 @@ object CertGen {
     keyStore.setKeyEntry(
       KeyStoreEntryAlias,
       privateKey,
-      KeyStoreEntryPassword,
+      Array.emptyCharArray,
       Array[Certificate](certificate)
     )
     val keyStoreFileOutputStream = new FileOutputStream(keyStoreFile)
     try {
-      keyStore.store(keyStoreFileOutputStream, KeyStorePassword)
+      keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
     } finally {
       keyStoreFileOutputStream.close()
     }
@@ -54,7 +51,7 @@ object CertGen {
     )
     val trustStoreFileOutputStream = new FileOutputStream(trustStoreFile)
     try {
-      trustStore.store(trustStoreFileOutputStream, TrustStorePassword)
+      trustStore.store(trustStoreFileOutputStream, Array.emptyCharArray)
     } finally {
       trustStoreFileOutputStream.close()
     }

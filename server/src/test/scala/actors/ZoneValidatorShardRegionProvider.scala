@@ -1,6 +1,8 @@
 package actors
 
 import java.io.File
+import java.net.InetSocketAddress
+import java.nio.channels.ServerSocketChannel
 
 import actors.ZoneValidatorShardRegionProvider._
 import akka.actor.ActorSystem
@@ -13,6 +15,14 @@ import org.scalatest.{BeforeAndAfterAll, Suite}
 import scala.util.Try
 
 object ZoneValidatorShardRegionProvider {
+  private def freePort(): Int = {
+    val serverSocket = ServerSocketChannel.open().socket()
+    serverSocket.bind(new InetSocketAddress("127.0.0.1", 0))
+    val port = serverSocket.getLocalPort
+    serverSocket.close()
+    port
+  }
+
   private def deleteFile(path: File): Unit = {
     if (path.isDirectory) {
       path.listFiles().foreach(deleteFile)
@@ -23,17 +33,19 @@ object ZoneValidatorShardRegionProvider {
 
 trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
   this: Suite =>
-  private[this] val port = CassandraLauncher.freePort()
-  private[this] val config = ConfigFactory.parseString(
-    s"""
-       |cassandra-journal.contact-points = ["127.0.0.1:${CassandraLauncher.randomPort}"]
-       |akka {
-       |  remote.netty.tcp.hostname = "127.0.0.1"
-       |  remote.netty.tcp.port = $port
-       |  cluster.seed-nodes = ["akka.tcp://liquidity@127.0.0.1:$port"]
-       |}
+  protected[this] def config =
+    ConfigFactory.parseString(
+      s"""
+         |akka {
+         |  remote.netty.tcp {
+         |    hostname = "127.0.0.1"
+         |    port = $akkaRemotingPort
+         |  }
+         |  cluster.seed-nodes = ["akka.tcp://liquidity@127.0.0.1:$akkaRemotingPort"]
+         |}
+         |cassandra-journal.contact-points = ["127.0.0.1:${CassandraLauncher.randomPort}"]
     """.stripMargin
-  ).withFallback(ConfigFactory.defaultApplication())
+    ).withFallback(ConfigFactory.defaultApplication())
 
   protected[this] implicit val system = ActorSystem("liquidity", config)
 
@@ -45,6 +57,8 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
     extractEntityId = ZoneValidator.extractEntityId,
     extractShardId = ZoneValidator.extractShardId
   )
+
+  private[this] lazy val akkaRemotingPort = freePort()
 
   private[this] val cassandraDirectory = File.createTempFile("cassandra-local", null)
 

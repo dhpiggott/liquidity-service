@@ -29,7 +29,7 @@ object ServerTrust {
       }
     }
 
-    override def getAcceptedIssuers: Array[X509Certificate] = Array.empty[X509Certificate]
+    override def getAcceptedIssuers: Array[X509Certificate] = Array.empty
   }
 
   private var trustedKeys: Set[PublicKey] = _

@@ -8,7 +8,7 @@ import javax.net.ssl._
 import actors.ClientsMonitor.{ActiveClientsSummary, GetActiveClientsSummary}
 import actors.ZonesMonitor.{ActiveZonesSummary, GetActiveZonesSummary, GetZoneCount, ZoneCount}
 import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.MediaTypes._
@@ -21,7 +21,7 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.pattern.ask
 import akka.stream.scaladsl.Flow
-import akka.stream.{ActorMaterializer, TLSClientAuth}
+import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
 import akka.util.Timeout
 import com.dhpcs.liquidity.models.PublicKey
 import com.dhpcs.liquidity.server.LiquidityServer._
@@ -30,60 +30,65 @@ import okio.ByteString
 import play.api.libs.json.{JsObject, Json}
 
 import scala.collection.immutable.Seq
-import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 
 object LiquidityServer {
   private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore"
-  private final val KeyStorePassword = Array.emptyCharArray
-  private final val RequiredClientKeyLength = 2048
-
   private final val EnabledCipherSuites = Seq(
     "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
     "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
     "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
   )
+  private final val RequiredClientKeyLength = 2048
 
   def main(args: Array[String]): Unit = {
-    val config = ConfigFactory.load.getConfig("liquidity")
-    val server = new LiquidityServer(config)
-    sys.addShutdownHook(
-      server.shutdown()
+    val config = ConfigFactory.load
+    implicit val system = ActorSystem("liquidity")
+    implicit val materializer = ActorMaterializer()
+    val zoneValidatorShardRegion = ClusterSharding(system).start(
+      typeName = ZoneValidator.ShardName,
+      entityProps = ZoneValidator.props,
+      settings = ClusterShardingSettings(system),
+      extractEntityId = ZoneValidator.extractEntityId,
+      extractShardId = ZoneValidator.extractShardId
     )
+    val keyStore = KeyStore.getInstance("JKS")
+    keyStore.load(
+      getClass.getClassLoader.getResourceAsStream(KeyStoreFilename),
+      Array.emptyCharArray
+    )
+    val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
+    keyManagerFactory.init(
+      keyStore,
+      Array.emptyCharArray
+    )
+    val server = new LiquidityServer(
+      config,
+      zoneValidatorShardRegion,
+      keyManagerFactory.getKeyManagers
+    )
+    sys.addShutdownHook {
+      Await.result(server.shutdown(), Duration.Inf)
+      Await.result(system.terminate(), Duration.Inf)
+    }
   }
 }
 
-class LiquidityServer(config: Config) extends LiquidityService {
-  private[this] implicit val system = ActorSystem("liquidity")
-  private[this] implicit val materializer = ActorMaterializer()
+class LiquidityServer(config: Config,
+                      zoneValidatorShardRegion: ActorRef,
+                      keyManagers: Array[KeyManager])
+                     (implicit system: ActorSystem, materializer: Materializer) extends LiquidityService {
 
   import system.dispatcher
-
-  private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
-    typeName = ZoneValidator.ShardName,
-    entityProps = ZoneValidator.props,
-    settings = ClusterShardingSettings(system),
-    extractEntityId = ZoneValidator.extractEntityId,
-    extractShardId = ZoneValidator.extractShardId
-  )
 
   private[this] val clientsMonitor = system.actorOf(ClientsMonitor.props, "clients-monitor")
   private[this] val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
 
   private[this] val httpsConnectionContext = {
-    val keyStore = KeyStore.getInstance("JKS")
-    keyStore.load(
-      getClass.getClassLoader.getResourceAsStream(KeyStoreFilename),
-      KeyStorePassword
-    )
-    val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
-    keyManagerFactory.init(
-      keyStore,
-      KeyStorePassword
-    )
     val sslContext = SSLContext.getInstance("TLS")
     sslContext.init(
-      keyManagerFactory.getKeyManagers,
+      keyManagers,
       Array(new X509TrustManager {
         override def getAcceptedIssuers: Array[X509Certificate] = Array()
 
@@ -102,14 +107,15 @@ class LiquidityServer(config: Config) extends LiquidityService {
 
   private[this] val binding = Http().bindAndHandle(
     route,
-    config.getString("http.interface"),
-    config.getInt("http.port"),
+    config.getString("liquidity.http.interface"),
+    config.getInt("liquidity.http.port"),
     httpsConnectionContext
   )
 
-  def shutdown(): Unit = {
-    Await.result(binding.map(_.unbind()), Duration.Inf)
-    Await.result(system.terminate(), Duration.Inf)
+  def shutdown(): Future[Unit] = binding.flatMap(_.unbind()).map { _ =>
+    clientsMonitor ! PoisonPill
+    zonesMonitor ! PoisonPill
+    ()
   }
 
   override protected[this] def getStatus: ToResponseMarshallable = {

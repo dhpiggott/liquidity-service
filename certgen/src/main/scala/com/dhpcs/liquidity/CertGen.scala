@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity
 
-import java.io.{File, FileOutputStream, FileWriter}
+import java.io.{File, FileOutputStream}
 import java.math.BigInteger
 import java.security.cert.{Certificate, X509Certificate}
 import java.security.{KeyPairGenerator, KeyStore, PrivateKey, Security}
@@ -12,9 +12,7 @@ import org.bouncycastle.asn1.x509.{Extension, Time}
 import org.bouncycastle.asn1.{ASN1GeneralizedTime, ASN1UTCTime}
 import org.bouncycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509ExtensionUtils, JcaX509v3CertificateBuilder}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.bouncycastle.openssl.jcajce.JcaMiscPEMGenerator
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
-import org.bouncycastle.util.io.pem.PemWriter
 
 object CertGen {
   private final val CommonName = "liquidity.dhpcs.com"
@@ -29,12 +27,9 @@ object CertGen {
   private final val TrustStorePassword = Array.emptyCharArray
   private final val TrustStoreEntryAlias = "identity"
 
-  private final val CertificateFilename = "liquidity.dhpcs.com.crt"
-  private final val KeyFilename = "liquidity.dhpcs.com.key"
-
   def main(args: Array[String]): Unit = {
     Security.addProvider(new BouncyCastleProvider)
-    val (certificate, privateKey) = generateCertKeyPair
+    val (certificate, privateKey) = generateCertKeyPair(CommonName)
     val keyStore = KeyStore.getInstance("JKS")
     val keyStoreFile = new File(KeyStoreFilename)
     keyStore.load(null, null)
@@ -49,28 +44,6 @@ object CertGen {
       keyStore.store(keyStoreFileOutputStream, KeyStorePassword)
     } finally {
       keyStoreFileOutputStream.close()
-    }
-    val certificateFileWriter = new FileWriter(CertificateFilename)
-    try {
-      val certificatePemWriter = new PemWriter(certificateFileWriter)
-      try {
-        certificatePemWriter.writeObject(new JcaMiscPEMGenerator(certificate))
-      } finally {
-        certificatePemWriter.close()
-      }
-    } finally {
-      certificateFileWriter.close()
-    }
-    val keyFileWriter = new FileWriter(KeyFilename)
-    try {
-      val keyPemWriter = new PemWriter(keyFileWriter)
-      try {
-        keyPemWriter.writeObject(new JcaMiscPEMGenerator(privateKey))
-      } finally {
-        keyPemWriter.close()
-      }
-    } finally {
-      keyFileWriter.close()
     }
     val trustStore = KeyStore.getInstance("BKS-V1")
     val trustStoreFile = new File(TrustStoreFilename)
@@ -87,8 +60,8 @@ object CertGen {
     }
   }
 
-  private def generateCertKeyPair: (X509Certificate, PrivateKey) = {
-    val identity = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
+  def generateCertKeyPair(commonName: String): (X509Certificate, PrivateKey) = {
+    val identity = new X500NameBuilder().addRDN(BCStyle.CN, commonName).build
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(KeyLength)
     val keyPair = keyPairGenerator.generateKeyPair

@@ -3,6 +3,7 @@ package com.dhpcs.liquidity.server
 import java.net.InetAddress
 import java.security.KeyPairGenerator
 
+import akka.NotUsed
 import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.MediaTypes.`application/json`
@@ -13,7 +14,7 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.models.PublicKey
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.{Matchers, WordSpec}
 
 import scala.concurrent.Future
@@ -47,7 +48,7 @@ class LiquidityServiceSpec extends WordSpec
     }
   }
 
-  override def testConfig = ConfigFactory.defaultReference()
+  override def testConfig: Config = ConfigFactory.defaultReference()
 
   override protected[this] def getStatus: ToResponseMarshallable = Future.successful(
     HttpEntity(
@@ -56,7 +57,8 @@ class LiquidityServiceSpec extends WordSpec
     )
   )
 
-  override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey) = Flow[Message]
+  override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
+    Flow[Message]
 
   override protected[this] def extractClientPublicKey(ip: RemoteAddress)(route: (PublicKey) => Route): Route =
     route(

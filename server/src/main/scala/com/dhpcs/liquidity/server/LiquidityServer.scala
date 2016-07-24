@@ -8,6 +8,7 @@ import javax.net.ssl._
 import actors.ClientsMonitor.{ActiveClientsSummary, GetActiveClientsSummary}
 import actors.ZonesMonitor.{ActiveZonesSummary, GetActiveZonesSummary, GetZoneCount, ZoneCount}
 import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
+import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
@@ -45,7 +46,7 @@ object LiquidityServer {
   def main(args: Array[String]): Unit = {
     val config = ConfigFactory.load
     implicit val system = ActorSystem("liquidity")
-    implicit val materializer = ActorMaterializer()
+    implicit val mat = ActorMaterializer()
     val zoneValidatorShardRegion = ClusterSharding(system).start(
       typeName = ZoneValidator.ShardName,
       entityProps = ZoneValidator.props,
@@ -78,7 +79,7 @@ object LiquidityServer {
 class LiquidityServer(config: Config,
                       zoneValidatorShardRegion: ActorRef,
                       keyManagers: Array[KeyManager])
-                     (implicit system: ActorSystem, materializer: Materializer) extends LiquidityService {
+                     (implicit system: ActorSystem, mat: Materializer) extends LiquidityService {
 
   import system.dispatcher
 
@@ -192,6 +193,6 @@ class LiquidityServer(config: Config,
       }
     )
 
-  override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, Any] =
+  override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     ClientConnection.webSocketFlow(ip, publicKey, zoneValidatorShardRegion)
 }

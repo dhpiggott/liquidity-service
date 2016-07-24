@@ -3,39 +3,31 @@ package actors
 import java.util.UUID
 
 import actors.ClientConnection._
+import akka.NotUsed
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, OneForOneStrategy, PoisonPill, Props, ReceiveTimeout, Status, SupervisorStrategy, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.RemoteAddress
-import akka.http.scaladsl.model.ws.{TextMessage, Message => WsMessage}
-import akka.pattern.pipe
+import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage, Message => WsMessage}
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
+import akka.util.ByteString
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.models._
 import play.api.libs.json.Json
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object ClientConnection {
-  def webSocketFlow(ip: RemoteAddress,
-                    publicKey: PublicKey,
-                    zoneValidatorShardRegion: ActorRef)
-                   (implicit factory: ActorRefFactory, materializer: Materializer): Flow[WsMessage, WsMessage, Any] =
-    actorRef(
-      props = props(ip, publicKey, zoneValidatorShardRegion),
-      name = publicKey.fingerprint,
-      overflowStrategy = OverflowStrategy.fail
-    )
-
   def props(ip: RemoteAddress,
             publicKey: PublicKey,
             zoneValidatorShardRegion: ActorRef)
            (upstream: ActorRef)
-           (implicit materializer: Materializer): Props =
+           (implicit mat: Materializer): Props =
     Props(
       new ClientConnection(
         ip,
@@ -43,6 +35,20 @@ object ClientConnection {
         zoneValidatorShardRegion,
         upstream
       )
+    )
+
+  def webSocketFlow(ip: RemoteAddress,
+                    publicKey: PublicKey,
+                    zoneValidatorShardRegion: ActorRef)
+                   (implicit factory: ActorRefFactory, mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
+    wsMessageToString.via(
+      actorFlow[String, String](
+        props = props(ip, publicKey, zoneValidatorShardRegion),
+        name = publicKey.fingerprint,
+        overflowStrategy = OverflowStrategy.fail
+      )
+    ).via(
+      stringToWsMessage
     )
 
   final val Topic = "Client"
@@ -78,11 +84,11 @@ object ClientConnection {
     }
   }
 
-  private def actorRef[In, Out](props: ActorRef => Props,
-                                name: String,
-                                bufferSize: Int = 16,
-                                overflowStrategy: OverflowStrategy = OverflowStrategy.dropNew)
-                               (implicit factory: ActorRefFactory, materializer: Materializer): Flow[In, Out, _] = {
+  private def actorFlow[In, Out](props: ActorRef => Props,
+                                 name: String,
+                                 bufferSize: Int = 16,
+                                 overflowStrategy: OverflowStrategy = OverflowStrategy.dropNew)
+                                (implicit factory: ActorRefFactory, mat: Materializer): Flow[In, Out, NotUsed] = {
     val (outActor, publisher) = Source.actorRef[Out](bufferSize, overflowStrategy)
       .toMat(Sink.asPublisher(false))(Keep.both).run()
     Flow.fromSinkAndSource(
@@ -109,6 +115,22 @@ object ClientConnection {
       Source.fromPublisher(publisher)
     )
   }
+
+  private def wsMessageToString(implicit mat: Materializer): Flow[WsMessage, String, NotUsed] =
+    Flow[WsMessage].mapAsync[String](1) {
+      case TextMessage.Strict(text) =>
+        Future.successful(text)
+      case TextMessage.Streamed(textStream) =>
+        textStream.runFold("")(_ ++ _)
+      case BinaryMessage.Strict(data) =>
+        Future.successful(data.utf8String)
+      case BinaryMessage.Streamed(byteStream) =>
+        import mat.executionContext
+        byteStream.runFold(ByteString.empty)(_ ++ _).map(_.utf8String)
+    }
+
+  private def stringToWsMessage: Flow[String, WsMessage, NotUsed] =
+    Flow[String].map[WsMessage](TextMessage.Strict)
 
   private def readCommand(jsonString: String):
   (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
@@ -144,7 +166,7 @@ class ClientConnection(ip: RemoteAddress,
                        publicKey: PublicKey,
                        zoneValidatorShardRegion: ActorRef,
                        upstream: ActorRef)
-                      (implicit materializer: Materializer)
+                      (implicit mat: Materializer)
   extends PersistentActor
     with ActorLogging
     with AtLeastOnceDelivery {
@@ -174,79 +196,85 @@ class ClientConnection(ip: RemoteAddress,
     super.postStop()
   }
 
-  override def receiveCommand: Receive = {
+  override def receiveCommand: Receive =
+    publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
+      case jsonString: String =>
+        keepAliveActor ! FrameReceivedEvent
+        readCommand(jsonString) match {
+          case (id, Left(jsonRpcResponseError)) =>
+            log.warning(s"Receive error: $jsonRpcResponseError")
+            send(JsonRpcResponseMessage(
+              Left(jsonRpcResponseError),
+              id
+            ))
+          case (correlationId, Right(command)) =>
+            command match {
+              case createZoneCommand: CreateZoneCommand =>
+                createZone(createZoneCommand, correlationId)
+              case zoneCommand: ZoneCommand =>
+                val zoneId = zoneCommand.zoneId
+                val sequenceNumber = commandSequenceNumbers(zoneId)
+                commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+                deliver(zoneValidatorShardRegion.path) { deliveryId =>
+                  pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+                  ZoneValidator.AuthenticatedCommandWithIds(
+                    publicKey,
+                    zoneCommand,
+                    correlationId,
+                    sequenceNumber,
+                    deliveryId
+                  )
+                }
+            }
+        }
+      case ZoneValidator.ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
+        exactlyOnce(sequenceNumber, deliveryId)(
+          createZone(createZoneCommand, correlationId)
+        )
+      case ZoneValidator.ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
+        exactlyOnce(sequenceNumber, deliveryId)(
+          send(response, correlationId)
+        )
+      case ZoneValidator.NotificationWithIds(notification, sequenceNumber, deliveryId) =>
+        exactlyOnce(sequenceNumber, deliveryId)(
+          send(notification)
+        )
+      case ZoneValidator.ZoneRestarted(zoneId, sequenceNumber, deliveryId) =>
+        exactlyOnce(sequenceNumber, deliveryId) {
+          // Remove previous validator entry, add new validator entry.
+          nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
+            ZoneId(UUID.fromString(validator.path.name)) != zoneId
+          ) + (sender() -> (sequenceNumber + 1))
+          commandSequenceNumbers = commandSequenceNumbers - zoneId
+          pendingDeliveries(zoneId).foreach(confirmDelivery)
+          pendingDeliveries = pendingDeliveries - zoneId
+          send(ZoneTerminatedNotification(zoneId))
+        }
+    }
+
+  override def receiveRecover: Receive = Actor.emptyBehavior
+
+  private[this] def publishStatus: Receive = {
     case PublishStatus =>
       mediator ! Publish(
         Topic,
         ActiveClientSummary(publicKey)
       )
-    case SendKeepAlive =>
-      send(KeepAliveNotification)
-    case TextMessage.Streamed(jsonStream) =>
-      val json = jsonStream.runFold("")(_ + _)
-      // We don't expect to receive streamed messages, but it's worth handling them just in case.
-      json.map(TextMessage.Strict).pipeTo(self)
-    case TextMessage.Strict(json) =>
-      keepAliveActor ! FrameReceivedEvent
-      readCommand(json) match {
-        case (id, Left(jsonRpcResponseError)) =>
-          log.warning(s"Receive error: $jsonRpcResponseError")
-          send(JsonRpcResponseMessage(
-            Left(jsonRpcResponseError),
-            id
-          ))
-        case (correlationId, Right(command)) =>
-          command match {
-            case createZoneCommand: CreateZoneCommand =>
-              createZone(createZoneCommand, correlationId)
-            case zoneCommand: ZoneCommand =>
-              val zoneId = zoneCommand.zoneId
-              val sequenceNumber = commandSequenceNumbers(zoneId)
-              commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-              deliver(zoneValidatorShardRegion.path) { deliveryId =>
-                pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-                ZoneValidator.AuthenticatedCommandWithIds(
-                  publicKey,
-                  zoneCommand,
-                  correlationId,
-                  sequenceNumber,
-                  deliveryId
-                )
-              }
-          }
-      }
-    case ZoneValidator.ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
-      exactlyOnce(sequenceNumber, deliveryId)(
-        createZone(createZoneCommand, correlationId)
-      )
-    case ZoneValidator.ZoneRestarted(zoneId, sequenceNumber, deliveryId) =>
-      exactlyOnce(sequenceNumber, deliveryId) {
-        // Remove previous validator entry, add new validator entry.
-        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
-          ZoneId(UUID.fromString(validator.path.name)) != zoneId
-        ) + (sender() -> (sequenceNumber + 1))
-        commandSequenceNumbers = commandSequenceNumbers - zoneId
-        pendingDeliveries(zoneId).foreach(confirmDelivery)
-        pendingDeliveries = pendingDeliveries - zoneId
-        send(ZoneTerminatedNotification(zoneId))
-      }
+  }
+
+  private[this] def commandReceivedConfirmation: Receive = {
     case ZoneValidator.CommandReceivedConfirmation(zoneId, deliveryId) =>
       confirmDelivery(deliveryId)
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) - deliveryId))
       if (pendingDeliveries(zoneId).isEmpty) {
         pendingDeliveries = pendingDeliveries - zoneId
       }
-    case ZoneValidator.ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
-      exactlyOnce(sequenceNumber, deliveryId)(
-        send(response, correlationId)
-      )
-    case ZoneValidator.NotificationWithIds(notification, sequenceNumber, deliveryId) =>
-      exactlyOnce(sequenceNumber, deliveryId)(
-        send(notification)
-      )
   }
 
-  override def receiveRecover: Receive = Actor.emptyBehavior
+  private[this] def sendKeepAlive: Receive = {
+    case SendKeepAlive =>
+      send(KeepAliveNotification)
+  }
 
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
     val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
@@ -292,11 +320,9 @@ class ClientConnection(ip: RemoteAddress,
     ))
 
   private[this] def send(jsonRpcMessage: JsonRpcMessage): Unit = {
-    upstream ! TextMessage.Strict(
-      Json.stringify(Json.toJson(
-        jsonRpcMessage
-      ))
-    )
+    upstream ! Json.stringify(Json.toJson(
+      jsonRpcMessage
+    ))
     keepAliveActor ! FrameSentEvent
   }
 }

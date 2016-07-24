@@ -16,7 +16,7 @@ import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.CertGen
 import com.dhpcs.liquidity.models._
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
 import org.scalatest.WordSpec
 import play.api.libs.json.Json
@@ -56,7 +56,7 @@ object LiquidityServerSpec {
 }
 
 class LiquidityServerSpec extends WordSpec with ZoneValidatorShardRegionProvider {
-  override protected[this] def config =
+  override protected[this] def config: Config =
     ConfigFactory.parseString(
       s"""
          |liquidity.http {
@@ -108,7 +108,7 @@ class LiquidityServerSpec extends WordSpec with ZoneValidatorShardRegionProvider
 
   private[this] val baseUrl = s"wss://localhost:$akkaHttpPort"
 
-  private[this] implicit val materializer = ActorMaterializer()
+  private[this] implicit val mat = ActorMaterializer()
 
   "The WebSocket API" must {
     "send a SupportedVersionsNotification when connected" in {

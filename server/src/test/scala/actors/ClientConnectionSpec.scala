@@ -4,7 +4,6 @@ import java.net.InetAddress
 import java.security.KeyPairGenerator
 
 import akka.http.scaladsl.model.RemoteAddress
-import akka.http.scaladsl.model.ws.TextMessage
 import akka.stream.ActorMaterializer
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
@@ -15,7 +14,7 @@ import play.api.libs.json.Json
 import scala.concurrent.duration._
 
 class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvider {
-  private[this] implicit val materializer = ActorMaterializer()
+  private[this] implicit val mat = ActorMaterializer()
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {
@@ -30,7 +29,7 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
         ClientConnection.props(ip, publicKey, zoneValidatorShardRegion)(upstreamTestProbe.ref)
       )
       upstreamTestProbe.expectMsgPF() {
-        case TextMessage.Strict(jsonString)
+        case jsonString: String
           if Json.parse(jsonString)
             .asOpt[JsonRpcNotificationMessage]
             .flatMap(Notification.read)
@@ -44,14 +43,14 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
         ClientConnection.props(ip, publicKey, zoneValidatorShardRegion)(upstreamTestProbe.ref)
       )
       upstreamTestProbe.expectMsgPF() {
-        case TextMessage.Strict(jsonString)
+        case jsonString: String
           if Json.parse(jsonString)
             .asOpt[JsonRpcNotificationMessage]
             .flatMap(Notification.read)
             .exists(_.asOpt.exists(_.isInstanceOf[SupportedVersionsNotification])) =>
       }
       upstreamTestProbe.expectMsgPF(35.seconds) {
-        case TextMessage.Strict(jsonString)
+        case jsonString: String
           if Json.parse(jsonString)
             .asOpt[JsonRpcNotificationMessage]
             .flatMap(Notification.read)
@@ -65,7 +64,7 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
         ClientConnection.props(ip, publicKey, zoneValidatorShardRegion)(upstreamTestProbe.ref)
       )
       upstreamTestProbe.expectMsgPF() {
-        case TextMessage.Strict(jsonString)
+        case jsonString: String
           if Json.parse(jsonString)
             .asOpt[JsonRpcNotificationMessage]
             .flatMap(Notification.read)
@@ -73,7 +72,7 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
       }
       upstreamTestProbe.send(
         clientConnection,
-        TextMessage.Strict(Json.stringify(Json.toJson(
+        Json.stringify(Json.toJson(
           Command.write(
             CreateZoneCommand(
               publicKey,
@@ -85,11 +84,12 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
             ),
             None
           )
-        )))
+        ))
       )
       upstreamTestProbe.expectMsgPF() {
-        case TextMessage.Strict(jsonString)
-          if Json.parse(jsonString).asOpt[JsonRpcResponseMessage]
+        case jsonString: String
+          if Json.parse(jsonString)
+            .asOpt[JsonRpcResponseMessage]
             .map(Response.read(_, "createZone"))
             .flatMap(_.asOpt)
             .flatMap(_.right.toOption)
@@ -103,7 +103,7 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
         ClientConnection.props(ip, publicKey, zoneValidatorShardRegion)(upstreamTestProbe.ref)
       )
       upstreamTestProbe.expectMsgPF() {
-        case TextMessage.Strict(jsonString)
+        case jsonString: String
           if Json.parse(jsonString)
             .asOpt[JsonRpcNotificationMessage]
             .flatMap(Notification.read)
@@ -111,7 +111,7 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
       }
       upstreamTestProbe.send(
         clientConnection,
-        TextMessage.Strict(Json.stringify(Json.toJson(
+          Json.stringify(Json.toJson(
           Command.write(
             CreateZoneCommand(
               publicKey,
@@ -123,10 +123,10 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
             ),
             None
           )
-        )))
+        ))
       )
       val zoneId = upstreamTestProbe.expectMsgPF() {
-        case TextMessage.Strict(jsonString)
+        case jsonString: String
           if Json.parse(jsonString)
             .asOpt[JsonRpcResponseMessage]
             .map(Response.read(_, "createZone"))
@@ -142,17 +142,17 @@ class ClientConnectionSpec extends WordSpec with ZoneValidatorShardRegionProvide
       }
       upstreamTestProbe.send(
         clientConnection,
-        TextMessage.Strict(Json.stringify(Json.toJson(
+        Json.stringify(Json.toJson(
           Command.write(
             JoinZoneCommand(
               zoneId
             ),
             None
           )
-        )))
+        ))
       )
       upstreamTestProbe.expectMsgPF() {
-        case TextMessage.Strict(jsonString)
+        case jsonString: String
           if Json.parse(jsonString)
             .asOpt[JsonRpcResponseMessage]
             .map(Response.read(_, "joinZone"))

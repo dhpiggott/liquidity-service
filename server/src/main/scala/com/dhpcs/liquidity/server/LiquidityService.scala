@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.server
 
+import akka.NotUsed
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.ws.Message
@@ -30,5 +31,5 @@ trait LiquidityService {
 
   protected[this] def extractClientPublicKey(ip: RemoteAddress)(route: PublicKey => Route): Route
 
-  protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, Any]
+  protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
 }

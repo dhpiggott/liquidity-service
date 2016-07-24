@@ -12,7 +12,8 @@ import akka.pattern.pipe
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
-import com.dhpcs.jsonrpc.{JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
+import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.models._
 import play.api.libs.json.Json
 
@@ -163,13 +164,7 @@ class ClientConnection(ip: RemoteAddress,
 
   override def preStart(): Unit = {
     super.preStart()
-    upstream ! TextMessage.Strict(Json.stringify(Json.toJson(
-      Notification.write(
-        SupportedVersionsNotification(
-          CompatibleVersionNumbers
-        )
-      )
-    )))
+    send(SupportedVersionsNotification(CompatibleVersionNumbers))
     log.info(s"Started actor for ${ip.toOption.getOrElse("unknown")} (${publicKey.fingerprint})")
   }
 
@@ -183,33 +178,23 @@ class ClientConnection(ip: RemoteAddress,
     case PublishStatus =>
       mediator ! Publish(
         Topic,
-        ActiveClientSummary(
-          publicKey
-        )
+        ActiveClientSummary(publicKey)
       )
     case SendKeepAlive =>
-      upstream ! TextMessage.Strict(Json.stringify(
-        Json.toJson(
-          Notification.write(KeepAliveNotification)
-        )
-      ))
+      send(KeepAliveNotification)
     case TextMessage.Streamed(jsonStream) =>
       val json = jsonStream.runFold("")(_ + _)
       // We don't expect to receive streamed messages, but it's worth handling them just in case.
-      json.pipeTo(self)
+      json.map(TextMessage.Strict).pipeTo(self)
     case TextMessage.Strict(json) =>
       keepAliveActor ! FrameReceivedEvent
       readCommand(json) match {
         case (id, Left(jsonRpcResponseError)) =>
           log.warning(s"Receive error: $jsonRpcResponseError")
-          sender() ! TextMessage.Strict(Json.stringify(Json.toJson(
-            JsonRpcResponseMessage(
-              Left(
-                jsonRpcResponseError
-              ),
-              id
-            )
-          )))
+          send(JsonRpcResponseMessage(
+            Left(jsonRpcResponseError),
+            id
+          ))
         case (correlationId, Right(command)) =>
           command match {
             case createZoneCommand: CreateZoneCommand =>
@@ -231,35 +216,19 @@ class ClientConnection(ip: RemoteAddress,
           }
       }
     case ZoneValidator.ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
-      val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
-      if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
-        sender() ! MessageReceivedConfirmation(deliveryId)
-      }
-      if (sequenceNumber == nextExpectedMessageSequenceNumber) {
-        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
+      exactlyOnce(sequenceNumber, deliveryId)(
         createZone(createZoneCommand, correlationId)
-      }
+      )
     case ZoneValidator.ZoneRestarted(zoneId, sequenceNumber, deliveryId) =>
-      val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
-      if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
-        sender() ! MessageReceivedConfirmation(deliveryId)
-      }
-      if (sequenceNumber == nextExpectedMessageSequenceNumber) {
+      exactlyOnce(sequenceNumber, deliveryId) {
         // Remove previous validator entry, add new validator entry.
-        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys { validator =>
+        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
           ZoneId(UUID.fromString(validator.path.name)) != zoneId
-        } + (sender() -> (sequenceNumber + 1))
+        ) + (sender() -> (sequenceNumber + 1))
         commandSequenceNumbers = commandSequenceNumbers - zoneId
         pendingDeliveries(zoneId).foreach(confirmDelivery)
         pendingDeliveries = pendingDeliveries - zoneId
-        upstream ! TextMessage.Strict(Json.stringify(Json.toJson(
-          Notification.write(
-            ZoneTerminatedNotification(
-              zoneId
-            )
-          )
-        )))
-        keepAliveActor ! FrameSentEvent
+        send(ZoneTerminatedNotification(zoneId))
       }
     case ZoneValidator.CommandReceivedConfirmation(zoneId, deliveryId) =>
       confirmDelivery(deliveryId)
@@ -268,37 +237,27 @@ class ClientConnection(ip: RemoteAddress,
         pendingDeliveries = pendingDeliveries - zoneId
       }
     case ZoneValidator.ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
-      val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
-      if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
-        sender() ! MessageReceivedConfirmation(deliveryId)
-      }
-      if (sequenceNumber == nextExpectedMessageSequenceNumber) {
-        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
-        upstream ! TextMessage.Strict(Json.stringify(Json.toJson(
-          Response.write(
-            response,
-            correlationId
-          )
-        )))
-        keepAliveActor ! FrameSentEvent
-      }
+      exactlyOnce(sequenceNumber, deliveryId)(
+        send(response, correlationId)
+      )
     case ZoneValidator.NotificationWithIds(notification, sequenceNumber, deliveryId) =>
-      val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
-      if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
-        sender() ! MessageReceivedConfirmation(deliveryId)
-      }
-      if (sequenceNumber == nextExpectedMessageSequenceNumber) {
-        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
-        upstream ! TextMessage.Strict(Json.stringify(Json.toJson(
-          Notification.write(
-            notification
-          )
-        )))
-        keepAliveActor ! FrameSentEvent
-      }
+      exactlyOnce(sequenceNumber, deliveryId)(
+        send(notification)
+      )
   }
 
-  override def receiveRecover: Receive = PartialFunction.empty
+  override def receiveRecover: Receive = Actor.emptyBehavior
+
+  private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
+    val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
+    if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
+      sender() ! MessageReceivedConfirmation(deliveryId)
+    }
+    if (sequenceNumber == nextExpectedMessageSequenceNumber) {
+      nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
+      body
+    }
+  }
 
   private[this] def createZone(createZoneCommand: CreateZoneCommand,
                                correlationId: Option[Either[String, BigDecimal]]): Unit = {
@@ -318,5 +277,26 @@ class ClientConnection(ip: RemoteAddress,
         )
       )
     }
+  }
+
+  private[this] def send(response: Either[ErrorResponse, ResultResponse],
+                         correlationId: Option[Either[String, BigDecimal]]): Unit =
+    send(Response.write(
+      response,
+      correlationId
+    ))
+
+  private[this] def send(notification: Notification): Unit =
+    send(Notification.write(
+      notification
+    ))
+
+  private[this] def send(jsonRpcMessage: JsonRpcMessage): Unit = {
+    upstream ! TextMessage.Strict(
+      Json.stringify(Json.toJson(
+        jsonRpcMessage
+      ))
+    )
+    keepAliveActor ! FrameSentEvent
   }
 }

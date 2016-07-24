@@ -1,6 +1,6 @@
 package actors
 
-import akka.actor.{ActorSystem, Props}
+import akka.actor.{Actor, ActorSystem, Props}
 import akka.persistence.PersistentActor
 import akka.testkit.TestProbe
 
@@ -23,7 +23,7 @@ object AwaitPersistenceInit {
   private[this] class AwaitPersistenceInitActor extends PersistentActor {
     override def persistenceId: String = "persistenceInit"
 
-    override def receiveRecover: Receive = PartialFunction.empty
+    override def receiveRecover: Receive = Actor.emptyBehavior
 
     override def receiveCommand: Receive = {
       case msg =>

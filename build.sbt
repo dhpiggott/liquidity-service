@@ -67,7 +67,7 @@ lazy val boardgame = project.in(file("boardgame"))
     name := "boardgame",
     libraryDependencies ++= Seq(
       "com.madgag.spongycastle" % "pkix" % "1.54.0.0",
-      "com.squareup.okhttp3" % "okhttp-ws" % "3.3.1"
+      "com.squareup.okhttp3" % "okhttp-ws" % "3.4.1"
     )
   ))
   .dependsOn(protocol)

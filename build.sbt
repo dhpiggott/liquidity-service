@@ -5,7 +5,7 @@ scalaVersion in ThisBuild := "2.11.8"
 lazy val commonSettings = Seq(
   scalaVersion := "2.11.8",
   organization := "com.dhpcs.liquidity",
-  version := "1.2.1"
+  version := "1.2.2"
 )
 
 lazy val protocol = project.in(file("protocol"))

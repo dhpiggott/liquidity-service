@@ -14,9 +14,9 @@ lazy val protocol = project.in(file("protocol"))
     name := "protocol",
     libraryDependencies ++= Seq(
       "com.squareup.okio" % "okio" % "1.9.0",
-      "com.dhpcs" %% "play-json-rpc" % "1.1.0",
-      "org.scalatest" %% "scalatest" % "2.2.6" % "test",
-      "com.dhpcs" %% "play-json-rpc" % "1.1.0" % "test->test"
+      "com.dhpcs" %% "play-json-rpc" % "1.1.1",
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "com.dhpcs" %% "play-json-rpc" % "1.1.1" % "test->test"
     )
   ))
 
@@ -41,7 +41,7 @@ lazy val server = project.in(file("server"))
       "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.8",
       "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.9",
       "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.8",
-      "org.scalatest" %% "scalatest" % "2.2.6" % "test",
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "com.typesafe.akka" %% "akka-http-testkit" % "2.4.8" % "test",
       "org.apache.cassandra" % "cassandra-all" % "3.7" % "test"
     ),

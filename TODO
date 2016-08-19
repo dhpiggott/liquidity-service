@@ -7,16 +7,17 @@
 * Reinject sidelined 0.10 Zone, switch to a sensible serialization format:
   * https://docs.oracle.com/javase/8/docs/technotes/tools/unix/serialver.html
   * https://github.com/dnvriend/akka-serialization-test
-  * http://doc.akka.io/docs/akka/2.4.8/scala/persistence-schema-evolution.html
-  * http://doc.akka.io/docs/akka/2.4.8/scala/persistence.html#event-adapters
-  * http://doc.akka.io/docs/akka/2.4.8/scala/persistence.html#custom-serialization
-  * http://doc.akka.io/docs/akka/2.4.8/scala/serialization.html
+  * http://doc.akka.io/docs/akka/2.4.9/scala/persistence-schema-evolution.html
+  * http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html#event-adapters
+  * http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html#custom-serialization
+  * http://doc.akka.io/docs/akka/2.4.9/scala/serialization.html
   * https://github.com/akka/akka-persistence-cassandra/commit/f40e25110b62ce0f7d8b52fe6c76ce656fc5b74e
+  * http://www.lagomframework.com/documentation/1.0.x/java/Serialization.html
 * Review whether PassivationCountdown actor is still needed
 * Review compiler linting/warning settings
 * Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html
 * ?s/KeepAliveNotification/Heartbeat/
 * Improve logs
 * Apply renaming (adding Actor suffixes, models package -> protocol)
-* Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.8/scala/persistence.html: "Note that Cluster
+* Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html: "Note that Cluster
   Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."

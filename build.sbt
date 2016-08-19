@@ -34,15 +34,15 @@ lazy val server = project.in(file("server"))
   .settings(Seq(
     name := "server",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-slf4j" % "2.4.8",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.4.9",
       "ch.qos.logback" % "logback-classic" % "1.1.7",
-      "com.typesafe.akka" %% "akka-http-experimental" % "2.4.8",
+      "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
       "com.typesafe.play" %% "play-json" % "2.4.8" force(),
-      "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.8",
+      "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.9",
       "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.9",
-      "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.8",
+      "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.9",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
-      "com.typesafe.akka" %% "akka-http-testkit" % "2.4.8" % "test",
+      "com.typesafe.akka" %% "akka-http-testkit" % "2.4.9" % "test",
       "org.apache.cassandra" % "cassandra-all" % "3.7" % "test"
     ),
     parallelExecution in Test := false,

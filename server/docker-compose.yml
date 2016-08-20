@@ -7,7 +7,6 @@ services:
     - cassandra-data:/var/lib/cassandra
   liquidity:
     build: liquidity
-    image: dhpcs/liquidity.dhpcs.com
     ports:
      - '443:443'
     restart: always

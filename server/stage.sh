@@ -17,7 +17,7 @@ trap finish EXIT
 
 mkdir $DIR/stage
 
-(cd $DIR/../ && sbt server/docker:stage)
+(cd $DIR/../ && sbt liquidityServer/docker:stage)
 cp -r $DIR/target/docker/stage $DIR/stage/liquidity
 
 cp $DIR/docker-compose.yml $DIR/stage/

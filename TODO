@@ -3,7 +3,6 @@
   http://typesafehub.github.io/ssl-config/TestingSSL.html, be sure to test Android 4.0.4,
   but also use https://www.ssllabs.com/ssltest/analyze.html?d=liquidity.dhpcs.com&hideResults=on)
 * Review keystore format (see https://github.com/akka/akka/issues/20381)
-* Repackage everything that isn't persisted
 * Reinject sidelined 0.10 Zone, switch to a sensible serialization format:
   * https://docs.oracle.com/javase/8/docs/technotes/tools/unix/serialver.html
   * https://github.com/dnvriend/akka-serialization-test
@@ -19,8 +18,8 @@
   * https://github.com/cassandra-scala/troy/blob/master/build.sbt
   * https://github.com/cassandra-scala/troy/tree/master/project
 * Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html
+* Apply renaming (adding Actor suffixes, models package -> protocol, add com.dhpcs.liquidity prefixes)
 * ?s/KeepAliveNotification/Heartbeat/
-* Improve logs
-* Apply renaming (adding Actor suffixes, models package -> protocol)
 * Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html: "Note that Cluster
   Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."
+* Improve logs

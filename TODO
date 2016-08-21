@@ -13,6 +13,11 @@
   * http://doc.akka.io/docs/akka/2.4.9/scala/serialization.html
   * https://github.com/akka/akka-persistence-cassandra/commit/f40e25110b62ce0f7d8b52fe6c76ce656fc5b74e
   * http://www.lagomframework.com/documentation/1.0.x/java/Serialization.html
+* Review:
+  * https://github.com/cakesolutions/scala-kafka-client/blob/master/build.sbt
+  * https://github.com/cakesolutions/scala-kafka-client/tree/master/project
+  * https://github.com/cassandra-scala/troy/blob/master/build.sbt
+  * https://github.com/cassandra-scala/troy/tree/master/project
 * Review whether PassivationCountdown actor is still needed
 * Review compiler linting/warning settings
 * Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html

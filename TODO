@@ -3,14 +3,13 @@
   http://typesafehub.github.io/ssl-config/TestingSSL.html, be sure to test Android 4.0.4,
   but also use https://www.ssllabs.com/ssltest/analyze.html?d=liquidity.dhpcs.com&hideResults=on)
 * Review keystore format (see https://github.com/akka/akka/issues/20381)
-* Reinject sidelined 0.10 Zone, switch to a sensible serialization format:
+* Switch to a sensible serialization format:
   * https://docs.oracle.com/javase/8/docs/technotes/tools/unix/serialver.html
   * https://github.com/dnvriend/akka-serialization-test
   * http://doc.akka.io/docs/akka/2.4.9/scala/persistence-schema-evolution.html
   * http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html#event-adapters
   * http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html#custom-serialization
   * http://doc.akka.io/docs/akka/2.4.9/scala/serialization.html
-  * https://github.com/akka/akka-persistence-cassandra/commit/f40e25110b62ce0f7d8b52fe6c76ce656fc5b74e
   * http://www.lagomframework.com/documentation/1.0.x/java/Serialization.html
 * Review:
   * https://github.com/cakesolutions/scala-kafka-client/blob/master/build.sbt

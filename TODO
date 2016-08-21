@@ -18,8 +18,6 @@
   * https://github.com/cakesolutions/scala-kafka-client/tree/master/project
   * https://github.com/cassandra-scala/troy/blob/master/build.sbt
   * https://github.com/cassandra-scala/troy/tree/master/project
-* Review whether PassivationCountdown actor is still needed
-* Review compiler linting/warning settings
 * Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html
 * ?s/KeepAliveNotification/Heartbeat/
 * Improve logs

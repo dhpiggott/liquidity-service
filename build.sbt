@@ -63,7 +63,7 @@ lazy val liquidityCertgen = project.in(file("certgen"))
     publish := {},
     publishLocal := {},
     libraryDependencies ++= Seq(
-      "org.bouncycastle" % "bcpkix-jdk15on" % "1.54"
+      "org.bouncycastle" % "bcpkix-jdk15on" % "1.55"
     )
   )
 

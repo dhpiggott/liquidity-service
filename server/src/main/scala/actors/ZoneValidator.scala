@@ -30,20 +30,13 @@ object ZoneValidator {
       (zoneCommand.zoneId.id.toString, authenticatedCommandWithIds)
   }
 
-  /*
-    * From http://doc.akka.io/docs/akka/2.4.8/scala/cluster-sharding.html:
-    *
-    * "Creating a good sharding algorithm is an interesting challenge in itself. Try to produce a uniform distribution,
-    * i.e. same amount of entities in each shard. As a rule of thumb, the number of shards should be a factor ten
-    * greater than the planned maximum number of cluster nodes."
-    */
-  private val numberOfShards = 10
+  private val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
     case EnvelopedMessage(zoneId, _) =>
-      (math.abs(zoneId.id.hashCode) % numberOfShards).toString
+      (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
     case AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
-      (math.abs(zoneCommand.zoneId.id.hashCode) % numberOfShards).toString
+      (math.abs(zoneCommand.zoneId.id.hashCode) % NumberOfShards).toString
   }
 
   final val Topic = "Zone"
@@ -104,7 +97,7 @@ object ZoneValidator {
 
   case class TransactionAddedEvent(timestamp: Long, transaction: Transaction) extends Event
 
-  private val zoneLifetime = 2.days
+  private val ZoneLifetime = 2.days
 
   private case class State(zone: Zone = null,
                            balances: Map[AccountId, BigDecimal] = Map.empty.withDefaultValue(BigDecimal(0)),
@@ -385,7 +378,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     equityAccountMetadata
                   )
                   val created = System.currentTimeMillis
-                  val expires = created + zoneLifetime.toMillis
+                  val expires = created + ZoneLifetime.toMillis
                   val zone = Zone(
                     zoneId,
                     equityAccount.id,

@@ -33,7 +33,7 @@ lazy val liquidityServer = project.in(file("server"))
       "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
       "com.typesafe.play" %% "play-json" % "2.4.8" force(),
       "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.9",
-      "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.9",
+      "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.17",
       "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.9",
       scalaTest % "test",
       "com.typesafe.akka" %% "akka-http-testkit" % "2.4.9" % "test",

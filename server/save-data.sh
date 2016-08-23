@@ -20,4 +20,4 @@ docker run --rm \
     -v $1/messages.csv:/mnt/export \
     --net=liquidity_default \
     --link liquidity_cassandra_1:cassandra \
-    cassandra:3 sh -c 'exec cqlsh -e "COPY akka.messages TO '\''/mnt/export'\'';" cassandra'
+    cassandra:3 sh -c 'exec cqlsh -e "COPY akka.messages TO '\''/mnt/export'\'' WITH NULL='\''null'\'';" cassandra'

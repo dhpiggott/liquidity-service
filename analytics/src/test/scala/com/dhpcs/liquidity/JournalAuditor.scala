@@ -51,13 +51,13 @@ class JournalAuditor extends AsyncWordSpec with Matchers with BeforeAndAfterAll 
           .mapAsync(1)(zoneId =>
             readJournal
               .currentEventsByPersistenceId(zoneId.toString, 0, Long.MaxValue)
-              .runFold[Seq[EventEnvelope]](Seq.empty)(_ :+ _)
+              .runFold(Seq.empty[EventEnvelope])(_ :+ _)
               .map(zoneId -> _)
           )
-          .runFold[Map[ZoneId, Seq[EventEnvelope]]](Map.empty)(_ + _)
+          .runFold(Map.empty[ZoneId, Seq[EventEnvelope]])(_ + _)
       }
       def zoneAndBalances(events: Seq[Any]): (Zone, Map[AccountId, BigDecimal]) =
-        events.tail.foldLeft[(Zone, Map[AccountId, BigDecimal])](
+        events.tail.foldLeft(
           events.head match {
             case zoneCreatedEvent: ZoneCreatedEvent =>
               (zoneCreatedEvent.zone, Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0)))

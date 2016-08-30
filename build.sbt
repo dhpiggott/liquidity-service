@@ -86,16 +86,13 @@ lazy val liquidityAnalytics = project.in(file("analytics"))
 
 lazy val root = project.in(file("."))
   .settings(commonSettings)
+  .settings(noopPublish)
   .settings(
-    name := "liquidity-root",
-    publishArtifact := false,
-    publish := {},
-    publishLocal := {}
+    name := "liquidity-root"
   )
   .aggregate(
     liquidityProtocol,
     liquidityServer,
     liquidityCertgen,
-    liquidityBoardgame,
-    liquidityAnalytics
+    liquidityBoardgame
   )

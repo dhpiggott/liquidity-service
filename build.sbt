@@ -15,7 +15,7 @@ lazy val liquidityProtocol = project.in(file("protocol"))
   .settings(
     name := "liquidity-protocol",
     libraryDependencies ++= Seq(
-      "com.squareup.okio" % "okio" % "1.9.0",
+      "com.squareup.okio" % "okio" % "1.10.0",
       playJsonRpc,
       scalaTest,
       playJsonRpc % "test->test"

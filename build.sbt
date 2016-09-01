@@ -4,6 +4,8 @@ scalaVersion in ThisBuild := "2.11.8"
 
 lazy val commonSettings = organization := "com.dhpcs"
 
+lazy val noopPublish = Seq(publishArtifact := false, publish := {}, publishLocal := {})
+
 lazy val playJsonRpc = "com.dhpcs" %% "play-json-rpc" % "1.1.1"
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.0"
@@ -22,11 +24,9 @@ lazy val liquidityProtocol = project.in(file("protocol"))
 
 lazy val liquidityServer = project.in(file("server"))
   .settings(commonSettings)
+  .settings(noopPublish)
   .settings(
     name := "liquidity-server",
-    publishArtifact := false,
-    publish := {},
-    publishLocal := {},
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-slf4j" % "2.4.9",
       "ch.qos.logback" % "logback-classic" % "1.1.7",
@@ -57,11 +57,9 @@ lazy val liquidityServer = project.in(file("server"))
 
 lazy val liquidityCertgen = project.in(file("certgen"))
   .settings(commonSettings)
+  .settings(noopPublish)
   .settings(
     name := "liquidity-certgen",
-    publishArtifact := false,
-    publish := {},
-    publishLocal := {},
     libraryDependencies ++= Seq(
       "org.bouncycastle" % "bcpkix-jdk15on" % "1.55"
     )
@@ -78,6 +76,14 @@ lazy val liquidityBoardgame = project.in(file("boardgame"))
   )
   .dependsOn(liquidityProtocol)
 
+lazy val liquidityAnalytics = project.in(file("analytics"))
+  .settings(commonSettings)
+  .settings(noopPublish)
+  .settings(
+    name := "liquidity-analytics"
+  )
+  .dependsOn(liquidityServer)
+
 lazy val root = project.in(file("."))
   .settings(commonSettings)
   .settings(
@@ -90,5 +96,6 @@ lazy val root = project.in(file("."))
     liquidityProtocol,
     liquidityServer,
     liquidityCertgen,
-    liquidityBoardgame
+    liquidityBoardgame,
+    liquidityAnalytics
   )

@@ -116,7 +116,6 @@ class LiquidityServer(config: Config,
   def shutdown(): Future[Unit] = binding.flatMap(_.unbind()).map { _ =>
     clientsMonitor ! PoisonPill
     zonesMonitor ! PoisonPill
-    ()
   }
 
   override protected[this] def getStatus: ToResponseMarshallable = {

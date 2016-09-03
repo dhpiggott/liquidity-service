@@ -49,7 +49,7 @@ lazy val liquidityServer = project.in(file("server"))
         tests = Seq(test),
         runPolicy = Tests.SubProcess(ForkOptions(runJVMOptions = Seq("-Xms512M", "-Xmx1G"))))
     )),
-    dockerBaseImage := "java:8-jre",
+    dockerBaseImage := "openjdk:8-jre",
     dockerExposedPorts := Seq(443),
     daemonUser in Docker := "root",
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048"

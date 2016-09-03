@@ -1,10 +1,13 @@
-import sbt.Keys._
+lazy val commonSettings = Seq(
+  scalaVersion := "2.11.8",
+  organization := "com.dhpcs"
+)
 
-scalaVersion in ThisBuild := "2.11.8"
-
-lazy val commonSettings = organization := "com.dhpcs"
-
-lazy val noopPublish = Seq(publishArtifact := false, publish := {}, publishLocal := {})
+lazy val noopPublish = Seq(
+  publishArtifact := false,
+  publish := {},
+  publishLocal := {}
+)
 
 lazy val playJsonRpc = "com.dhpcs" %% "play-json-rpc" % "1.1.1"
 
@@ -94,5 +97,6 @@ lazy val root = project.in(file("."))
     liquidityProtocol,
     liquidityServer,
     liquidityCertgen,
-    liquidityBoardgame
+    liquidityBoardgame,
+    liquidityAnalytics
   )

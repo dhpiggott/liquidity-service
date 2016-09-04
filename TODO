@@ -18,7 +18,6 @@
   * https://github.com/cassandra-scala/troy/tree/master/project
   * https://github.com/scalacenter/scaladex/blob/master/doc/user/publish-central.md
   * https://github.com/scalacenter/scaladex/blob/master/doc/user/publish-scaladex.md
-* Change backup strategy: https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/ops_backup_restore_c.html
 * Apply renaming (adding Actor suffixes, models package -> protocol, add com.dhpcs.liquidity prefixes)
 * ?s/KeepAliveNotification/Heartbeat/
 * Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html: "Note that Cluster

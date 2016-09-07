@@ -12,9 +12,10 @@ import com.dhpcs.liquidity.models._
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 object JournalAuditor {
+  private final val SentinelZoneId = ZoneId(UUID.fromString("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"))
   private final val ZoneIdStringPattern =
     """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
 
@@ -23,21 +24,23 @@ object JournalAuditor {
       "liquidity",
       ConfigFactory.parseString(
         s"""
-          |persistence.journal.plugin = "cassandra-journal"
-          |cassandra-journal.contact-points = ["localhost"]
+           |persistence.journal.plugin = "cassandra-journal"
+           |cassandra-journal.contact-points = ["localhost"]
         """.stripMargin)
     )
     implicit val mat = ActorMaterializer()
-    implicit val ec = scala.concurrent.ExecutionContext.global
+    implicit val ec = ExecutionContext.global
     try
       Await.result(
         for {
           zonesAndBalances <- readZonesAndBalances()
+          recoveredSentinelZone = zonesAndBalances.exists { case (zone, _) => zone.id == SentinelZoneId }
           sortedZonesAndBalances = zonesAndBalances.sortBy { case (zone, _) => zone.created }
           sortedSummaries = sortedZonesAndBalances.map(summarise)
         } yield {
           println(sortedSummaries.mkString("", "\n", "\n"))
           println(s"Recovered ${zonesAndBalances.size} zones")
+          if (!recoveredSentinelZone) throw sys.error(s"Failed to recover sentinel zone $SentinelZoneId")
         },
         Duration.Inf)
     finally

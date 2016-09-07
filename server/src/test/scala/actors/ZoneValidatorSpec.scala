@@ -1,7 +1,6 @@
 package actors
 
 import java.security.KeyPairGenerator
-import java.util.UUID
 
 import actors.ClientConnection.MessageReceivedConfirmation
 import actors.ZoneValidator.{AuthenticatedCommandWithIds, CommandReceivedConfirmation, EnvelopedMessage, ResponseWithIds}
@@ -160,35 +159,6 @@ class ZoneValidatorSpec extends WordSpec with ZoneValidatorShardRegionProvider {
           MessageReceivedConfirmation(zoneDeliveryId)
         )
       }
-    }
-    "send a JoinZoneResponse when rejoined" ignore {
-      val clientConnectionTestProbe = TestProbe()
-      val zoneId = ZoneId(UUID.fromString("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"))
-      val sequenceNumber = commandSequenceNumbers(zoneId)
-      commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-      clientConnectionTestProbe.send(
-        zoneValidatorShardRegion, AuthenticatedCommandWithIds(
-          publicKey,
-          JoinZoneCommand(
-            zoneId
-          ),
-          unusedClientCorrelationId,
-          sequenceNumber,
-          unusedClientDeliveryId
-        )
-      )
-      clientConnectionTestProbe.expectMsgPF(10.seconds) {
-        case CommandReceivedConfirmation(`zoneId`, _) =>
-      }
-      val expectedConnectedClients = Set(publicKey)
-      val zoneDeliveryId = clientConnectionTestProbe.expectMsgPF() {
-        case ResponseWithIds(Right(JoinZoneResponse(_, connectedClients)), `unusedClientCorrelationId`, _, id)
-          if connectedClients == expectedConnectedClients => id
-      }
-      clientConnectionTestProbe.send(
-        clientConnectionTestProbe.lastSender,
-        MessageReceivedConfirmation(zoneDeliveryId)
-      )
     }
   }
 }

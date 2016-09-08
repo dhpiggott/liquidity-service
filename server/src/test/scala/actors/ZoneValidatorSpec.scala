@@ -8,12 +8,13 @@ import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.models._
-import org.scalatest.WordSpec
+import org.scalatest.EitherValues._
+import org.scalatest.{Inside, Matchers, WordSpec}
 
 import scala.concurrent.duration._
 import scala.util.Left
 
-class ZoneValidatorSpec extends WordSpec with ZoneValidatorShardRegionProvider {
+class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneValidatorShardRegionProvider {
   private[this] val publicKey = {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     PublicKey(publicKeyBytes)
@@ -22,16 +23,10 @@ class ZoneValidatorSpec extends WordSpec with ZoneValidatorShardRegionProvider {
   private[this] val unusedClientCorrelationId = Option(Left("unused"))
   private[this] val unusedClientDeliveryId = 0L
 
-  private[this] var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
-
   "A ZoneValidator" must {
     "send an error response when joined before creation" in {
-      val clientConnectionTestProbe = TestProbe()
-      val zoneId = ZoneId.generate
-      val sequenceNumber = commandSequenceNumbers(zoneId)
-      commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-      clientConnectionTestProbe.send(
-        zoneValidatorShardRegion,
+      val (clientConnectionTestProbe, zoneId, sequenceNumber) = setup()
+      send(clientConnectionTestProbe, zoneId)(
         AuthenticatedCommandWithIds(
           publicKey,
           JoinZoneCommand(
@@ -42,30 +37,13 @@ class ZoneValidatorSpec extends WordSpec with ZoneValidatorShardRegionProvider {
           unusedClientDeliveryId
         )
       )
-      clientConnectionTestProbe.expectMsgPF(10.seconds) {
-        case CommandReceivedConfirmation(`zoneId`, _) =>
-      }
-      val expectedResponse = Left(
-        ErrorResponse(
-          JsonRpcResponseError.ReservedErrorCodeFloor - 1,
-          "Zone does not exist"
-        )
-      )
-      val zoneDeliveryId = clientConnectionTestProbe.expectMsgPF() {
-        case ResponseWithIds(`expectedResponse`, `unusedClientCorrelationId`, _, id) => id
-      }
-      clientConnectionTestProbe.send(
-        clientConnectionTestProbe.lastSender,
-        MessageReceivedConfirmation(zoneDeliveryId)
+      expectError(clientConnectionTestProbe)(error =>
+        error shouldBe ErrorResponse(JsonRpcResponseError.ReservedErrorCodeFloor - 1, "Zone does not exist")
       )
     }
     "send a create zone response when a zone is created" in {
-      val clientConnectionTestProbe = TestProbe()
-      val zoneId = ZoneId.generate
-      val sequenceNumber = commandSequenceNumbers(zoneId)
-      commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-      clientConnectionTestProbe.send(
-        zoneValidatorShardRegion,
+      val (clientConnectionTestProbe, zoneId, sequenceNumber) = setup()
+      send(clientConnectionTestProbe, zoneId)(
         EnvelopedMessage(
           zoneId,
           AuthenticatedCommandWithIds(
@@ -84,81 +62,89 @@ class ZoneValidatorSpec extends WordSpec with ZoneValidatorShardRegionProvider {
           )
         )
       )
-      clientConnectionTestProbe.expectMsgPF(10.seconds) {
-        case CommandReceivedConfirmation(`zoneId`, _) =>
-      }
-      val zoneDeliveryId = clientConnectionTestProbe.expectMsgPF() {
-        case ResponseWithIds(Right(CreateZoneResponse(_)), `unusedClientCorrelationId`, _, id) => id
-      }
-      clientConnectionTestProbe.send(
-        clientConnectionTestProbe.lastSender,
-        MessageReceivedConfirmation(zoneDeliveryId)
-      )
+      expectResult(clientConnectionTestProbe)(result => result should matchPattern {
+        case CreateZoneResponse(_) =>
+      })
     }
     "send a JoinZoneResponse when joined" in {
-      val clientConnectionTestProbe = TestProbe()
-      val zoneId = ZoneId.generate
-      locally {
-        val sequenceNumber = commandSequenceNumbers(zoneId)
-        commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-        clientConnectionTestProbe.send(
-          zoneValidatorShardRegion,
-          EnvelopedMessage(
-            zoneId,
-            AuthenticatedCommandWithIds(
-              publicKey,
-              CreateZoneCommand(
-                publicKey,
-                Some("Dave"),
-                None,
-                None,
-                None,
-                Some("Dave's Game")
-              ),
-              unusedClientCorrelationId,
-              sequenceNumber,
-              unusedClientDeliveryId
-            )
-          )
-        )
-        clientConnectionTestProbe.expectMsgPF(10.seconds) {
-          case CommandReceivedConfirmation(`zoneId`, _) =>
-        }
-        val zoneDeliveryId = clientConnectionTestProbe.expectMsgPF() {
-          case ResponseWithIds(Right(CreateZoneResponse(_)), `unusedClientCorrelationId`, _, id) => id
-        }
-        clientConnectionTestProbe.send(
-          clientConnectionTestProbe.lastSender,
-          MessageReceivedConfirmation(zoneDeliveryId)
-        )
-      }
-      locally {
-        val sequenceNumber = commandSequenceNumbers(zoneId)
-        commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-        clientConnectionTestProbe.send(
-          zoneValidatorShardRegion, AuthenticatedCommandWithIds(
+      val (clientConnectionTestProbe, zoneId, sequenceNumber) = setup()
+      send(clientConnectionTestProbe, zoneId)(
+        EnvelopedMessage(
+          zoneId,
+          AuthenticatedCommandWithIds(
             publicKey,
-            JoinZoneCommand(
-              zoneId
+            CreateZoneCommand(
+              publicKey,
+              Some("Dave"),
+              None,
+              None,
+              None,
+              Some("Dave's Game")
             ),
             unusedClientCorrelationId,
             sequenceNumber,
             unusedClientDeliveryId
           )
         )
-        clientConnectionTestProbe.expectMsgPF(10.seconds) {
-          case CommandReceivedConfirmation(`zoneId`, _) =>
-        }
-        val expectedConnectedClients = Set(publicKey)
-        val zoneDeliveryId = clientConnectionTestProbe.expectMsgPF() {
-          case ResponseWithIds(Right(JoinZoneResponse(_, connectedClients)), `unusedClientCorrelationId`, _, id)
-            if connectedClients == expectedConnectedClients => id
-        }
-        clientConnectionTestProbe.send(
-          clientConnectionTestProbe.lastSender,
-          MessageReceivedConfirmation(zoneDeliveryId)
+      )
+      expectResult(clientConnectionTestProbe)(result => result should matchPattern {
+        case CreateZoneResponse(_) =>
+      })
+      send(clientConnectionTestProbe, zoneId)(
+        AuthenticatedCommandWithIds(
+          publicKey,
+          JoinZoneCommand(
+            zoneId
+          ),
+          unusedClientCorrelationId,
+          sequenceNumber + 1,
+          unusedClientDeliveryId
         )
-      }
+      )
+      expectResult(clientConnectionTestProbe)(result => result should matchPattern {
+        case JoinZoneResponse(_, connectedClients) if connectedClients == Set(publicKey) =>
+      })
     }
+  }
+
+  private[this] def setup(): (TestProbe, ZoneId, Long) = {
+    val clientConnectionTestProbe = TestProbe()
+    val zoneId = ZoneId.generate
+    val sequenceNumber = 0L
+    (clientConnectionTestProbe, zoneId, sequenceNumber)
+  }
+
+  private[this] def send(clientConnectionTestProbe: TestProbe, zoneId: ZoneId)
+                        (message: Any): Unit = {
+    clientConnectionTestProbe.send(
+      zoneValidatorShardRegion,
+      message
+    )
+    clientConnectionTestProbe.expectMsgPF(5.seconds) {
+      case CommandReceivedConfirmation(`zoneId`, _) =>
+    }
+  }
+
+  private[this] def expectError(clientConnectionTestProbe: TestProbe)
+                               (f: ErrorResponse => Unit): Unit =
+    expect(clientConnectionTestProbe)(response =>
+      f(response.left.value)
+    )
+
+  private[this] def expectResult(clientConnectionTestProbe: TestProbe)
+                                (f: ResultResponse => Unit): Unit =
+    expect(clientConnectionTestProbe)(response =>
+      f(response.right.value)
+    )
+
+  private[this] def expect(clientConnectionTestProbe: TestProbe)
+                          (f: Either[ErrorResponse, ResultResponse] => Unit): Unit = {
+    val zoneDeliveryId = clientConnectionTestProbe.expectMsgPF() {
+      case ResponseWithIds(response, `unusedClientCorrelationId`, _, id) => f(response); id
+    }
+    clientConnectionTestProbe.send(
+      clientConnectionTestProbe.lastSender,
+      MessageReceivedConfirmation(zoneDeliveryId)
+    )
   }
 }

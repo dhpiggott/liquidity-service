@@ -34,8 +34,8 @@ object JournalAuditor {
       Await.result(
         for {
           zonesAndBalances <- readZonesAndBalances()
-          recoveredSentinelZone = zonesAndBalances.exists { case (zone, _) => zone.id == SentinelZoneId }
-          sortedZonesAndBalances = zonesAndBalances.sortBy { case (zone, _) => zone.created }
+          recoveredSentinelZone = zonesAndBalances.exists { case (zone, _, _) => zone.id == SentinelZoneId }
+          sortedZonesAndBalances = zonesAndBalances.sortBy { case (_, modified, _) => modified }
           sortedSummaries = sortedZonesAndBalances.map(summarise)
         } yield {
           println(sortedSummaries.mkString("", "\n", "\n"))
@@ -51,7 +51,7 @@ object JournalAuditor {
   }
 
   private def readZonesAndBalances()(implicit system: ActorSystem,
-                                     mat: Materializer): Future[Seq[(Zone, Map[AccountId, BigDecimal])]] = {
+                                     mat: Materializer): Future[Seq[(Zone, Long, Map[AccountId, BigDecimal])]] = {
     val readJournal = PersistenceQuery(system)
       .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
     readJournal
@@ -62,40 +62,46 @@ object JournalAuditor {
       .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId =>
         readJournal
           .currentEventsByPersistenceId(zoneId.toString, 0, Long.MaxValue)
-          .runFold[(Zone, Map[AccountId, BigDecimal])]((null, Map.empty)) { case ((zone, balances), envelope) =>
-          envelope.event match {
-            case zoneCreatedEvent: ZoneCreatedEvent =>
-              (zoneCreatedEvent.zone, balances)
-            case _: ZoneJoinedEvent =>
-              (zone, balances)
-            case _: ZoneQuitEvent =>
-              (zone, balances)
-            case ZoneNameChangedEvent(_, name) =>
-              (zone.copy(name = name), balances)
-            case MemberCreatedEvent(_, member) =>
-              (zone.copy(members = zone.members + (member.id -> member)), balances)
-            case MemberUpdatedEvent(_, member) =>
-              (zone.copy(members = zone.members + (member.id -> member)), balances)
-            case AccountCreatedEvent(_, account) =>
-              (zone.copy(accounts = zone.accounts + (account.id -> account)), balances)
-            case AccountUpdatedEvent(_, account) =>
-              (zone.copy(accounts = zone.accounts + (account.id -> account)), balances)
-            case TransactionAddedEvent(_, transaction) =>
-              val updatedSourceBalance =
-                balances.getOrElse(transaction.from, BigDecimal(0)) - transaction.value
-              val updatedDestinationBalance =
-                balances.getOrElse(transaction.to, BigDecimal(0)) + transaction.value
-              (zone.copy(transactions = zone.transactions + (transaction.id -> transaction)), balances +
-                (transaction.from -> updatedSourceBalance) +
-                (transaction.to -> updatedDestinationBalance))
-          }
+          .runFold[(Zone, Long, Map[AccountId, BigDecimal])]((null, 0L, Map.empty.withDefaultValue(BigDecimal(0)))) {
+          case ((currentZone, currentModified, currentBalances), envelope) =>
+            val updatedZone = envelope.event match {
+              case ZoneCreatedEvent(_, zone) =>
+                zone
+              case _: ZoneJoinedEvent =>
+                currentZone
+              case _: ZoneQuitEvent =>
+                currentZone
+              case ZoneNameChangedEvent(_, name) =>
+                currentZone.copy(name = name)
+              case MemberCreatedEvent(_, member) =>
+                currentZone.copy(members = currentZone.members + (member.id -> member))
+              case MemberUpdatedEvent(_, member) =>
+                currentZone.copy(members = currentZone.members + (member.id -> member))
+              case AccountCreatedEvent(_, account) =>
+                currentZone.copy(accounts = currentZone.accounts + (account.id -> account))
+              case AccountUpdatedEvent(_, account) =>
+                currentZone.copy(accounts = currentZone.accounts + (account.id -> account))
+              case TransactionAddedEvent(_, transaction) =>
+                currentZone.copy(transactions = currentZone.transactions + (transaction.id -> transaction))
+            }
+            val updatedModified = Math.max(currentModified, envelope.event.asInstanceOf[Event].timestamp)
+            val updatedBalances = envelope.event match {
+              case TransactionAddedEvent(_, transaction) =>
+                val updatedSourceBalance = currentBalances(transaction.from) - transaction.value
+                val updatedDestinationBalance = currentBalances(transaction.to) + transaction.value
+                currentBalances +
+                  (transaction.from -> updatedSourceBalance) +
+                  (transaction.to -> updatedDestinationBalance)
+              case _ => currentBalances
+            }
+            (updatedZone, updatedModified, updatedBalances)
         }
       )
-      .runFold(Seq.empty[(Zone, Map[AccountId, BigDecimal])])(_ :+ _)
+      .runFold(Seq.empty[(Zone, Long, Map[AccountId, BigDecimal])])(_ :+ _)
   }
 
-  private def summarise(zoneAndBalances: (Zone, Map[AccountId, BigDecimal])): String = {
-    val (zone, balances) = zoneAndBalances
+  private def summarise(zoneAndBalances: (Zone, Long, Map[AccountId, BigDecimal])): String = {
+    val (zone, modified, balances) = zoneAndBalances
     val unnamed = "<unnamed>"
     val dateFormat = DateFormat.getDateTimeInstance
     val longestMemberNameLength = (zone.members.values.map(_.name.getOrElse(unnamed).length).toSeq :+ 0).max
@@ -107,12 +113,12 @@ object JournalAuditor {
        |ID: ${zone.id.id}
        |Name: ${zone.name.getOrElse(unnamed)}
        |Created: ${dateFormat.format(zone.created)}
+       |Modified: ${dateFormat.format(modified)}
        |Members:\n${
       zone.members.values.toSeq.sortBy(_.name).par.map { member =>
         def balance(memberId: MemberId): BigDecimal =
           zone.accounts.collectFirst {
-            case (accountId, account) if account.ownerMemberIds.contains(memberId) =>
-              balances.getOrElse(accountId, BigDecimal(0))
+            case (accountId, account) if account.ownerMemberIds.contains(memberId) => balances(accountId)
           }.getOrElse(BigDecimal(0))
         val name = member.name.getOrElse(unnamed)
         val padding = " " * (longestMemberNameLength - name.length)

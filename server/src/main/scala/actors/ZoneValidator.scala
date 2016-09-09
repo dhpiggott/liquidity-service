@@ -394,7 +394,7 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
                     name,
                     metadata
                   )
-                  persist(ZoneCreatedEvent(System.currentTimeMillis, zone)) { zoneCreatedEvent =>
+                  persist(ZoneCreatedEvent(created, zone)) { zoneCreatedEvent =>
                     updateState(zoneCreatedEvent)
                     deliverResponse(
                       Right(
@@ -732,17 +732,18 @@ class ZoneValidator extends PersistentActor with ActorLogging with AtLeastOnceDe
               correlationId
             )
           case None =>
+            val created = System.currentTimeMillis
             val transaction = Transaction(
               TransactionId(state.zone.transactions.size),
               from,
               to,
               value,
               actingAs,
-              System.currentTimeMillis,
+              created,
               description,
               metadata
             )
-            persist(TransactionAddedEvent(System.currentTimeMillis, transaction)) { transactionAddedEvent =>
+            persist(TransactionAddedEvent(created, transaction)) { transactionAddedEvent =>
               updateState(transactionAddedEvent)
               deliverResponse(
                 Right(

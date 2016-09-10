@@ -7,15 +7,14 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.{Subscribe, Unsubscribe}
 import akka.pattern.pipe
-import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
-import akka.persistence.query.PersistenceQuery
+import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.ActorMaterializer
 import com.dhpcs.liquidity.models.ZoneId
 
 import scala.concurrent.duration._
 
 object ZonesMonitor {
-  def props: Props = Props(new ZonesMonitor)
+  def props(readJournal: ReadJournal with CurrentPersistenceIdsQuery): Props = Props(new ZonesMonitor(readJournal))
 
   case object GetActiveZonesSummary
 
@@ -31,14 +30,12 @@ object ZonesMonitor {
     """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
 }
 
-class ZonesMonitor extends Actor with ActorLogging {
+class ZonesMonitor(readJournal: ReadJournal with CurrentPersistenceIdsQuery) extends Actor with ActorLogging {
 
   import context.dispatcher
 
   private[this] implicit val mat = ActorMaterializer()
 
-  private[this] val readJournal = PersistenceQuery(context.system)
-    .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
   private[this] val mediator = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 

@@ -40,15 +40,8 @@ lazy val liquidityServer = project.in(file("server"))
       "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.10",
       scalaTest % "test",
       "com.typesafe.akka" %% "akka-http-testkit" % "2.4.10" % "test",
-      "org.apache.cassandra" % "cassandra-all" % "3.7" % "test"
+      "org.iq80.leveldb" % "leveldb" % "0.9" % "test"
     ),
-    parallelExecution in Test := false,
-    testGrouping in Test <<= (definedTests in Test).map(_.map(test =>
-      Tests.Group(
-        name = test.name,
-        tests = Seq(test),
-        runPolicy = Tests.SubProcess(ForkOptions(runJVMOptions = Seq("-Xms512M", "-Xmx1G"))))
-    )),
     dockerBaseImage := "openjdk:8-jre",
     dockerExposedPorts := Seq(443),
     daemonUser in Docker := "root",

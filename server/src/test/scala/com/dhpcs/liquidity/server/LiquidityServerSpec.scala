@@ -31,14 +31,6 @@ object LiquidityServerSpec {
   private final val KeyStoreEntryAlias = "identity"
   private final val KeyStoreEntryPassword = Array.emptyCharArray
 
-  private def freePort(): Int = {
-    val serverSocket = ServerSocketChannel.open().socket()
-    serverSocket.bind(new InetSocketAddress("127.0.0.1", 0))
-    val port = serverSocket.getLocalPort
-    serverSocket.close()
-    port
-  }
-
   private def createKeyManagers(certificate: Certificate,
                                 privateKey: PrivateKey): Array[KeyManager] = {
     val keyStore = KeyStore.getInstance("JKS")
@@ -60,9 +52,21 @@ object LiquidityServerSpec {
 
 class LiquidityServerSpec extends fixture.WordSpec
   with Inside with MustMatchers with ZoneValidatorShardRegionProvider {
+  private[this] val akkaHttpPort = {
+    val serverSocket = ServerSocketChannel.open().socket()
+    serverSocket.bind(new InetSocketAddress("localhost", 0))
+    val port = serverSocket.getLocalPort
+    serverSocket.close()
+    port
+  }
+
   override protected[this] def config: Config =
     ConfigFactory.parseString(
       s"""
+         |akka.http.server {
+         |  remote-address-header = on
+         |  parsing.tls-session-info-header = on
+         |}
          |liquidity.http {
          |  keep-alive-interval = "3 seconds"
          |  interface = "0.0.0.0"
@@ -70,8 +74,6 @@ class LiquidityServerSpec extends fixture.WordSpec
          |}
     """.stripMargin
     ).withFallback(super.config)
-
-  private[this] lazy val akkaHttpPort = freePort()
 
   private[this] val (serverPublicKey, serverKeyManagers) = {
     val (certificate, privateKey) = CertGen.generateCertKeyPair("localhost")
@@ -120,6 +122,7 @@ class LiquidityServerSpec extends fixture.WordSpec
   override protected def withFixture(test: OneArgTest) = {
     val server = new LiquidityServer(
       config,
+      readJournal,
       zoneValidatorShardRegion,
       serverKeyManagers
     )

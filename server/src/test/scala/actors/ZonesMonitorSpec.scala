@@ -11,7 +11,7 @@ class ZonesMonitorSpec extends WordSpec with ZoneValidatorShardRegionProvider {
   "A ZonesMonitor" must {
     "report on the number of zones" in {
       val testProbe = TestProbe()
-      val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
+      val zonesMonitor = system.actorOf(ZonesMonitor.props(readJournal), "zones-monitor")
       testProbe.send(
         zonesMonitor,
         GetZoneCount

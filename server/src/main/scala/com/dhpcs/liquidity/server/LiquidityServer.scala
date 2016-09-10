@@ -9,7 +9,7 @@ import actors.ClientsMonitor.{ActiveClientsSummary, GetActiveClientsSummary}
 import actors.ZonesMonitor.{ActiveZonesSummary, GetActiveZonesSummary, GetZoneCount, ZoneCount}
 import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
 import akka.NotUsed
-import akka.actor.{ActorRef, ActorSystem, PoisonPill}
+import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.MediaTypes._
@@ -20,7 +20,10 @@ import akka.http.scaladsl.model.{ContentType, HttpEntity, RemoteAddress}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.{ConnectionContext, Http}
-import akka.pattern.ask
+import akka.pattern.{ask, gracefulStop}
+import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
+import akka.persistence.query.PersistenceQuery
+import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.scaladsl.Flow
 import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
 import akka.util.Timeout
@@ -47,6 +50,8 @@ object LiquidityServer {
     val config = ConfigFactory.load
     implicit val system = ActorSystem("liquidity")
     implicit val mat = ActorMaterializer()
+    val readJournal = PersistenceQuery(system)
+      .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
     val zoneValidatorShardRegion = ClusterSharding(system).start(
       typeName = ZoneValidator.ShardName,
       entityProps = ZoneValidator.props,
@@ -66,6 +71,7 @@ object LiquidityServer {
     )
     val server = new LiquidityServer(
       config,
+      readJournal,
       zoneValidatorShardRegion,
       keyManagerFactory.getKeyManagers
     )
@@ -77,6 +83,7 @@ object LiquidityServer {
 }
 
 class LiquidityServer(config: Config,
+                      readJournal: ReadJournal with CurrentPersistenceIdsQuery,
                       zoneValidatorShardRegion: ActorRef,
                       keyManagers: Array[KeyManager])
                      (implicit system: ActorSystem, mat: Materializer) extends LiquidityService {
@@ -84,7 +91,7 @@ class LiquidityServer(config: Config,
   import system.dispatcher
 
   private[this] val clientsMonitor = system.actorOf(ClientsMonitor.props, "clients-monitor")
-  private[this] val zonesMonitor = system.actorOf(ZonesMonitor.props, "zones-monitor")
+  private[this] val zonesMonitor = system.actorOf(ZonesMonitor.props(readJournal), "zones-monitor")
 
   private[this] val httpsConnectionContext = {
     val sslContext = SSLContext.getInstance("TLS")
@@ -118,9 +125,18 @@ class LiquidityServer(config: Config,
     SECONDS
   )
 
-  def shutdown(): Future[Unit] = binding.flatMap(_.unbind()).map { _ =>
-    clientsMonitor ! PoisonPill
-    zonesMonitor ! PoisonPill
+  def shutdown(): Future[Unit] = {
+    def stop(target: ActorRef): Future[Unit] =
+      gracefulStop(target, 5.seconds).flatMap {
+        case true => Future.successful(())
+        case false => stop(target)
+      }
+    for {
+      binding <- binding
+      _ <- binding.unbind()
+      _ <- stop(clientsMonitor)
+      _ <- stop(zonesMonitor)
+    } yield ()
   }
 
   override protected[this] def getStatus: ToResponseMarshallable = {

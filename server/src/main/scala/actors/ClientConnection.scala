@@ -25,7 +25,8 @@ import scala.util.{Failure, Success, Try}
 object ClientConnection {
   def props(ip: RemoteAddress,
             publicKey: PublicKey,
-            zoneValidatorShardRegion: ActorRef)
+            zoneValidatorShardRegion: ActorRef,
+            keepAliveInterval: FiniteDuration)
            (upstream: ActorRef)
            (implicit mat: Materializer): Props =
     Props(
@@ -33,17 +34,19 @@ object ClientConnection {
         ip,
         publicKey,
         zoneValidatorShardRegion,
+        keepAliveInterval,
         upstream
       )
     )
 
   def webSocketFlow(ip: RemoteAddress,
                     publicKey: PublicKey,
-                    zoneValidatorShardRegion: ActorRef)
+                    zoneValidatorShardRegion: ActorRef,
+                    keepAliveInterval: FiniteDuration)
                    (implicit factory: ActorRefFactory, mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     wsMessageToString.via(
       actorFlow[String, String](
-        props = props(ip, publicKey, zoneValidatorShardRegion),
+        props = props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
         name = publicKey.fingerprint,
         overflowStrategy = OverflowStrategy.fail
       )
@@ -60,22 +63,20 @@ object ClientConnection {
   private case object PublishStatus
 
   private object KeepAliveGenerator {
-    def props: Props = Props(new KeepAliveGenerator)
+    def props(keepAliveInterval: FiniteDuration): Props = Props(new KeepAliveGenerator(keepAliveInterval))
 
     case object FrameReceivedEvent
 
     case object FrameSentEvent
 
     case object SendKeepAlive
-
-    private final val KeepAliveInterval = 30.seconds
   }
 
-  private class KeepAliveGenerator extends Actor {
+  private class KeepAliveGenerator(keepAliveInterval: FiniteDuration) extends Actor {
 
     import actors.ClientConnection.KeepAliveGenerator._
 
-    context.setReceiveTimeout(KeepAliveInterval)
+    context.setReceiveTimeout(keepAliveInterval)
 
     override def receive: Receive = {
       case ReceiveTimeout =>
@@ -165,6 +166,7 @@ object ClientConnection {
 class ClientConnection(ip: RemoteAddress,
                        publicKey: PublicKey,
                        zoneValidatorShardRegion: ActorRef,
+                       keepAliveInterval: FiniteDuration,
                        upstream: ActorRef)
                       (implicit mat: Materializer)
   extends PersistentActor
@@ -176,7 +178,7 @@ class ClientConnection(ip: RemoteAddress,
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
-  private[this] val keepAliveActor = context.actorOf(KeepAliveGenerator.props)
+  private[this] val keepAliveActor = context.actorOf(KeepAliveGenerator.props(keepAliveInterval))
 
   private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(0L)
   private[this] var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)

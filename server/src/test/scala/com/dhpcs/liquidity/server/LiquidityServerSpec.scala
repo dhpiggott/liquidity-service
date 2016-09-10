@@ -64,6 +64,7 @@ class LiquidityServerSpec extends fixture.WordSpec
     ConfigFactory.parseString(
       s"""
          |liquidity.http {
+         |  keep-alive-interval = "3 seconds"
          |  interface = "0.0.0.0"
          |  port = "$akkaHttpPort"
          |}
@@ -150,7 +151,7 @@ class LiquidityServerSpec extends fixture.WordSpec
       expectNotification(sub)(notification =>
         notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
-      sub.within(35.seconds)(
+      sub.within(3.5.seconds)(
         expectNotification(sub)(notification =>
           notification mustBe KeepAliveNotification
         )
@@ -197,7 +198,7 @@ class LiquidityServerSpec extends fixture.WordSpec
       send(pub)(
         JoinZoneCommand(zoneId)
       )
-      expectResponse(sub, "joinZone")(response => inside(response){
+      expectResponse(sub, "joinZone")(response => inside(response) {
         case JoinZoneResponse(_, connectedClients) => connectedClients mustBe Set(clientPublicKey)
       })
     }

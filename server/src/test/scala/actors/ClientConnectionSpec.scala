@@ -31,7 +31,8 @@ class ClientConnectionSpec extends fixture.WordSpec
   override protected def withFixture(test: OneArgTest) = {
     val upstreamTestProbe = TestProbe()
     val clientConnection = system.actorOf(
-      ClientConnection.props(ip, publicKey, zoneValidatorShardRegion)(upstreamTestProbe.ref)
+      ClientConnection.props(
+        ip, publicKey, zoneValidatorShardRegion, keepAliveInterval = 3.seconds)(upstreamTestProbe.ref)
     )
     try withFixture(test.toNoArgTest((upstreamTestProbe, clientConnection)))
     finally system.stop(clientConnection)
@@ -49,7 +50,7 @@ class ClientConnectionSpec extends fixture.WordSpec
       expectNotification(upstreamTestProbe)(notification =>
         notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
-      upstreamTestProbe.within(35.seconds)(
+      upstreamTestProbe.within(3.5.seconds)(
         expectNotification(upstreamTestProbe)(notification =>
           notification mustBe KeepAliveNotification
         )
@@ -96,7 +97,7 @@ class ClientConnectionSpec extends fixture.WordSpec
       send(upstreamTestProbe, clientConnection)(
         JoinZoneCommand(zoneId)
       )
-      expectResponse(upstreamTestProbe, "joinZone")(response => inside(response){
+      expectResponse(upstreamTestProbe, "joinZone")(response => inside(response) {
         case JoinZoneResponse(_, connectedClients) => connectedClients mustBe Set(publicKey)
       })
     }

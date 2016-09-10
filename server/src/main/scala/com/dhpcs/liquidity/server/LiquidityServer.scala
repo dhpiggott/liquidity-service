@@ -113,6 +113,11 @@ class LiquidityServer(config: Config,
     httpsConnectionContext
   )
 
+  private[this] val keepAliveInterval = FiniteDuration(
+    config.getDuration("liquidity.http.keep-alive-interval", SECONDS),
+    SECONDS
+  )
+
   def shutdown(): Future[Unit] = binding.flatMap(_.unbind()).map { _ =>
     clientsMonitor ! PoisonPill
     zonesMonitor ! PoisonPill
@@ -193,5 +198,5 @@ class LiquidityServer(config: Config,
     )
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
-    ClientConnection.webSocketFlow(ip, publicKey, zoneValidatorShardRegion)
+    ClientConnection.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)
 }

@@ -9,12 +9,12 @@ import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.models._
 import org.scalatest.EitherValues._
-import org.scalatest.{Inside, Matchers, WordSpec}
+import org.scalatest.{Inside, MustMatchers, WordSpec}
 
-import scala.concurrent.duration._
 import scala.util.Left
 
-class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneValidatorShardRegionProvider {
+class ZoneValidatorSpec extends WordSpec
+  with Inside with MustMatchers with ZoneValidatorShardRegionProvider {
   private[this] val publicKey = {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     PublicKey(publicKeyBytes)
@@ -38,7 +38,7 @@ class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneVali
         )
       )
       expectError(clientConnectionTestProbe)(error =>
-        error shouldBe ErrorResponse(JsonRpcResponseError.ReservedErrorCodeFloor - 1, "Zone does not exist")
+        error mustBe ErrorResponse(JsonRpcResponseError.ReservedErrorCodeFloor - 1, "Zone does not exist")
       )
     }
     "send a create zone response when a zone is created" in {
@@ -49,12 +49,12 @@ class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneVali
           AuthenticatedCommandWithIds(
             publicKey,
             CreateZoneCommand(
-              publicKey,
-              Some("Dave"),
-              None,
-              None,
-              None,
-              Some("Dave's Game")
+              equityOwnerPublicKey = publicKey,
+              equityOwnerName = Some("Dave"),
+              equityOwnerMetadata = None,
+              equityAccountName = None,
+              equityAccountMetadata = None,
+              name = Some("Dave's Game")
             ),
             unusedClientCorrelationId,
             sequenceNumber,
@@ -62,7 +62,7 @@ class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneVali
           )
         )
       )
-      expectResult(clientConnectionTestProbe)(result => result should matchPattern {
+      expectResult(clientConnectionTestProbe)(result => result must matchPattern {
         case CreateZoneResponse(_) =>
       })
     }
@@ -74,12 +74,12 @@ class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneVali
           AuthenticatedCommandWithIds(
             publicKey,
             CreateZoneCommand(
-              publicKey,
-              Some("Dave"),
-              None,
-              None,
-              None,
-              Some("Dave's Game")
+              equityOwnerPublicKey = publicKey,
+              equityOwnerName = Some("Dave"),
+              equityOwnerMetadata = None,
+              equityAccountName = None,
+              equityAccountMetadata = None,
+              name = Some("Dave's Game")
             ),
             unusedClientCorrelationId,
             sequenceNumber,
@@ -87,7 +87,7 @@ class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneVali
           )
         )
       )
-      expectResult(clientConnectionTestProbe)(result => result should matchPattern {
+      expectResult(clientConnectionTestProbe)(result => result must matchPattern {
         case CreateZoneResponse(_) =>
       })
       send(clientConnectionTestProbe, zoneId)(
@@ -101,7 +101,7 @@ class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneVali
           unusedClientDeliveryId
         )
       )
-      expectResult(clientConnectionTestProbe)(result => result should matchPattern {
+      expectResult(clientConnectionTestProbe)(result => result must matchPattern {
         case JoinZoneResponse(_, connectedClients) if connectedClients == Set(publicKey) =>
       })
     }
@@ -120,7 +120,7 @@ class ZoneValidatorSpec extends WordSpec with Inside with Matchers with ZoneVali
       zoneValidatorShardRegion,
       message
     )
-    clientConnectionTestProbe.expectMsgPF(5.seconds) {
+    clientConnectionTestProbe.expectMsgPF() {
       case CommandReceivedConfirmation(`zoneId`, _) =>
     }
   }

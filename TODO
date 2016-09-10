@@ -1,18 +1,11 @@
-* Name args where appropriate
-* Add newlines as appropriate at start of blocks
-* Restore Cassandra testing but only as integration test
 * Finalise cipher config (see http://typesafehub.github.io/ssl-config/CipherSuites.html and
   http://typesafehub.github.io/ssl-config/TestingSSL.html, be sure to test Android 4.0.4,
   but also use https://www.ssllabs.com/ssltest/analyze.html?d=liquidity.dhpcs.com&hideResults=on)
 * Review keystore format (see https://github.com/akka/akka/issues/20381)
-* Switch to a sensible serialization format:
-  * https://docs.oracle.com/javase/8/docs/technotes/tools/unix/serialver.html
-  * https://github.com/dnvriend/akka-serialization-test
-  * http://doc.akka.io/docs/akka/2.4.9/scala/persistence-schema-evolution.html
-  * http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html#event-adapters
-  * http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html#custom-serialization
-  * http://doc.akka.io/docs/akka/2.4.9/scala/serialization.html
-  * http://www.lagomframework.com/documentation/1.0.x/java/Serialization.html
+* Review use of (in)definite articles in testsuite names
+* Add newlines as appropriate at start of blocks
+* Name args where appropriate
+* Restore Cassandra testing but only as integration test
 * Review:
   * https://github.com/cakesolutions/scala-kafka-client/blob/master/build.sbt
   * https://github.com/cakesolutions/scala-kafka-client/tree/master/project
@@ -20,8 +13,6 @@
   * https://github.com/cassandra-scala/troy/tree/master/project
   * https://github.com/scalacenter/scaladex/blob/master/doc/user/publish-central.md
   * https://github.com/scalacenter/scaladex/blob/master/doc/user/publish-scaladex.md
-* Apply renaming (adding Actor suffixes, models package -> protocol, add com.dhpcs.liquidity prefixes)
-* ?s/KeepAliveNotification/Heartbeat/
-* Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.9/scala/persistence.html: "Note that Cluster
+* Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.10/scala/persistence.html: "Note that Cluster
   Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."
 * Improve logs

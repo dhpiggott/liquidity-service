@@ -5,9 +5,6 @@ import java.security.cert.X509Certificate
 import java.security.interfaces.RSAPublicKey
 import javax.net.ssl._
 
-import actors.ClientsMonitor.{ActiveClientsSummary, GetActiveClientsSummary}
-import actors.ZonesMonitor.{ActiveZonesSummary, GetActiveZonesSummary, GetZoneCount, ZoneCount}
-import actors.{ClientConnection, ClientsMonitor, ZoneValidator, ZonesMonitor}
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
@@ -27,8 +24,11 @@ import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.scaladsl.Flow
 import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
 import akka.util.Timeout
-import com.dhpcs.liquidity.models.PublicKey
+import com.dhpcs.liquidity.model.PublicKey
 import com.dhpcs.liquidity.server.LiquidityServer._
+import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
+import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{ActiveZonesSummary, GetActiveZonesSummary, GetZoneCount, ZoneCount}
+import com.dhpcs.liquidity.server.actors.{ClientConnectionActor, ClientsMonitorActor, ZoneValidatorActor, ZonesMonitorActor}
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
 import play.api.libs.json.{JsObject, Json}
@@ -53,11 +53,11 @@ object LiquidityServer {
     val readJournal = PersistenceQuery(system)
       .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
     val zoneValidatorShardRegion = ClusterSharding(system).start(
-      typeName = ZoneValidator.ShardName,
-      entityProps = ZoneValidator.props,
+      typeName = ZoneValidatorActor.ShardName,
+      entityProps = ZoneValidatorActor.props,
       settings = ClusterShardingSettings(system),
-      extractEntityId = ZoneValidator.extractEntityId,
-      extractShardId = ZoneValidator.extractShardId
+      extractEntityId = ZoneValidatorActor.extractEntityId,
+      extractShardId = ZoneValidatorActor.extractShardId
     )
     val keyStore = KeyStore.getInstance("JKS")
     keyStore.load(
@@ -90,8 +90,8 @@ class LiquidityServer(config: Config,
 
   import system.dispatcher
 
-  private[this] val clientsMonitor = system.actorOf(ClientsMonitor.props, "clients-monitor")
-  private[this] val zonesMonitor = system.actorOf(ZonesMonitor.props(readJournal), "zones-monitor")
+  private[this] val clientsMonitorActor = system.actorOf(ClientsMonitorActor.props, "clients-monitor")
+  private[this] val zonesMonitorActor = system.actorOf(ZonesMonitorActor.props(readJournal), "zones-monitor")
 
   private[this] val httpsConnectionContext = {
     val sslContext = SSLContext.getInstance("TLS")
@@ -134,8 +134,8 @@ class LiquidityServer(config: Config,
     for {
       binding <- binding
       _ <- binding.unbind()
-      _ <- stop(clientsMonitor)
-      _ <- stop(zonesMonitor)
+      _ <- stop(clientsMonitorActor)
+      _ <- stop(zonesMonitorActor)
     } yield ()
   }
 
@@ -144,14 +144,14 @@ class LiquidityServer(config: Config,
       Json.obj(
         "count" -> activeClientsSummary.activeClientSummaries.size,
         "publicKeyFingerprints" -> activeClientsSummary.activeClientSummaries.map {
-          case ClientConnection.ActiveClientSummary(publicKey) => publicKey.fingerprint
+          case ClientConnectionActor.ActiveClientSummary(publicKey) => publicKey.fingerprint
         }.sorted
       )
     def activeZonesStatus(activeZonesSummary: ActiveZonesSummary): JsObject =
       Json.obj(
         "count" -> activeZonesSummary.activeZoneSummaries.size,
         "zones" -> activeZonesSummary.activeZoneSummaries.toSeq.sortBy(_.zoneId.id).map {
-          case ZoneValidator.ActiveZoneSummary(
+          case ZoneValidatorActor.ActiveZoneSummary(
           zoneId,
           metadata,
           members, accounts,
@@ -173,9 +173,9 @@ class LiquidityServer(config: Config,
       )
     implicit val timeout = Timeout(5.seconds)
     for {
-      activeClientsSummary <- (clientsMonitor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
-      activeZonesSummary <- (zonesMonitor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
-      totalZonesCount <- (zonesMonitor ? GetZoneCount).mapTo[ZoneCount]
+      activeClientsSummary <- (clientsMonitorActor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
+      activeZonesSummary <- (zonesMonitorActor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
+      totalZonesCount <- (zonesMonitorActor ? GetZoneCount).mapTo[ZoneCount]
     } yield HttpEntity(
       ContentType(`application/json`),
       Json.prettyPrint(Json.obj(
@@ -214,5 +214,5 @@ class LiquidityServer(config: Config,
     )
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
-    ClientConnection.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)
+    ClientConnectionActor.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)
 }

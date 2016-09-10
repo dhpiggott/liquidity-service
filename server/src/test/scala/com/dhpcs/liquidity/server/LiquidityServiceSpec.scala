@@ -13,7 +13,7 @@ import akka.http.scaladsl.model.{ContentType, HttpEntity, RemoteAddress, StatusC
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
-import com.dhpcs.liquidity.models.PublicKey
+import com.dhpcs.liquidity.model.PublicKey
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.{Matchers, WordSpec}
 

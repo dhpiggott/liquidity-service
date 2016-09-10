@@ -3,12 +3,11 @@ package com.dhpcs.liquidity
 import java.text.{DateFormat, NumberFormat}
 import java.util.{Currency, UUID}
 
-import actors.ZoneValidator._
 import akka.actor.ActorSystem
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
-import com.dhpcs.liquidity.models._
+import com.dhpcs.liquidity.model._
 import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.duration.Duration
@@ -23,9 +22,23 @@ object JournalAuditor {
     implicit val system = ActorSystem(
       "liquidity",
       ConfigFactory.parseString(
-        s"""
-           |persistence.journal.plugin = "cassandra-journal"
-           |cassandra-journal.contact-points = ["localhost"]
+        """
+           |akka {
+           |  actor {
+           |    serializers.event = "com.dhpcs.liquidity.model.PlayJsonEventSerializer"
+           |    serialization-bindings {
+           |      "java.io.Serializable" = none
+           |      "com.dhpcs.liquidity.model.Event" = event
+           |    }
+           |  }
+           |  persistence.journal.plugin = "cassandra-journal"
+           |}
+           |cassandra-journal {
+           |  event-adapters.legacy-event = "com.dhpcs.liquidity.models.LegacyReadEventAdapter"
+           |  event-adapter-bindings {
+           |    "actors.ZoneValidator$Event" = legacy-event
+           |  }
+           |}
         """.stripMargin)
     )
     implicit val mat = ActorMaterializer()

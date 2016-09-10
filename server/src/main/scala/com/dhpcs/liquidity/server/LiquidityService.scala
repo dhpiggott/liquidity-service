@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Flow
-import com.dhpcs.liquidity.models.PublicKey
+import com.dhpcs.liquidity.model.PublicKey
 
 trait LiquidityService {
   private[this] val status = path("status")(

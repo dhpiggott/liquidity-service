@@ -15,7 +15,8 @@ import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.CertGen
-import com.dhpcs.liquidity.models._
+import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString

@@ -1,5 +1,6 @@
 * Name args where appropriate
 * Add newlines as appropriate at start of blocks
+* Restore Cassandra testing but only as integration test
 * Finalise cipher config (see http://typesafehub.github.io/ssl-config/CipherSuites.html and
   http://typesafehub.github.io/ssl-config/TestingSSL.html, be sure to test Android 4.0.4,
   but also use https://www.ssllabs.com/ssltest/analyze.html?d=liquidity.dhpcs.com&hideResults=on)

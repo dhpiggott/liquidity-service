@@ -12,14 +12,17 @@ import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
+import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.CertGen
 import com.dhpcs.liquidity.models._
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
-import org.scalatest.WordSpec
-import play.api.libs.json.Json
+import org.scalatest.EitherValues._
+import org.scalatest.OptionValues._
+import org.scalatest.{Inside, MustMatchers, fixture}
+import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -55,7 +58,8 @@ object LiquidityServerSpec {
   }
 }
 
-class LiquidityServerSpec extends WordSpec with ZoneValidatorShardRegionProvider {
+class LiquidityServerSpec extends fixture.WordSpec
+  with Inside with MustMatchers with ZoneValidatorShardRegionProvider {
   override protected[this] def config: Config =
     ConfigFactory.parseString(
       s"""
@@ -110,192 +114,125 @@ class LiquidityServerSpec extends WordSpec with ZoneValidatorShardRegionProvider
 
   private[this] implicit val mat = ActorMaterializer()
 
+  override protected type FixtureParam = (TestSubscriber.Probe[Message], TestPublisher.Probe[Message])
+
+  override protected def withFixture(test: OneArgTest) = {
+    val server = new LiquidityServer(
+      config,
+      zoneValidatorShardRegion,
+      serverKeyManagers
+    )
+    val flow = Flow.fromSinkAndSourceMat(
+      TestSink.probe[Message],
+      TestSource.probe[Message]
+    )(Keep.both)
+    val (_, (sub, pub)) = Http().singleWebSocketRequest(
+      WebSocketRequest(s"$baseUrl/ws"),
+      flow,
+      clientHttpsConnectionContext
+    )
+    try withFixture(test.toNoArgTest((sub, pub)))
+    finally {
+      pub.sendComplete()
+      Await.result(server.shutdown(), Duration.Inf)
+    }
+  }
+
   "The WebSocket API" must {
-    "send a SupportedVersionsNotification when connected" in {
-      val server = new LiquidityServer(
-        config,
-        zoneValidatorShardRegion,
-        serverKeyManagers
+    "send a SupportedVersionsNotification when connected" in { fixture =>
+      val (sub, _) = fixture
+      expectNotification(sub)(notification =>
+        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
-      val flow = Flow.fromSinkAndSourceMat(
-        TestSink.probe[Message],
-        TestSource.probe[Message]
-      )(Keep.both)
-      val (_, (sub, pub)) = Http().singleWebSocketRequest(
-        WebSocketRequest(s"$baseUrl/ws"),
-        flow,
-        clientHttpsConnectionContext
-      )
-      sub.request(1)
-      sub.expectNextPF {
-        case TextMessage.Strict(text)
-          if Json.parse(text)
-            .asOpt[JsonRpcNotificationMessage]
-            .flatMap(Notification.read)
-            .exists(_.asOpt.exists(_.isInstanceOf[SupportedVersionsNotification])) =>
-      }
-      pub.sendComplete()
-      Await.result(server.shutdown(), Duration.Inf)
     }
-    "send a KeepAliveNotification when left idle" in {
-      val server = new LiquidityServer(
-        config,
-        zoneValidatorShardRegion,
-        serverKeyManagers
+    "send a KeepAliveNotification when left idle" in { fixture =>
+      val (sub, _) = fixture
+      expectNotification(sub)(notification =>
+        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
-      val flow = Flow.fromSinkAndSourceMat(
-        TestSink.probe[Message],
-        TestSource.probe[Message]
-      )(Keep.both)
-      val (_, (sub, pub)) = Http().singleWebSocketRequest(
-        WebSocketRequest(s"$baseUrl/ws"),
-        flow,
-        clientHttpsConnectionContext
+      sub.within(35.seconds)(
+        expectNotification(sub)(notification =>
+          notification mustBe KeepAliveNotification
+        )
       )
-      sub.request(1)
-      sub.expectNextPF {
-        case TextMessage.Strict(text)
-          if Json.parse(text)
-            .asOpt[JsonRpcNotificationMessage]
-            .flatMap(Notification.read)
-            .exists(_.asOpt.exists(_.isInstanceOf[SupportedVersionsNotification])) =>
-      }
-      sub.within(35.seconds) {
-        sub.request(1)
-        sub.expectNextPF {
-          case TextMessage.Strict(text)
-            if Json.parse(text)
-              .asOpt[JsonRpcNotificationMessage]
-              .flatMap(Notification.read)
-              .exists(_.asOpt.exists(_ == KeepAliveNotification)) =>
-        }
-      }
-      pub.sendComplete()
-      Await.result(server.shutdown(), Duration.Inf)
     }
-    "send a CreateZoneResponse after a CreateZoneCommand" in {
-      val server = new LiquidityServer(
-        config,
-        zoneValidatorShardRegion,
-        serverKeyManagers
+    "send a CreateZoneResponse after a CreateZoneCommand" in { fixture =>
+      val (sub, pub) = fixture
+      expectNotification(sub)(notification =>
+        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
-      val flow = Flow.fromSinkAndSourceMat(
-        TestSink.probe[Message],
-        TestSource.probe[Message]
-      )(Keep.both)
-      val (_, (sub, pub)) = Http().singleWebSocketRequest(
-        WebSocketRequest(s"$baseUrl/ws"),
-        flow,
-        clientHttpsConnectionContext
+      send(pub)(
+        CreateZoneCommand(
+          equityOwnerPublicKey = clientPublicKey,
+          equityOwnerName = Some("Dave"),
+          equityOwnerMetadata = None,
+          equityAccountName = None,
+          equityAccountMetadata = None,
+          name = Some("Dave's Game")
+        )
       )
-      sub.request(1)
-      sub.expectNextPF {
-        case TextMessage.Strict(text)
-          if Json.parse(text).asOpt[JsonRpcNotificationMessage]
-            .flatMap(Notification.read)
-            .flatMap(_.asOpt)
-            .exists(_.isInstanceOf[SupportedVersionsNotification]) =>
-      }
-      pub.sendNext(
-        TextMessage.Strict(Json.stringify(Json.toJson(
-          Command.write(
-            CreateZoneCommand(
-              clientPublicKey,
-              Some("Dave"),
-              None,
-              None,
-              None,
-              Some("Dave's Game")
-            ),
-            None
-          )
-        )))
+      expectResponse(sub, "createZone")(response =>
+        response mustBe a[CreateZoneResponse]
       )
-      sub.request(1)
-      sub.expectNextPF {
-        case TextMessage.Strict(text)
-          if Json.parse(text).asOpt[JsonRpcResponseMessage]
-            .map(Response.read(_, "createZone"))
-            .flatMap(_.asOpt)
-            .flatMap(_.right.toOption)
-            .exists(_.isInstanceOf[CreateZoneResponse]) =>
-      }
-      pub.sendComplete()
-      Await.result(server.shutdown(), Duration.Inf)
     }
-    "send a JoinZoneResponse after a JoinZoneCommand" in {
-      val server = new LiquidityServer(
-        config,
-        zoneValidatorShardRegion,
-        serverKeyManagers
+    "send a JoinZoneResponse after a JoinZoneCommand" in { fixture =>
+      val (sub, pub) = fixture
+      expectNotification(sub)(notification =>
+        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
-      val flow = Flow.fromSinkAndSourceMat(
-        TestSink.probe[Message],
-        TestSource.probe[Message]
-      )(Keep.both)
-      val (_, (sub, pub)) = Http().singleWebSocketRequest(
-        WebSocketRequest(s"$baseUrl/ws"),
-        flow,
-        clientHttpsConnectionContext
+      send(pub)(
+        CreateZoneCommand(
+          equityOwnerPublicKey = clientPublicKey,
+          equityOwnerName = Some("Dave"),
+          equityOwnerMetadata = None,
+          equityAccountName = None,
+          equityAccountMetadata = None,
+          name = Some("Dave's Game")
+        )
       )
-      sub.request(1)
-      sub.expectNextPF {
-        case TextMessage.Strict(text)
-          if Json.parse(text).asOpt[JsonRpcNotificationMessage]
-            .flatMap(Notification.read)
-            .flatMap(_.asOpt)
-            .exists(_.isInstanceOf[SupportedVersionsNotification]) =>
+      val zoneId = expectResponse(sub, "createZone") { response =>
+        response mustBe a[CreateZoneResponse]
+        response.asInstanceOf[CreateZoneResponse].zone.id
       }
-      pub.sendNext(
-        TextMessage.Strict(Json.stringify(Json.toJson(
-          Command.write(
-            CreateZoneCommand(
-              clientPublicKey,
-              Some("Dave"),
-              None,
-              None,
-              None,
-              Some("Dave's Game")
-            ),
-            None
-          )
-        )))
+      send(pub)(
+        JoinZoneCommand(zoneId)
       )
-      sub.request(1)
-      val zoneId = sub.expectNextPF {
-        case TextMessage.Strict(text)
-          if Json.parse(text).asOpt[JsonRpcResponseMessage]
-            .map(Response.read(_, "createZone"))
-            .flatMap(_.asOpt)
-            .flatMap(_.right.toOption)
-            .exists(_.isInstanceOf[CreateZoneResponse]) =>
-          Json.parse(text).asOpt[JsonRpcResponseMessage]
-            .map(Response.read(_, "createZone"))
-            .flatMap(_.asOpt)
-            .flatMap(_.right.toOption)
-            .get.asInstanceOf[CreateZoneResponse].zone.id
-      }
-      pub.sendNext(
-        TextMessage.Strict(Json.stringify(Json.toJson(
-          Command.write(
-            JoinZoneCommand(
-              zoneId
-            ),
-            None
-          )
-        )))
-      )
-      sub.request(1)
-      sub.expectNextPF {
-        case TextMessage.Strict(text)
-          if Json.parse(text).asOpt[JsonRpcResponseMessage]
-            .map(Response.read(_, "joinZone"))
-            .flatMap(_.asOpt)
-            .flatMap(_.right.toOption)
-            .exists(_.isInstanceOf[JoinZoneResponse]) =>
-      }
-      pub.sendComplete()
-      Await.result(server.shutdown(), Duration.Inf)
+      expectResponse(sub, "joinZone")(response => inside(response){
+        case JoinZoneResponse(_, connectedClients) => connectedClients mustBe Set(clientPublicKey)
+      })
     }
+  }
+
+  private[this] def send(pub: TestPublisher.Probe[Message])
+                        (command: Command): Unit =
+    pub.sendNext(
+      TextMessage.Strict(Json.stringify(Json.toJson(
+        Command.write(command, id = None)
+      )))
+    )
+
+  private[this] def expectNotification(sub: TestSubscriber.Probe[Message])
+                                      (f: Notification => Unit): Unit =
+    expect(sub) { json =>
+      val jsonRpcNotificationMessage = json.asOpt[JsonRpcNotificationMessage]
+      val notification = Notification.read(jsonRpcNotificationMessage.value)
+      f(notification.value.asOpt.value)
+    }
+
+  private[this] def expectResponse[A](sub: TestSubscriber.Probe[Message], method: String)
+                                     (f: Response => A): A =
+    expect(sub) { json =>
+      val jsonRpcResponseMessage = json.asOpt[JsonRpcResponseMessage]
+      val response = Response.read(jsonRpcResponseMessage.value, method)
+      f(response.asOpt.value.right.value)
+    }
+
+  private[this] def expect[A](sub: TestSubscriber.Probe[Message])
+                             (f: JsValue => A): A = {
+    sub.request(1)
+    val message = sub.expectNext()
+    val jsonString = message.asTextMessage.getStrictText
+    val json = Json.parse(jsonString)
+    f(json)
   }
 }

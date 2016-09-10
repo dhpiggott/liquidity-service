@@ -62,9 +62,9 @@ class ZoneValidatorSpec extends WordSpec
           )
         )
       )
-      expectResult(clientConnectionTestProbe)(result => result must matchPattern {
-        case CreateZoneResponse(_) =>
-      })
+      expectResult(clientConnectionTestProbe)(result =>
+        result mustBe a[CreateZoneResponse]
+      )
     }
     "send a JoinZoneResponse when joined" in {
       val (clientConnectionTestProbe, zoneId, sequenceNumber) = setup()
@@ -87,9 +87,9 @@ class ZoneValidatorSpec extends WordSpec
           )
         )
       )
-      expectResult(clientConnectionTestProbe)(result => result must matchPattern {
-        case CreateZoneResponse(_) =>
-      })
+      expectResult(clientConnectionTestProbe)(result =>
+        result mustBe a[CreateZoneResponse]
+      )
       send(clientConnectionTestProbe, zoneId)(
         AuthenticatedCommandWithIds(
           publicKey,
@@ -101,8 +101,8 @@ class ZoneValidatorSpec extends WordSpec
           unusedClientDeliveryId
         )
       )
-      expectResult(clientConnectionTestProbe)(result => result must matchPattern {
-        case JoinZoneResponse(_, connectedClients) if connectedClients == Set(publicKey) =>
+      expectResult(clientConnectionTestProbe)(result => inside(result){
+        case JoinZoneResponse(_, connectedClients) => connectedClients mustBe Set(publicKey)
       })
     }
   }

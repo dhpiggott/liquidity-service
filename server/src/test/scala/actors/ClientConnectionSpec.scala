@@ -96,9 +96,9 @@ class ClientConnectionSpec extends fixture.WordSpec
       send(upstreamTestProbe, clientConnection)(
         JoinZoneCommand(zoneId)
       )
-      expectResponse(upstreamTestProbe, "joinZone")(response =>
-        response mustBe a[JoinZoneResponse]
-      )
+      expectResponse(upstreamTestProbe, "joinZone")(response => inside(response){
+        case JoinZoneResponse(_, connectedClients) => connectedClients mustBe Set(publicKey)
+      })
     }
   }
 

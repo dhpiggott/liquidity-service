@@ -101,16 +101,13 @@ object ClientConnection {
             flowActor ! PoisonPill
             outActor ! Status.Success(())
           case Terminated =>
-            println("Child terminated, stopping")
             context.stop(self)
           case other =>
             flowActor ! other
         }
 
         override def supervisorStrategy = OneForOneStrategy() {
-          case _ =>
-            println("Stopping actor due to exception")
-            SupervisorStrategy.Stop
+          case _ => SupervisorStrategy.Stop
         }
       })), Status.Success(())),
       Source.fromPublisher(publisher)

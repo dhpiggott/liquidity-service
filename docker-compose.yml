@@ -5,11 +5,15 @@ services:
     restart: always
     volumes:
     - cassandra-data:/var/lib/cassandra
-  liquidity:
-    build: liquidity
+  server:
+    build: server
     ports:
      - '443:443'
     restart: always
+    links:
+      - cassandra
+  analytics:
+    build: analytics
     links:
       - cassandra
 volumes:

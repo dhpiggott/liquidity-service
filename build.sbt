@@ -19,6 +19,8 @@ lazy val akkaPersistenceQuery = "com.typesafe.akka" %% "akka-persistence-query-e
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.0"
 
+lazy val openJdk8 = "openjdk:8-jre"
+
 lazy val liquidityModel = project.in(file("model"))
   .settings(commonSettings)
   .settings(
@@ -39,10 +41,14 @@ lazy val liquidityLegacyModels = project.in(file("legacyModels"))
     name := "liquidity-legacy-models",
     libraryDependencies ++= Seq(
       playJson,
-      "com.typesafe.akka" %% "akka-persistence" % "2.4.10"
-    )
+      "com.typesafe.akka" %% "akka-persistence" % "2.4.10",
+      akkaPersistenceCassandra,
+      akkaPersistenceQuery
+    ),
+    dockerBaseImage := openJdk8
   )
   .dependsOn(liquidityModel)
+  .enablePlugins(JavaAppPackaging, DockerPlugin)
 
 lazy val liquidityProtocol = project.in(file("protocol"))
   .settings(commonSettings)
@@ -73,7 +79,7 @@ lazy val liquidityServer = project.in(file("server"))
       "com.typesafe.akka" %% "akka-http-testkit" % "2.4.10" % "test",
       "org.iq80.leveldb" % "leveldb" % "0.9" % "test"
     ),
-    dockerBaseImage := "openjdk:8-jre",
+    dockerBaseImage := openJdk8,
     dockerExposedPorts := Seq(443),
     daemonUser in Docker := "root",
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048"
@@ -112,10 +118,12 @@ lazy val liquidityAnalytics = project.in(file("analytics"))
     libraryDependencies ++= Seq(
       akkaPersistenceCassandra,
       akkaPersistenceQuery
-    )
+    ),
+    dockerBaseImage := openJdk8
   )
   .dependsOn(liquidityModel)
   .dependsOn(liquidityLegacyModels)
+  .enablePlugins(JavaAppPackaging, DockerPlugin)
 
 lazy val root = project.in(file("."))
   .settings(commonSettings)

@@ -15,18 +15,13 @@ function finish {
 }
 trap finish EXIT
 
-mkdir -p $DIR/stage/legacyModels/stage
-sbt liquidityLegacyModels/docker:stage
-cp -r $DIR/legacyModels/target/docker/stage/* $DIR/stage/legacyModels/stage/
-cp $DIR/legacyModels/run.sh $DIR/stage/legacyModels/
+mkdir $DIR/stage
 
-mkdir -p $DIR/stage/server
 sbt liquidityServer/docker:stage
-cp -r $DIR/server/target/docker/stage/* $DIR/stage/server/
+cp -r $DIR/server/target/docker/stage $DIR/stage/server
 
-mkdir -p $DIR/stage/analytics
 sbt liquidityAnalytics/docker:stage
-cp -r $DIR/analytics/target/docker/stage/* $DIR/stage/analytics/
+cp -r $DIR/analytics/target/docker/stage $DIR/stage/analytics
 
 cp $DIR/docker-compose.yml $DIR/stage/
 cp $DIR/load-data.sh $DIR/stage/

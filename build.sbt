@@ -35,21 +35,6 @@ lazy val liquidityModel = project.in(file("model"))
     )
   )
 
-lazy val liquidityLegacyModels = project.in(file("legacyModels"))
-  .settings(commonSettings)
-  .settings(
-    name := "liquidity-legacy-models",
-    libraryDependencies ++= Seq(
-      playJson,
-      "com.typesafe.akka" %% "akka-persistence" % "2.4.10",
-      akkaPersistenceCassandra,
-      akkaPersistenceQuery
-    ),
-    dockerBaseImage := openJdk8
-  )
-  .dependsOn(liquidityModel)
-  .enablePlugins(JavaAppPackaging, DockerPlugin)
-
 lazy val liquidityProtocol = project.in(file("protocol"))
   .settings(commonSettings)
   .settings(
@@ -84,7 +69,6 @@ lazy val liquidityServer = project.in(file("server"))
     daemonUser in Docker := "root",
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048"
   )
-  .dependsOn(liquidityLegacyModels)
   .dependsOn(liquidityProtocol)
   .dependsOn(liquidityCertgen % "test")
   .enablePlugins(JavaAppPackaging, DockerPlugin)
@@ -122,7 +106,6 @@ lazy val liquidityAnalytics = project.in(file("analytics"))
     dockerBaseImage := openJdk8
   )
   .dependsOn(liquidityModel)
-  .dependsOn(liquidityLegacyModels)
   .enablePlugins(JavaAppPackaging, DockerPlugin)
 
 lazy val root = project.in(file("."))
@@ -133,7 +116,6 @@ lazy val root = project.in(file("."))
   )
   .aggregate(
     liquidityModel,
-    liquidityLegacyModels,
     liquidityProtocol,
     liquidityServer,
     liquidityCertgen,

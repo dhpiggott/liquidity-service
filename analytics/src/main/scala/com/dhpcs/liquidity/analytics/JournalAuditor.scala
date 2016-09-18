@@ -33,13 +33,7 @@ object JournalAuditor {
            |  }
            |  persistence.journal.plugin = "cassandra-journal"
            |}
-           |cassandra-journal {
-           |  contact-points = ["cassandra"]
-           |  event-adapters.legacy-event = "com.dhpcs.liquidity.models.LegacyReadEventAdapter"
-           |  event-adapter-bindings {
-           |    "actors.ZoneValidator$Event" = legacy-event
-           |  }
-           |}
+           |cassandra-journal.contact-points = ["cassandra"]
         """.stripMargin)
     )
     implicit val mat = ActorMaterializer()

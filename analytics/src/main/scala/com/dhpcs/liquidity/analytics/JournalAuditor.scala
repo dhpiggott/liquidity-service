@@ -8,7 +8,6 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
 import com.dhpcs.liquidity.model._
-import com.typesafe.config.ConfigFactory
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -19,23 +18,7 @@ object JournalAuditor {
     """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
 
   def main(args: Array[String]): Unit = {
-    implicit val system = ActorSystem(
-      "liquidity",
-      ConfigFactory.parseString(
-        """
-           |akka {
-           |  actor {
-           |    serializers.event = "com.dhpcs.liquidity.model.PlayJsonEventSerializer"
-           |    serialization-bindings {
-           |      "java.io.Serializable" = none
-           |      "com.dhpcs.liquidity.model.Event" = event
-           |    }
-           |  }
-           |  persistence.journal.plugin = "cassandra-journal"
-           |}
-           |cassandra-journal.contact-points = ["cassandra"]
-        """.stripMargin)
-    )
+    implicit val system = ActorSystem("liquidity")
     implicit val mat = ActorMaterializer()
     implicit val ec = ExecutionContext.global
     try

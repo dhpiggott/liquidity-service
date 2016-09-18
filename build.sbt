@@ -14,6 +14,10 @@ lazy val playJson = "com.typesafe.play" %% "play-json" % "2.3.10"
 
 lazy val akkaPersistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.18"
 
+lazy val akkaSlf4j = "com.typesafe.akka" %% "akka-slf4j" % "2.4.10"
+
+lazy val logback = "ch.qos.logback" % "logback-classic" % "1.1.7"
+
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.0"
 
 lazy val openJdk8 = "openjdk:8-jre"
@@ -60,8 +64,8 @@ lazy val liquidityServer = project.in(file("server"))
   .settings(
     name := "liquidity-server",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-slf4j" % "2.4.10",
-      "ch.qos.logback" % "logback-classic" % "1.1.7",
+      akkaSlf4j,
+      logback,
       "com.typesafe.akka" %% "akka-http-experimental" % "2.4.10",
       playJson,
       "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.10",
@@ -97,6 +101,8 @@ lazy val liquidityAnalytics = project.in(file("analytics"))
   .settings(
     name := "liquidity-analytics",
     libraryDependencies ++= Seq(
+      akkaSlf4j,
+      logback,
       akkaPersistenceCassandra
     ),
     dockerBaseImage := openJdk8

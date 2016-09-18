@@ -1,6 +1,7 @@
 lazy val commonSettings = Seq(
   scalaVersion := "2.11.8",
-  organization := "com.dhpcs"
+  organization := "com.dhpcs",
+  resolvers += Resolver.bintrayRepo("dhpcs", "maven")
 )
 
 lazy val noopPublish = Seq(
@@ -9,13 +10,9 @@ lazy val noopPublish = Seq(
   publishLocal := {}
 )
 
-lazy val playJson = "com.typesafe.play" %% "play-json" % "2.4.8" force()
-
-lazy val playJsonRpc = "com.dhpcs" %% "play-json-rpc" % "1.1.1"
+lazy val playJson = "com.typesafe.play" %% "play-json" % "2.3.10"
 
 lazy val akkaPersistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.18"
-
-lazy val akkaPersistenceQuery = "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.10"
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.0"
 
@@ -26,12 +23,12 @@ lazy val liquidityModel = project.in(file("model"))
   .settings(
     name := "liquidity-model",
     libraryDependencies ++= Seq(
-      "com.squareup.okio" % "okio" % "1.10.0",
-      playJson,
       "com.typesafe.akka" %% "akka-actor" % "2.4.10",
-      scalaTest % "test",
+      playJson,
+      "com.squareup.okio" % "okio" % "1.10.0",
+      scalaTest % Test,
       // TODO
-      playJsonRpc % "test->test"
+      "com.dhpcs" %% "play-json-rpc-testkit" % "1.2.1" % Test
     )
   )
 
@@ -40,12 +37,22 @@ lazy val liquidityProtocol = project.in(file("protocol"))
   .settings(
     name := "liquidity-protocol",
     libraryDependencies ++= Seq(
-      playJsonRpc,
-      scalaTest % "test",
-      playJsonRpc % "test->test"
+      "com.dhpcs" %% "play-json-rpc" % "1.2.1",
+      scalaTest % Test,
+      "com.dhpcs" %% "play-json-rpc-testkit" % "1.2.1" % Test
     )
   )
   .dependsOn(liquidityModel)
+
+lazy val liquidityCertgen = project.in(file("certgen"))
+  .settings(commonSettings)
+  .settings(noopPublish)
+  .settings(
+    name := "liquidity-certgen",
+    libraryDependencies ++= Seq(
+      "org.bouncycastle" % "bcpkix-jdk15on" % "1.55"
+    )
+  )
 
 lazy val liquidityServer = project.in(file("server"))
   .settings(commonSettings)
@@ -59,29 +66,19 @@ lazy val liquidityServer = project.in(file("server"))
       playJson,
       "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.10",
       akkaPersistenceCassandra,
-      akkaPersistenceQuery,
-      scalaTest % "test",
-      "com.typesafe.akka" %% "akka-http-testkit" % "2.4.10" % "test",
-      "org.iq80.leveldb" % "leveldb" % "0.9" % "test"
+      scalaTest % Test,
+      "com.typesafe.akka" %% "akka-http-testkit" % "2.4.10" % Test,
+      "org.iq80.leveldb" % "leveldb" % "0.9" % Test
     ),
     dockerBaseImage := openJdk8,
     dockerExposedPorts := Seq(443),
     daemonUser in Docker := "root",
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048"
   )
+  .dependsOn(liquidityModel)
   .dependsOn(liquidityProtocol)
-  .dependsOn(liquidityCertgen % "test")
+  .dependsOn(liquidityCertgen % Test)
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-
-lazy val liquidityCertgen = project.in(file("certgen"))
-  .settings(commonSettings)
-  .settings(noopPublish)
-  .settings(
-    name := "liquidity-certgen",
-    libraryDependencies ++= Seq(
-      "org.bouncycastle" % "bcpkix-jdk15on" % "1.55"
-    )
-  )
 
 lazy val liquidityBoardgame = project.in(file("boardgame"))
   .settings(commonSettings)
@@ -100,8 +97,7 @@ lazy val liquidityAnalytics = project.in(file("analytics"))
   .settings(
     name := "liquidity-analytics",
     libraryDependencies ++= Seq(
-      akkaPersistenceCassandra,
-      akkaPersistenceQuery
+      akkaPersistenceCassandra
     ),
     dockerBaseImage := openJdk8
   )
@@ -117,8 +113,8 @@ lazy val root = project.in(file("."))
   .aggregate(
     liquidityModel,
     liquidityProtocol,
-    liquidityServer,
     liquidityCertgen,
+    liquidityServer,
     liquidityBoardgame,
     liquidityAnalytics
   )

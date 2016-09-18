@@ -19,9 +19,9 @@ class ProtocolSpec extends FunSpec with Matchers {
       it should behave like commandReadError(
         JsonRpcRequestMessage(
           "invalidMethod",
-          Right(
+          Some(Right(
             Json.obj()
-          ),
+          )),
           Some(
             Right(1)
           )
@@ -34,9 +34,9 @@ class ProtocolSpec extends FunSpec with Matchers {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "createZone",
-            Left(
+            Some(Left(
               Json.arr()
-            ),
+            )),
             Some(
               Right(1)
             )
@@ -50,9 +50,9 @@ class ProtocolSpec extends FunSpec with Matchers {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "createZone",
-            Right(
+            Some(Right(
               Json.obj()
-            ),
+            )),
             Some(
               Right(1)
             )
@@ -81,7 +81,7 @@ class ProtocolSpec extends FunSpec with Matchers {
       )
       implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
         "createZone",
-        Right(
+        Some(Right(
           Json.obj(
             "equityOwnerPublicKey" -> ByteString.of(publicKeyBytes: _*).base64,
             "equityOwnerName" -> "Banker",
@@ -91,7 +91,7 @@ class ProtocolSpec extends FunSpec with Matchers {
               "currency" -> "GBP"
             )
           )
-        ),
+        )),
         Some(
           Right(1)
         )
@@ -104,7 +104,7 @@ class ProtocolSpec extends FunSpec with Matchers {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "addTransaction",
-            Right(
+            Some(Right(
               Json.obj(
                 "zoneId" -> "6b5f604d-f116-44f8-9807-d26324c81034",
                 "actingAs" -> 0,
@@ -112,7 +112,7 @@ class ProtocolSpec extends FunSpec with Matchers {
                 "to" -> 1,
                 "value" -> -1
               )
-            ),
+            )),
             Some(
               Right(1)
             )

@@ -1,10 +1,17 @@
-* Finalise cipher config (see http://typesafehub.github.io/ssl-config/CipherSuites.html and
-  http://typesafehub.github.io/ssl-config/TestingSSL.html, be sure to test Android 4.0.4,
-  but also use https://www.ssllabs.com/ssltest/analyze.html?d=liquidity.dhpcs.com&hideResults=on)
+* Rename play-json-rpc-testkit as play-json-testkit
 * Review keystore format (see https://github.com/akka/akka/issues/20381)
 * Review use of (in)definite articles in testsuite names
 * Add newlines as appropriate at start of blocks
 * Name args where appropriate
+* Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.10/scala/persistence.html: "Note that Cluster
+  Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."
+  See also: http://doc.akka.io/docs/akka/current/scala/cluster-sharding.html#Configuration
+* Convert persistence ID from from ZoneId(uuid) to zoneid-uuid
+* Improve logs
+* Create a health-check tool based on LiquidityServerSpec
+* Finalise cipher config (see http://typesafehub.github.io/ssl-config/CipherSuites.html and
+  http://typesafehub.github.io/ssl-config/TestingSSL.html, be sure to test Android 4.0.4, but also use
+  https://www.ssllabs.com/ssltest/analyze.html?d=liquidity.dhpcs.com&hideResults=on)
 * Restore Cassandra testing but only as integration test
 * Review:
   * https://github.com/cakesolutions/scala-kafka-client/blob/master/build.sbt
@@ -13,6 +20,3 @@
   * https://github.com/cassandra-scala/troy/tree/master/project
   * https://github.com/scalacenter/scaladex/blob/master/doc/user/publish-central.md
   * https://github.com/scalacenter/scaladex/blob/master/doc/user/publish-scaladex.md
-* Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.10/scala/persistence.html: "Note that Cluster
-  Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."
-* Improve logs

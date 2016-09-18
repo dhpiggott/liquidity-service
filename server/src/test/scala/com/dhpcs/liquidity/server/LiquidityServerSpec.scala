@@ -114,8 +114,6 @@ class LiquidityServerSpec extends fixture.WordSpec
     (ConnectionContext.https(sslContext), publicKey)
   }
 
-  private[this] val baseUrl = s"wss://localhost:$akkaHttpPort"
-
   private[this] implicit val mat = ActorMaterializer()
 
   override protected type FixtureParam = (TestSubscriber.Probe[Message], TestPublisher.Probe[Message])
@@ -132,7 +130,7 @@ class LiquidityServerSpec extends fixture.WordSpec
       TestSource.probe[Message]
     )(Keep.both)
     val (_, (sub, pub)) = Http().singleWebSocketRequest(
-      WebSocketRequest(s"$baseUrl/ws"),
+      WebSocketRequest(s"wss://localhost:$akkaHttpPort/ws"),
       flow,
       clientHttpsConnectionContext
     )

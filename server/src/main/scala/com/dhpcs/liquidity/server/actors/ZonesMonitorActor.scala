@@ -4,7 +4,7 @@ import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.{Subscribe, Unsubscribe}
+import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import akka.pattern.pipe
 import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.ActorMaterializer
@@ -14,6 +14,7 @@ import com.dhpcs.liquidity.server.actors.ZonesMonitorActor._
 import scala.concurrent.duration._
 
 object ZonesMonitorActor {
+
   def props(readJournal: ReadJournal with CurrentPersistenceIdsQuery): Props = Props(new ZonesMonitorActor(readJournal))
 
   case object GetActiveZonesSummary
@@ -28,6 +29,7 @@ object ZonesMonitorActor {
 
   private final val ZoneIdStringPattern =
     """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
+
 }
 
 class ZonesMonitorActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery) extends Actor with ActorLogging {
@@ -37,18 +39,14 @@ class ZonesMonitorActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery
   private[this] implicit val mat = ActorMaterializer()
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
+  mediator ! Subscribe(ZoneValidatorActor.Topic, self)
+
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 
   private[this] var activeZoneSummaries = Map.empty[ActorRef, ZoneValidatorActor.ActiveZoneSummary]
 
-  override def preStart(): Unit = {
-    super.preStart()
-    mediator ! Subscribe(ZoneValidatorActor.Topic, self)
-  }
-
   override def postStop(): Unit = {
     publishStatusTick.cancel()
-    mediator ! Unsubscribe(ZoneValidatorActor.Topic, self)
     super.postStop()
   }
 

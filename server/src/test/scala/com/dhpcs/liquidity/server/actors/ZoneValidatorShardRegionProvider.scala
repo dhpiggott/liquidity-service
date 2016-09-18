@@ -16,6 +16,7 @@ import scala.util.Try
 
 trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
   this: Suite =>
+
   private[this] val akkaRemotingPort = {
     val serverSocket = ServerSocketChannel.open().socket()
     serverSocket.bind(new InetSocketAddress("localhost", 0))
@@ -23,6 +24,7 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
     serverSocket.close()
     port
   }
+
   private[this] val levelDbDirectory = FileUtils.createTempDir("liquidity-leveldb")
 
   protected[this] def config =

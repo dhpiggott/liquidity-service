@@ -1,13 +1,14 @@
 package com.dhpcs.liquidity.server.actors
 
-import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary, PublishStatus}
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.{Subscribe, Unsubscribe}
+import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
+import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary, PublishStatus}
 
 import scala.concurrent.duration._
 
 object ClientsMonitorActor {
+
   def props: Props = Props(new ClientsMonitorActor)
 
   case class ActiveClientsSummary(activeClientSummaries: Seq[ClientConnectionActor.ActiveClientSummary])
@@ -23,18 +24,14 @@ class ClientsMonitorActor extends Actor with ActorLogging {
   import context.dispatcher
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
+  mediator ! Subscribe(ClientConnectionActor.Topic, self)
+
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 
   private[this] var activeClientSummaries = Map.empty[ActorRef, ClientConnectionActor.ActiveClientSummary]
 
-  override def preStart(): Unit = {
-    super.preStart()
-    mediator ! Subscribe(ClientConnectionActor.Topic, self)
-  }
-
   override def postStop(): Unit = {
     publishStatusTick.cancel()
-    mediator ! Unsubscribe(ClientConnectionActor.Topic, self)
     super.postStop()
   }
 

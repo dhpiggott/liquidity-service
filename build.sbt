@@ -114,7 +114,7 @@ lazy val root = project.in(file("."))
   .settings(commonSettings)
   .settings(noopPublish)
   .settings(
-    name := "liquidity-root"
+    name := "liquidity"
   )
   .aggregate(
     liquidityModel,

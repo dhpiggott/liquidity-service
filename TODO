@@ -1,3 +1,4 @@
+* Review currency symbol 'X' in analytics output
 * Create separate persistence library for events to avoid including them in models
 * Enable snapshot store because as per http://doc.akka.io/docs/akka/2.4.10/scala/persistence.html: "Note that Cluster
   Sharding is using snapshots, so if you use Cluster Sharding you need to define a snapshot store plugin."

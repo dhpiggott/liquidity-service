@@ -77,12 +77,12 @@ class LiquidityServerSpec extends fixture.WordSpec
     ).withFallback(super.config)
 
   private[this] val (serverPublicKey, serverKeyManagers) = {
-    val (certificate, privateKey) = CertGen.generateCertKeyPair("localhost")
+    val (certificate, privateKey) = CertGen.generateCertKeyPair(subjectAlternativeName = Some("localhost"))
     (certificate.getPublicKey, createKeyManagers(certificate, privateKey))
   }
 
   private[this] val (clientHttpsConnectionContext, clientPublicKey) = {
-    val (certificate, privateKey) = CertGen.generateCertKeyPair("LiquidityServerSpec")
+    val (certificate, privateKey) = CertGen.generateCertKeyPair(subjectAlternativeName = None)
     val keyManagers = createKeyManagers(certificate, privateKey)
     val sslContext = SSLContext.getInstance("TLS")
     sslContext.init(

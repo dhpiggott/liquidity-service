@@ -18,15 +18,16 @@ import org.spongycastle.operator.jcajce.JcaContentSignerBuilder
 object ClientKey {
   private final val KeystoreFilename = "client.keystore"
   private final val EntryAlias = "identity"
+  private final val CommonName = "com.dhpcs.liquidity"
   private final val KeyLength = 2048
 
   private var keyStore: KeyStore = _
   private var publicKey: PublicKey = _
   private var keyManagers: Array[KeyManager] = _
 
-  def getKeyManagers(filesDir: File, clientId: String): Array[KeyManager] = {
+  def getKeyManagers(filesDir: File): Array[KeyManager] = {
     if (keyManagers == null) {
-      val keyStore = getOrLoadOrCreateKeyStore(filesDir, clientId)
+      val keyStore = getOrLoadOrCreateKeyStore(filesDir)
       val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
       keyManagerFactory.init(keyStore, Array.emptyCharArray)
       keyManagers = keyManagerFactory.getKeyManagers
@@ -34,9 +35,9 @@ object ClientKey {
     keyManagers
   }
 
-  def getPublicKey(filesDir: File, clientId: String): PublicKey = {
+  def getPublicKey(filesDir: File): PublicKey = {
     if (publicKey == null) {
-      val keyStore = getOrLoadOrCreateKeyStore(filesDir, clientId)
+      val keyStore = getOrLoadOrCreateKeyStore(filesDir)
       publicKey = PublicKey(
         keyStore.getCertificate(ClientKey.EntryAlias).getPublicKey.getEncoded
       )
@@ -44,12 +45,12 @@ object ClientKey {
     publicKey
   }
 
-  private def getOrLoadOrCreateKeyStore(filesDir: File, clientId: String): KeyStore = {
+  private def getOrLoadOrCreateKeyStore(filesDir: File): KeyStore = {
     if (keyStore == null) {
       keyStore = KeyStore.getInstance("BKS")
       val keyStoreFile = new File(filesDir, KeystoreFilename)
       if (!keyStoreFile.exists) {
-        val (certificate, privateKey) = generateCertKeyPair(clientId)
+        val (certificate, privateKey) = generateCertKeyPair()
         keyStore.load(null, null)
         keyStore.setKeyEntry(
           EntryAlias,
@@ -75,18 +76,18 @@ object ClientKey {
     keyStore
   }
 
-  private def generateCertKeyPair(clientId: String): (X509Certificate, PrivateKey) = {
-    val clientIdentity = new X500NameBuilder().addRDN(BCStyle.CN, clientId).build
+  private def generateCertKeyPair(): (X509Certificate, PrivateKey) = {
+    val identity = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(KeyLength)
     val keyPair = keyPairGenerator.generateKeyPair
     val certificate = new JcaX509CertificateConverter().getCertificate(
       new JcaX509v3CertificateBuilder(
-        clientIdentity,
+        identity,
         BigInteger.ONE,
         new Time(new ASN1UTCTime(Calendar.getInstance.getTime, Locale.US)),
         new Time(new ASN1GeneralizedTime("99991231235959Z")),
-        clientIdentity,
+        identity,
         keyPair.getPublic
       ).addExtension(
         Extension.subjectKeyIdentifier,

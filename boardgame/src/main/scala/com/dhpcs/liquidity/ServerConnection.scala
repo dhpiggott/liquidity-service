@@ -143,7 +143,6 @@ object ServerConnection {
 
   def getInstance(prngFixesApplicator: PRNGFixesApplicator,
                   filesDir: File,
-                  clientId: String,
                   keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
                   connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
                   handlerWrapperFactory: HandlerWrapperFactory): ServerConnection = {
@@ -151,7 +150,6 @@ object ServerConnection {
       prngFixesApplicator.apply()
       instance = new ServerConnection(
         filesDir,
-        clientId,
         keyStoreInputStreamProvider,
         connectivityStatePublisherBuilder,
         handlerWrapperFactory
@@ -184,7 +182,6 @@ object ServerConnection {
 }
 
 class ServerConnection private(filesDir: File,
-                               clientId: String,
                                keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
                                connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
                                handlerWrapperFactory: HandlerWrapperFactory)
@@ -193,7 +190,7 @@ class ServerConnection private(filesDir: File,
     val trustManager = ServerTrust.getTrustManager(keyStoreInputStreamProvider.get())
     new OkHttpClient.Builder()
       .sslSocketFactory(createSslSocketFactory(
-        ClientKey.getKeyManagers(filesDir, clientId),
+        ClientKey.getKeyManagers(filesDir),
         Array(trustManager)
       ), trustManager)
       .readTimeout(0, TimeUnit.SECONDS)
@@ -217,7 +214,7 @@ class ServerConnection private(filesDir: File,
 
   handleConnectivityStateChange()
 
-  def clientKey: PublicKey = ClientKey.getPublicKey(filesDir, clientId)
+  def clientKey: PublicKey = ClientKey.getPublicKey(filesDir)
 
   def connectionState: ConnectionState = _connectionState
 

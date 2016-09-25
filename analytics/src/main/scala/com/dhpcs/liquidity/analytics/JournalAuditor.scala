@@ -96,10 +96,11 @@ object JournalAuditor {
     val unnamed = "<unnamed>"
     val dateFormat = DateFormat.getDateTimeInstance
     val longestMemberNameLength = (zone.members.values.map(_.name.getOrElse(unnamed).length).toSeq :+ 0).max
-    val currencyFormat = NumberFormat.getCurrencyInstance
-    zone.metadata.flatMap(metadata => (metadata \ "currency").asOpt[String])
+    val currency = zone.metadata.flatMap(metadata => (metadata \ "currency").asOpt[String])
       .map(Currency.getInstance)
-      .foreach(currencyFormat.setCurrency)
+      .getOrElse(Currency.getInstance("XXX"))
+    val currencyFormat = NumberFormat.getCurrencyInstance
+    currencyFormat.setCurrency(currency)
     s"""
        |ID: ${zone.id.id}
        |Name: ${zone.name.getOrElse(unnamed)}

@@ -4,7 +4,7 @@ set -euo pipefail
 
 if [ -z "$1" ]
   then
-    echo "Usage: $0 destination-hostname"
+    echo "Usage: $0 destination"
     exit 1
 fi
 
@@ -31,4 +31,4 @@ rsync --archive \
     --compress \
     --delete \
     --human-readable -v \
-    $DIR/stage/ $1:~/liquidity/
+    $DIR/stage/ $1/liquidity

@@ -48,7 +48,9 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
          |  cluster {
          |    metrics.enabled = off
          |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
+         |    sharding.state-store-mode = ddata
          |  }
+         |  extensions += "akka.cluster.ddata.DistributedData"
          |  persistence {
          |    journal {
          |      plugin = "akka.persistence.journal.leveldb"
@@ -64,7 +66,7 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
          |  }
          |}
     """.stripMargin
-    )
+    ).resolve()
 
   protected[this] implicit val system = ActorSystem("liquidity", config)
 

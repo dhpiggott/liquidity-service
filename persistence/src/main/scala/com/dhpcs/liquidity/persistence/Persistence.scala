@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.persistence
 
+import akka.actor.ActorPath
 import com.dhpcs.liquidity.model._
 import play.api.libs.json.Json
 
@@ -13,13 +14,13 @@ object ZoneCreatedEvent {
   implicit final val ZoneCreatedEventFormat = Json.format[ZoneCreatedEvent]
 }
 
-case class ZoneJoinedEvent(timestamp: Long, clientConnectionActorPath: String, publicKey: PublicKey) extends Event
+case class ZoneJoinedEvent(timestamp: Long, clientConnectionActorPath: ActorPath, publicKey: PublicKey) extends Event
 
 object ZoneJoinedEvent {
   implicit final val ZoneJoinedEventFormat = Json.format[ZoneJoinedEvent]
 }
 
-case class ZoneQuitEvent(timestamp: Long, clientConnectionActorPath: String) extends Event
+case class ZoneQuitEvent(timestamp: Long, clientConnectionActorPath: ActorPath) extends Event
 
 object ZoneQuitEvent {
   implicit final val ZoneQuitEventFormat = Json.format[ZoneQuitEvent]

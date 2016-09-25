@@ -89,11 +89,11 @@ object ZoneValidatorActor {
         )
       case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey) =>
         copy(
-          clientConnections = clientConnections + (ActorPath.fromString(clientConnectionActorPath) -> publicKey)
+          clientConnections = clientConnections + (clientConnectionActorPath -> publicKey)
         )
       case ZoneQuitEvent(timestamp, clientConnectionActorPath) =>
         copy(
-          clientConnections = clientConnections - ActorPath.fromString(clientConnectionActorPath)
+          clientConnections = clientConnections - clientConnectionActorPath
         )
       case ZoneNameChangedEvent(timestamp, name) =>
         copy(
@@ -224,7 +224,7 @@ object ZoneValidatorActor {
   private def checkOwnerPublicKey(ownerPublicKey: PublicKey): Option[String] =
     try {
       if (KeyFactory.getInstance("RSA")
-        .generatePublic(new X509EncodedKeySpec(ownerPublicKey.value))
+        .generatePublic(new X509EncodedKeySpec(ownerPublicKey.value.toByteArray))
         .asInstanceOf[RSAPublicKey].getModulus.bitLength != RequiredOwnerKeyLength) {
         Some("Invalid owner public key length")
       } else {
@@ -744,7 +744,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                                publicKey: PublicKey)
                               (onStateUpdate: State => Unit = _ => ()): Unit =
     persist(
-      ZoneJoinedEvent(System.currentTimeMillis, clientConnection.path.toSerializationFormat, publicKey)
+      ZoneJoinedEvent(System.currentTimeMillis, clientConnection.path, publicKey)
     ) { zoneJoinedEvent =>
       if (state.clientConnections.isEmpty) {
         passivationCountdownActor ! Stop
@@ -760,7 +760,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def handleQuit(clientConnection: ActorRef)(onStateUpdate: => Unit = ()): Unit =
     persist(
-      ZoneQuitEvent(System.currentTimeMillis, clientConnection.path.toSerializationFormat)
+      ZoneQuitEvent(System.currentTimeMillis, clientConnection.path)
     ) { zoneQuitEvent =>
       val publicKey = state.clientConnections(clientConnection.path)
       updateState(zoneQuitEvent)

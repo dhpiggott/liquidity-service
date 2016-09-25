@@ -1,12 +1,11 @@
 package com.dhpcs.liquidity.model
 
-import java.util
 import java.util.UUID
 
 import okio.ByteString
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
-import play.api.libs.json.{Format, JsObject, JsPath, Json, Reads, Writes}
+import play.api.libs.json._
 
 object ValueFormat {
   def apply[A, B: Format](apply: B => A, unapply: A => B): Format[A] = Format(
@@ -25,23 +24,16 @@ object MemberId {
   implicit final val MemberIdFormat = ValueFormat[MemberId, Int](apply, _.id)
 }
 
-case class PublicKey(value: Array[Byte]) {
-  lazy val fingerprint = ByteString.of(value: _*).sha256.hex
-
-  override def equals(that: Any) = that match {
-    case that: PublicKey => util.Arrays.equals(this.value, that.value)
-    case _ => false
-  }
-
-  override def hashCode = util.Arrays.hashCode(value)
-
-  override def toString = s"$productPrefix(${ByteString.of(value: _*).base64})"
+case class PublicKey(value: ByteString) {
+  lazy val fingerprint = value.sha256.hex
 }
 
 object PublicKey {
   implicit final val PublicKeyFormat = ValueFormat[PublicKey, String](
-    publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64).toByteArray),
-    publicKey => ByteString.of(publicKey.value: _*).base64)
+    publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64)),
+    publicKey => publicKey.value.base64)
+
+  def apply(value: Array[Byte]): PublicKey = PublicKey(ByteString.of(value: _*))
 }
 
 case class Member(id: MemberId,

@@ -10,30 +10,31 @@ lazy val noopPublish = Seq(
   publishLocal := {}
 )
 
+lazy val applicationSettings =
+  commonSettings ++
+  noopPublish ++ Seq(
+    name := "liquidity-analytics",
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-slf4j" % "2.4.10",
+      "ch.qos.logback" % "logback-classic" % "1.1.7",
+      "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.18",
+      "io.netty" % "netty-transport-native-epoll" % "4.1.5.Final" classifier "linux-x86_64"
+    ),
+    dockerBaseImage := "openjdk:8-jre"
+  )
+
 lazy val playJson = "com.typesafe.play" %% "play-json" % "2.3.10"
 
-lazy val akkaPersistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.18"
-
-lazy val nettyEpoll = "io.netty" % "netty-transport-native-epoll" % "4.1.5.Final" classifier "linux-x86_64"
-
-lazy val akkaSlf4j = "com.typesafe.akka" %% "akka-slf4j" % "2.4.10"
-
-lazy val logback = "ch.qos.logback" % "logback-classic" % "1.1.7"
-
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.0"
-
-lazy val openJdk8 = "openjdk:8-jre"
 
 lazy val liquidityModel = project.in(file("model"))
   .settings(commonSettings)
   .settings(
     name := "liquidity-model",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor" % "2.4.10",
       playJson,
       "com.squareup.okio" % "okio" % "1.10.0",
       scalaTest % Test,
-      // TODO
       "com.dhpcs" %% "play-json-rpc-testkit" % "1.2.1" % Test
     )
   )
@@ -41,7 +42,10 @@ lazy val liquidityModel = project.in(file("model"))
 lazy val liquidityPersistence = project.in(file("persistence"))
   .settings(commonSettings)
   .settings(
-    name := "liquidity-persistence"
+    name := "liquidity-persistence",
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-actor" % "2.4.10"
+    )
   )
   .dependsOn(liquidityModel)
 
@@ -68,24 +72,18 @@ lazy val liquidityCertgen = project.in(file("certgen"))
   )
 
 lazy val liquidityServer = project.in(file("server"))
-  .settings(commonSettings)
-  .settings(noopPublish)
+  .settings(applicationSettings)
   .settings(
     name := "liquidity-server",
     libraryDependencies ++= Seq(
-      akkaSlf4j,
-      logback,
       "com.typesafe.akka" %% "akka-http-experimental" % "2.4.10",
       playJson,
       "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.10",
       "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.10",
-      akkaPersistenceCassandra,
-      nettyEpoll,
       scalaTest % Test,
       "com.typesafe.akka" %% "akka-http-testkit" % "2.4.10" % Test,
       "org.iq80.leveldb" % "leveldb" % "0.9" % Test
     ),
-    dockerBaseImage := openJdk8,
     dockerExposedPorts := Seq(443),
     daemonUser in Docker := "root",
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048"
@@ -108,17 +106,9 @@ lazy val liquidityBoardgame = project.in(file("boardgame"))
   .dependsOn(liquidityProtocol)
 
 lazy val liquidityAnalytics = project.in(file("analytics"))
-  .settings(commonSettings)
-  .settings(noopPublish)
+  .settings(applicationSettings)
   .settings(
-    name := "liquidity-analytics",
-    libraryDependencies ++= Seq(
-      akkaSlf4j,
-      logback,
-      akkaPersistenceCassandra,
-      nettyEpoll
-    ),
-    dockerBaseImage := openJdk8
+    name := "liquidity-analytics"
   )
   .dependsOn(liquidityModel)
   .dependsOn(liquidityPersistence)

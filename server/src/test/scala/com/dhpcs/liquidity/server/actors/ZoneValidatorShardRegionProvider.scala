@@ -25,7 +25,8 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
     port
   }
 
-  private[this] val levelDbDirectory = FileUtils.createTempDir("liquidity-leveldb")
+  private[this] val journalDirectory = FileUtils.createTempDir("liquidity-journal")
+  private[this] val snapshotStoreDirectory = FileUtils.createTempDir("liquidity-snapshot-store")
 
   protected[this] def config =
     ConfigFactory.parseString(
@@ -48,11 +49,17 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
          |    metrics.enabled = off
          |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
          |  }
-         |  persistence.journal {
-         |    plugin = "akka.persistence.journal.leveldb"
-         |    leveldb {
-         |      dir = "$levelDbDirectory"
-         |      native = off
+         |  persistence {
+         |    journal {
+         |      plugin = "akka.persistence.journal.leveldb"
+         |      leveldb {
+         |        dir = "$journalDirectory"
+         |        native = off
+         |      }
+         |    }
+         |    snapshot-store {
+         |      plugin = "akka.persistence.snapshot-store.local"
+         |      local.dir = "$snapshotStoreDirectory"
          |    }
          |  }
          |}
@@ -74,7 +81,8 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
-    Try(FileUtils.deleteRecursively(levelDbDirectory)).failed.foreach(_.printStackTrace)
+    Try(FileUtils.deleteRecursively(snapshotStoreDirectory)).failed.foreach(_.printStackTrace)
+    Try(FileUtils.deleteRecursively(journalDirectory)).failed.foreach(_.printStackTrace)
     super.afterAll()
   }
 }

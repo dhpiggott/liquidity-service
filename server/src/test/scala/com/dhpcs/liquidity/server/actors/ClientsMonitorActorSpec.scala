@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.server.actors
 
-import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
 import akka.testkit.TestProbe
+import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
 import org.scalatest.WordSpec
 
 import scala.concurrent.duration._

@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.server.actors
 
-import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{GetZoneCount, ZoneCount}
 import akka.testkit.TestProbe
+import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{GetZoneCount, ZoneCount}
 import org.scalatest.WordSpec
 
 import scala.concurrent.duration._

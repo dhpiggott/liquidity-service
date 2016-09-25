@@ -2,12 +2,12 @@ package com.dhpcs.liquidity.server.actors
 
 import java.security.KeyPairGenerator
 
-import com.dhpcs.liquidity.server.actors.ClientConnectionActor.MessageReceivedConfirmation
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.protocol._
+import com.dhpcs.liquidity.server.actors.ClientConnectionActor.MessageReceivedConfirmation
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{AuthenticatedCommandWithIds, CommandReceivedConfirmation, EnvelopedMessage, ResponseWithIds}
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, MustMatchers, WordSpec}

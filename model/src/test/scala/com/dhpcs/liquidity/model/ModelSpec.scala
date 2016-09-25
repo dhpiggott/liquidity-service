@@ -4,7 +4,7 @@ import java.security.KeyPairGenerator
 import java.util.UUID
 
 import com.dhpcs.json.FormatBehaviors
-import ValueFormatSpec.TestValue
+import com.dhpcs.liquidity.model.ValueFormatSpec.TestValue
 import okio.ByteString
 import org.scalatest.{FunSpec, Matchers}
 import play.api.data.validation.ValidationError

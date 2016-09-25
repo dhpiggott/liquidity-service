@@ -6,7 +6,6 @@ import java.security.cert.{Certificate, CertificateException, X509Certificate}
 import java.security.{KeyStore, PrivateKey}
 import javax.net.ssl.{KeyManager, KeyManagerFactory, SSLContext, X509TrustManager}
 
-import actors.ZoneValidatorShardRegionProvider
 import akka.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.stream.ActorMaterializer
@@ -18,6 +17,7 @@ import com.dhpcs.liquidity.CertGen
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
+import com.dhpcs.liquidity.server.actors.ZoneValidatorShardRegionProvider
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
 import org.scalatest.EitherValues._

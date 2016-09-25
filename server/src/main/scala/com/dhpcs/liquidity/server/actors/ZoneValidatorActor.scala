@@ -13,6 +13,7 @@ import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor._
 import play.api.libs.json.{JsObject, Json}
@@ -282,7 +283,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] var messageSequenceNumbers = Map.empty[ActorPath, Long].withDefaultValue(0L)
   private[this] var pendingDeliveries = Map.empty[ActorPath, Set[Long]].withDefaultValue(Set.empty)
 
-  override def persistenceId: String = zoneId.toString
+  override def persistenceId: String = zoneId.persistenceId
 
   override def preStart(): Unit = {
     super.preStart()

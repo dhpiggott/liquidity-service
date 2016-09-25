@@ -9,6 +9,7 @@ import akka.pattern.pipe
 import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.ActorMaterializer
 import com.dhpcs.liquidity.model.ZoneId
+import com.dhpcs.liquidity.persistence.ZoneIdStringPattern
 import com.dhpcs.liquidity.server.actors.ZonesMonitorActor._
 
 import scala.concurrent.duration._
@@ -26,9 +27,6 @@ object ZonesMonitorActor {
   case class ZoneCount(count: Int)
 
   private case object PublishStatus
-
-  private final val ZoneIdStringPattern =
-    """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
 
 }
 

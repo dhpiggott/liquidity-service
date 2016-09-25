@@ -35,10 +35,10 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
          |  loglevel = "OFF"
          |  actor {
          |    provider = "akka.cluster.ClusterActorRefProvider"
-         |    serializers.event = "com.dhpcs.liquidity.model.PlayJsonEventSerializer"
+         |    serializers.event = "com.dhpcs.liquidity.persistence.PlayJsonEventSerializer"
          |    serialization-bindings {
          |      "java.io.Serializable" = none
-         |      "com.dhpcs.liquidity.model.Event" = event
+         |      "com.dhpcs.liquidity.persistence.Event" = event
          |    }
          |  }
          |  remote.netty.tcp {

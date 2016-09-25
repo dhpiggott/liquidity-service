@@ -1,9 +1,9 @@
-package com.dhpcs.liquidity.model
+package com.dhpcs.liquidity.persistence
 
 import java.nio.charset.StandardCharsets
 
 import akka.serialization.SerializerWithStringManifest
-import com.dhpcs.liquidity.model.PlayJsonEventSerializer._
+import com.dhpcs.liquidity.persistence.PlayJsonEventSerializer._
 import play.api.libs.json._
 
 import scala.reflect.ClassTag

@@ -8,14 +8,13 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.persistence._
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 
 object JournalAuditor {
   private final val SentinelZoneId = ZoneId(UUID.fromString("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"))
-  private final val ZoneIdStringPattern =
-    """ZoneId\(([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\)""".r
 
   def main(args: Array[String]): Unit = {
     implicit val system = ActorSystem("liquidity")
@@ -52,7 +51,7 @@ object JournalAuditor {
       }
       .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId =>
         readJournal
-          .currentEventsByPersistenceId(zoneId.toString, 0, Long.MaxValue)
+          .currentEventsByPersistenceId(zoneId.persistenceId, 0, Long.MaxValue)
           .runFold[(Zone, Long, Map[AccountId, BigDecimal])]((null, 0L, Map.empty.withDefaultValue(BigDecimal(0)))) {
           case ((currentZone, currentModified, currentBalances), envelope) =>
             val updatedZone = envelope.event match {

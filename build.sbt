@@ -38,6 +38,13 @@ lazy val liquidityModel = project.in(file("model"))
     )
   )
 
+lazy val liquidityPersistence = project.in(file("persistence"))
+  .settings(commonSettings)
+  .settings(
+    name := "liquidity-persistence"
+  )
+  .dependsOn(liquidityModel)
+
 lazy val liquidityProtocol = project.in(file("protocol"))
   .settings(commonSettings)
   .settings(
@@ -84,6 +91,7 @@ lazy val liquidityServer = project.in(file("server"))
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048"
   )
   .dependsOn(liquidityModel)
+  .dependsOn(liquidityPersistence)
   .dependsOn(liquidityProtocol)
   .dependsOn(liquidityCertgen % Test)
   .enablePlugins(JavaAppPackaging, DockerPlugin)
@@ -113,6 +121,7 @@ lazy val liquidityAnalytics = project.in(file("analytics"))
     dockerBaseImage := openJdk8
   )
   .dependsOn(liquidityModel)
+  .dependsOn(liquidityPersistence)
   .enablePlugins(JavaAppPackaging, DockerPlugin)
 
 lazy val root = project.in(file("."))
@@ -123,6 +132,7 @@ lazy val root = project.in(file("."))
   )
   .aggregate(
     liquidityModel,
+    liquidityPersistence,
     liquidityProtocol,
     liquidityCertgen,
     liquidityServer,

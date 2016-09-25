@@ -15,6 +15,7 @@ import akka.util.ByteString
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
+import com.dhpcs.liquidity.persistence.RichPublicKey
 import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ClientConnectionActor._
 import play.api.libs.json.Json
@@ -184,7 +185,7 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
   private[this] var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
-  override def persistenceId: String = s"${publicKey.productPrefix}(${publicKey.fingerprint})"
+  override def persistenceId: String = publicKey.persistenceId
 
   override def preStart(): Unit = {
     super.preStart()

@@ -1,7 +1,3 @@
-* Review keystore format (see https://github.com/akka/akka/issues/20381)
-* Finalise cipher config (see http://typesafehub.github.io/ssl-config/CipherSuites.html and
-  http://typesafehub.github.io/ssl-config/TestingSSL.html, be sure to test Android 4.0.4, but also use
-  https://www.ssllabs.com/ssltest/analyze.html?d=liquidity.dhpcs.com&hideResults=on)
 * Review use of (in)definite articles in testsuite names
 * Restore Cassandra testing but only as integration test
 * Add newlines as appropriate at start of blocks

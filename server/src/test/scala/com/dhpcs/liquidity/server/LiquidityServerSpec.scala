@@ -34,7 +34,7 @@ object LiquidityServerSpec {
 
   private def createKeyManagers(certificate: Certificate,
                                 privateKey: PrivateKey): Array[KeyManager] = {
-    val keyStore = KeyStore.getInstance("JKS")
+    val keyStore = KeyStore.getInstance("pkcs12")
     keyStore.load(null, null)
     keyStore.setKeyEntry(
       KeyStoreEntryAlias,
@@ -77,12 +77,12 @@ class LiquidityServerSpec extends fixture.WordSpec
     ).withFallback(super.config)
 
   private[this] val (serverPublicKey, serverKeyManagers) = {
-    val (certificate, privateKey) = CertGen.generateCertKeyPair(subjectAlternativeName = Some("localhost"))
+    val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = Some("localhost"))
     (certificate.getPublicKey, createKeyManagers(certificate, privateKey))
   }
 
   private[this] val (clientHttpsConnectionContext, clientPublicKey) = {
-    val (certificate, privateKey) = CertGen.generateCertKeyPair(subjectAlternativeName = None)
+    val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
     val keyManagers = createKeyManagers(certificate, privateKey)
     val sslContext = SSLContext.getInstance("TLS")
     sslContext.init(

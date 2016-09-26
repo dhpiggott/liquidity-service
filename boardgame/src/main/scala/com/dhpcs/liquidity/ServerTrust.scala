@@ -48,9 +48,7 @@ object ServerTrust {
           case entryAlias if keyStore.isCertificateEntry(entryAlias) =>
             keyStore.getCertificate(entryAlias).getPublicKey
         }.toSet
-      } finally {
-        keyStoreInputStream.close()
-      }
+      } finally keyStoreInputStream.close()
     }
   }
 }

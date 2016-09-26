@@ -50,7 +50,7 @@ object ClientKey {
       keyStore = KeyStore.getInstance("BKS")
       val keyStoreFile = new File(filesDir, KeystoreFilename)
       if (!keyStoreFile.exists) {
-        val (certificate, privateKey) = generateCertKeyPair()
+        val (certificate, privateKey) = generateCertKey()
         keyStore.load(null, null)
         keyStore.setKeyEntry(
           EntryAlias,
@@ -59,24 +59,18 @@ object ClientKey {
           Array(certificate)
         )
         val keyStoreFileOutputStream = new FileOutputStream(keyStoreFile)
-        try {
-          keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
-        } finally {
-          keyStoreFileOutputStream.close()
-        }
+        try keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
+        finally keyStoreFileOutputStream.close()
       } else {
         val keyStoreFileInputStream = new FileInputStream(keyStoreFile)
-        try {
-          keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
-        } finally {
-          keyStoreFileInputStream.close()
-        }
+        try keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
+        finally keyStoreFileInputStream.close()
       }
     }
     keyStore
   }
 
-  private def generateCertKeyPair(): (X509Certificate, PrivateKey) = {
+  private def generateCertKey(): (X509Certificate, PrivateKey) = {
     val identity = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(KeyLength)

@@ -566,9 +566,8 @@ class ServerConnection private(filesDir: File,
           }
           webSocketCall.cancel()
         case WaitingForVersionCheckSubState(webSocket) =>
-          try {
-            webSocket.close(code, null)
-          } catch {
+          try webSocket.close(code, null)
+          catch {
             case _: IOException =>
           }
         case OnlineSubState(webSocket) =>
@@ -577,9 +576,8 @@ class ServerConnection private(filesDir: File,
             _connectionState = DISCONNECTING
             connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
           }
-          try {
-            webSocket.close(code, null)
-          } catch {
+          try webSocket.close(code, null)
+          catch {
             case _: IOException =>
           }
       })

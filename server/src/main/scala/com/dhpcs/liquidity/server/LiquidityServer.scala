@@ -38,11 +38,20 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
 object LiquidityServer {
-  private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore"
+  private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore.p12"
   private final val EnabledCipherSuites = Seq(
-    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+    // Recommended by https://typesafehub.github.io/ssl-config/CipherSuites.html#id4
+    "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+    // For Android 4.1 (see https://www.ssllabs.com/ssltest/viewClient.html?name=Android&version=4.1.1)
+    "TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
+    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
+  )
+  private final val EnabledProtocols = Seq(
+    "TLSv1.2",
+    "TLSv1.1",
+    // For Android 4.1 (see https://www.ssllabs.com/ssltest/viewClient.html?name=Android&version=4.1.1)
+    "TLSv1"
   )
   private final val RequiredClientKeyLength = 2048
 
@@ -59,7 +68,7 @@ object LiquidityServer {
       extractEntityId = ZoneValidatorActor.extractEntityId,
       extractShardId = ZoneValidatorActor.extractShardId
     )
-    val keyStore = KeyStore.getInstance("JKS")
+    val keyStore = KeyStore.getInstance("PKCS12")
     keyStore.load(
       getClass.getClassLoader.getResourceAsStream(KeyStoreFilename),
       Array.emptyCharArray
@@ -109,6 +118,7 @@ class LiquidityServer(config: Config,
     ConnectionContext.https(
       sslContext,
       enabledCipherSuites = Some(EnabledCipherSuites),
+      enabledProtocols = Some(EnabledProtocols),
       clientAuth = Some(TLSClientAuth.want)
     )
   }

@@ -67,7 +67,8 @@ lazy val liquidityCertgen = project.in(file("certgen"))
   .settings(
     name := "liquidity-certgen",
     libraryDependencies ++= Seq(
-      "org.bouncycastle" % "bcpkix-jdk15on" % "1.55"
+      "org.bouncycastle" % "bcpkix-jdk15on" % "1.55",
+      scalaTest % Test
     )
   )
 

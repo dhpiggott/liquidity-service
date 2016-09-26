@@ -1,9 +1,10 @@
 package com.dhpcs.liquidity
 
-import java.io.{File, FileOutputStream}
+import java.io.{File, FileInputStream, FileOutputStream}
 import java.math.BigInteger
+import java.security.KeyStore.PrivateKeyEntry
+import java.security._
 import java.security.cert.{Certificate, X509Certificate}
-import java.security.{KeyPairGenerator, KeyStore, PrivateKey, Security}
 import java.util.{Calendar, Locale}
 
 import org.bouncycastle.asn1.x500.X500NameBuilder
@@ -19,50 +20,34 @@ object CertGen {
   private final val CommonName = "liquidity.dhpcs.com"
   private final val KeyLength = 2048
 
-  private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore"
-  private final val KeyStoreEntryAlias = "identity"
+  private final val CertKeyStoreFilename = "liquidity.dhpcs.com.keystore.p12"
+  private final val CertKeyStoreEntryAlias = "identity"
 
-  private final val TrustStoreFilename = "liquidity.dhpcs.com.truststore"
-  private final val TrustStoreEntryAlias = "identity"
+  private final val CertStoreFilename = "liquidity.dhpcs.com.truststore.bks"
+  private final val CertStoreEntryAlias = "identity"
 
   def main(args: Array[String]): Unit = {
     Security.addProvider(new BouncyCastleProvider)
-    val (certificate, privateKey) = generateCertKeyPair(Some(SubjectAlternativeName))
-    val keyStore = KeyStore.getInstance("JKS")
-    val keyStoreFile = new File(KeyStoreFilename)
-    keyStore.load(null, null)
-    keyStore.setKeyEntry(
-      KeyStoreEntryAlias,
-      privateKey,
-      Array.emptyCharArray,
-      Array[Certificate](certificate)
+    val (certificate, privateKey) = loadCertKey(
+      new File("server/src/main/resources/liquidity.dhpcs.com.keystore.p12"),
+      "PKCS12"
     )
-    val keyStoreFileOutputStream = new FileOutputStream(keyStoreFile)
-    try {
-      keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
-    } finally {
-      keyStoreFileOutputStream.close()
-    }
-    val trustStore = KeyStore.getInstance("BKS-V1")
-    val trustStoreFile = new File(TrustStoreFilename)
-    trustStore.load(null, null)
-    trustStore.setCertificateEntry(
-      TrustStoreEntryAlias,
-      certificate
-    )
-    val trustStoreFileOutputStream = new FileOutputStream(trustStoreFile)
-    try {
-      trustStore.store(trustStoreFileOutputStream, Array.emptyCharArray)
-    } finally {
-      trustStoreFileOutputStream.close()
-    }
+    val keyPair = new KeyPair(certificate.getPublicKey, privateKey)
+    val updatedCertificate = generateCert(keyPair, subjectAlternativeName = Some(SubjectAlternativeName))
+    saveCertKey(new File(CertKeyStoreFilename), "PKCS12", updatedCertificate, privateKey)
+    saveCert(new File(CertStoreFilename), "BKS-V1", updatedCertificate)
   }
 
-  def generateCertKeyPair(subjectAlternativeName: Option[String]): (X509Certificate, PrivateKey) = {
-    val identity = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
+  def generateCertKey(subjectAlternativeName: Option[String]): (X509Certificate, PrivateKey) = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(KeyLength)
     val keyPair = keyPairGenerator.generateKeyPair
+    val certificate = generateCert(keyPair, subjectAlternativeName)
+    (certificate, keyPair.getPrivate)
+  }
+
+  def generateCert(keyPair: KeyPair, subjectAlternativeName: Option[String]): X509Certificate = {
+    val identity = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
     val certBuilder = new JcaX509v3CertificateBuilder(
       identity,
       BigInteger.ONE,
@@ -75,7 +60,7 @@ object CertGen {
       false,
       new JcaX509ExtensionUtils().createSubjectKeyIdentifier(keyPair.getPublic)
     )
-    val certificate = new JcaX509CertificateConverter().getCertificate(
+    new JcaX509CertificateConverter().getCertificate(
       subjectAlternativeName.fold(
         ifEmpty = certBuilder
       )(subjectAlternativeName =>
@@ -88,6 +73,59 @@ object CertGen {
         new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate)
       )
     )
-    (certificate, keyPair.getPrivate)
+  }
+
+  def loadCertKey(from: File, keyStoreType: String): (X509Certificate, PrivateKey) = {
+    val keyStore = loadKeyStore(from, keyStoreType)
+    val privateKeyEntry = keyStore.getEntry(
+      CertKeyStoreEntryAlias,
+      new KeyStore.PasswordProtection(Array.emptyCharArray)
+    ).asInstanceOf[PrivateKeyEntry]
+    (privateKeyEntry.getCertificate.asInstanceOf[X509Certificate], privateKeyEntry.getPrivateKey)
+  }
+
+  def loadCert(from: File, keyStoreType: String): X509Certificate = {
+    val keyStore = loadKeyStore(from, keyStoreType)
+    keyStore.getCertificate(CertStoreEntryAlias).asInstanceOf[X509Certificate]
+  }
+
+  private def loadKeyStore(from: File, keyStoreType: String): KeyStore = {
+    val keyStore = KeyStore.getInstance(keyStoreType)
+    val keyStoreFileInputStream = new FileInputStream(from)
+    try keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
+    finally keyStoreFileInputStream.close()
+    keyStore
+  }
+
+  def saveCertKey(to: File, keyStoreType: String, certificate: X509Certificate, privateKey: PrivateKey): Unit = {
+    val keyStore = createKeyStore(keyStoreType)
+    keyStore.setKeyEntry(
+      CertKeyStoreEntryAlias,
+      privateKey,
+      Array.emptyCharArray,
+      Array[Certificate](certificate)
+    )
+    saveKeyStore(to, keyStoreType, keyStore)
+  }
+
+  def saveCert(to: File, keyStoreType: String, certificate: X509Certificate): Unit = {
+    val keyStore = createKeyStore(keyStoreType)
+    keyStore.setCertificateEntry(
+      CertStoreEntryAlias,
+      certificate
+    )
+    saveKeyStore(to, keyStoreType, keyStore)
+  }
+
+  private def createKeyStore(keyStoreType: String): KeyStore = {
+    val keyStore = KeyStore.getInstance(keyStoreType)
+    keyStore.load(null, null)
+    keyStore
+  }
+
+  private def saveKeyStore(to: File, keyStoreType: String, keyStore: KeyStore): Unit = {
+    val trustStoreFileOutputStream = new FileOutputStream(to)
+    try keyStore.store(trustStoreFileOutputStream, Array.emptyCharArray)
+    finally trustStoreFileOutputStream.close()
   }
 }

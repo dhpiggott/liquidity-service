@@ -119,7 +119,7 @@ class LiquidityServer(config: Config,
       sslContext,
       enabledCipherSuites = Some(EnabledCipherSuites),
       enabledProtocols = Some(EnabledProtocols),
-      clientAuth = Some(TLSClientAuth.want)
+      clientAuth = Some(TLSClientAuth.Want)
     )
   }
 

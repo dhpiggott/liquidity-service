@@ -87,7 +87,10 @@ lazy val liquidityServer = project.in(file("server"))
     ),
     dockerExposedPorts := Seq(443),
     daemonUser in Docker := "root",
-    bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048"
+    bashScriptExtraDefines ++= Seq(
+      "addJava -Djdk.tls.ephemeralDHKeySize=2048",
+      "addJava -Djdk.tls.rejectClientInitiatedRenegotiation=true"
+    )
   )
   .dependsOn(liquidityModel)
   .dependsOn(liquidityPersistence)

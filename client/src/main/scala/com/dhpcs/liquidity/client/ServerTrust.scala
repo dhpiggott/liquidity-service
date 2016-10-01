@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity
+package com.dhpcs.liquidity.client
 
 import java.io.InputStream
 import java.security.cert.{CertificateException, X509Certificate}

@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity
+package com.dhpcs.liquidity.client
 
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.math.BigInteger

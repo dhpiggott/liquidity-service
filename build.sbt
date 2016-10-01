@@ -10,7 +10,7 @@ lazy val noopPublish = Seq(
   publishLocal := {}
 )
 
-lazy val applicationSettings =
+lazy val serverAppSettings =
   commonSettings ++
   noopPublish ++ Seq(
     name := "liquidity-analytics",
@@ -73,7 +73,7 @@ lazy val liquidityCertgen = project.in(file("certgen"))
   )
 
 lazy val liquidityServer = project.in(file("server"))
-  .settings(applicationSettings)
+  .settings(serverAppSettings)
   .settings(
     name := "liquidity-server",
     libraryDependencies ++= Seq(
@@ -98,19 +98,27 @@ lazy val liquidityServer = project.in(file("server"))
   .dependsOn(liquidityCertgen % Test)
   .enablePlugins(JavaAppPackaging, DockerPlugin)
 
-lazy val liquidityBoardgame = project.in(file("boardgame"))
+lazy val liquidityClient = project.in(file("client"))
   .settings(commonSettings)
   .settings(
-    name := "liquidity-boardgame",
+    name := "liquidity-client",
     libraryDependencies ++= Seq(
       "com.madgag.spongycastle" % "pkix" % "1.54.0.0",
       "com.squareup.okhttp3" % "okhttp-ws" % "3.4.1"
     )
   )
+  .dependsOn(liquidityModel)
   .dependsOn(liquidityProtocol)
 
+lazy val liquidityBoardgame = project.in(file("boardgame"))
+  .settings(commonSettings)
+  .settings(
+    name := "liquidity-boardgame"
+  )
+  .dependsOn(liquidityClient)
+
 lazy val liquidityAnalytics = project.in(file("analytics"))
-  .settings(applicationSettings)
+  .settings(serverAppSettings)
   .settings(
     name := "liquidity-analytics"
   )
@@ -130,6 +138,7 @@ lazy val root = project.in(file("."))
     liquidityProtocol,
     liquidityCertgen,
     liquidityServer,
+    liquidityClient,
     liquidityBoardgame,
     liquidityAnalytics
   )

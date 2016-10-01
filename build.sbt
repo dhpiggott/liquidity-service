@@ -15,7 +15,7 @@ lazy val serverAppSettings =
   noopPublish ++ Seq(
     name := "liquidity-analytics",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-slf4j" % "2.4.10",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.4.11",
       "ch.qos.logback" % "logback-classic" % "1.1.7",
       "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.18",
       "io.netty" % "netty-transport-native-epoll" % "4.1.5.Final" classifier "linux-x86_64"
@@ -44,7 +44,7 @@ lazy val liquidityPersistence = project.in(file("persistence"))
   .settings(
     name := "liquidity-persistence",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor" % "2.4.10"
+      "com.typesafe.akka" %% "akka-actor" % "2.4.11"
     )
   )
   .dependsOn(liquidityModel)
@@ -77,12 +77,12 @@ lazy val liquidityServer = project.in(file("server"))
   .settings(
     name := "liquidity-server",
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-http-experimental" % "2.4.10",
+      "com.typesafe.akka" %% "akka-http-experimental" % "2.4.11",
       playJson,
-      "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.10",
-      "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.10",
+      "com.typesafe.akka" %% "akka-cluster-sharding" % "2.4.11",
+      "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.11",
       scalaTest % Test,
-      "com.typesafe.akka" %% "akka-http-testkit" % "2.4.10" % Test,
+      "com.typesafe.akka" %% "akka-http-testkit" % "2.4.11" % Test,
       "org.iq80.leveldb" % "leveldb" % "0.9" % Test
     ),
     dockerExposedPorts := Seq(443),

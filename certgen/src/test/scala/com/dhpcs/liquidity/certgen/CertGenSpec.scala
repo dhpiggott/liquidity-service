@@ -1,10 +1,10 @@
-package com.dhpcs.liquidity
+package com.dhpcs.liquidity.certgen
 
 import java.io.File
 import java.security.interfaces.RSAPrivateKey
 import java.security.{KeyPair, Security}
 
-import com.dhpcs.liquidity.CertGenSpec._
+import com.dhpcs.liquidity.certgen.CertGenSpec._
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.scalatest.{BeforeAndAfterAll, MustMatchers, WordSpec}
 

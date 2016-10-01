@@ -5,25 +5,17 @@ import java.security.cert.{CertificateException, X509Certificate}
 import java.security.{KeyStore, PublicKey}
 import javax.net.ssl.X509TrustManager
 
-import okio.ByteString
-
 import scala.collection.JavaConverters._
 
 object ServerTrust {
   private final val TrustManager = new X509TrustManager {
     @throws(classOf[CertificateException])
     override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
-      throw new CertificateException("Client authentication is not supported")
+      throw new CertificateException
 
     @throws(classOf[CertificateException])
-    override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = {
-      val publicKey = chain(0).getPublicKey
-      if (!trustedKeys.contains(publicKey)) {
-        throw new CertificateException(
-          s"Unknown public key: ${ByteString.of(publicKey.getEncoded: _*).base64}"
-        )
-      }
-    }
+    override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
+      if (!chain.toSeq.headOption.map(_.getPublicKey).fold(false)(trustedKeys.contains)) throw new CertificateException
 
     override def getAcceptedIssuers: Array[X509Certificate] = Array.empty
   }

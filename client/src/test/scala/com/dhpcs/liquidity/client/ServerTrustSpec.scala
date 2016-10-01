@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.client
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.security.cert.CertificateException
+import java.security.cert.{CertificateException, X509Certificate}
 
 import com.dhpcs.liquidity.certgen.CertGen
 import org.scalatest.{BeforeAndAfterAll, MustMatchers, WordSpec}
@@ -16,16 +16,21 @@ class ServerTrustSpec extends WordSpec with MustMatchers with BeforeAndAfterAll 
   }
 
   "ServerTrust" must {
-    "trust certs containing the pinned public key" in {
+    "not trust empty certificate chains" in {
       val trustManager = ServerTrust.getTrustManager(keyStoreInputStream)
-      val chain = Array(certificate)
-      trustManager.checkServerTrusted(chain, "test")
+      val chain = Array.empty[X509Certificate]
+      a[CertificateException] must be thrownBy trustManager.checkServerTrusted(chain, "test")
     }
-    "not trust certs not containing the pinned public key" in {
+    "not trust certificates of unpinned public keys" in {
       val trustManager = ServerTrust.getTrustManager(keyStoreInputStream)
       val (otherCertificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
       val chain = Array(otherCertificate)
       a[CertificateException] must be thrownBy trustManager.checkServerTrusted(chain, "test")
+    }
+    "trust certificates of pinned public keys" in {
+      val trustManager = ServerTrust.getTrustManager(keyStoreInputStream)
+      val chain = Array(certificate)
+      trustManager.checkServerTrusted(chain, "test")
     }
   }
 }

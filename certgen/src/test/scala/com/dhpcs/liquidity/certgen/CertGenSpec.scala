@@ -1,33 +1,12 @@
 package com.dhpcs.liquidity.certgen
 
-import java.io.File
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.security.KeyPair
 import java.security.interfaces.RSAPrivateKey
-import java.security.{KeyPair, Security}
 
-import com.dhpcs.liquidity.certgen.CertGenSpec._
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.scalatest.{BeforeAndAfterAll, MustMatchers, WordSpec}
 
-object CertGenSpec {
-  private final val TempFilePrefix = "liquidity-cert-gen-spec"
-
-  private def withTempFile(body: File => Unit): Unit = {
-    val certFile = File.createTempFile(TempFilePrefix, null)
-    try body(certFile) finally certFile.delete()
-  }
-}
-
 class CertGenSpec extends WordSpec with MustMatchers with BeforeAndAfterAll {
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    Security.addProvider(new BouncyCastleProvider)
-  }
-
-  override def afterAll(): Unit = {
-    Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
-    super.afterAll()
-  }
 
   "CertGen" must {
     "create 2048 bit RSA private keys" in {
@@ -42,29 +21,21 @@ class CertGenSpec extends WordSpec with MustMatchers with BeforeAndAfterAll {
       val publicKey = CertGen.generateCert(keyPair, subjectAlternativeName = None).getPublicKey
       publicKey mustBe expectedPublicKey
     }
-    "round-trip certificates and private keys via JKS keystores" in roundTripCertKey("JKS")
-    "round-trip certificates via JKS keystores" in roundTripCert("JKS")
-    "round-trip certificates and private keys via PKCS12 keystores" in roundTripCertKey("PKCS12")
-    "round-trip certificates via PKCS12 keystores" in roundTripCert("PKCS12")
-    "round-trip certificates and private keys via BKS-V1 keystores" in roundTripCertKey("BKS-V1")
-    "round-trip certificates via BKS-V1 keystores" in roundTripCert("BKS-V1")
-  }
-
-  private def roundTripCertKey(keyStoreType: String): Unit = {
-    val (expectedCertificate, expectedPrivateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
-    withTempFile { certKeyFile =>
-      CertGen.saveCertKey(certKeyFile, keyStoreType, expectedCertificate, expectedPrivateKey)
-      val (certificate, privateKey) = CertGen.loadCertKey(certKeyFile, keyStoreType)
+    "round-trip certificates and private keys" in {
+      val (expectedCertificate, expectedPrivateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
+      val to = new ByteArrayOutputStream
+      CertGen.saveCertKey(to, "PKCS12", expectedCertificate, expectedPrivateKey)
+      val from = new ByteArrayInputStream(to.toByteArray)
+      val (certificate, privateKey) = CertGen.loadCertKey(from, "PKCS12")
       certificate mustBe expectedCertificate
       privateKey mustBe expectedPrivateKey
     }
-  }
-
-  private def roundTripCert(keyStoreType: String): Unit = {
-    val (expectedCertificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
-    withTempFile { certFile =>
-      CertGen.saveCert(certFile, keyStoreType, expectedCertificate)
-      val certificate = CertGen.loadCert(certFile, keyStoreType)
+    "round-trip certificates" in {
+      val (expectedCertificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
+      val to = new ByteArrayOutputStream
+      CertGen.saveCert(to, "PKCS12", expectedCertificate)
+      val from = new ByteArrayInputStream(to.toByteArray)
+      val certificate = CertGen.loadCert(from, "PKCS12")
       certificate mustBe expectedCertificate
     }
   }

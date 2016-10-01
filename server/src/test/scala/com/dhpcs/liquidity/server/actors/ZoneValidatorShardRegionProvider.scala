@@ -12,8 +12,6 @@ import com.typesafe.config.ConfigFactory
 import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-import scala.util.Try
-
 trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
   this: Suite =>
 
@@ -83,8 +81,8 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
-    Try(FileUtils.deleteRecursively(snapshotStoreDirectory)).failed.foreach(_.printStackTrace)
-    Try(FileUtils.deleteRecursively(journalDirectory)).failed.foreach(_.printStackTrace)
+    FileUtils.deleteRecursively(snapshotStoreDirectory)
+    FileUtils.deleteRecursively(journalDirectory)
     super.afterAll()
   }
 }

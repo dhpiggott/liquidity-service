@@ -15,12 +15,12 @@ import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model.PublicKey
 import com.typesafe.config.{Config, ConfigFactory}
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{MustMatchers, WordSpec}
 
 import scala.concurrent.Future
 
 class LiquidityServiceSpec extends WordSpec
-  with Matchers
+  with MustMatchers
   with ScalatestRouteTest
   with LiquidityService {
 
@@ -28,9 +28,9 @@ class LiquidityServiceSpec extends WordSpec
     "provide status information" in {
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> route ~> check {
-        status shouldBe StatusCodes.OK
-        contentType shouldBe ContentType(`application/json`)
-        entityAs[String] shouldBe ""
+        status mustBe StatusCodes.OK
+        contentType mustBe ContentType(`application/json`)
+        entityAs[String] mustBe ""
       }
     }
     "accept WebSocket connections" in {
@@ -38,7 +38,7 @@ class LiquidityServiceSpec extends WordSpec
       WS("/ws", wsProbe.flow).addHeader(
         `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
       ) ~> route ~> check {
-        isWebSocketUpgrade shouldBe true
+        isWebSocketUpgrade mustBe true
         val message = "Hello"
         wsProbe.sendMessage(message)
         wsProbe.expectMessage(message)

@@ -33,7 +33,7 @@ lazy val liquidityModel = project.in(file("model"))
     name := "liquidity-model",
     libraryDependencies ++= Seq(
       playJson,
-      "com.squareup.okio" % "okio" % "1.10.0",
+      "com.squareup.okio" % "okio" % "1.11.0",
       scalaTest % Test,
       "com.dhpcs" %% "play-json-rpc-testkit" % "1.2.1" % Test
     )

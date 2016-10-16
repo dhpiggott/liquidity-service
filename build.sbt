@@ -18,7 +18,7 @@ lazy val serverAppSettings =
       "com.typesafe.akka" %% "akka-slf4j" % "2.4.11",
       "ch.qos.logback" % "logback-classic" % "1.1.7",
       "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.18",
-      "io.netty" % "netty-transport-native-epoll" % "4.1.5.Final" classifier "linux-x86_64"
+      "io.netty" % "netty-transport-native-epoll" % "4.1.6.Final" classifier "linux-x86_64"
     ),
     dockerBaseImage := "openjdk:8-jre"
   )

@@ -17,6 +17,9 @@ lazy val serverAppSettings =
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-slf4j" % "2.4.12",
       "ch.qos.logback" % "logback-classic" % "1.1.7",
+      "com.typesafe.akka" %% "akka-persistence" % "2.4.12",
+      "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.12",
+      "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.12",
       "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.19",
       "io.netty" % "netty-transport-native-epoll" % "4.1.6.Final" classifier "linux-x86_64"
     ),

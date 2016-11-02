@@ -13,7 +13,6 @@ lazy val noopPublish = Seq(
 lazy val serverAppSettings =
   commonSettings ++
   noopPublish ++ Seq(
-    name := "liquidity-analytics",
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-slf4j" % "2.4.12",
       "ch.qos.logback" % "logback-classic" % "1.1.7",

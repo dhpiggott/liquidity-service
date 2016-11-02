@@ -49,8 +49,7 @@ object ClientConnectionActor {
     wsMessageToString.via(
       actorFlow[String, String](
         props = props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
-        name = publicKey.fingerprint,
-        overflowStrategy = OverflowStrategy.fail
+        name = publicKey.fingerprint
       )
     ).via(
       stringToWsMessage
@@ -90,11 +89,9 @@ object ClientConnectionActor {
   }
 
   private def actorFlow[In, Out](props: ActorRef => Props,
-                                 name: String,
-                                 bufferSize: Int = 16,
-                                 overflowStrategy: OverflowStrategy = OverflowStrategy.dropNew)
+                                 name: String)
                                 (implicit factory: ActorRefFactory, mat: Materializer): Flow[In, Out, NotUsed] = {
-    val (outActor, publisher) = Source.actorRef[Out](bufferSize, overflowStrategy)
+    val (outActor, publisher) = Source.actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
       .toMat(Sink.asPublisher(false))(Keep.both).run()
     Flow.fromSinkAndSource(
       Sink.actorRef(factory.actorOf(Props(new Actor {

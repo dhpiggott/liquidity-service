@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.protocol
 
-import com.dhpcs.jsonrpc.Message.MethodFormats
-import com.dhpcs.jsonrpc.{CommandCompanion, NotificationCompanion, ResponseCompanion}
+import com.dhpcs.jsonrpc.Message.MessageFormats
+import com.dhpcs.jsonrpc.{CommandCompanion, NotificationCompanion, ResponseCompanion, Message => WsMessage}
 import com.dhpcs.liquidity.model._
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads.min
@@ -86,7 +86,7 @@ object AddTransactionCommand {
 }
 
 object Command extends CommandCompanion[Command] {
-  override final val CommandTypeFormats = MethodFormats(
+  override final val CommandFormats = MessageFormats(
     "createZone" -> Json.format[CreateZoneCommand],
     "joinZone" -> Json.format[JoinZoneCommand],
     "quitZone" -> Json.format[QuitZoneCommand],
@@ -123,15 +123,15 @@ case object UpdateAccountResponse extends ResultResponse
 case class AddTransactionResponse(transaction: Transaction) extends ResultResponse
 
 object Response extends ResponseCompanion[ResultResponse] {
-  override final val ResponseFormats = MethodFormats(
+  override final val ResponseFormats = MessageFormats(
     "createZone" -> Json.format[CreateZoneResponse],
     "joinZone" -> Json.format[JoinZoneResponse],
-    "quitZone" -> QuitZoneResponse,
-    "changeZoneName" -> ChangeZoneNameResponse,
+    "quitZone" -> WsMessage.objectFormat(QuitZoneResponse),
+    "changeZoneName" -> WsMessage.objectFormat(ChangeZoneNameResponse),
     "createMember" -> Json.format[CreateMemberResponse],
-    "updateMember" -> UpdateMemberResponse,
+    "updateMember" -> WsMessage.objectFormat(UpdateMemberResponse),
     "createAccount" -> Json.format[CreateAccountResponse],
-    "updateAccount" -> UpdateAccountResponse,
+    "updateAccount" -> WsMessage.objectFormat(UpdateAccountResponse),
     "addTransaction" -> Json.format[AddTransactionResponse]
   )
 }
@@ -173,9 +173,9 @@ case class TransactionAddedNotification(zoneId: ZoneId,
                                         transaction: Transaction) extends ZoneNotification
 
 object Notification extends NotificationCompanion[Notification] {
-  override final val NotificationFormats = MethodFormats(
+  override final val NotificationFormats = MessageFormats(
     "supportedVersions" -> Json.format[SupportedVersionsNotification],
-    "keepAlive" -> KeepAliveNotification,
+    "keepAlive" -> WsMessage.objectFormat(KeepAliveNotification),
     "clientJoinedZone" -> Json.format[ClientJoinedZoneNotification],
     "clientQuitZone" -> Json.format[ClientQuitZoneNotification],
     "zoneTerminated" -> Json.format[ZoneTerminatedNotification],

@@ -37,7 +37,7 @@ lazy val liquidityModel = project.in(file("model"))
       playJson,
       "com.squareup.okio" % "okio" % "1.11.0",
       scalaTest % Test,
-      "com.dhpcs" %% "play-json-rpc-testkit" % "1.2.1" % Test
+      "com.dhpcs" %% "play-json-rpc-testkit" % "1.3.0" % Test
     )
   )
 
@@ -56,9 +56,9 @@ lazy val liquidityProtocol = project.in(file("protocol"))
   .settings(
     name := "liquidity-protocol",
     libraryDependencies ++= Seq(
-      "com.dhpcs" %% "play-json-rpc" % "1.2.1",
+      "com.dhpcs" %% "play-json-rpc" % "1.3.0",
       scalaTest % Test,
-      "com.dhpcs" %% "play-json-rpc-testkit" % "1.2.1" % Test
+      "com.dhpcs" %% "play-json-rpc-testkit" % "1.3.0" % Test
     )
   )
   .dependsOn(liquidityModel)

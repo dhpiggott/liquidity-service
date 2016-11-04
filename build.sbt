@@ -106,7 +106,7 @@ lazy val liquidityClient = project.in(file("client"))
     name := "liquidity-client",
     libraryDependencies ++= Seq(
       "com.madgag.spongycastle" % "pkix" % "1.54.0.0",
-      "com.squareup.okhttp3" % "okhttp-ws" % "3.4.1",
+      "com.squareup.okhttp3" % "okhttp-ws" % "3.4.2",
       scalaTest % Test,
       "org.iq80.leveldb" % "leveldb" % "0.9" % Test
     )

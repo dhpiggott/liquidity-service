@@ -102,10 +102,8 @@ object ClientConnectionActor {
             override def receive = {
               case Status.Success(_) | Status.Failure(_) =>
                 flowActor ! PoisonPill
-                outActor ! Status.Success(())
               case _: Terminated =>
                 context.stop(self)
-                outActor ! Status.Success(())
               case other =>
                 flowActor ! other
             }

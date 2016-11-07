@@ -12,17 +12,12 @@ import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{AuthenticatedComman
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, MustMatchers, WordSpec}
 
-import scala.util.Left
-
 class ZoneValidatorActorSpec extends WordSpec
   with Inside with MustMatchers with ZoneValidatorShardRegionProvider {
   private[this] val publicKey = {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     PublicKey(publicKeyBytes)
   }
-
-  private[this] val unusedClientCorrelationId = Option(Left("unused"))
-  private[this] val unusedClientDeliveryId = 0L
 
   "A ZoneValidatorActor" must {
     "send an error response when joined before creation" in {
@@ -33,9 +28,9 @@ class ZoneValidatorActorSpec extends WordSpec
           JoinZoneCommand(
             zoneId
           ),
-          unusedClientCorrelationId,
+          correlationId = None,
           sequenceNumber,
-          unusedClientDeliveryId
+          deliveryId = 0L
         )
       )
       expectError(clientConnectionTestProbe)(error =>
@@ -57,9 +52,9 @@ class ZoneValidatorActorSpec extends WordSpec
               equityAccountMetadata = None,
               name = Some("Dave's Game")
             ),
-            unusedClientCorrelationId,
+            correlationId = None,
             sequenceNumber,
-            unusedClientDeliveryId
+            deliveryId = 0L
           )
         )
       )
@@ -83,9 +78,9 @@ class ZoneValidatorActorSpec extends WordSpec
               equityAccountMetadata = None,
               name = Some("Dave's Game")
             ),
-            unusedClientCorrelationId,
+            correlationId = None,
             sequenceNumber,
-            unusedClientDeliveryId
+            deliveryId = 0L
           )
         )
       )
@@ -98,9 +93,9 @@ class ZoneValidatorActorSpec extends WordSpec
           JoinZoneCommand(
             zoneId
           ),
-          unusedClientCorrelationId,
+          correlationId = None,
           sequenceNumber + 1,
-          unusedClientDeliveryId
+          deliveryId = 0L
         )
       )
       expectResult(clientConnectionTestProbe)(result => inside(result) {
@@ -142,7 +137,7 @@ class ZoneValidatorActorSpec extends WordSpec
   private[this] def expect(clientConnectionTestProbe: TestProbe)
                           (f: Either[ErrorResponse, ResultResponse] => Unit): Unit = {
     val zoneDeliveryId = clientConnectionTestProbe.expectMsgPF() {
-      case ResponseWithIds(response, `unusedClientCorrelationId`, _, id) => f(response); id
+      case ResponseWithIds(response, None, _, id) => f(response); id
     }
     clientConnectionTestProbe.send(
       clientConnectionTestProbe.lastSender,

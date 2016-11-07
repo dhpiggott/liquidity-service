@@ -10,16 +10,13 @@ import scala.reflect.ClassTag
 
 object PlayJsonEventSerializer {
 
-  private class PlayJsonEventFormat[A](classTag: ClassTag[A], format: Format[A]) {
+  private class EventFormat[A](format: Format[A]) {
 
     def fromJson(json: JsValue): A =
-      format.reads(json)
-        .recoverTotal(e => sys.error(s"Failed to read $json: $e"))
+      format.reads(json).recoverTotal(e => sys.error(s"Failed to read $json: $e"))
 
     def toJson(o: Any): JsValue =
-      if (classTag.runtimeClass.isInstance(o)) format.writes(o.asInstanceOf[A])
-      else sys.error(s"$o is not an instance of ${classTag.runtimeClass.getName}")
-
+      format.writes(o.asInstanceOf[A])
   }
 
   private val formats = Map(
@@ -34,8 +31,8 @@ object PlayJsonEventSerializer {
     manifestToFormat[TransactionAddedEvent]
   ).withDefault(manifest => sys.error(s"No format found for $manifest"))
 
-  private def manifestToFormat[A](implicit classTag: ClassTag[A], format: Format[A]): (String, PlayJsonEventFormat[A]) =
-    name(classTag.runtimeClass) -> new PlayJsonEventFormat(classTag, format)
+  private def manifestToFormat[A : ClassTag : Format]: (String, EventFormat[A]) =
+    name(implicitly[ClassTag[A]].runtimeClass) -> new EventFormat(implicitly[Format[A]])
 
   private def name[A](clazz: Class[A]): String = clazz.getName
 
@@ -47,9 +44,9 @@ class PlayJsonEventSerializer extends SerializerWithStringManifest {
 
   override def manifest(obj: AnyRef): String = name(obj.getClass)
 
-  override def toBinary(obj: AnyRef): Array[Byte] =
+  override def toBinary(o: AnyRef): Array[Byte] =
     Json.stringify(
-      formats(name(obj.getClass)).toJson(obj)
+      formats(name(o.getClass)).toJson(o)
     ).getBytes(StandardCharsets.UTF_8)
 
   override def fromBinary(bytes: Array[Byte], manifest: String): AnyRef =

@@ -21,7 +21,7 @@ object ValueFormat {
 case class MemberId(id: Int)
 
 object MemberId {
-  implicit final val MemberIdFormat = ValueFormat[MemberId, Int](apply, _.id)
+  implicit final val MemberIdFormat = ValueFormat[MemberId, Int](MemberId(_), _.id)
 }
 
 case class PublicKey(value: ByteString) {
@@ -48,7 +48,7 @@ object Member {
 case class AccountId(id: Int)
 
 object AccountId {
-  implicit final val AccountIdFormat = ValueFormat[AccountId, Int](apply, _.id)
+  implicit final val AccountIdFormat = ValueFormat[AccountId, Int](AccountId(_), _.id)
 }
 
 case class Account(id: AccountId,
@@ -63,7 +63,7 @@ object Account {
 case class TransactionId(id: Int)
 
 object TransactionId {
-  implicit final val TransactionIdFormat = ValueFormat[TransactionId, Int](apply, _.id)
+  implicit final val TransactionIdFormat = ValueFormat[TransactionId, Int](TransactionId(_), _.id)
 }
 
 case class Transaction(id: TransactionId,
@@ -113,7 +113,7 @@ object Transaction {
 case class ZoneId(id: UUID)
 
 object ZoneId {
-  implicit final val ZoneIdFormat = ValueFormat[ZoneId, UUID](apply, _.id)
+  implicit final val ZoneIdFormat = ValueFormat[ZoneId, UUID](ZoneId(_), _.id)
 
   def generate = apply(UUID.randomUUID)
 }

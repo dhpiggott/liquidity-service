@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.server.actors
 import java.util.UUID
 
 import akka.NotUsed
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, OneForOneStrategy, PoisonPill, Props, ReceiveTimeout, Status, SupervisorStrategy, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, PoisonPill, Props, ReceiveTimeout, Status, SupervisorStrategy, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.RemoteAddress
@@ -94,23 +94,25 @@ object ClientConnectionActor {
     val (outActor, publisher) = Source.actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
       .toMat(Sink.asPublisher(false))(Keep.both).run()
     Flow.fromSinkAndSource(
-      Sink.actorRef(factory.actorOf(Props(new Actor {
-        val flowActor = context.watch(context.actorOf(props(outActor), name))
-
-        override def receive = {
-          case Status.Success(_) | Status.Failure(_) =>
-            flowActor ! PoisonPill
-            outActor ! Status.Success(())
-          case Terminated =>
-            context.stop(self)
-          case other =>
-            flowActor ! other
-        }
-
-        override def supervisorStrategy = OneForOneStrategy() {
-          case _ => SupervisorStrategy.Stop
-        }
-      })), Status.Success(())),
+      Sink.actorRef(
+        factory.actorOf(
+          Props(new Actor {
+            val flowActor = context.watch(context.actorOf(props(outActor), name))
+            override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
+            override def receive = {
+              case Status.Success(_) | Status.Failure(_) =>
+                flowActor ! PoisonPill
+                outActor ! Status.Success(())
+              case _: Terminated =>
+                context.stop(self)
+                outActor ! Status.Success(())
+              case other =>
+                flowActor ! other
+            }
+          })
+        ),
+        onCompleteMessage = Status.Success(())
+      ),
       Source.fromPublisher(publisher)
     )
   }

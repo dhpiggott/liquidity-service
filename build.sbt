@@ -19,7 +19,7 @@ lazy val serverAppSettings =
       "com.typesafe.akka" %% "akka-persistence" % "2.4.12",
       "com.typesafe.akka" %% "akka-cluster-tools" % "2.4.12",
       "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.12",
-      "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.19",
+      "com.typesafe.akka" %% "akka-persistence-cassandra" % "0.20",
       "io.netty" % "netty-transport-native-epoll" % "4.1.6.Final" classifier "linux-x86_64"
     ),
     dockerBaseImage := "openjdk:8-jre"

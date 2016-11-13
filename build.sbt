@@ -27,7 +27,7 @@ lazy val serverAppSettings =
 
 lazy val playJson = "com.typesafe.play" %% "play-json" % "2.3.10"
 
-lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.0"
+lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.1"
 
 lazy val liquidityModel = project.in(file("model"))
   .settings(commonSettings)

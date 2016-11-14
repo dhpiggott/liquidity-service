@@ -23,14 +23,14 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
     port
   }
 
-  private[this] val journalDirectory = FileUtils.createTempDir("liquidity-journal")
-  private[this] val snapshotStoreDirectory = FileUtils.createTempDir("liquidity-snapshot-store")
+  private[this] val journalDirectory = FileUtils.createTempDir("liquidity-leveldb-journal")
+  private[this] val snapshotStoreDirectory = FileUtils.createTempDir("liquidity-leveldb-snapshot-store")
 
-  protected[this] def config =
+  private[this] val config =
     ConfigFactory.parseString(
       s"""
          |akka {
-         |  loglevel = "OFF"
+         |  loglevel = "ERROR"
          |  actor {
          |    provider = "akka.cluster.ClusterActorRefProvider"
          |    serializers.event = "com.dhpcs.liquidity.persistence.PlayJsonEventSerializer"
@@ -79,7 +79,7 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
     extractShardId = ZoneValidatorActor.extractShardId
   )
 
-  override def afterAll(): Unit = {
+  override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     FileUtils.deleteRecursively(snapshotStoreDirectory)
     FileUtils.deleteRecursively(journalDirectory)

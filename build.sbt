@@ -75,6 +75,8 @@ lazy val liquidityCertgen = project.in(file("certgen"))
   )
 
 lazy val liquidityServer = project.in(file("server"))
+  .configs(IntegrationTest)
+  .settings(Defaults.itSettings)
   .settings(serverAppSettings)
   .settings(
     name := "liquidity-server",
@@ -85,7 +87,9 @@ lazy val liquidityServer = project.in(file("server"))
       "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.12",
       scalaTest % Test,
       "com.typesafe.akka" %% "akka-http-testkit" % "2.4.11" % Test,
-      "org.iq80.leveldb" % "leveldb" % "0.9" % Test
+      "org.iq80.leveldb" % "leveldb" % "0.9" % Test,
+      scalaTest % IntegrationTest,
+      "org.apache.cassandra" % "cassandra-all" % "3.7" % IntegrationTest
     ),
     dockerExposedPorts := Seq(443),
     daemonUser in Docker := "root",
@@ -97,7 +101,7 @@ lazy val liquidityServer = project.in(file("server"))
   .dependsOn(liquidityModel)
   .dependsOn(liquidityPersistence)
   .dependsOn(liquidityProtocol)
-  .dependsOn(liquidityCertgen % Test)
+  .dependsOn(liquidityCertgen % IntegrationTest)
   .enablePlugins(JavaAppPackaging, DockerPlugin)
 
 lazy val liquidityClient = project.in(file("client"))

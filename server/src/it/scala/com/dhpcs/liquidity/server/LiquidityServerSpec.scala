@@ -6,23 +6,30 @@ import java.security.cert.{Certificate, CertificateException, X509Certificate}
 import java.security.{KeyStore, PrivateKey}
 import javax.net.ssl.{KeyManager, KeyManagerFactory, SSLContext, X509TrustManager}
 
+import akka.actor.ActorSystem
+import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest}
 import akka.http.scaladsl.{ConnectionContext, Http}
+import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
+import akka.persistence.cassandra.testkit.CassandraLauncher
+import akka.persistence.query.PersistenceQuery
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
+import akka.testkit.TestKit
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.certgen.CertGen
-import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.PublicKey
 import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
-import com.dhpcs.liquidity.server.actors.ZoneValidatorShardRegionProvider
-import com.typesafe.config.{Config, ConfigFactory}
+import com.dhpcs.liquidity.server.actors.ZoneValidatorActor
+import com.typesafe.config.ConfigFactory
 import okio.ByteString
+import org.apache.cassandra.io.util.FileUtils
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
-import org.scalatest.{Inside, MustMatchers, fixture}
+import org.scalatest.{BeforeAndAfterAll, Inside, MustMatchers, fixture}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Await
@@ -52,8 +59,12 @@ object LiquidityServerSpec {
 }
 
 class LiquidityServerSpec extends fixture.WordSpec
-  with Inside with MustMatchers with ZoneValidatorShardRegionProvider {
-  private[this] val akkaHttpPort = {
+  with Inside with MustMatchers with BeforeAndAfterAll {
+
+  private[this] val akkaRemotingPort = freePort()
+  private[this] val akkaHttpPort = freePort()
+
+  private[this] def freePort(): Int = {
     val serverSocket = ServerSocketChannel.open().socket()
     serverSocket.bind(new InetSocketAddress("localhost", 0))
     val port = serverSocket.getLocalPort
@@ -61,20 +72,67 @@ class LiquidityServerSpec extends fixture.WordSpec
     port
   }
 
-  override protected[this] def config: Config =
+  private[this] val cassandraDirectory = FileUtils.createTempFile("liquidity-cassandra-data", null)
+
+  private[this] val config =
     ConfigFactory.parseString(
       s"""
-         |akka.http.server {
-         |  remote-address-header = on
-         |  parsing.tls-session-info-header = on
+         |akka {
+         |  loggers = ["akka.event.slf4j.Slf4jLogger"]
+         |  loglevel = "DEBUG"
+         |  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
+         |  actor {
+         |    provider = "akka.cluster.ClusterActorRefProvider"
+         |    serializers.event = "com.dhpcs.liquidity.persistence.PlayJsonEventSerializer"
+         |    serialization-bindings {
+         |      "java.io.Serializable" = none
+         |      "com.dhpcs.liquidity.persistence.Event" = event
+         |    }
+         |  }
+         |  remote.netty.tcp {
+         |    hostname = "localhost"
+         |    port = $akkaRemotingPort
+         |  }
+         |  cluster {
+         |    metrics.enabled = off
+         |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
+         |    sharding.state-store-mode = ddata
+         |  }
+         |  extensions += "akka.cluster.ddata.DistributedData"
+         |  persistence {
+         |    journal.plugin = "cassandra-journal"
+         |    snapshot-store.plugin = "cassandra-snapshot-store"
+         |  }
+         |  http.server {
+         |    remote-address-header = on
+         |    parsing.tls-session-info-header = on
+         |  }
          |}
-         |liquidity.http {
-         |  keep-alive-interval = "3 seconds"
-         |  interface = "0.0.0.0"
-         |  port = "$akkaHttpPort"
+         |cassandra-journal.contact-points = ["localhost:${CassandraLauncher.randomPort}"]
+         |cassandra-snapshot-store.contact-points = ["localhost:${CassandraLauncher.randomPort}"]
+         |liquidity {
+         |  http {
+         |    keep-alive-interval = "3 seconds"
+         |    interface = "0.0.0.0"
+         |    port = "$akkaHttpPort"
+         |  }
          |}
     """.stripMargin
-    ).withFallback(super.config)
+    ).resolve()
+
+  private[this] implicit val system = ActorSystem("liquidity", config)
+  private[this] implicit val mat = ActorMaterializer()
+
+  private[this] val readJournal = PersistenceQuery(system)
+    .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
+
+  private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
+    typeName = ZoneValidatorActor.ShardName,
+    entityProps = ZoneValidatorActor.props,
+    settings = ClusterShardingSettings(system),
+    extractEntityId = ZoneValidatorActor.extractEntityId,
+    extractShardId = ZoneValidatorActor.extractShardId
+  )
 
   private[this] val (serverPublicKey, serverKeyManagers) = {
     val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = Some("localhost"))
@@ -114,9 +172,25 @@ class LiquidityServerSpec extends fixture.WordSpec
     (ConnectionContext.https(sslContext), publicKey)
   }
 
-  private[this] implicit val mat = ActorMaterializer()
 
   override protected type FixtureParam = (TestSubscriber.Probe[Message], TestPublisher.Probe[Message])
+
+  override protected def beforeAll(): Unit = {
+    CassandraLauncher.start(
+      cassandraDirectory = cassandraDirectory,
+      configResource = CassandraLauncher.DefaultTestConfigResource,
+      clean = true,
+      port = 0
+    )
+    super.beforeAll()
+  }
+
+  override protected def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    CassandraLauncher.stop()
+    FileUtils.deleteRecursive(cassandraDirectory)
+    super.afterAll()
+  }
 
   override protected def withFixture(test: OneArgTest) = {
     val server = new LiquidityServer(

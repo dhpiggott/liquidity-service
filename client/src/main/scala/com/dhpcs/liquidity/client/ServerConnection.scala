@@ -75,19 +75,19 @@ object ServerConnection {
   case object DISCONNECTING extends ConnectionState
 
   trait ConnectionStateListener {
-    def onConnectionStateChanged(connectionState: ConnectionState)
+    def onConnectionStateChanged(connectionState: ConnectionState): Unit
   }
 
   trait NotificationReceiptListener {
-    def onZoneNotificationReceived(zoneNotification: ZoneNotification)
+    def onZoneNotificationReceived(zoneNotification: ZoneNotification): Unit
   }
 
   class ConnectionRequestToken
 
   trait ResponseCallback {
-    def onErrorReceived(errorResponse: ErrorResponse)
+    def onErrorReceived(errorResponse: ErrorResponse): Unit
 
-    def onResultReceived(resultResponse: ResultResponse) = ()
+    def onResultReceived(resultResponse: ResultResponse): Unit = ()
   }
 
   private sealed trait State

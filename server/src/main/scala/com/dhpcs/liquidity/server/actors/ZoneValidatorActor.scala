@@ -742,7 +742,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def handleJoin(clientConnection: ActorRef,
                                publicKey: PublicKey)
-                              (onStateUpdate: State => Unit = _ => ()): Unit =
+                              (onStateUpdate: State => Unit): Unit =
     persist(
       ZoneJoinedEvent(System.currentTimeMillis, clientConnection.path, publicKey)
     ) { zoneJoinedEvent =>
@@ -758,7 +758,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       }
     }
 
-  private[this] def handleQuit(clientConnection: ActorRef)(onStateUpdate: => Unit = ()): Unit =
+  private[this] def handleQuit(clientConnection: ActorRef)(onStateUpdate: => Unit): Unit =
     persist(
       ZoneQuitEvent(System.currentTimeMillis, clientConnection.path)
     ) { zoneQuitEvent =>

@@ -96,61 +96,61 @@ object BoardGame {
     extends Transfer
 
   trait JoinStateListener {
-    def onJoinStateChanged(joinState: JoinState)
+    def onJoinStateChanged(joinState: JoinState): Unit
   }
 
   trait GameActionListener {
-    def onChangeGameNameError(name: Option[String])
+    def onChangeGameNameError(name: Option[String]): Unit
 
-    def onChangeIdentityNameError(name: Option[String])
+    def onChangeIdentityNameError(name: Option[String]): Unit
 
-    def onCreateIdentityAccountError(name: Option[String])
+    def onCreateIdentityAccountError(name: Option[String]): Unit
 
-    def onCreateIdentityMemberError(name: Option[String])
+    def onCreateIdentityMemberError(name: Option[String]): Unit
 
-    def onCreateGameError(name: Option[String])
+    def onCreateGameError(name: Option[String]): Unit
 
-    def onDeleteIdentityError(name: Option[String])
+    def onDeleteIdentityError(name: Option[String]): Unit
 
-    def onGameNameChanged(name: Option[String])
+    def onGameNameChanged(name: Option[String]): Unit
 
-    def onIdentitiesUpdated(identities: Map[MemberId, IdentityWithBalance])
+    def onIdentitiesUpdated(identities: Map[MemberId, IdentityWithBalance]): Unit
 
-    def onIdentityCreated(identity: IdentityWithBalance)
+    def onIdentityCreated(identity: IdentityWithBalance): Unit
 
-    def onIdentityReceived(identity: IdentityWithBalance)
+    def onIdentityReceived(identity: IdentityWithBalance): Unit
 
-    def onIdentityRequired()
+    def onIdentityRequired(): Unit
 
-    def onIdentityRestored(identity: IdentityWithBalance)
+    def onIdentityRestored(identity: IdentityWithBalance): Unit
 
-    def onJoinGameError()
+    def onJoinGameError(): Unit
 
-    def onPlayerAdded(addedPlayer: PlayerWithBalanceAndConnectionState)
+    def onPlayerAdded(addedPlayer: PlayerWithBalanceAndConnectionState): Unit
 
-    def onPlayerChanged(changedPlayer: PlayerWithBalanceAndConnectionState)
+    def onPlayerChanged(changedPlayer: PlayerWithBalanceAndConnectionState): Unit
 
-    def onPlayersInitialized(players: Iterable[PlayerWithBalanceAndConnectionState])
+    def onPlayersInitialized(players: Iterable[PlayerWithBalanceAndConnectionState]): Unit
 
-    def onPlayerRemoved(removedPlayer: PlayerWithBalanceAndConnectionState)
+    def onPlayerRemoved(removedPlayer: PlayerWithBalanceAndConnectionState): Unit
 
-    def onPlayersUpdated(players: Map[MemberId, PlayerWithBalanceAndConnectionState])
+    def onPlayersUpdated(players: Map[MemberId, PlayerWithBalanceAndConnectionState]): Unit
 
-    def onQuitGameError()
+    def onQuitGameError(): Unit
 
-    def onRestoreIdentityError(name: Option[String])
+    def onRestoreIdentityError(name: Option[String]): Unit
 
-    def onTransferAdded(addedTransfer: TransferWithCurrency)
+    def onTransferAdded(addedTransfer: TransferWithCurrency): Unit
 
-    def onTransferIdentityError(name: Option[String])
+    def onTransferIdentityError(name: Option[String]): Unit
 
-    def onTransferToPlayerError(name: Option[String])
+    def onTransferToPlayerError(name: Option[String]): Unit
 
-    def onTransfersChanged(changedTransfers: Iterable[TransferWithCurrency])
+    def onTransfersChanged(changedTransfers: Iterable[TransferWithCurrency]): Unit
 
-    def onTransfersInitialized(transfers: Iterable[TransferWithCurrency])
+    def onTransfersInitialized(transfers: Iterable[TransferWithCurrency]): Unit
 
-    def onTransfersUpdated(transfers: Map[TransactionId, TransferWithCurrency])
+    def onTransfersUpdated(transfers: Map[TransactionId, TransferWithCurrency]): Unit
   }
 
   class JoinRequestToken
@@ -374,7 +374,7 @@ class BoardGame private(serverConnection: ServerConnection,
         Some(name)
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onChangeGameNameError(Some(name)))
       }
     )
@@ -387,10 +387,10 @@ class BoardGame private(serverConnection: ServerConnection,
         Some(name)
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onCreateIdentityMemberError(Some(name)))
 
-        override def onResultReceived(resultResponse: ResultResponse) {
+        override def onResultReceived(resultResponse: ResultResponse): Unit = {
           val createMemberResponse = resultResponse.asInstanceOf[CreateMemberResponse]
           createAccount(createMemberResponse.member)
         }
@@ -404,7 +404,7 @@ class BoardGame private(serverConnection: ServerConnection,
         state.identities(identity.member.id).member.copy(name = Some(name))
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onChangeIdentityNameError(Some(name)))
       }
     )
@@ -416,7 +416,7 @@ class BoardGame private(serverConnection: ServerConnection,
         state.identities(identity.member.id).member.copy(ownerPublicKey = toPublicKey)
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onTransferIdentityError(identity.member.name))
       }
     )
@@ -433,7 +433,7 @@ class BoardGame private(serverConnection: ServerConnection,
         )
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onDeleteIdentityError(member.name))
       }
     )
@@ -449,7 +449,7 @@ class BoardGame private(serverConnection: ServerConnection,
         )
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onRestoreIdentityError(member.name))
       }
     )
@@ -466,7 +466,7 @@ class BoardGame private(serverConnection: ServerConnection,
           value
         ),
         new ResponseCallback {
-          override def onErrorReceived(errorResponse: ErrorResponse) =
+          override def onErrorReceived(errorResponse: ErrorResponse): Unit =
             gameActionListeners.foreach(_.onTransferToPlayerError(to.member.name))
         }
       )
@@ -555,10 +555,10 @@ class BoardGame private(serverConnection: ServerConnection,
               zoneId.get
             ),
             new ResponseCallback {
-              override def onErrorReceived(errorResponse: ErrorResponse) =
+              override def onErrorReceived(errorResponse: ErrorResponse): Unit =
                 gameActionListeners.foreach(_.onQuitGameError())
 
-              override def onResultReceived(resultResponse: ResultResponse) =
+              override def onResultReceived(resultResponse: ResultResponse): Unit =
                 if (joinRequestTokens.nonEmpty) {
                   state = null
                   _joinState = BoardGame.JOINING
@@ -971,10 +971,10 @@ class BoardGame private(serverConnection: ServerConnection,
         )
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onCreateGameError(Some(name)))
 
-        override def onResultReceived(resultResponse: ResultResponse) =
+        override def onResultReceived(resultResponse: ResultResponse): Unit =
           if (_joinState == BoardGame.CREATING) {
             val createZoneResponse = resultResponse.asInstanceOf[CreateZoneResponse]
             instances = instances + (createZoneResponse.zone.id -> BoardGame.this)
@@ -993,10 +993,10 @@ class BoardGame private(serverConnection: ServerConnection,
         zoneId
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onJoinGameError())
 
-        override def onResultReceived(resultResponse: ResultResponse) =
+        override def onResultReceived(resultResponse: ResultResponse): Unit =
           if (_joinState == BoardGame.JOINING) {
             val joinZoneResponse = resultResponse.asInstanceOf[JoinZoneResponse]
             var balances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
@@ -1123,7 +1123,7 @@ class BoardGame private(serverConnection: ServerConnection,
         Set(ownerMember.id)
       ),
       new ResponseCallback {
-        override def onErrorReceived(errorResponse: ErrorResponse) =
+        override def onErrorReceived(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onCreateIdentityAccountError(ownerMember.name))
       }
     )

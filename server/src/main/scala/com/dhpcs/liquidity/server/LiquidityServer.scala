@@ -200,15 +200,15 @@ class LiquidityServer(config: Config,
     headerValueByType[`Tls-Session-Info`]()(sessionInfo =>
       sessionInfo.peerCertificates.headOption.map(_.getPublicKey).fold[Route](
         ifEmpty = complete(
-          BadRequest,
-          s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}"
+          (BadRequest,
+          s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
         )
       ) {
         case rsaPublicKey: RSAPublicKey =>
           if (rsaPublicKey.getModulus.bitLength != RequiredClientKeyLength) {
             complete(
-              BadRequest,
-              s"Invalid client public key length from ${ip.toOption.getOrElse("unknown")}"
+              (BadRequest,
+              s"Invalid client public key length from ${ip.toOption.getOrElse("unknown")}")
             )
           } else {
             route(
@@ -217,8 +217,8 @@ class LiquidityServer(config: Config,
           }
         case _ =>
           complete(
-            BadRequest,
-            s"Invalid client public key type from ${ip.toOption.getOrElse("unknown")}"
+            (BadRequest,
+            s"Invalid client public key type from ${ip.toOption.getOrElse("unknown")}")
           )
       }
     )

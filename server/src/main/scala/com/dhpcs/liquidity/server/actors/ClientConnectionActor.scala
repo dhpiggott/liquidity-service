@@ -105,10 +105,11 @@ object ClientConnectionActor {
             val flowActor = context.watch(context.actorOf(props(outActor), name))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive = {
-              case Status.Success(_) | Status.Failure(_) =>
+              case _: Status.Success | _: Status.Failure =>
                 flowActor ! PoisonPill
               case _: Terminated =>
                 context.stop(self)
+                outActor ! Status.Success(())
               case other =>
                 flowActor.forward(other)
             }

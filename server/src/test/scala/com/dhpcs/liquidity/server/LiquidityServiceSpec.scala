@@ -5,17 +5,17 @@ import java.security.KeyPairGenerator
 
 import akka.NotUsed
 import akka.http.scaladsl.client.RequestBuilding
-import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.headers.`Remote-Address`
 import akka.http.scaladsl.model.ws.Message
-import akka.http.scaladsl.model.{ContentType, HttpEntity, RemoteAddress, StatusCodes}
+import akka.http.scaladsl.model.{ContentType, RemoteAddress, StatusCodes}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model.PublicKey
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.{MustMatchers, WordSpec}
+import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Future
 
@@ -30,7 +30,7 @@ class LiquidityServiceSpec extends WordSpec
       getRequest ~> route ~> check {
         status mustBe StatusCodes.OK
         contentType mustBe ContentType(`application/json`)
-        entityAs[String] mustBe ""
+        Json.parse(entityAs[String]) mustBe Json.obj()
       }
     }
     "accept WebSocket connections" in {
@@ -50,12 +50,7 @@ class LiquidityServiceSpec extends WordSpec
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
-  override protected[this] def getStatus: ToResponseMarshallable = Future.successful(
-    HttpEntity(
-      ContentType(`application/json`),
-      ""
-    )
-  )
+  override protected[this] def getStatus: Future[JsValue] = Future.successful(Json.obj())
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     Flow[Message]

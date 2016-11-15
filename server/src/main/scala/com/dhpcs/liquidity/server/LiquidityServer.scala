@@ -8,12 +8,10 @@ import javax.net.ssl._
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
-import akka.http.scaladsl.marshalling.ToResponseMarshallable
-import akka.http.scaladsl.model.MediaTypes._
+import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.headers.`Tls-Session-Info`
 import akka.http.scaladsl.model.ws.Message
-import akka.http.scaladsl.model.{ContentType, HttpEntity, RemoteAddress}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.{ConnectionContext, Http}
@@ -31,13 +29,14 @@ import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{ActiveZonesSummary, 
 import com.dhpcs.liquidity.server.actors.{ClientConnectionActor, ClientsMonitorActor, ZoneValidatorActor, ZonesMonitorActor}
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
 object LiquidityServer {
+
   private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore.p12"
   private final val EnabledCipherSuites = Seq(
     // Recommended by https://typesafehub.github.io/ssl-config/CipherSuites.html#id4
@@ -149,7 +148,7 @@ class LiquidityServer(config: Config,
     } yield ()
   }
 
-  override protected[this] def getStatus: ToResponseMarshallable = {
+  override protected[this] def getStatus: Future[JsValue] = {
     def clientsStatus(activeClientsSummary: ActiveClientsSummary): JsObject =
       Json.obj(
         "count" -> activeClientsSummary.activeClientSummaries.size,
@@ -181,18 +180,15 @@ class LiquidityServer(config: Config,
             )
         }
       )
-    implicit val timeout = Timeout(5.seconds)
+    implicit val askTimeout = Timeout(5.seconds)
     for {
       activeClientsSummary <- (clientsMonitorActor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
       activeZonesSummary <- (zonesMonitorActor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
       totalZonesCount <- (zonesMonitorActor ? GetZoneCount).mapTo[ZoneCount]
-    } yield HttpEntity(
-      ContentType(`application/json`),
-      Json.prettyPrint(Json.obj(
-        "clients" -> clientsStatus(activeClientsSummary),
-        "totalZonesCount" -> totalZonesCount.count,
-        "activeZones" -> activeZonesStatus(activeZonesSummary)
-      ))
+    } yield Json.obj(
+      "clients" -> clientsStatus(activeClientsSummary),
+      "totalZonesCount" -> totalZonesCount.count,
+      "activeZones" -> activeZonesStatus(activeZonesSummary)
     )
   }
 

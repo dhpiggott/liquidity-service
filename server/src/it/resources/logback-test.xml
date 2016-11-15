@@ -2,14 +2,18 @@
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%date{ISO8601} %-5level %logger{36} %X{akkaSource} - %msg%n</pattern>
+            <pattern>%date{ISO8601} %highlight(%-5level) %logger{36} %cyan(%X{akkaSource}) - %msg%n</pattern>
         </encoder>
     </appender>
+
+    <logger name="org.apache.cassandra" level="OFF"/>
+    <logger name="com.datastax" level="OFF"/>
+
+    <logger name="akka.remote" level="OFF"/>
+    <logger name="akka.cluster" level="OFF"/>
 
     <root level="ERROR">
         <appender-ref ref="STDOUT"/>
     </root>
-
-    <logger name="org.apache.cassandra" level="OFF"/>
 
 </configuration>

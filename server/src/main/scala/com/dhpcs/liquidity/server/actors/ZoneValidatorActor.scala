@@ -287,13 +287,13 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   override def preStart(): Unit = {
     super.preStart()
-    log.info(s"Started actor for ${zoneId.id}")
+    log.info("Started")
   }
 
   override def postStop(): Unit = {
     publishStatusTick.cancel()
     super.postStop()
-    log.info(s"Stopped actor for ${zoneId.id}")
+    log.info("Stopped")
   }
 
   override def receiveCommand: Receive = waitForZone

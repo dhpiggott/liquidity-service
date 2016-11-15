@@ -194,13 +194,13 @@ class ClientConnectionActor(ip: RemoteAddress,
   override def preStart(): Unit = {
     super.preStart()
     send(SupportedVersionsNotification(CompatibleVersionNumbers))
-    log.info(s"Started actor for ${ip.toOption.getOrElse("unknown")} (${publicKey.fingerprint})")
+    log.info(s"Started for ${ip.toOption.getOrElse("unknown IP")}")
   }
 
   override def postStop(): Unit = {
     publishStatusTick.cancel()
     super.postStop()
-    log.info(s"Stopped actor for ${ip.toOption.getOrElse("unknown")} (${publicKey.fingerprint})")
+    log.info(s"Stopped for ${ip.toOption.getOrElse("unknown IP")}")
   }
 
   override def receiveCommand: Receive = waitingForActorSinkInit

@@ -25,6 +25,7 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object ClientConnectionActor {
+
   def props(ip: RemoteAddress,
             publicKey: PublicKey,
             zoneValidatorShardRegion: ActorRef,
@@ -61,6 +62,10 @@ object ClientConnectionActor {
 
   case class ActiveClientSummary(publicKey: PublicKey)
 
+  case object ActorSinkInit
+
+  case object ActorSinkAck
+
   private case object PublishStatus
 
   private object KeepAliveGeneratorActor {
@@ -94,7 +99,7 @@ object ClientConnectionActor {
     val (outActor, publisher) = Source.actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
       .toMat(Sink.asPublisher(false))(Keep.both).run()
     Flow.fromSinkAndSource(
-      Sink.actorRef(
+      Sink.actorRefWithAck(
         factory.actorOf(
           Props(new Actor {
             val flowActor = context.watch(context.actorOf(props(outActor), name))
@@ -105,10 +110,12 @@ object ClientConnectionActor {
               case _: Terminated =>
                 context.stop(self)
               case other =>
-                flowActor ! other
+                flowActor.forward(other)
             }
           })
         ),
+        onInitMessage = ActorSinkInit,
+        ackMessage = ActorSinkAck,
         onCompleteMessage = Status.Success(())
       ),
       Source.fromPublisher(publisher)
@@ -196,9 +203,19 @@ class ClientConnectionActor(ip: RemoteAddress,
     log.info(s"Stopped actor for ${ip.toOption.getOrElse("unknown")} (${publicKey.fingerprint})")
   }
 
-  override def receiveCommand: Receive =
+  override def receiveCommand: Receive = waitingForActorSinkInit
+
+  private[this] def waitingForActorSinkInit: Receive =
+    publishStatus orElse sendKeepAlive orElse {
+      case ActorSinkInit =>
+        sender() ! ActorSinkAck
+        context.become(receiveActorSinkMessages)
+  }
+
+  private[this] def receiveActorSinkMessages: Receive =
     publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
       case jsonString: String =>
+        sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
         readCommand(jsonString) match {
           case (id, Left(jsonRpcResponseError)) =>

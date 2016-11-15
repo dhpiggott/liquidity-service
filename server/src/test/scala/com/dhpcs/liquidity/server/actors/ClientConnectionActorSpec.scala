@@ -27,27 +27,30 @@ class ClientConnectionActorSpec extends fixture.WordSpec
     PublicKey(publicKeyBytes)
   }
 
-  override protected type FixtureParam = (TestProbe, ActorRef)
+  override protected type FixtureParam = (TestProbe, TestProbe, ActorRef)
 
   override protected def withFixture(test: OneArgTest) = {
+    val sinkTestProbe = TestProbe()
     val upstreamTestProbe = TestProbe()
     val clientConnection = system.actorOf(
       ClientConnectionActor.props(
         ip, publicKey, zoneValidatorShardRegion, keepAliveInterval = 3.seconds)(upstreamTestProbe.ref)
     )
-    try withFixture(test.toNoArgTest((upstreamTestProbe, clientConnection)))
+    sinkTestProbe.send(clientConnection, ClientConnectionActor.ActorSinkInit)
+    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
+    try withFixture(test.toNoArgTest((sinkTestProbe, upstreamTestProbe, clientConnection)))
     finally system.stop(clientConnection)
   }
 
   "A ClientConnectionActor" must {
     "send a SupportedVersionsNotification when connected" in { fixture =>
-      val (upstreamTestProbe, _) = fixture
+      val (_, upstreamTestProbe, _) = fixture
       expectNotification(upstreamTestProbe)(notification =>
         notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
     }
     "send a KeepAliveNotification when left idle" in { fixture =>
-      val (upstreamTestProbe, _) = fixture
+      val (_, upstreamTestProbe, _) = fixture
       expectNotification(upstreamTestProbe)(notification =>
         notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
@@ -58,11 +61,11 @@ class ClientConnectionActorSpec extends fixture.WordSpec
       )
     }
     "send a CreateZoneResponse after a CreateZoneCommand" in { fixture =>
-      val (upstreamTestProbe, clientConnection) = fixture
+      val (sinkTestProbe, upstreamTestProbe, clientConnection) = fixture
       expectNotification(upstreamTestProbe)(notification =>
         notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
-      send(upstreamTestProbe, clientConnection)(
+      send(sinkTestProbe, clientConnection)(
         CreateZoneCommand(
           equityOwnerPublicKey = publicKey,
           equityOwnerName = Some("Dave"),
@@ -77,11 +80,11 @@ class ClientConnectionActorSpec extends fixture.WordSpec
       )
     }
     "send a JoinZoneResponse after a JoinZoneCommand" in { fixture =>
-      val (upstreamTestProbe, clientConnection) = fixture
+      val (sinkTestProbe, upstreamTestProbe, clientConnection) = fixture
       expectNotification(upstreamTestProbe)(notification =>
         notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       )
-      send(upstreamTestProbe, clientConnection)(
+      send(sinkTestProbe, clientConnection)(
         CreateZoneCommand(
           equityOwnerPublicKey = publicKey,
           equityOwnerName = Some("Dave"),
@@ -95,7 +98,7 @@ class ClientConnectionActorSpec extends fixture.WordSpec
         response mustBe a[CreateZoneResponse]
         response.asInstanceOf[CreateZoneResponse].zone.id
       }
-      send(upstreamTestProbe, clientConnection)(
+      send(sinkTestProbe, clientConnection)(
         JoinZoneCommand(zoneId)
       )
       expectResponse(upstreamTestProbe, "joinZone")(response => inside(response) {
@@ -104,14 +107,16 @@ class ClientConnectionActorSpec extends fixture.WordSpec
     }
   }
 
-  private[this] def send(upstreamTestProbe: TestProbe, clientConnection: ActorRef)
-                        (command: Command): Unit =
-    upstreamTestProbe.send(
+  private[this] def send(sinkTestProbe: TestProbe, clientConnection: ActorRef)
+                        (command: Command): Unit = {
+    sinkTestProbe.send(
       clientConnection,
       Json.stringify(Json.toJson(
         Command.write(command, id = None)
       ))
     )
+    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
+  }
 
   private[this] def expectNotification(upstreamTestProbe: TestProbe)
                                       (f: Notification => Unit): Unit =

@@ -94,7 +94,7 @@ class LiquidityServer(config: Config,
                       readJournal: ReadJournal with CurrentPersistenceIdsQuery,
                       zoneValidatorShardRegion: ActorRef,
                       keyManagers: Array[KeyManager])
-                     (implicit system: ActorSystem, mat: Materializer) extends LiquidityService {
+                     (implicit system: ActorSystem, mat: Materializer) extends LiquidityServerController {
 
   import system.dispatcher
 

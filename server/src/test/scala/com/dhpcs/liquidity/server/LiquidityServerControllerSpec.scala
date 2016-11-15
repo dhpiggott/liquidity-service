@@ -19,10 +19,10 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Future
 
-class LiquidityServiceSpec extends WordSpec
+class LiquidityServerControllerSpec extends WordSpec
   with MustMatchers
   with ScalatestRouteTest
-  with LiquidityService {
+  with LiquidityServerController {
 
   "The Liquidity API" must {
     "provide status information" in {

@@ -12,7 +12,7 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait LiquidityService {
+trait LiquidityServerController {
 
   protected[this] def route(implicit ec: ExecutionContext) = status ~ ws
 

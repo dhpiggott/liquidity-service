@@ -24,6 +24,8 @@ class LiquidityServerControllerSpec extends WordSpec
   with ScalatestRouteTest
   with LiquidityServerController {
 
+  override def testConfig: Config = ConfigFactory.defaultReference()
+
   "The Liquidity API" must {
     "provide status information" in {
       val getRequest = RequestBuilding.Get("/status")
@@ -47,8 +49,6 @@ class LiquidityServerControllerSpec extends WordSpec
       }
     }
   }
-
-  override def testConfig: Config = ConfigFactory.defaultReference()
 
   override protected[this] def getStatus: Future[JsValue] = Future.successful(Json.obj())
 

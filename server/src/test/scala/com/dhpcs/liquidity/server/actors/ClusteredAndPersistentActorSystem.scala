@@ -4,15 +4,12 @@ import java.net.InetSocketAddress
 import java.nio.channels.ServerSocketChannel
 
 import akka.actor.ActorSystem
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
-import akka.persistence.query.PersistenceQuery
-import akka.persistence.query.journal.leveldb.scaladsl.LeveldbReadJournal
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
+trait ClusteredAndPersistentActorSystem extends BeforeAndAfterAll {
   this: Suite =>
 
   private[this] val akkaRemotingPort = {
@@ -67,17 +64,6 @@ trait ZoneValidatorShardRegionProvider extends BeforeAndAfterAll {
     ).resolve()
 
   protected[this] implicit val system = ActorSystem("liquidity", config)
-
-  protected[this] val readJournal = PersistenceQuery(system)
-    .readJournalFor[LeveldbReadJournal](LeveldbReadJournal.Identifier)
-
-  protected[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
-    typeName = ZoneValidatorActor.ShardName,
-    entityProps = ZoneValidatorActor.props,
-    settings = ClusterShardingSettings(system),
-    extractEntityId = ZoneValidatorActor.extractEntityId,
-    extractShardId = ZoneValidatorActor.extractShardId
-  )
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

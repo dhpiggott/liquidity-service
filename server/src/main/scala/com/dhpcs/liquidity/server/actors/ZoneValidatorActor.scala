@@ -26,7 +26,7 @@ object ZoneValidatorActor {
   final val ShardName = "ZoneValidator"
 
   val extractEntityId: ShardRegion.ExtractEntityId = {
-    case EnvelopedMessage(zoneId, message) =>
+    case EnvelopedAuthenticatedCommandWithIds(zoneId, message) =>
       (zoneId.id.toString, message)
     case authenticatedCommandWithIds@AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
       (zoneCommand.zoneId.id.toString, authenticatedCommandWithIds)
@@ -35,7 +35,7 @@ object ZoneValidatorActor {
   private val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
-    case EnvelopedMessage(zoneId, _) =>
+    case EnvelopedAuthenticatedCommandWithIds(zoneId, _) =>
       (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
     case AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
       (math.abs(zoneCommand.zoneId.id.hashCode) % NumberOfShards).toString
@@ -45,7 +45,8 @@ object ZoneValidatorActor {
 
   private final val RequiredOwnerKeyLength = 2048
 
-  case class EnvelopedMessage(zoneId: ZoneId, message: Any)
+  case class EnvelopedAuthenticatedCommandWithIds(zoneId: ZoneId,
+                                                  authenticatedCommandWithIds: AuthenticatedCommandWithIds)
 
   case class AuthenticatedCommandWithIds(publicKey: PublicKey,
                                          command: Command,
@@ -279,8 +280,8 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] var state = State()
 
-  private[this] var nextExpectedCommandSequenceNumbers = Map.empty[ActorPath, Long].withDefaultValue(0L)
-  private[this] var messageSequenceNumbers = Map.empty[ActorPath, Long].withDefaultValue(0L)
+  private[this] var nextExpectedCommandSequenceNumbers = Map.empty[ActorPath, Long].withDefaultValue(1L)
+  private[this] var messageSequenceNumbers = Map.empty[ActorPath, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries = Map.empty[ActorPath, Set[Long]].withDefaultValue(Set.empty)
 
   override def persistenceId: String = zoneId.persistenceId

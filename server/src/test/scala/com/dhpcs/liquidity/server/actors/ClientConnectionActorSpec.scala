@@ -5,11 +5,11 @@ import java.security.KeyPairGenerator
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.RemoteAddress
-import akka.stream.ActorMaterializer
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
-import com.dhpcs.liquidity.model.PublicKey
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.protocol._
+import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{AuthenticatedCommandWithIds, EnvelopedAuthenticatedCommandWithIds, ResponseWithIds}
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest.{Inside, MustMatchers, fixture}
@@ -18,8 +18,7 @@ import play.api.libs.json.{JsValue, Json}
 import scala.concurrent.duration._
 
 class ClientConnectionActorSpec extends fixture.WordSpec
-  with Inside with MustMatchers with ZoneValidatorShardRegionProvider {
-  private[this] implicit val mat = ActorMaterializer()
+  with Inside with MustMatchers with ClusteredAndPersistentActorSystem {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {
@@ -27,46 +26,40 @@ class ClientConnectionActorSpec extends fixture.WordSpec
     PublicKey(publicKeyBytes)
   }
 
-  override protected type FixtureParam = (TestProbe, TestProbe, ActorRef)
+  override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
   override protected def withFixture(test: OneArgTest) = {
     val sinkTestProbe = TestProbe()
+    val zoneValidatorShardRegionTestProbe = TestProbe()
     val upstreamTestProbe = TestProbe()
     val clientConnection = system.actorOf(
       ClientConnectionActor.props(
-        ip, publicKey, zoneValidatorShardRegion, keepAliveInterval = 3.seconds)(upstreamTestProbe.ref)
+        ip, publicKey, zoneValidatorShardRegionTestProbe.ref, keepAliveInterval = 3.seconds)(upstreamTestProbe.ref)
     )
     sinkTestProbe.send(clientConnection, ClientConnectionActor.ActorSinkInit)
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
-    try withFixture(test.toNoArgTest((sinkTestProbe, upstreamTestProbe, clientConnection)))
+    try withFixture(
+      test.toNoArgTest((sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection))
+    )
     finally system.stop(clientConnection)
   }
 
   "A ClientConnectionActor" must {
     "send a SupportedVersionsNotification when connected" in { fixture =>
-      val (_, upstreamTestProbe, _) = fixture
-      expectNotification(upstreamTestProbe)(notification =>
-        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
-      )
+      val (_, _, upstreamTestProbe, _) = fixture
+      expectNotification(upstreamTestProbe) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
     }
     "send a KeepAliveNotification when left idle" in { fixture =>
-      val (_, upstreamTestProbe, _) = fixture
-      expectNotification(upstreamTestProbe)(notification =>
-        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
-      )
+      val (_, _, upstreamTestProbe, _) = fixture
+      expectNotification(upstreamTestProbe) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       upstreamTestProbe.within(3.5.seconds)(
-        expectNotification(upstreamTestProbe)(notification =>
-          notification mustBe KeepAliveNotification
-        )
+        expectNotification(upstreamTestProbe) mustBe KeepAliveNotification
       )
     }
     "send a CreateZoneResponse after a CreateZoneCommand" in { fixture =>
-      val (sinkTestProbe, upstreamTestProbe, clientConnection) = fixture
-      expectNotification(upstreamTestProbe)(notification =>
-        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
-      )
-      send(sinkTestProbe, clientConnection)(
-        CreateZoneCommand(
+      val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
+      expectNotification(upstreamTestProbe) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      val command = CreateZoneCommand(
           equityOwnerPublicKey = publicKey,
           equityOwnerName = Some("Dave"),
           equityOwnerMetadata = None,
@@ -74,70 +67,63 @@ class ClientConnectionActorSpec extends fixture.WordSpec
           equityAccountMetadata = None,
           name = Some("Dave's Game")
         )
-      )
-      expectResponse(upstreamTestProbe, "createZone")(response =>
-        response mustBe a[CreateZoneResponse]
-      )
-    }
-    "send a JoinZoneResponse after a JoinZoneCommand" in { fixture =>
-      val (sinkTestProbe, upstreamTestProbe, clientConnection) = fixture
-      expectNotification(upstreamTestProbe)(notification =>
-        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
-      )
-      send(sinkTestProbe, clientConnection)(
-        CreateZoneCommand(
-          equityOwnerPublicKey = publicKey,
-          equityOwnerName = Some("Dave"),
-          equityOwnerMetadata = None,
-          equityAccountName = None,
-          equityAccountMetadata = None,
-          name = Some("Dave's Game")
-        )
-      )
-      val zoneId = expectResponse(upstreamTestProbe, "createZone") { response =>
-        response mustBe a[CreateZoneResponse]
-        response.asInstanceOf[CreateZoneResponse].zone.id
+      val correlationId = Some(Right(BigDecimal(0)))
+      send(sinkTestProbe, clientConnection)(command, correlationId)
+      val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedAuthenticatedCommandWithIds]) {
+        case envelopedMessage@EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
+          authenticatedCommandWithIds mustBe
+            AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber = 1L, deliveryId = 1L)
+          envelopedMessage.zoneId
       }
-      send(sinkTestProbe, clientConnection)(
-        JoinZoneCommand(zoneId)
-      )
-      expectResponse(upstreamTestProbe, "joinZone")(response => inside(response) {
-        case JoinZoneResponse(_, connectedClients) => connectedClients mustBe Set(publicKey)
+      val resultResponse = CreateZoneResponse({
+        val created = System.currentTimeMillis
+        Zone(
+          id = zoneId,
+          equityAccountId = AccountId(0),
+          members = Map(MemberId(0) -> Member(MemberId(0), publicKey, name = Some("Dave"))),
+          accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
+          transactions = Map.empty,
+          created = created,
+          expires = created + 2.days.toMillis,
+          name = Some("Dave's Game"),
+          metadata = None
+        )
       })
+      zoneValidatorShardRegionTestProbe.send(
+        clientConnection,
+        ResponseWithIds(Right(resultResponse), correlationId, sequenceNumber = 1L, deliveryId = 1L)
+      )
+      expectResponse(upstreamTestProbe, "createZone") mustBe resultResponse
     }
   }
 
   private[this] def send(sinkTestProbe: TestProbe, clientConnection: ActorRef)
-                        (command: Command): Unit = {
+                        (command: Command, correlationId: Option[Either[String, BigDecimal]]): Unit = {
     sinkTestProbe.send(
       clientConnection,
       Json.stringify(Json.toJson(
-        Command.write(command, id = None)
+        Command.write(command, id = correlationId)
       ))
     )
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
   }
 
-  private[this] def expectNotification(upstreamTestProbe: TestProbe)
-                                      (f: Notification => Unit): Unit =
-    expect(upstreamTestProbe) { json =>
-      val jsonRpcNotificationMessage = json.asOpt[JsonRpcNotificationMessage]
-      val notification = Notification.read(jsonRpcNotificationMessage.value)
-      f(notification.value.asOpt.value)
-    }
+  private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification = {
+    val jsValue = expectJsValue(upstreamTestProbe)
+    val jsonRpcNotificationMessage = jsValue.asOpt[JsonRpcNotificationMessage]
+    val notification = Notification.read(jsonRpcNotificationMessage.value)
+    notification.value.asOpt.value
+  }
 
-  private[this] def expectResponse[A](upstreamTestProbe: TestProbe, method: String)
-                                     (f: Response => A): A =
-    expect(upstreamTestProbe) { json =>
-      val jsonRpcResponseMessage = json.asOpt[JsonRpcResponseMessage]
-      val response = Response.read(jsonRpcResponseMessage.value, method)
-      f(response.asOpt.value.right.value)
-    }
+  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): ResultResponse = {
+    val jsValue = expectJsValue(upstreamTestProbe)
+    val jsonRpcResponseMessage = jsValue.asOpt[JsonRpcResponseMessage]
+    val response = Response.read(jsonRpcResponseMessage.value, method)
+    response.asOpt.value.right.value
+  }
 
-  private[this] def expect[A](upstreamTestProbe: TestProbe)
-                             (f: JsValue => A): A = {
+  private[this] def expectJsValue(upstreamTestProbe: TestProbe): JsValue = {
     val jsonString = upstreamTestProbe.expectMsgType[String]
-    val json = Json.parse(jsonString)
-    f(json)
+    Json.parse(jsonString)
   }
 }

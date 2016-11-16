@@ -98,8 +98,14 @@ class LiquidityServer(config: Config,
 
   import system.dispatcher
 
-  private[this] val clientsMonitorActor = system.actorOf(ClientsMonitorActor.props, "clients-monitor")
-  private[this] val zonesMonitorActor = system.actorOf(ZonesMonitorActor.props(readJournal), "zones-monitor")
+  private[this] val clientsMonitorActor = system.actorOf(
+    ClientsMonitorActor.props,
+    "clients-monitor"
+  )
+  private[this] val zonesMonitorActor = system.actorOf(
+    ZonesMonitorActor.props(ZonesMonitorActor.zoneCount(readJournal)),
+    "zones-monitor"
+  )
 
   private[this] val httpsConnectionContext = {
     val sslContext = SSLContext.getInstance("TLS")
@@ -107,9 +113,7 @@ class LiquidityServer(config: Config,
       keyManagers,
       Array(new X509TrustManager {
         override def getAcceptedIssuers: Array[X509Certificate] = Array()
-
         override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-
         override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
       }),
       null

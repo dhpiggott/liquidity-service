@@ -20,7 +20,7 @@ import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import akka.testkit.TestKit
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.certgen.CertGen
-import com.dhpcs.liquidity.model.PublicKey
+import com.dhpcs.liquidity.model.{Member, MemberId, PublicKey}
 import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor
@@ -218,26 +218,18 @@ class LiquidityServerSpec extends fixture.WordSpec
   "The WebSocket API" must {
     "send a SupportedVersionsNotification when connected" in { fixture =>
       val (sub, _) = fixture
-      expectNotification(sub)(notification =>
-        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
-      )
+      expectNotification(sub) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
     }
     "send a KeepAliveNotification when left idle" in { fixture =>
       val (sub, _) = fixture
-      expectNotification(sub)(notification =>
-        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
-      )
+      expectNotification(sub) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       sub.within(3.5.seconds)(
-        expectNotification(sub)(notification =>
-          notification mustBe KeepAliveNotification
-        )
+        expectNotification(sub) mustBe KeepAliveNotification
       )
     }
     "send a CreateZoneResponse after a CreateZoneCommand" in { fixture =>
       val (sub, pub) = fixture
-      expectNotification(sub)(notification =>
-        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
-      )
+      expectNotification(sub) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       send(pub)(
         CreateZoneCommand(
           equityOwnerPublicKey = clientPublicKey,
@@ -248,15 +240,15 @@ class LiquidityServerSpec extends fixture.WordSpec
           name = Some("Dave's Game")
         )
       )
-      expectResponse(sub, "createZone")(response =>
-        response mustBe a[CreateZoneResponse]
-      )
+      inside(expectResultResponse(sub, "createZone")) {
+        case CreateZoneResponse(zone) =>
+          zone.members(MemberId(0)) mustBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
+          zone.name mustBe Some("Dave's Game")
+      }
     }
     "send a JoinZoneResponse after a JoinZoneCommand" in { fixture =>
       val (sub, pub) = fixture
-      expectNotification(sub)(notification =>
-        notification mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
-      )
+      expectNotification(sub) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
       send(pub)(
         CreateZoneCommand(
           equityOwnerPublicKey = clientPublicKey,
@@ -267,16 +259,18 @@ class LiquidityServerSpec extends fixture.WordSpec
           name = Some("Dave's Game")
         )
       )
-      val zoneId = expectResponse(sub, "createZone") { response =>
-        response mustBe a[CreateZoneResponse]
-        response.asInstanceOf[CreateZoneResponse].zone.id
+      val zoneId = inside(expectResultResponse(sub, "createZone")) {
+        case CreateZoneResponse(zone) =>
+          zone.members(MemberId(0)) mustBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
+          zone.name mustBe Some("Dave's Game")
+          zone.id
       }
       send(pub)(
         JoinZoneCommand(zoneId)
       )
-      expectResponse(sub, "joinZone")(response => inside(response) {
+      inside(expectResultResponse(sub, "joinZone")) {
         case JoinZoneResponse(_, connectedClients) => connectedClients mustBe Set(clientPublicKey)
-      })
+      }
     }
   }
 
@@ -288,28 +282,24 @@ class LiquidityServerSpec extends fixture.WordSpec
       )))
     )
 
-  private[this] def expectNotification(sub: TestSubscriber.Probe[Message])
-                                      (f: Notification => Unit): Unit =
-    expect(sub) { json =>
-      val jsonRpcNotificationMessage = json.asOpt[JsonRpcNotificationMessage]
-      val notification = Notification.read(jsonRpcNotificationMessage.value)
-      f(notification.value.asOpt.value)
-    }
+  private[this] def expectNotification(sub: TestSubscriber.Probe[Message]): Notification = {
+    val jsValue = expectJsValue(sub)
+    val jsonRpcNotificationMessage = jsValue.asOpt[JsonRpcNotificationMessage]
+    val notification = Notification.read(jsonRpcNotificationMessage.value)
+    notification.value.asOpt.value
+  }
 
-  private[this] def expectResponse[A](sub: TestSubscriber.Probe[Message], method: String)
-                                     (f: Response => A): A =
-    expect(sub) { json =>
-      val jsonRpcResponseMessage = json.asOpt[JsonRpcResponseMessage]
-      val response = Response.read(jsonRpcResponseMessage.value, method)
-      f(response.asOpt.value.right.value)
-    }
+  private[this] def expectResultResponse[A](sub: TestSubscriber.Probe[Message], method: String): ResultResponse = {
+    val jsValue = expectJsValue(sub)
+    val jsonRpcResponseMessage = jsValue.asOpt[JsonRpcResponseMessage]
+    val response = Response.read(jsonRpcResponseMessage.value, method)
+    response.asOpt.value.right.value
+  }
 
-  private[this] def expect[A](sub: TestSubscriber.Probe[Message])
-                             (f: JsValue => A): A = {
+  private[this] def expectJsValue(sub: TestSubscriber.Probe[Message]): JsValue = {
     sub.request(1)
     val message = sub.expectNext()
     val jsonString = message.asTextMessage.getStrictText
-    val json = Json.parse(jsonString)
-    f(json)
+    Json.parse(jsonString)
   }
 }

@@ -30,8 +30,7 @@ object ClientConnectionActor {
             publicKey: PublicKey,
             zoneValidatorShardRegion: ActorRef,
             keepAliveInterval: FiniteDuration)
-           (upstream: ActorRef)
-           (implicit mat: Materializer): Props =
+           (upstream: ActorRef): Props =
     Props(
       new ClientConnectionActor(
         ip,
@@ -174,7 +173,6 @@ class ClientConnectionActor(ip: RemoteAddress,
                             zoneValidatorShardRegion: ActorRef,
                             keepAliveInterval: FiniteDuration,
                             upstream: ActorRef)
-                           (implicit mat: Materializer)
   extends PersistentActor
     with ActorLogging
     with AtLeastOnceDelivery {
@@ -186,8 +184,8 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
   private[this] val keepAliveGeneratorActor = context.actorOf(KeepAliveGeneratorActor.props(keepAliveInterval))
 
-  private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(0L)
-  private[this] var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(0L)
+  private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
+  private[this] var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
   override def persistenceId: String = publicKey.persistenceId
@@ -309,7 +307,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      ZoneValidatorActor.EnvelopedMessage(
+      ZoneValidatorActor.EnvelopedAuthenticatedCommandWithIds(
         zoneId,
         ZoneValidatorActor.AuthenticatedCommandWithIds(
           publicKey,

@@ -25,8 +25,18 @@ import akka.util.Timeout
 import com.dhpcs.liquidity.model.PublicKey
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
-import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{ActiveZonesSummary, GetActiveZonesSummary, GetZoneCount, ZoneCount}
-import com.dhpcs.liquidity.server.actors.{ClientConnectionActor, ClientsMonitorActor, ZoneValidatorActor, ZonesMonitorActor}
+import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{
+  ActiveZonesSummary,
+  GetActiveZonesSummary,
+  GetZoneCount,
+  ZoneCount
+}
+import com.dhpcs.liquidity.server.actors.{
+  ClientConnectionActor,
+  ClientsMonitorActor,
+  ZoneValidatorActor,
+  ZonesMonitorActor
+}
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
 import play.api.libs.json.{JsObject, JsValue, Json}
@@ -55,11 +65,10 @@ object LiquidityServer {
   private final val RequiredClientKeyLength = 2048
 
   def main(args: Array[String]): Unit = {
-    val config = ConfigFactory.load
+    val config          = ConfigFactory.load
     implicit val system = ActorSystem("liquidity")
-    implicit val mat = ActorMaterializer()
-    val readJournal = PersistenceQuery(system)
-      .readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
+    implicit val mat    = ActorMaterializer()
+    val readJournal     = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
     val zoneValidatorShardRegion = ClusterSharding(system).start(
       typeName = ZoneValidatorActor.ShardName,
       entityProps = ZoneValidatorActor.props,
@@ -93,8 +102,8 @@ object LiquidityServer {
 class LiquidityServer(config: Config,
                       readJournal: ReadJournal with CurrentPersistenceIdsQuery,
                       zoneValidatorShardRegion: ActorRef,
-                      keyManagers: Array[KeyManager])
-                     (implicit system: ActorSystem, mat: Materializer) extends LiquidityServerController {
+                      keyManagers: Array[KeyManager])(implicit system: ActorSystem, mat: Materializer)
+    extends LiquidityServerController {
 
   import system.dispatcher
 
@@ -112,7 +121,7 @@ class LiquidityServer(config: Config,
     sslContext.init(
       keyManagers,
       Array(new X509TrustManager {
-        override def getAcceptedIssuers: Array[X509Certificate] = Array()
+        override def getAcceptedIssuers: Array[X509Certificate]                                = Array()
         override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
         override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
       }),
@@ -141,14 +150,14 @@ class LiquidityServer(config: Config,
   def shutdown(): Future[Unit] = {
     def stop(target: ActorRef): Future[Unit] =
       gracefulStop(target, 5.seconds).flatMap {
-        case true => Future.successful(())
+        case true  => Future.successful(())
         case false => stop(target)
       }
     for {
       binding <- binding
-      _ <- binding.unbind()
-      _ <- stop(clientsMonitorActor)
-      _ <- stop(zonesMonitorActor)
+      _       <- binding.unbind()
+      _       <- stop(clientsMonitorActor)
+      _       <- stop(zonesMonitorActor)
     } yield ()
   }
 
@@ -165,20 +174,21 @@ class LiquidityServer(config: Config,
         "count" -> activeZonesSummary.activeZoneSummaries.size,
         "zones" -> activeZonesSummary.activeZoneSummaries.toSeq.sortBy(_.zoneId.id).map {
           case ZoneValidatorActor.ActiveZoneSummary(
-          zoneId,
-          metadata,
-          members, accounts,
-          transactions,
-          clientConnections
-          ) =>
+              zoneId,
+              metadata,
+              members,
+              accounts,
+              transactions,
+              clientConnections
+              ) =>
             Json.obj(
               "zoneIdFingerprint" -> ByteString.encodeUtf8(zoneId.id.toString).sha256.hex,
-              "metadata" -> metadata,
-              "members" -> Json.obj("count" -> members.size),
-              "accounts" -> Json.obj("count" -> accounts.size),
-              "transactions" -> Json.obj("count" -> transactions.size),
+              "metadata"          -> metadata,
+              "members"           -> Json.obj("count" -> members.size),
+              "accounts"          -> Json.obj("count" -> accounts.size),
+              "transactions"      -> Json.obj("count" -> transactions.size),
               "clientConnections" -> Json.obj(
-                "count" -> clientConnections.size,
+                "count"                 -> clientConnections.size,
                 "publicKeyFingerprints" -> clientConnections.map(_.fingerprint).toSeq.sorted
               )
             )
@@ -187,41 +197,41 @@ class LiquidityServer(config: Config,
     implicit val askTimeout = Timeout(5.seconds)
     for {
       activeClientsSummary <- (clientsMonitorActor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
-      activeZonesSummary <- (zonesMonitorActor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
-      totalZonesCount <- (zonesMonitorActor ? GetZoneCount).mapTo[ZoneCount]
-    } yield Json.obj(
-      "clients" -> clientsStatus(activeClientsSummary),
-      "totalZonesCount" -> totalZonesCount.count,
-      "activeZones" -> activeZonesStatus(activeZonesSummary)
-    )
+      activeZonesSummary   <- (zonesMonitorActor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
+      totalZonesCount      <- (zonesMonitorActor ? GetZoneCount).mapTo[ZoneCount]
+    } yield
+      Json.obj(
+        "clients"         -> clientsStatus(activeClientsSummary),
+        "totalZonesCount" -> totalZonesCount.count,
+        "activeZones"     -> activeZonesStatus(activeZonesSummary)
+      )
   }
 
   override protected[this] def extractClientPublicKey(ip: RemoteAddress)(route: PublicKey => Route): Route =
-    headerValueByType[`Tls-Session-Info`]()(sessionInfo =>
-      sessionInfo.peerCertificates.headOption.map(_.getPublicKey).fold[Route](
-        ifEmpty = complete(
-          (BadRequest,
-          s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
-        )
-      ) {
-        case rsaPublicKey: RSAPublicKey =>
-          if (rsaPublicKey.getModulus.bitLength != RequiredClientKeyLength) {
-            complete(
-              (BadRequest,
-              s"Invalid client public key length from ${ip.toOption.getOrElse("unknown")}")
+    headerValueByType[`Tls-Session-Info`]()(
+      sessionInfo =>
+        sessionInfo.peerCertificates.headOption
+          .map(_.getPublicKey)
+          .fold[Route](
+            ifEmpty = complete(
+              (BadRequest, s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
             )
-          } else {
-            route(
-              PublicKey(rsaPublicKey.getEncoded)
-            )
-          }
-        case _ =>
-          complete(
-            (BadRequest,
-            s"Invalid client public key type from ${ip.toOption.getOrElse("unknown")}")
-          )
-      }
-    )
+          ) {
+            case rsaPublicKey: RSAPublicKey =>
+              if (rsaPublicKey.getModulus.bitLength != RequiredClientKeyLength) {
+                complete(
+                  (BadRequest, s"Invalid client public key length from ${ip.toOption.getOrElse("unknown")}")
+                )
+              } else {
+                route(
+                  PublicKey(rsaPublicKey.getEncoded)
+                )
+              }
+            case _ =>
+              complete(
+                (BadRequest, s"Invalid client public key type from ${ip.toOption.getOrElse("unknown")}")
+              )
+        })
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)

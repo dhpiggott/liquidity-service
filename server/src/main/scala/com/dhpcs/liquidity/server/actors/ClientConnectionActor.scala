@@ -3,7 +3,18 @@ package com.dhpcs.liquidity.server.actors
 import java.util.UUID
 
 import akka.NotUsed
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, PoisonPill, Props, ReceiveTimeout, Status, SupervisorStrategy, Terminated}
+import akka.actor.{
+  Actor,
+  ActorLogging,
+  ActorRef,
+  ActorRefFactory,
+  PoisonPill,
+  Props,
+  ReceiveTimeout,
+  Status,
+  SupervisorStrategy,
+  Terminated
+}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.RemoteAddress
@@ -29,8 +40,7 @@ object ClientConnectionActor {
   def props(ip: RemoteAddress,
             publicKey: PublicKey,
             zoneValidatorShardRegion: ActorRef,
-            keepAliveInterval: FiniteDuration)
-           (upstream: ActorRef): Props =
+            keepAliveInterval: FiniteDuration)(upstream: ActorRef): Props =
     Props(
       new ClientConnectionActor(
         ip,
@@ -44,16 +54,18 @@ object ClientConnectionActor {
   def webSocketFlow(ip: RemoteAddress,
                     publicKey: PublicKey,
                     zoneValidatorShardRegion: ActorRef,
-                    keepAliveInterval: FiniteDuration)
-                   (implicit factory: ActorRefFactory, mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
-    wsMessageToString.via(
-      actorFlow[String, String](
-        props = props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
-        name = publicKey.fingerprint
+                    keepAliveInterval: FiniteDuration)(implicit factory: ActorRefFactory,
+                                                       mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
+    wsMessageToString
+      .via(
+        actorFlow[String, String](
+          props = props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
+          name = publicKey.fingerprint
+        )
       )
-    ).via(
-      stringToWsMessage
-    )
+      .via(
+        stringToWsMessage
+      )
 
   final val Topic = "Client"
 
@@ -92,16 +104,17 @@ object ClientConnectionActor {
     }
   }
 
-  private def actorFlow[In, Out](props: ActorRef => Props,
-                                 name: String)
-                                (implicit factory: ActorRefFactory, mat: Materializer): Flow[In, Out, NotUsed] = {
-    val (outActor, publisher) = Source.actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
-      .toMat(Sink.asPublisher(false))(Keep.both).run()
+  private def actorFlow[In, Out](props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
+                                                                         mat: Materializer): Flow[In, Out, NotUsed] = {
+    val (outActor, publisher) = Source
+      .actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
+      .toMat(Sink.asPublisher(false))(Keep.both)
+      .run()
     Flow.fromSinkAndSource(
       Sink.actorRefWithAck(
         factory.actorOf(
           Props(new Actor {
-            val flowActor = context.watch(context.actorOf(props(outActor), name))
+            val flowActor                                       = context.watch(context.actorOf(props(outActor), name))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive = {
               case _: Status.Success | _: Status.Failure =>
@@ -138,33 +151,41 @@ object ClientConnectionActor {
   private def stringToWsMessage: Flow[String, WsMessage, NotUsed] =
     Flow[String].map[WsMessage](TextMessage.Strict)
 
-  private def readCommand(jsonString: String):
-  (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
+  private def readCommand(
+      jsonString: String): (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
     Try(Json.parse(jsonString)) match {
       case Failure(exception) =>
         None -> Left(
           JsonRpcResponseError.parseError(exception)
         )
       case Success(json) =>
-        Json.fromJson[JsonRpcRequestMessage](json).fold(
-          errors => None -> Left(
-            JsonRpcResponseError.invalidRequest(errors)
-          ),
-          jsonRpcRequestMessage =>
-            Command.read(jsonRpcRequestMessage)
-              .fold[(Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command])](
-              jsonRpcRequestMessage.id -> Left(
-                JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method)
-              )
-            )(commandJsResult => commandJsResult.fold(
-              errors => jsonRpcRequestMessage.id -> Left(
-                JsonRpcResponseError.invalidParams(errors)
-              ),
-              command => jsonRpcRequestMessage.id -> Right(
-                command
-              )
-            ))
-        )
+        Json
+          .fromJson[JsonRpcRequestMessage](json)
+          .fold(
+            errors =>
+              None -> Left(
+                JsonRpcResponseError.invalidRequest(errors)
+            ),
+            jsonRpcRequestMessage =>
+              Command
+                .read(jsonRpcRequestMessage)
+                .fold[(Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command])](
+                  jsonRpcRequestMessage.id -> Left(
+                    JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method)
+                  )
+                )(
+                  commandJsResult =>
+                    commandJsResult.fold(
+                      errors =>
+                        jsonRpcRequestMessage.id -> Left(
+                          JsonRpcResponseError.invalidParams(errors)
+                      ),
+                      command =>
+                        jsonRpcRequestMessage.id -> Right(
+                          command
+                      )
+                  ))
+          )
     }
 }
 
@@ -173,20 +194,20 @@ class ClientConnectionActor(ip: RemoteAddress,
                             zoneValidatorShardRegion: ActorRef,
                             keepAliveInterval: FiniteDuration,
                             upstream: ActorRef)
-  extends PersistentActor
+    extends PersistentActor
     with ActorLogging
     with AtLeastOnceDelivery {
 
   import com.dhpcs.liquidity.server.actors.ClientConnectionActor.KeepAliveGeneratorActor._
   import context.dispatcher
 
-  private[this] val mediator = DistributedPubSub(context.system).mediator
-  private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
+  private[this] val mediator                = DistributedPubSub(context.system).mediator
+  private[this] val publishStatusTick       = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
   private[this] val keepAliveGeneratorActor = context.actorOf(KeepAliveGeneratorActor.props(keepAliveInterval))
 
   private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
-  private[this] var commandSequenceNumbers = Map.empty[ZoneId, Long].withDefaultValue(1L)
-  private[this] var pendingDeliveries = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
+  private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)
+  private[this] var pendingDeliveries                  = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
   override def persistenceId: String = publicKey.persistenceId
 
@@ -209,7 +230,7 @@ class ClientConnectionActor(ip: RemoteAddress,
       case ActorSinkInit =>
         sender() ! ActorSinkAck
         context.become(receiveActorSinkMessages)
-  }
+    }
 
   private[this] def receiveActorSinkMessages: Receive =
     publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
@@ -219,16 +240,17 @@ class ClientConnectionActor(ip: RemoteAddress,
         readCommand(jsonString) match {
           case (id, Left(jsonRpcResponseError)) =>
             log.warning(s"Receive error: $jsonRpcResponseError")
-            send(JsonRpcResponseMessage(
-              Left(jsonRpcResponseError),
-              id
-            ))
+            send(
+              JsonRpcResponseMessage(
+                Left(jsonRpcResponseError),
+                id
+              ))
           case (correlationId, Right(command)) =>
             command match {
               case createZoneCommand: CreateZoneCommand =>
                 createZone(createZoneCommand, correlationId)
               case zoneCommand: ZoneCommand =>
-                val zoneId = zoneCommand.zoneId
+                val zoneId         = zoneCommand.zoneId
                 val sequenceNumber = commandSequenceNumbers(zoneId)
                 commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
                 deliver(zoneValidatorShardRegion.path) { deliveryId =>
@@ -257,8 +279,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         )
       case ZoneValidatorActor.ZoneRestarted(zoneId) =>
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
-          ZoneId(UUID.fromString(validator.path.name)) != zoneId
-        )
+          ZoneId(UUID.fromString(validator.path.name)) != zoneId)
         commandSequenceNumbers = commandSequenceNumbers - zoneId
         pendingDeliveries(zoneId).foreach(confirmDelivery)
         pendingDeliveries = pendingDeliveries - zoneId
@@ -302,7 +323,7 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   private[this] def createZone(createZoneCommand: CreateZoneCommand,
                                correlationId: Option[Either[String, BigDecimal]]): Unit = {
-    val zoneId = ZoneId.generate
+    val zoneId         = ZoneId.generate
     val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
@@ -322,20 +343,23 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   private[this] def send(response: Either[ErrorResponse, ResultResponse],
                          correlationId: Option[Either[String, BigDecimal]]): Unit =
-    send(Response.write(
-      response,
-      correlationId
-    ))
+    send(
+      Response.write(
+        response,
+        correlationId
+      ))
 
   private[this] def send(notification: Notification): Unit =
-    send(Notification.write(
-      notification
-    ))
+    send(
+      Notification.write(
+        notification
+      ))
 
   private[this] def send(jsonRpcMessage: JsonRpcMessage): Unit = {
-    upstream ! Json.stringify(Json.toJson(
-      jsonRpcMessage
-    ))
+    upstream ! Json.stringify(
+      Json.toJson(
+        jsonRpcMessage
+      ))
     keepAliveGeneratorActor ! FrameSentEvent
   }
 }

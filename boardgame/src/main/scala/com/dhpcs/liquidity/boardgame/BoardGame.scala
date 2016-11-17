@@ -75,25 +75,24 @@ object BoardGame {
   case class PlayerWithBalanceAndConnectionState(zoneId: ZoneId,
                                                  member: Member,
                                                  account: Account,
-                                                 balanceWithCurrency:
-                                                 (BigDecimal, Option[Either[String, Currency]]),
+                                                 balanceWithCurrency: (BigDecimal, Option[Either[String, Currency]]),
                                                  isBanker: Boolean,
-                                                 isConnected: Boolean) extends Player
+                                                 isConnected: Boolean)
+      extends Player
 
   case class IdentityWithBalance(zoneId: ZoneId,
                                  member: Member,
                                  account: Account,
-                                 balanceWithCurrency:
-                                 (BigDecimal, Option[Either[String, Currency]]),
+                                 balanceWithCurrency: (BigDecimal, Option[Either[String, Currency]]),
                                  isBanker: Boolean)
-    extends Identity
+      extends Identity
 
   case class TransferWithCurrency(from: Either[(AccountId, Account), Player],
                                   to: Either[(AccountId, Account), Player],
                                   creator: Either[(MemberId, Member), Player],
                                   transaction: Transaction,
                                   currency: Option[Either[String, Currency]])
-    extends Transfer
+      extends Transfer
 
   trait JoinStateListener {
     def onJoinStateChanged(joinState: JoinState): Unit
@@ -168,7 +167,7 @@ object BoardGame {
                       var transfers: Map[TransactionId, TransferWithCurrency])
 
   private final val CurrencyCodeKey = "currency"
-  private final val HiddenFlagKey = "hidden"
+  private final val HiddenFlagKey   = "hidden"
 
   private var instances = Map.empty[ZoneId, BoardGame]
 
@@ -180,34 +179,39 @@ object BoardGame {
 
   private def currencyFromMetadata(metadata: Option[JsObject]): Option[Either[String, Currency]] =
     metadata.flatMap(
-      _.value.get(CurrencyCodeKey).flatMap(
-        _.asOpt[String].map(currencyCode =>
-          Try(
-            Currency.getInstance(currencyCode)
-          ).toOption.fold[Either[String, Currency]](ifEmpty = Left(currencyCode))(Right(_))
+      _.value
+        .get(CurrencyCodeKey)
+        .flatMap(
+          _.asOpt[String].map(
+            currencyCode =>
+              Try(
+                Currency.getInstance(currencyCode)
+              ).toOption.fold[Either[String, Currency]](ifEmpty = Left(currencyCode))(Right(_)))
         )
-      )
     )
 
   private def membersAccountsFromAccounts(accounts: Map[AccountId, Account]): Map[MemberId, AccountId] =
-    accounts.filter { case (_, account) =>
-      account.ownerMemberIds.size == 1
-    }.groupBy { case (_, account) =>
-      account.ownerMemberIds.head
-    }.collect { case (memberId, memberAccounts) if memberAccounts.size == 1 =>
-      val (accountId, _) = memberAccounts.head
-      memberId -> accountId
+    accounts.filter {
+      case (_, account) =>
+        account.ownerMemberIds.size == 1
+    }.groupBy {
+      case (_, account) =>
+        account.ownerMemberIds.head
+    }.collect {
+      case (memberId, memberAccounts) if memberAccounts.size == 1 =>
+        val (accountId, _) = memberAccounts.head
+        memberId -> accountId
     }
 
-  private def identitiesFromMembersAccounts(zoneId: ZoneId,
-                                            membersAccounts: Map[MemberId, AccountId],
-                                            accounts: Map[AccountId, Account],
-                                            balances: Map[AccountId, BigDecimal],
-                                            currency: Option[Either[String, Currency]],
-                                            members: Map[MemberId, Member],
-                                            equityAccountId: AccountId,
-                                            clientPublicKey: PublicKey):
-  (Map[MemberId, IdentityWithBalance], Map[MemberId, IdentityWithBalance]) =
+  private def identitiesFromMembersAccounts(
+      zoneId: ZoneId,
+      membersAccounts: Map[MemberId, AccountId],
+      accounts: Map[AccountId, Account],
+      balances: Map[AccountId, BigDecimal],
+      currency: Option[Either[String, Currency]],
+      members: Map[MemberId, Member],
+      equityAccountId: AccountId,
+      clientPublicKey: PublicKey): (Map[MemberId, IdentityWithBalance], Map[MemberId, IdentityWithBalance]) =
     membersAccounts.collect {
       case (memberId, accountId) if members(memberId).ownerPublicKey == clientPublicKey =>
         memberId -> IdentityWithBalance(
@@ -217,15 +221,18 @@ object BoardGame {
           (balances(accountId).bigDecimal, currency),
           accountId == equityAccountId
         )
-    }.partition { case (_, identity) =>
-      !isHidden(identity.member)
+    }.partition {
+      case (_, identity) =>
+        !isHidden(identity.member)
     }
 
   private def isHidden(member: Member): Boolean =
     member.metadata.fold(ifEmpty = false)(
-      _.value.get(HiddenFlagKey).fold(ifEmpty = false)(
-        _.asOpt[Boolean].getOrElse(false)
-      )
+      _.value
+        .get(HiddenFlagKey)
+        .fold(ifEmpty = false)(
+          _.asOpt[Boolean].getOrElse(false)
+        )
     )
 
   private def playersFromMembersAccounts(zoneId: ZoneId,
@@ -235,8 +242,8 @@ object BoardGame {
                                          currency: Option[Either[String, Currency]],
                                          members: Map[MemberId, Member],
                                          equityAccountId: AccountId,
-                                         connectedPublicKeys: Set[PublicKey]):
-  (Map[MemberId, PlayerWithBalanceAndConnectionState], Map[MemberId, PlayerWithBalanceAndConnectionState]) =
+                                         connectedPublicKeys: Set[PublicKey])
+    : (Map[MemberId, PlayerWithBalanceAndConnectionState], Map[MemberId, PlayerWithBalanceAndConnectionState]) =
     membersAccounts.map {
       case (memberId, accountId) =>
         val member = members(memberId)
@@ -248,8 +255,9 @@ object BoardGame {
           accountId == equityAccountId,
           connectedPublicKeys.contains(member.ownerPublicKey)
         )
-    }.partition { case (_, identity) =>
-      !isHidden(identity.member)
+    }.partition {
+      case (_, identity) =>
+        !isHidden(identity.member)
     }
 
   private def transfersFromTransactions(transactions: Map[TransactionId, Transaction],
@@ -260,18 +268,21 @@ object BoardGame {
                                         members: Map[MemberId, Member]): Map[TransactionId, TransferWithCurrency] =
     transactions.map {
       case (transactionId, transaction) =>
-        val from = accountsMembers.get(transaction.from)
+        val from = accountsMembers
+          .get(transaction.from)
           .fold[Either[(AccountId, Account), Player]](
-          ifEmpty = Left(transaction.from -> accounts(transaction.from))
-        )(memberId => Right(players(memberId)))
-        val to = accountsMembers.get(transaction.to)
+            ifEmpty = Left(transaction.from -> accounts(transaction.from))
+          )(memberId => Right(players(memberId)))
+        val to = accountsMembers
+          .get(transaction.to)
           .fold[Either[(AccountId, Account), Player]](
-          ifEmpty = Left(transaction.to -> accounts(transaction.to))
-        )(memberId => Right(players(memberId)))
-        val creator = players.get(transaction.creator)
+            ifEmpty = Left(transaction.to -> accounts(transaction.to))
+          )(memberId => Right(players(memberId)))
+        val creator = players
+          .get(transaction.creator)
           .fold[Either[(MemberId, Member), Player]](
-          ifEmpty = Left(transaction.creator -> members(transaction.creator))
-        )(Right(_))
+            ifEmpty = Left(transaction.creator -> members(transaction.creator))
+          )(Right(_))
         transactionId -> TransferWithCurrency(
           from,
           to,
@@ -282,23 +293,23 @@ object BoardGame {
     }
 }
 
-class BoardGame private(serverConnection: ServerConnection,
-                        gameDatabase: GameDatabase,
-                        currency: Option[Currency],
-                        gameName: Option[String],
-                        bankMemberName: Option[String],
-                        private[this] var zoneId: Option[ZoneId],
-                        private[this] var gameId: Option[Future[Long]])
-  extends ServerConnection.ConnectionStateListener
+class BoardGame private (serverConnection: ServerConnection,
+                         gameDatabase: GameDatabase,
+                         currency: Option[Currency],
+                         gameName: Option[String],
+                         bankMemberName: Option[String],
+                         private[this] var zoneId: Option[ZoneId],
+                         private[this] var gameId: Option[Future[Long]])
+    extends ServerConnection.ConnectionStateListener
     with ServerConnection.NotificationReceiptListener {
 
   private[this] val connectionRequestToken = new ConnectionRequestToken
 
-  private[this] var state: State = _
+  private[this] var state: State          = _
   private[this] var _joinState: JoinState = BoardGame.UNAVAILABLE
 
-  private[this] var joinRequestTokens = Set.empty[JoinRequestToken]
-  private[this] var joinStateListeners = Set.empty[JoinStateListener]
+  private[this] var joinRequestTokens   = Set.empty[JoinRequestToken]
+  private[this] var joinStateListeners  = Set.empty[JoinStateListener]
   private[this] var gameActionListeners = Set.empty[GameActionListener]
 
   def this(serverConnection: ServerConnection,
@@ -317,9 +328,7 @@ class BoardGame private(serverConnection: ServerConnection,
     )
   }
 
-  def this(serverConnection: ServerConnection,
-           gameDatabase: GameDatabase,
-           zoneId: ZoneId) {
+  def this(serverConnection: ServerConnection, gameDatabase: GameDatabase, zoneId: ZoneId) {
     this(
       serverConnection,
       gameDatabase,
@@ -331,10 +340,7 @@ class BoardGame private(serverConnection: ServerConnection,
     )
   }
 
-  def this(serverConnection: ServerConnection,
-           gameDatabase: GameDatabase,
-           zoneId: ZoneId,
-           gameId: Long) {
+  def this(serverConnection: ServerConnection, gameDatabase: GameDatabase, zoneId: ZoneId, gameId: Long) {
     this(
       serverConnection,
       gameDatabase,
@@ -360,9 +366,13 @@ class BoardGame private(serverConnection: ServerConnection,
 
   def getZoneId: ZoneId = zoneId.orNull
 
-  def isIdentityNameValid(name: CharSequence): Boolean = isTagValid(name) && state.zone.members(
-    state.accountIdsToMemberIds(state.zone.equityAccountId)
-  ).name.fold(ifEmpty = true)(_ != name.toString)
+  def isIdentityNameValid(name: CharSequence): Boolean =
+    isTagValid(name) && state.zone
+      .members(
+        state.accountIdsToMemberIds(state.zone.equityAccountId)
+      )
+      .name
+      .fold(ifEmpty = true)(_ != name.toString)
 
   def isPublicKeyConnectedAndImplicitlyValid(publicKey: PublicKey): Boolean =
     state.connectedClients.contains(publicKey)
@@ -456,21 +466,21 @@ class BoardGame private(serverConnection: ServerConnection,
   }
 
   def transferToPlayer(actingAs: Identity, from: Identity, to: Seq[Player], value: BigDecimal): Unit =
-    to.foreach(to =>
-      serverConnection.sendCommand(
-        AddTransactionCommand(
-          zoneId.get,
-          actingAs.member.id,
-          from.account.id,
-          to.account.id,
-          value
-        ),
-        new ResponseCallback {
-          override def onErrorReceived(errorResponse: ErrorResponse): Unit =
-            gameActionListeners.foreach(_.onTransferToPlayerError(to.member.name))
-        }
-      )
-    )
+    to.foreach(
+      to =>
+        serverConnection.sendCommand(
+          AddTransactionCommand(
+            zoneId.get,
+            actingAs.member.id,
+            from.account.id,
+            to.account.id,
+            value
+          ),
+          new ResponseCallback {
+            override def onErrorReceived(errorResponse: ErrorResponse): Unit =
+              gameActionListeners.foreach(_.onTransferToPlayerError(to.member.name))
+          }
+      ))
 
   def registerListener(listener: JoinStateListener): Unit =
     if (!joinStateListeners.contains(listener)) {
@@ -503,8 +513,7 @@ class BoardGame private(serverConnection: ServerConnection,
     zoneId.foreach(zoneId =>
       if (!instances.contains(zoneId)) {
         instances = instances + (zoneId -> BoardGame.this)
-      }
-    )
+    })
     if (!joinRequestTokens.contains(token)) {
       if (joinStateListeners.isEmpty && gameActionListeners.isEmpty && joinRequestTokens.isEmpty) {
         serverConnection.registerListener(this: ConnectionStateListener)
@@ -514,9 +523,9 @@ class BoardGame private(serverConnection: ServerConnection,
     }
     serverConnection.requestConnection(connectionRequestToken, retry)
     if (_joinState != BoardGame.CREATING
-      && _joinState != BoardGame.JOINING
-      && _joinState != BoardGame.JOINED
-      && serverConnection.connectionState == ServerConnection.ONLINE) {
+        && _joinState != BoardGame.JOINING
+        && _joinState != BoardGame.JOINED
+        && serverConnection.connectionState == ServerConnection.ONLINE) {
       zoneId.fold(ifEmpty = {
         state = null
         _joinState = BoardGame.CREATING
@@ -542,8 +551,7 @@ class BoardGame private(serverConnection: ServerConnection,
         zoneId.foreach(zoneId =>
           if (instances.contains(zoneId)) {
             instances = instances - zoneId
-          }
-        )
+        })
         if (_joinState != BoardGame.JOINING && _joinState != BoardGame.JOINED) {
           serverConnection.unrequestConnection(connectionRequestToken)
         } else {
@@ -655,24 +663,19 @@ class BoardGame private(serverConnection: ServerConnection,
         )
         if (updatedPlayers != state.players) {
           val addedPlayers = updatedPlayers -- state.players.keys
-          val changedPlayers = updatedPlayers.filter { case (memberId, player) =>
-            state.players.get(memberId).fold(ifEmpty = false)(_ != player)
+          val changedPlayers = updatedPlayers.filter {
+            case (memberId, player) =>
+              state.players.get(memberId).fold(ifEmpty = false)(_ != player)
           }
           val removedPlayers = state.players -- updatedPlayers.keys
           if (addedPlayers.nonEmpty) {
-            gameActionListeners.foreach(listener =>
-              addedPlayers.values.foreach(listener.onPlayerAdded)
-            )
+            gameActionListeners.foreach(listener => addedPlayers.values.foreach(listener.onPlayerAdded))
           }
           if (changedPlayers.nonEmpty) {
-            gameActionListeners.foreach(listener =>
-              changedPlayers.values.foreach(listener.onPlayerChanged)
-            )
+            gameActionListeners.foreach(listener => changedPlayers.values.foreach(listener.onPlayerChanged))
           }
           if (removedPlayers.nonEmpty) {
-            gameActionListeners.foreach(listener =>
-              removedPlayers.values.foreach(listener.onPlayerRemoved)
-            )
+            gameActionListeners.foreach(listener => removedPlayers.values.foreach(listener.onPlayerRemoved))
           }
           state.players = updatedPlayers
           gameActionListeners.foreach(_.onPlayersUpdated(updatedPlayers))
@@ -689,8 +692,9 @@ class BoardGame private(serverConnection: ServerConnection,
           state.zone.members
         )
         if (updatedTransfers != state.transfers) {
-          val changedTransfers = updatedTransfers.filter { case (transactionId, transfer) =>
-            state.transfers.get(transactionId).fold(ifEmpty = false)(_ != transfer)
+          val changedTransfers = updatedTransfers.filter {
+            case (transactionId, transfer) =>
+              state.transfers.get(transactionId).fold(ifEmpty = false)(_ != transfer)
           }
           if (changedTransfers.nonEmpty) {
             gameActionListeners.foreach(_.onTransfersChanged(changedTransfers.values))
@@ -716,9 +720,7 @@ class BoardGame private(serverConnection: ServerConnection,
           )
           if (joinedPlayers.nonEmpty) {
             state.players = state.players ++ joinedPlayers
-            gameActionListeners.foreach(listener =>
-              joinedPlayers.values.foreach(listener.onPlayerChanged)
-            )
+            gameActionListeners.foreach(listener => joinedPlayers.values.foreach(listener.onPlayerChanged))
             gameActionListeners.foreach(_.onPlayersUpdated(state.players))
           }
           if (joinedHiddenPlayers.nonEmpty) {
@@ -740,9 +742,7 @@ class BoardGame private(serverConnection: ServerConnection,
           )
           if (quitPlayers.nonEmpty) {
             state.players = state.players ++ quitPlayers
-            gameActionListeners.foreach(listener =>
-              quitPlayers.values.foreach(listener.onPlayerChanged)
-            )
+            gameActionListeners.foreach(listener => quitPlayers.values.foreach(listener.onPlayerChanged))
             gameActionListeners.foreach(_.onPlayersUpdated(state.players))
           }
           if (quitHiddenPlayers.nonEmpty) {
@@ -784,14 +784,14 @@ class BoardGame private(serverConnection: ServerConnection,
           if (updatedIdentities != state.identities) {
             val receivedIdentity =
               if (!state.identities.contains(member.id) &&
-                !state.hiddenIdentities.contains(member.id)) {
+                  !state.hiddenIdentities.contains(member.id)) {
                 updatedIdentities.get(member.id)
               } else {
                 None
               }
             val restoredIdentity =
               if (!state.identities.contains(member.id) &&
-                state.hiddenIdentities.contains(member.id)) {
+                  state.hiddenIdentities.contains(member.id)) {
                 updatedIdentities.get(member.id)
               } else {
                 None
@@ -799,11 +799,9 @@ class BoardGame private(serverConnection: ServerConnection,
             state.identities = updatedIdentities
             gameActionListeners.foreach(_.onIdentitiesUpdated(updatedIdentities))
             receivedIdentity.foreach(receivedIdentity =>
-              gameActionListeners.foreach(_.onIdentityReceived(receivedIdentity))
-            )
+              gameActionListeners.foreach(_.onIdentityReceived(receivedIdentity)))
             restoredIdentity.foreach(restoredIdentity =>
-              gameActionListeners.foreach(_.onIdentityRestored(restoredIdentity))
-            )
+              gameActionListeners.foreach(_.onIdentityRestored(restoredIdentity)))
           }
           if (updatedHiddenIdentities != state.hiddenIdentities) {
             state.hiddenIdentities = updatedHiddenIdentities
@@ -820,7 +818,7 @@ class BoardGame private(serverConnection: ServerConnection,
           )
           state.memberIdsToAccountIds = state.memberIdsToAccountIds ++ createdMembersAccounts
           state.accountIdsToMemberIds = state.accountIdsToMemberIds ++
-            createdMembersAccounts.map(_.swap)
+              createdMembersAccounts.map(_.swap)
           val (createdIdentity, createdHiddenIdentity) = identitiesFromMembersAccounts(
             zoneNotification.zoneId,
             createdMembersAccounts,
@@ -853,9 +851,7 @@ class BoardGame private(serverConnection: ServerConnection,
           )
           if (createdPlayer.nonEmpty) {
             state.players = state.players ++ createdPlayer
-            gameActionListeners.foreach(listener =>
-              createdPlayer.values.foreach(listener.onPlayerAdded)
-            )
+            gameActionListeners.foreach(listener => createdPlayer.values.foreach(listener.onPlayerAdded))
             gameActionListeners.foreach(_.onPlayersUpdated(state.players))
           }
           if (createdHiddenPlayer.nonEmpty) {
@@ -890,12 +886,12 @@ class BoardGame private(serverConnection: ServerConnection,
             transactions = state.zone.transactions + (transaction.id -> transaction)
           )
           state.balances = state.balances +
-            (transaction.from -> (state.balances(transaction.from) - transaction.value)) +
-            (transaction.to -> (state.balances(transaction.to) + transaction.value))
+              (transaction.from -> (state.balances(transaction.from) - transaction.value)) +
+              (transaction.to   -> (state.balances(transaction.to) + transaction.value))
           val changedMembersAccounts = membersAccountsFromAccounts(
             Map(
               transaction.from -> state.zone.accounts(transaction.from),
-              transaction.to -> state.zone.accounts(transaction.to)
+              transaction.to   -> state.zone.accounts(transaction.to)
             )
           )
           val (changedIdentities, changedHiddenIdentities) = identitiesFromMembersAccounts(
@@ -927,9 +923,7 @@ class BoardGame private(serverConnection: ServerConnection,
           )
           if (changedPlayers.nonEmpty) {
             state.players = state.players ++ changedPlayers
-            gameActionListeners.foreach(listener =>
-              changedPlayers.values.foreach(listener.onPlayerChanged)
-            )
+            gameActionListeners.foreach(listener => changedPlayers.values.foreach(listener.onPlayerChanged))
             gameActionListeners.foreach(_.onPlayersUpdated(state.players))
           }
           if (changedHiddenPlayers.nonEmpty) {
@@ -947,9 +941,7 @@ class BoardGame private(serverConnection: ServerConnection,
           )
           if (createdTransfer.nonEmpty) {
             state.transfers = state.transfers ++ createdTransfer
-            gameActionListeners.foreach(listener =>
-              createdTransfer.values.foreach(listener.onTransferAdded)
-            )
+            gameActionListeners.foreach(listener => createdTransfer.values.foreach(listener.onTransferAdded))
             gameActionListeners.foreach(_.onTransfersUpdated(state.transfers))
           }
       }
@@ -999,11 +991,11 @@ class BoardGame private(serverConnection: ServerConnection,
         override def onResultReceived(resultResponse: ResultResponse): Unit =
           if (_joinState == BoardGame.JOINING) {
             val joinZoneResponse = resultResponse.asInstanceOf[JoinZoneResponse]
-            var balances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
+            var balances         = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
             for (transaction <- joinZoneResponse.zone.transactions.values) {
               balances = balances +
-                (transaction.from -> (balances(transaction.from) - transaction.value)) +
-                (transaction.to -> (balances(transaction.to) + transaction.value))
+                  (transaction.from -> (balances(transaction.from) - transaction.value)) +
+                  (transaction.to   -> (balances(transaction.to) + transaction.value))
             }
             val currency = currencyFromMetadata(joinZoneResponse.zone.metadata)
             val memberIdsToAccountIds = membersAccountsFromAccounts(
@@ -1060,9 +1052,9 @@ class BoardGame private(serverConnection: ServerConnection,
             gameActionListeners.foreach(_.onTransfersInitialized(transfers.values))
             gameActionListeners.foreach(_.onTransfersUpdated(transfers))
             val partiallyCreatedIdentities = joinZoneResponse.zone.members.collect {
-              case (memberId, member) if serverConnection.clientKey == member.ownerPublicKey
-                && !joinZoneResponse.zone.accounts.values.exists(_.ownerMemberIds == Set(memberId))
-              =>
+              case (memberId, member)
+                  if serverConnection.clientKey == member.ownerPublicKey
+                    && !joinZoneResponse.zone.accounts.values.exists(_.ownerMemberIds == Set(memberId)) =>
                 member
             }
             partiallyCreatedIdentities.foreach(createAccount)
@@ -1074,8 +1066,8 @@ class BoardGame private(serverConnection: ServerConnection,
             // The second condition isn't usually of significance but exists to prevent incorrectly prompting for an
             // identity if a user rejoins a game by scanning its code again rather than by clicking its list item.
             if (gameId.isEmpty && !(identities ++ hiddenIdentities).values.exists(
-              _.account.id != joinZoneResponse.zone.equityAccountId
-            )) {
+                  _.account.id != joinZoneResponse.zone.equityAccountId
+                )) {
               gameActionListeners.foreach(_.onIdentityRequired())
             }
 
@@ -1084,14 +1076,14 @@ class BoardGame private(serverConnection: ServerConnection,
             gameId = gameId.fold(
               ifEmpty = Some(
                 Future(
-
                   // This is in case a user rejoins a game by scanning its code again rather than by clicking its list
                   // item - in such cases we mustn't attempt to insert an entry as that would silently fail (as it
                   // happens on the Future's worker thread), but we may need to update the existing entries name.
-                  Option(gameDatabase.checkAndUpdateGame(
-                    zoneId,
-                    joinZoneResponse.zone.name.orNull
-                  )).map(_.toLong).getOrElse {
+                  Option(
+                    gameDatabase.checkAndUpdateGame(
+                      zoneId,
+                      joinZoneResponse.zone.name.orNull
+                    )).map(_.toLong).getOrElse {
                     gameDatabase.insertGame(
                       zoneId,
                       joinZoneResponse.zone.created,
@@ -1102,14 +1094,14 @@ class BoardGame private(serverConnection: ServerConnection,
                 )
               )
             ) { gameId =>
-              gameId.foreach(_ =>
-                Future(
-                  gameDatabase.checkAndUpdateGame(
-                    zoneId,
-                    joinZoneResponse.zone.name.orNull
-                  )
-                )
-              )
+              gameId.foreach(
+                _ =>
+                  Future(
+                    gameDatabase.checkAndUpdateGame(
+                      zoneId,
+                      joinZoneResponse.zone.name.orNull
+                    )
+                ))
               Some(gameId)
             }
           }

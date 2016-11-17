@@ -16,13 +16,13 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 
 object CertGen {
   private final val SubjectAlternativeName = "liquidity.dhpcs.com"
-  private final val CommonName = "liquidity.dhpcs.com"
-  private final val KeyLength = 2048
+  private final val CommonName             = "liquidity.dhpcs.com"
+  private final val KeyLength              = 2048
 
-  private final val CertKeyStoreFilename = "liquidity.dhpcs.com.keystore.p12"
+  private final val CertKeyStoreFilename   = "liquidity.dhpcs.com.keystore.p12"
   private final val CertKeyStoreEntryAlias = "identity"
 
-  private final val CertStoreFilename = "liquidity.dhpcs.com.truststore.p12"
+  private final val CertStoreFilename   = "liquidity.dhpcs.com.truststore.p12"
   private final val CertStoreEntryAlias = "identity"
 
   def main(args: Array[String]): Unit = {
@@ -30,7 +30,7 @@ object CertGen {
       new FileInputStream("server/src/main/resources/liquidity.dhpcs.com.keystore.p12"),
       "PKCS12"
     )
-    val keyPair = new KeyPair(certificate.getPublicKey, privateKey)
+    val keyPair            = new KeyPair(certificate.getPublicKey, privateKey)
     val updatedCertificate = generateCert(keyPair, subjectAlternativeName = Some(SubjectAlternativeName))
     saveCertKey(new FileOutputStream(CertKeyStoreFilename), "PKCS12", updatedCertificate, privateKey)
     saveCert(new FileOutputStream(CertStoreFilename), "PKCS12", updatedCertificate)
@@ -39,7 +39,7 @@ object CertGen {
   def generateCertKey(subjectAlternativeName: Option[String]): (X509Certificate, PrivateKey) = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(KeyLength)
-    val keyPair = keyPairGenerator.generateKeyPair
+    val keyPair     = keyPairGenerator.generateKeyPair
     val certificate = generateCert(keyPair, subjectAlternativeName)
     (certificate, keyPair.getPrivate)
   }
@@ -59,26 +59,30 @@ object CertGen {
       new JcaX509ExtensionUtils().createSubjectKeyIdentifier(keyPair.getPublic)
     )
     new JcaX509CertificateConverter().getCertificate(
-      subjectAlternativeName.fold(
-        ifEmpty = certBuilder
-      )(subjectAlternativeName =>
-        certBuilder.addExtension(
-          Extension.subjectAlternativeName,
-          false,
-          new GeneralNames(new GeneralName(GeneralName.dNSName, subjectAlternativeName))
+      subjectAlternativeName
+        .fold(
+          ifEmpty = certBuilder
+        )(
+          subjectAlternativeName =>
+            certBuilder.addExtension(
+              Extension.subjectAlternativeName,
+              false,
+              new GeneralNames(new GeneralName(GeneralName.dNSName, subjectAlternativeName))
+          ))
+        .build(
+          new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate)
         )
-      ).build(
-        new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate)
-      )
     )
   }
 
   def loadCertKey(from: InputStream, keyStoreType: String): (X509Certificate, PrivateKey) = {
     val keyStore = loadKeyStore(from, keyStoreType)
-    val privateKeyEntry = keyStore.getEntry(
-      CertKeyStoreEntryAlias,
-      new KeyStore.PasswordProtection(Array.emptyCharArray)
-    ).asInstanceOf[PrivateKeyEntry]
+    val privateKeyEntry = keyStore
+      .getEntry(
+        CertKeyStoreEntryAlias,
+        new KeyStore.PasswordProtection(Array.emptyCharArray)
+      )
+      .asInstanceOf[PrivateKeyEntry]
     (privateKeyEntry.getCertificate.asInstanceOf[X509Certificate], privateKeyEntry.getPrivateKey)
   }
 

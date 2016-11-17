@@ -31,7 +31,7 @@ object PlayJsonEventSerializer {
     manifestToFormat[TransactionAddedEvent]
   ).withDefault(manifest => sys.error(s"No format found for $manifest"))
 
-  private def manifestToFormat[A : ClassTag : Format]: (String, EventFormat[A]) =
+  private def manifestToFormat[A: ClassTag: Format]: (String, EventFormat[A]) =
     name(implicitly[ClassTag[A]].runtimeClass) -> new EventFormat(implicitly[Format[A]])
 
   private def name[A](clazz: Class[A]): String = clazz.getName
@@ -45,9 +45,11 @@ class PlayJsonEventSerializer extends SerializerWithStringManifest {
   override def manifest(obj: AnyRef): String = name(obj.getClass)
 
   override def toBinary(o: AnyRef): Array[Byte] =
-    Json.stringify(
-      formats(name(o.getClass)).toJson(o)
-    ).getBytes(StandardCharsets.UTF_8)
+    Json
+      .stringify(
+        formats(name(o.getClass)).toJson(o)
+      )
+      .getBytes(StandardCharsets.UTF_8)
 
   override def fromBinary(bytes: Array[Byte], manifest: String): AnyRef =
     formats(manifest).fromJson(

@@ -3,7 +3,11 @@ package com.dhpcs.liquidity.server.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
-import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary, PublishStatus}
+import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{
+  ActiveClientsSummary,
+  GetActiveClientsSummary,
+  PublishStatus
+}
 
 import scala.concurrent.duration._
 

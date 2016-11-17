@@ -25,11 +25,8 @@ trait LiquidityServerController {
   )
 
   private[this] def ws = path("ws")(
-    extractClientIP(ip =>
-      extractClientPublicKey(ip)(publicKey =>
-        handleWebSocketMessages(webSocketApi(ip, publicKey))
-      )
-    )
+    extractClientIP(
+      ip => extractClientPublicKey(ip)(publicKey => handleWebSocketMessages(webSocketApi(ip, publicKey))))
   )
 
   protected[this] def getStatus: Future[JsValue]

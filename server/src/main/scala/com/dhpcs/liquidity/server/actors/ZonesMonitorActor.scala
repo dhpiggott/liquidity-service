@@ -20,11 +20,10 @@ object ZonesMonitorActor {
   def props(zoneCount: => Future[Int]): Props = Props(new ZonesMonitorActor(zoneCount))
 
   def zoneCount(readJournal: ReadJournal with CurrentPersistenceIdsQuery)(implicit mat: Materializer): Future[Int] =
-  readJournal.currentPersistenceIds
-    .collect { case ZoneIdStringPattern(uuidString) =>
-      ZoneId(UUID.fromString(uuidString))
-    }
-    .runFold(0)((count, _) => count + 1)
+    readJournal.currentPersistenceIds.collect {
+      case ZoneIdStringPattern(uuidString) =>
+        ZoneId(UUID.fromString(uuidString))
+    }.runFold(0)((count, _) => count + 1)
 
   case object GetActiveZonesSummary
 
@@ -64,9 +63,7 @@ class ZonesMonitorActor(zoneCount: => Future[Int]) extends Actor with ActorLoggi
       activeZoneSummaries = activeZoneSummaries + (sender() -> activeZoneSummary)
     case GetZoneCount =>
       val requester = sender()
-      zoneCount
-        .map(ZoneCount)
-        .pipeTo(requester)
+      zoneCount.map(ZoneCount).pipeTo(requester)
     case GetActiveZonesSummary =>
       sender() ! ActiveZonesSummary(activeZoneSummaries.values.toSet)
     case Terminated(zoneValidator) =>

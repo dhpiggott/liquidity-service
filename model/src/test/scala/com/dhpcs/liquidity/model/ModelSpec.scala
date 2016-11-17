@@ -17,15 +17,16 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         """
           |0""".stripMargin
       ),
-      JsError(List(
-        (__ \ "id", List(ValidationError("error.path.missing"))),
-        (__ \ "equityAccountId", List(ValidationError("error.path.missing"))),
-        (__ \ "members", List(ValidationError("error.path.missing"))),
-        (__ \ "accounts", List(ValidationError("error.path.missing"))),
-        (__ \ "transactions", List(ValidationError("error.path.missing"))),
-        (__ \ "created", List(ValidationError("error.path.missing"))),
-        (__ \ "expires", List(ValidationError("error.path.missing")))
-      ))
+      JsError(
+        List(
+          (__ \ "id", List(ValidationError("error.path.missing"))),
+          (__ \ "equityAccountId", List(ValidationError("error.path.missing"))),
+          (__ \ "members", List(ValidationError("error.path.missing"))),
+          (__ \ "accounts", List(ValidationError("error.path.missing"))),
+          (__ \ "transactions", List(ValidationError("error.path.missing"))),
+          (__ \ "created", List(ValidationError("error.path.missing"))),
+          (__ \ "expires", List(ValidationError("error.path.missing")))
+        ))
     )
   )
 
@@ -177,10 +178,11 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
         """
           |0""".stripMargin
       ),
-      JsError(List(
-        (__ \ "id", List(ValidationError("error.path.missing"))),
-        (__ \ "ownerMemberIds", List(ValidationError("error.path.missing")))
-      ))
+      JsError(
+        List(
+          (__ \ "id", List(ValidationError("error.path.missing"))),
+          (__ \ "ownerMemberIds", List(ValidationError("error.path.missing")))
+        ))
     )
   )
 
@@ -233,10 +235,11 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
         """
           |0""".stripMargin
       ),
-      JsError(List(
-        (__ \ "id", List(ValidationError("error.path.missing"))),
-        (__ \ "ownerPublicKey", List(ValidationError("error.path.missing")))
-      ))
+      JsError(
+        List(
+          (__ \ "id", List(ValidationError("error.path.missing"))),
+          (__ \ "ownerPublicKey", List(ValidationError("error.path.missing")))
+        ))
     )
   )
 
@@ -287,14 +290,15 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
         """
           |0""".stripMargin
       ),
-      JsError(List(
-        (__ \ "id", List(ValidationError("error.path.missing"))),
-        (__ \ "from", List(ValidationError("error.path.missing"))),
-        (__ \ "to", List(ValidationError("error.path.missing"))),
-        (__ \ "value", List(ValidationError("error.path.missing"))),
-        (__ \ "creator", List(ValidationError("error.path.missing"))),
-        (__ \ "created", List(ValidationError("error.path.missing")))
-      ))
+      JsError(
+        List(
+          (__ \ "id", List(ValidationError("error.path.missing"))),
+          (__ \ "from", List(ValidationError("error.path.missing"))),
+          (__ \ "to", List(ValidationError("error.path.missing"))),
+          (__ \ "value", List(ValidationError("error.path.missing"))),
+          (__ \ "creator", List(ValidationError("error.path.missing"))),
+          (__ \ "created", List(ValidationError("error.path.missing")))
+        ))
     )
   )
 
@@ -359,15 +363,14 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
 class PublicKeySpec extends FunSpec with FormatBehaviors[PublicKey] with Matchers {
   describe("A JsValue of the wrong type")(
     it should behave like readError(
-      Json.parse(
-        """
+      Json.parse("""
           |0""".stripMargin),
       JsError(List((__, List(ValidationError("error.expected.jsstring")))))
     )
   )
 
   describe("A PublicKey") {
-    val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
+    val publicKeyBytes     = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     implicit val publicKey = PublicKey(publicKeyBytes)
     implicit val publicKeyJson = Json.parse(
       s"""

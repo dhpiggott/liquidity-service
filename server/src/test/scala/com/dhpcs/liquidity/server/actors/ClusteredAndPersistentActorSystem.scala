@@ -9,8 +9,7 @@ import com.typesafe.config.ConfigFactory
 import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-trait ClusteredAndPersistentActorSystem extends BeforeAndAfterAll {
-  this: Suite =>
+trait ClusteredAndPersistentActorSystem extends BeforeAndAfterAll { this: Suite =>
 
   private[this] val akkaRemotingPort = {
     val serverSocket = ServerSocketChannel.open().socket()
@@ -20,12 +19,13 @@ trait ClusteredAndPersistentActorSystem extends BeforeAndAfterAll {
     port
   }
 
-  private[this] val journalDirectory = FileUtils.createTempDir("liquidity-leveldb-journal")
+  private[this] val journalDirectory       = FileUtils.createTempDir("liquidity-leveldb-journal")
   private[this] val snapshotStoreDirectory = FileUtils.createTempDir("liquidity-leveldb-snapshot-store")
 
   private[this] val config =
-    ConfigFactory.parseString(
-      s"""
+    ConfigFactory
+      .parseString(
+        s"""
          |akka {
          |  loglevel = "ERROR"
          |  actor {
@@ -61,7 +61,8 @@ trait ClusteredAndPersistentActorSystem extends BeforeAndAfterAll {
          |  }
          |}
     """.stripMargin
-    ).resolve()
+      )
+      .resolve()
 
   protected[this] implicit val system = ActorSystem("liquidity", config)
 

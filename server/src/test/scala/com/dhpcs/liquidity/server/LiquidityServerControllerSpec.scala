@@ -19,10 +19,11 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Future
 
-class LiquidityServerControllerSpec extends WordSpec
-  with Matchers
-  with ScalatestRouteTest
-  with LiquidityServerController {
+class LiquidityServerControllerSpec
+    extends WordSpec
+    with Matchers
+    with ScalatestRouteTest
+    with LiquidityServerController {
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 

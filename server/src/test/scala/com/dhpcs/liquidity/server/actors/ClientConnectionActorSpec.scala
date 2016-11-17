@@ -9,7 +9,11 @@ import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.protocol._
-import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{AuthenticatedCommandWithIds, EnvelopedAuthenticatedCommandWithIds, ResponseWithIds}
+import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
+  AuthenticatedCommandWithIds,
+  EnvelopedAuthenticatedCommandWithIds,
+  ResponseWithIds
+}
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest.{Inside, Matchers, fixture}
@@ -17,8 +21,11 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration._
 
-class ClientConnectionActorSpec extends fixture.WordSpec
-  with Inside with Matchers with ClusteredAndPersistentActorSystem {
+class ClientConnectionActorSpec
+    extends fixture.WordSpec
+    with Inside
+    with Matchers
+    with ClusteredAndPersistentActorSystem {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {
@@ -29,12 +36,12 @@ class ClientConnectionActorSpec extends fixture.WordSpec
   override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
   override protected def withFixture(test: OneArgTest) = {
-    val sinkTestProbe = TestProbe()
+    val sinkTestProbe                     = TestProbe()
     val zoneValidatorShardRegionTestProbe = TestProbe()
-    val upstreamTestProbe = TestProbe()
+    val upstreamTestProbe                 = TestProbe()
     val clientConnection = system.actorOf(
-      ClientConnectionActor.props(
-        ip, publicKey, zoneValidatorShardRegionTestProbe.ref, keepAliveInterval = 3.seconds)(upstreamTestProbe.ref)
+      ClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegionTestProbe.ref, keepAliveInterval = 3.seconds)(
+        upstreamTestProbe.ref)
     )
     sinkTestProbe.send(clientConnection, ClientConnectionActor.ActorSinkInit)
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
@@ -60,17 +67,17 @@ class ClientConnectionActorSpec extends fixture.WordSpec
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
       expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       val command = CreateZoneCommand(
-          equityOwnerPublicKey = publicKey,
-          equityOwnerName = Some("Dave"),
-          equityOwnerMetadata = None,
-          equityAccountName = None,
-          equityAccountMetadata = None,
-          name = Some("Dave's Game")
-        )
+        equityOwnerPublicKey = publicKey,
+        equityOwnerName = Some("Dave"),
+        equityOwnerMetadata = None,
+        equityAccountName = None,
+        equityAccountMetadata = None,
+        name = Some("Dave's Game")
+      )
       val correlationId = Some(Right(BigDecimal(0)))
       send(sinkTestProbe, clientConnection)(command, correlationId)
       val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedAuthenticatedCommandWithIds]) {
-        case envelopedMessage@EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
+        case envelopedMessage @ EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
           authenticatedCommandWithIds shouldBe
             AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber = 1L, deliveryId = 1L)
           envelopedMessage.zoneId
@@ -80,7 +87,7 @@ class ClientConnectionActorSpec extends fixture.WordSpec
         Zone(
           id = zoneId,
           equityAccountId = AccountId(0),
-          members = Map(MemberId(0) -> Member(MemberId(0), publicKey, name = Some("Dave"))),
+          members = Map(MemberId(0)   -> Member(MemberId(0), publicKey, name = Some("Dave"))),
           accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
           transactions = Map.empty,
           created = created,
@@ -97,28 +104,30 @@ class ClientConnectionActorSpec extends fixture.WordSpec
     }
   }
 
-  private[this] def send(sinkTestProbe: TestProbe, clientConnection: ActorRef)
-                        (command: Command, correlationId: Option[Either[String, BigDecimal]]): Unit = {
+  private[this] def send(sinkTestProbe: TestProbe, clientConnection: ActorRef)(
+      command: Command,
+      correlationId: Option[Either[String, BigDecimal]]): Unit = {
     sinkTestProbe.send(
       clientConnection,
-      Json.stringify(Json.toJson(
-        Command.write(command, id = correlationId)
-      ))
+      Json.stringify(
+        Json.toJson(
+          Command.write(command, id = correlationId)
+        ))
     )
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
   }
 
   private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification = {
-    val jsValue = expectJsValue(upstreamTestProbe)
+    val jsValue                    = expectJsValue(upstreamTestProbe)
     val jsonRpcNotificationMessage = jsValue.asOpt[JsonRpcNotificationMessage]
-    val notification = Notification.read(jsonRpcNotificationMessage.value)
+    val notification               = Notification.read(jsonRpcNotificationMessage.value)
     notification.value.asOpt.value
   }
 
   private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): ResultResponse = {
-    val jsValue = expectJsValue(upstreamTestProbe)
+    val jsValue                = expectJsValue(upstreamTestProbe)
     val jsonRpcResponseMessage = jsValue.asOpt[JsonRpcResponseMessage]
-    val response = Response.read(jsonRpcResponseMessage.value, method)
+    val response               = Response.read(jsonRpcResponseMessage.value, method)
     response.asOpt.value.right.value
   }
 

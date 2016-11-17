@@ -10,7 +10,7 @@ class ZonesMonitorActorSpec extends WordSpec with ClusteredAndPersistentActorSys
 
   "A ZonesMonitorActor" should {
     "provide a count of the number of zones" in {
-      val testProbe = TestProbe()
+      val testProbe    = TestProbe()
       val zonesMonitor = system.actorOf(ZonesMonitorActor.props(Future.successful(0)), "zones-monitor")
       try {
         testProbe.send(

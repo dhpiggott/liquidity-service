@@ -9,12 +9,16 @@ import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.model.{Member, MemberId, PublicKey, ZoneId}
 import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ClientConnectionActor.MessageReceivedConfirmation
-import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{AuthenticatedCommandWithIds, CommandReceivedConfirmation, EnvelopedAuthenticatedCommandWithIds, ResponseWithIds}
+import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
+  AuthenticatedCommandWithIds,
+  CommandReceivedConfirmation,
+  EnvelopedAuthenticatedCommandWithIds,
+  ResponseWithIds
+}
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, Matchers, WordSpec}
 
-class ZoneValidatorActorSpec extends WordSpec
-  with Inside with Matchers with ClusteredAndPersistentActorSystem {
+class ZoneValidatorActorSpec extends WordSpec with Inside with Matchers with ClusteredAndPersistentActorSystem {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardName,
@@ -32,8 +36,8 @@ class ZoneValidatorActorSpec extends WordSpec
   "A ZoneValidatorActor" should {
     "send a CreateZoneResponse after a CreateZoneCommand" in {
       val (clientConnectionTestProbe, zoneId) = setup()
-      val correlationId = Some(Right(BigDecimal(0)))
-      val sequenceNumber = 1L
+      val correlationId                       = Some(Right(BigDecimal(0)))
+      val sequenceNumber                      = 1L
       send(clientConnectionTestProbe)(
         EnvelopedAuthenticatedCommandWithIds(
           zoneId,
@@ -61,8 +65,8 @@ class ZoneValidatorActorSpec extends WordSpec
     }
     "send an ErrorResponse when a JoinZoneCommand is sent but a zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
-      val correlationId = Some(Right(BigDecimal(0)))
-      val sequenceNumber = 1L
+      val correlationId                       = Some(Right(BigDecimal(0)))
+      val sequenceNumber                      = 1L
       send(clientConnectionTestProbe, zoneId)(
         AuthenticatedCommandWithIds(
           publicKey,
@@ -81,27 +85,24 @@ class ZoneValidatorActorSpec extends WordSpec
 
   private[this] def setup(): (TestProbe, ZoneId) = {
     val clientConnectionTestProbe = TestProbe()
-    val zoneId = ZoneId.generate
+    val zoneId                    = ZoneId.generate
     (clientConnectionTestProbe, zoneId)
   }
 
-  private[this] def send(clientConnectionTestProbe: TestProbe)
-                        (envelopedAuthenticatedCommandWithIds: EnvelopedAuthenticatedCommandWithIds): Unit = {
-    val zoneId = envelopedAuthenticatedCommandWithIds.zoneId
+  private[this] def send(clientConnectionTestProbe: TestProbe)(
+      envelopedAuthenticatedCommandWithIds: EnvelopedAuthenticatedCommandWithIds): Unit = {
+    val zoneId     = envelopedAuthenticatedCommandWithIds.zoneId
     val deliveryId = envelopedAuthenticatedCommandWithIds.authenticatedCommandWithIds.deliveryId
     send(clientConnectionTestProbe, message = envelopedAuthenticatedCommandWithIds, zoneId, deliveryId)
   }
 
-  private[this] def send(clientConnectionTestProbe: TestProbe, zoneId: ZoneId)
-                        (authenticatedCommandWithIds: AuthenticatedCommandWithIds): Unit = {
+  private[this] def send(clientConnectionTestProbe: TestProbe, zoneId: ZoneId)(
+      authenticatedCommandWithIds: AuthenticatedCommandWithIds): Unit = {
     val deliveryId = authenticatedCommandWithIds.deliveryId
     send(clientConnectionTestProbe, message = authenticatedCommandWithIds, zoneId, deliveryId)
   }
 
-  private[this] def send(clientConnectionTestProbe: TestProbe,
-                         message: Any,
-                         zoneId: ZoneId,
-                         deliveryId: Long): Unit = {
+  private[this] def send(clientConnectionTestProbe: TestProbe, message: Any, zoneId: ZoneId, deliveryId: Long): Unit = {
     clientConnectionTestProbe.send(
       zoneValidatorShardRegion,
       message
@@ -111,18 +112,18 @@ class ZoneValidatorActorSpec extends WordSpec
   }
 
   private[this] def expectErrorResponse(clientConnectionTestProbe: TestProbe,
-                                correlationId: Option[Either[String, BigDecimal]],
-                                sequenceNumber: Long): ErrorResponse =
+                                        correlationId: Option[Either[String, BigDecimal]],
+                                        sequenceNumber: Long): ErrorResponse =
     expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber).left.value
 
   private[this] def expectResultResponse(clientConnectionTestProbe: TestProbe,
-                                 correlationId: Option[Either[String, BigDecimal]],
-                                 sequenceNumber: Long): ResultResponse =
+                                         correlationId: Option[Either[String, BigDecimal]],
+                                         sequenceNumber: Long): ResultResponse =
     expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber).right.value
 
   private[this] def expectResponse[A](clientConnectionTestProbe: TestProbe,
-                              correlationId: Option[Either[String, BigDecimal]],
-                              sequenceNumber: Long): Either[ErrorResponse, ResultResponse] = {
+                                      correlationId: Option[Either[String, BigDecimal]],
+                                      sequenceNumber: Long): Either[ErrorResponse, ResultResponse] = {
     val responseWithIds = clientConnectionTestProbe.expectMsgType[ResponseWithIds]
     responseWithIds.correlationId shouldBe correlationId
     responseWithIds.sequenceNumber shouldBe sequenceNumber

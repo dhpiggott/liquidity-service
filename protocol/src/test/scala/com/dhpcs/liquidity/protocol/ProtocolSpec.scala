@@ -19,9 +19,10 @@ class ProtocolSpec extends FunSpec with Matchers {
       it should behave like commandReadError(
         JsonRpcRequestMessage(
           "invalidMethod",
-          Some(Right(
-            Json.obj()
-          )),
+          Some(
+            Right(
+              Json.obj()
+            )),
           Some(
             Right(1)
           )
@@ -34,9 +35,10 @@ class ProtocolSpec extends FunSpec with Matchers {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "createZone",
-            Some(Left(
-              Json.arr()
-            )),
+            Some(
+              Left(
+                Json.arr()
+              )),
             Some(
               Right(1)
             )
@@ -50,9 +52,10 @@ class ProtocolSpec extends FunSpec with Matchers {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "createZone",
-            Some(Right(
-              Json.obj()
-            )),
+            Some(
+              Right(
+                Json.obj()
+              )),
             Some(
               Right(1)
             )
@@ -81,17 +84,18 @@ class ProtocolSpec extends FunSpec with Matchers {
       )
       implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
         "createZone",
-        Some(Right(
-          Json.obj(
-            "equityOwnerPublicKey" -> ByteString.of(publicKeyBytes: _*).base64,
-            "equityOwnerName" -> "Banker",
-            "equityAccountName" -> "Bank",
-            "name" -> "Dave's zone",
-            "metadata" -> Json.obj(
-              "currency" -> "GBP"
+        Some(
+          Right(
+            Json.obj(
+              "equityOwnerPublicKey" -> ByteString.of(publicKeyBytes: _*).base64,
+              "equityOwnerName"      -> "Banker",
+              "equityAccountName"    -> "Bank",
+              "name"                 -> "Dave's zone",
+              "metadata" -> Json.obj(
+                "currency" -> "GBP"
+              )
             )
-          )
-        )),
+          )),
         Some(
           Right(1)
         )
@@ -104,15 +108,16 @@ class ProtocolSpec extends FunSpec with Matchers {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "addTransaction",
-            Some(Right(
-              Json.obj(
-                "zoneId" -> "6b5f604d-f116-44f8-9807-d26324c81034",
-                "actingAs" -> 0,
-                "from" -> 0,
-                "to" -> 1,
-                "value" -> -1
-              )
-            )),
+            Some(
+              Right(
+                Json.obj(
+                  "zoneId"   -> "6b5f604d-f116-44f8-9807-d26324c81034",
+                  "actingAs" -> 0,
+                  "from"     -> 0,
+                  "to"       -> 1,
+                  "value"    -> -1
+                )
+              )),
             Some(
               Right(1)
             )
@@ -228,10 +233,11 @@ class ProtocolSpec extends FunSpec with Matchers {
             )
           ),
           Some(
-            JsError(List(
-              (__ \ "zoneId", List(ValidationError("error.path.missing"))),
-              (__ \ "publicKey", List(ValidationError("error.path.missing")))
-            ))
+            JsError(
+              List(
+                (__ \ "zoneId", List(ValidationError("error.path.missing"))),
+                (__ \ "publicKey", List(ValidationError("error.path.missing")))
+              ))
           )
         )
       )
@@ -244,7 +250,7 @@ class ProtocolSpec extends FunSpec with Matchers {
         "clientJoinedZone",
         Right(
           Json.obj(
-            "zoneId" -> "a52e984e-f0aa-4481-802b-74622cb3f6f6",
+            "zoneId"    -> "a52e984e-f0aa-4481-802b-74622cb3f6f6",
             "publicKey" -> ByteString.of(publicKeyBytes: _*).base64
           )
         )
@@ -279,7 +285,7 @@ class ProtocolSpec extends FunSpec with Matchers {
                                       jsError: JsError) =
     it(s"should fail to decode with error $jsError")(
       (Response.read(jsonRpcResponseMessage, method)
-        should equal(jsError)) (after being ordered[Either[ErrorResponse, ResultResponse]])
+        should equal(jsError))(after being ordered[Either[ErrorResponse, ResultResponse]])
     )
 
   private[this] def responseRead(implicit jsonRpcResponseMessage: JsonRpcResponseMessage,

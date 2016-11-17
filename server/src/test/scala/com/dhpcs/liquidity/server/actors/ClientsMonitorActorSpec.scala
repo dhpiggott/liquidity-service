@@ -8,7 +8,7 @@ class ClientsMonitorActorSpec extends WordSpec with ClusteredAndPersistentActorS
 
   "A ClientsMonitorActor" should {
     "provide a summary of the active clients" in {
-      val testProbe = TestProbe()
+      val testProbe      = TestProbe()
       val clientsMonitor = system.actorOf(ClientsMonitorActor.props, "clients-monitor")
       try {
         testProbe.send(

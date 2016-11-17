@@ -4,10 +4,10 @@ import java.security.Security
 import javax.net.ssl.X509KeyManager
 
 import org.iq80.leveldb.util.FileUtils
-import org.scalatest.{BeforeAndAfterAll, MustMatchers, WordSpec}
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import org.spongycastle.jce.provider.BouncyCastleProvider
 
-class ClientKeySpec extends WordSpec with MustMatchers with BeforeAndAfterAll {
+class ClientKeySpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
   private[this] val clientKeyDirectory = FileUtils.createTempDir("liquidity-client-key")
 
@@ -22,15 +22,15 @@ class ClientKeySpec extends WordSpec with MustMatchers with BeforeAndAfterAll {
     super.afterAll()
   }
 
-  "ClientKey" must {
+  "ClientKey" should {
     "provide a single key manager" in {
-      ClientKey.getKeyManagers(clientKeyDirectory).length mustBe 1
+      ClientKey.getKeyManagers(clientKeyDirectory).length shouldBe 1
     }
     "provide the public key" in {
       val expectedPublicKey = ClientKey.getKeyManagers(clientKeyDirectory)(0)
         .asInstanceOf[X509KeyManager].getCertificateChain("identity")(0)
         .getPublicKey.getEncoded
-      ClientKey.getPublicKey(clientKeyDirectory).value.toByteArray mustBe expectedPublicKey
+      ClientKey.getPublicKey(clientKeyDirectory).value.toByteArray shouldBe expectedPublicKey
     }
   }
 }

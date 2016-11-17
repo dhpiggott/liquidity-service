@@ -11,10 +11,10 @@ import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ClientConnectionActor.MessageReceivedConfirmation
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{AuthenticatedCommandWithIds, CommandReceivedConfirmation, EnvelopedAuthenticatedCommandWithIds, ResponseWithIds}
 import org.scalatest.EitherValues._
-import org.scalatest.{Inside, MustMatchers, WordSpec}
+import org.scalatest.{Inside, Matchers, WordSpec}
 
 class ZoneValidatorActorSpec extends WordSpec
-  with Inside with MustMatchers with ClusteredAndPersistentActorSystem {
+  with Inside with Matchers with ClusteredAndPersistentActorSystem {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardName,
@@ -29,7 +29,7 @@ class ZoneValidatorActorSpec extends WordSpec
     PublicKey(publicKeyBytes)
   }
 
-  "A ZoneValidatorActor" must {
+  "A ZoneValidatorActor" should {
     "send a create zone response when a zone is created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId = Some(Right(BigDecimal(0)))
@@ -55,8 +55,8 @@ class ZoneValidatorActorSpec extends WordSpec
       )
       inside(expectResultResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
         case CreateZoneResponse(zone) =>
-          zone.members(MemberId(0)) mustBe Member(MemberId(0), publicKey, name = Some("Dave"))
-          zone.name mustBe Some("Dave's Game")
+          zone.members(MemberId(0)) shouldBe Member(MemberId(0), publicKey, name = Some("Dave"))
+          zone.name shouldBe Some("Dave's Game")
       }
     }
     "send an error response when joined before creation" in {
@@ -74,7 +74,7 @@ class ZoneValidatorActorSpec extends WordSpec
           deliveryId = 1L
         )
       )
-      expectErrorResponse(clientConnectionTestProbe, correlationId, sequenceNumber) mustBe
+      expectErrorResponse(clientConnectionTestProbe, correlationId, sequenceNumber) shouldBe
         ErrorResponse(JsonRpcResponseError.ReservedErrorCodeFloor - 1, "Zone does not exist")
     }
   }
@@ -107,7 +107,7 @@ class ZoneValidatorActorSpec extends WordSpec
       message
     )
     val commandReceivedConfirmation = clientConnectionTestProbe.expectMsgType[CommandReceivedConfirmation]
-    commandReceivedConfirmation mustBe CommandReceivedConfirmation(zoneId, deliveryId)
+    commandReceivedConfirmation shouldBe CommandReceivedConfirmation(zoneId, deliveryId)
   }
 
   private[this] def expectErrorResponse(clientConnectionTestProbe: TestProbe,
@@ -124,8 +124,8 @@ class ZoneValidatorActorSpec extends WordSpec
                               correlationId: Option[Either[String, BigDecimal]],
                               sequenceNumber: Long): Either[ErrorResponse, ResultResponse] = {
     val responseWithIds = clientConnectionTestProbe.expectMsgType[ResponseWithIds]
-    responseWithIds.correlationId mustBe correlationId
-    responseWithIds.sequenceNumber mustBe sequenceNumber
+    responseWithIds.correlationId shouldBe correlationId
+    responseWithIds.sequenceNumber shouldBe sequenceNumber
     clientConnectionTestProbe.send(
       clientConnectionTestProbe.lastSender,
       MessageReceivedConfirmation(responseWithIds.deliveryId)

@@ -4,9 +4,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.security.cert.{CertificateException, X509Certificate}
 
 import com.dhpcs.liquidity.certgen.CertGen
-import org.scalatest.{BeforeAndAfterAll, MustMatchers, WordSpec}
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 
-class ServerTrustSpec extends WordSpec with MustMatchers with BeforeAndAfterAll {
+class ServerTrustSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
   private[this] val (certificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
   private[this] val keyStoreInputStream = {
@@ -15,17 +15,17 @@ class ServerTrustSpec extends WordSpec with MustMatchers with BeforeAndAfterAll 
     new ByteArrayInputStream(to.toByteArray)
   }
 
-  "ServerTrust" must {
+  "ServerTrust" should {
     "not trust empty certificate chains" in {
       val trustManager = ServerTrust.getTrustManager(keyStoreInputStream)
       val chain = Array.empty[X509Certificate]
-      a[CertificateException] must be thrownBy trustManager.checkServerTrusted(chain, "test")
+      a[CertificateException] should be thrownBy trustManager.checkServerTrusted(chain, "test")
     }
     "not trust certificates of unpinned public keys" in {
       val trustManager = ServerTrust.getTrustManager(keyStoreInputStream)
       val (otherCertificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
       val chain = Array(otherCertificate)
-      a[CertificateException] must be thrownBy trustManager.checkServerTrusted(chain, "test")
+      a[CertificateException] should be thrownBy trustManager.checkServerTrusted(chain, "test")
     }
     "trust certificates of pinned public keys" in {
       val trustManager = ServerTrust.getTrustManager(keyStoreInputStream)

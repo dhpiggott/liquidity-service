@@ -1,4 +1,4 @@
-* Review use of (in)definite articles in testsuite names and must vs. should matchers
+* Review use of (in)definite articles in testsuite names
 * Add newlines as appropriate at start of blocks, name args where appropriate
 * Create a health-check tool
 * Create ServerConnectionSpec and BoardGameSpec

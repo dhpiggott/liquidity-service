@@ -29,7 +29,7 @@ import okio.ByteString
 import org.apache.cassandra.io.util.FileUtils
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
-import org.scalatest.{BeforeAndAfterAll, Inside, MustMatchers, fixture}
+import org.scalatest.{BeforeAndAfterAll, Inside, Matchers, fixture}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Await
@@ -59,7 +59,7 @@ object LiquidityServerSpec {
 }
 
 class LiquidityServerSpec extends fixture.WordSpec
-  with Inside with MustMatchers with BeforeAndAfterAll {
+  with Inside with Matchers with BeforeAndAfterAll {
 
   private[this] val akkaRemotingPort = freePort()
   private[this] val akkaHttpPort = freePort()
@@ -215,21 +215,21 @@ class LiquidityServerSpec extends fixture.WordSpec
     }
   }
 
-  "The WebSocket API" must {
+  "The WebSocket API" should {
     "send a SupportedVersionsNotification when connected" in { fixture =>
       val (sub, _) = fixture
-      expectNotification(sub) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
     }
     "send a KeepAliveNotification when left idle" in { fixture =>
       val (sub, _) = fixture
-      expectNotification(sub) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       sub.within(3.5.seconds)(
-        expectNotification(sub) mustBe KeepAliveNotification
+        expectNotification(sub) shouldBe KeepAliveNotification
       )
     }
     "send a CreateZoneResponse after a CreateZoneCommand" in { fixture =>
       val (sub, pub) = fixture
-      expectNotification(sub) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       send(pub)(
         CreateZoneCommand(
           equityOwnerPublicKey = clientPublicKey,
@@ -242,13 +242,13 @@ class LiquidityServerSpec extends fixture.WordSpec
       )
       inside(expectResultResponse(sub, "createZone")) {
         case CreateZoneResponse(zone) =>
-          zone.members(MemberId(0)) mustBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
-          zone.name mustBe Some("Dave's Game")
+          zone.members(MemberId(0)) shouldBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
+          zone.name shouldBe Some("Dave's Game")
       }
     }
     "send a JoinZoneResponse after a JoinZoneCommand" in { fixture =>
       val (sub, pub) = fixture
-      expectNotification(sub) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       send(pub)(
         CreateZoneCommand(
           equityOwnerPublicKey = clientPublicKey,
@@ -261,15 +261,15 @@ class LiquidityServerSpec extends fixture.WordSpec
       )
       val zoneId = inside(expectResultResponse(sub, "createZone")) {
         case CreateZoneResponse(zone) =>
-          zone.members(MemberId(0)) mustBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
-          zone.name mustBe Some("Dave's Game")
+          zone.members(MemberId(0)) shouldBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
+          zone.name shouldBe Some("Dave's Game")
           zone.id
       }
       send(pub)(
         JoinZoneCommand(zoneId)
       )
       inside(expectResultResponse(sub, "joinZone")) {
-        case JoinZoneResponse(_, connectedClients) => connectedClients mustBe Set(clientPublicKey)
+        case JoinZoneResponse(_, connectedClients) => connectedClients shouldBe Set(clientPublicKey)
       }
     }
   }

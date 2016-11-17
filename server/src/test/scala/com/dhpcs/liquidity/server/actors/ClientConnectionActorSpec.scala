@@ -12,13 +12,13 @@ import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{AuthenticatedCommandWithIds, EnvelopedAuthenticatedCommandWithIds, ResponseWithIds}
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
-import org.scalatest.{Inside, MustMatchers, fixture}
+import org.scalatest.{Inside, Matchers, fixture}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration._
 
 class ClientConnectionActorSpec extends fixture.WordSpec
-  with Inside with MustMatchers with ClusteredAndPersistentActorSystem {
+  with Inside with Matchers with ClusteredAndPersistentActorSystem {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {
@@ -44,21 +44,21 @@ class ClientConnectionActorSpec extends fixture.WordSpec
     finally system.stop(clientConnection)
   }
 
-  "A ClientConnectionActor" must {
+  "A ClientConnectionActor" should {
     "send a SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      expectNotification(upstreamTestProbe) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
     }
     "send a KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      expectNotification(upstreamTestProbe) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       upstreamTestProbe.within(3.5.seconds)(
-        expectNotification(upstreamTestProbe) mustBe KeepAliveNotification
+        expectNotification(upstreamTestProbe) shouldBe KeepAliveNotification
       )
     }
     "send a CreateZoneResponse after a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
-      expectNotification(upstreamTestProbe) mustBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       val command = CreateZoneCommand(
           equityOwnerPublicKey = publicKey,
           equityOwnerName = Some("Dave"),
@@ -71,7 +71,7 @@ class ClientConnectionActorSpec extends fixture.WordSpec
       send(sinkTestProbe, clientConnection)(command, correlationId)
       val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedAuthenticatedCommandWithIds]) {
         case envelopedMessage@EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
-          authenticatedCommandWithIds mustBe
+          authenticatedCommandWithIds shouldBe
             AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber = 1L, deliveryId = 1L)
           envelopedMessage.zoneId
       }
@@ -93,7 +93,7 @@ class ClientConnectionActorSpec extends fixture.WordSpec
         clientConnection,
         ResponseWithIds(Right(resultResponse), correlationId, sequenceNumber = 1L, deliveryId = 1L)
       )
-      expectResponse(upstreamTestProbe, "createZone") mustBe resultResponse
+      expectResponse(upstreamTestProbe, "createZone") shouldBe resultResponse
     }
   }
 

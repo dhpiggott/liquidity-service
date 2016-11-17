@@ -6,7 +6,7 @@ import org.scalatest.WordSpec
 
 class ClientsMonitorActorSpec extends WordSpec with ClusteredAndPersistentActorSystem {
 
-  "A ClientsMonitorActor" must {
+  "A ClientsMonitorActor" should {
     "report on the active clients" in {
       val testProbe = TestProbe()
       val clientsMonitor = system.actorOf(ClientsMonitorActor.props, "clients-monitor")

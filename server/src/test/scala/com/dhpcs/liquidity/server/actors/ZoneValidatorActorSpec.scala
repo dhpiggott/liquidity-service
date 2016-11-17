@@ -30,7 +30,7 @@ class ZoneValidatorActorSpec extends WordSpec
   }
 
   "A ZoneValidatorActor" should {
-    "send a create zone response when a zone is created" in {
+    "send a CreateZoneResponse after a CreateZoneCommand" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId = Some(Right(BigDecimal(0)))
       val sequenceNumber = 1L
@@ -59,7 +59,7 @@ class ZoneValidatorActorSpec extends WordSpec
           zone.name shouldBe Some("Dave's Game")
       }
     }
-    "send an error response when joined before creation" in {
+    "send an ErrorResponse when a JoinZoneCommand is sent but a zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId = Some(Right(BigDecimal(0)))
       val sequenceNumber = 1L

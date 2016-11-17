@@ -8,7 +8,7 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 
 class CertGenSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
-  "CertGen" should {
+  "CertGen.generateCertKey" should {
     "create 2048 bit RSA private keys" in {
       val (_, privateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
       privateKey shouldBe a[RSAPrivateKey]

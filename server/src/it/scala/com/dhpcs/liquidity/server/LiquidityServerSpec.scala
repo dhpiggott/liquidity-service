@@ -41,7 +41,7 @@ object LiquidityServerSpec {
 
   private def createKeyManagers(certificate: Certificate,
                                 privateKey: PrivateKey): Array[KeyManager] = {
-    val keyStore = KeyStore.getInstance("pkcs12")
+    val keyStore = KeyStore.getInstance("PKCS12")
     keyStore.load(null, null)
     keyStore.setKeyEntry(
       KeyStoreEntryAlias,
@@ -215,7 +215,7 @@ class LiquidityServerSpec extends fixture.WordSpec
     }
   }
 
-  "The WebSocket API" should {
+  "The LiquidityServer WebSocket API" should {
     "send a SupportedVersionsNotification when connected" in { fixture =>
       val (sub, _) = fixture
       expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)

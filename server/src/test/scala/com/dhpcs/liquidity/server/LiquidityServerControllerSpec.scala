@@ -26,7 +26,7 @@ class LiquidityServerControllerSpec extends WordSpec
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
-  "The Liquidity API" should {
+  "A LiquidityServerController" should {
     "provide status information" in {
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> route ~> check {

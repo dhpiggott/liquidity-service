@@ -26,7 +26,7 @@ class ClientKeySpec extends WordSpec with Matchers with BeforeAndAfterAll {
     "provide a single key manager" in {
       ClientKey.getKeyManagers(clientKeyDirectory).length shouldBe 1
     }
-    "provide the public key" in {
+    "expose the key manager's public key" in {
       val expectedPublicKey = ClientKey.getKeyManagers(clientKeyDirectory)(0)
         .asInstanceOf[X509KeyManager].getCertificateChain("identity")(0)
         .getPublicKey.getEncoded

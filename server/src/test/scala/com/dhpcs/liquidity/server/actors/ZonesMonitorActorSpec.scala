@@ -9,7 +9,7 @@ import scala.concurrent.Future
 class ZonesMonitorActorSpec extends WordSpec with ClusteredAndPersistentActorSystem {
 
   "A ZonesMonitorActor" should {
-    "report on the number of zones" in {
+    "provide a count of the number of zones" in {
       val testProbe = TestProbe()
       val zonesMonitor = system.actorOf(ZonesMonitorActor.props(Future.successful(0)), "zones-monitor")
       try {

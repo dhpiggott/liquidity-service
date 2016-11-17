@@ -15,7 +15,7 @@ class ServerTrustSpec extends WordSpec with Matchers with BeforeAndAfterAll {
     new ByteArrayInputStream(to.toByteArray)
   }
 
-  "ServerTrust" should {
+  "ServerTrust's trust manager" should {
     "not trust empty certificate chains" in {
       val trustManager = ServerTrust.getTrustManager(keyStoreInputStream)
       val chain = Array.empty[X509Certificate]

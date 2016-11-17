@@ -1,23 +1,26 @@
 package com.dhpcs.liquidity.client
 
+import java.nio.file.Files
 import java.security.Security
 import javax.net.ssl.X509KeyManager
 
-import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import org.spongycastle.jce.provider.BouncyCastleProvider
 
 class ClientKeySpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
-  private[this] val clientKeyDirectory = FileUtils.createTempDir("liquidity-client-key")
+  private[this] val clientKeyDirectory = {
+    val clientKeyDirectory = Files.createTempDirectory("liquidity-client-key").toFile
+    clientKeyDirectory.deleteOnExit()
+    clientKeyDirectory
+  }
 
-  override def beforeAll(): Unit = {
+  override protected def beforeAll(): Unit = {
     super.beforeAll()
     Security.addProvider(new BouncyCastleProvider)
   }
 
-  override def afterAll(): Unit = {
-    FileUtils.deleteRecursively(clientKeyDirectory)
+  override protected def afterAll(): Unit = {
     Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
     super.afterAll()
   }

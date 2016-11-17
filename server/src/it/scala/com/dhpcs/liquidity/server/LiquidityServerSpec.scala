@@ -60,7 +60,7 @@ object LiquidityServerSpec {
 }
 
 class LiquidityServerSpec extends fixture.WordSpec
-  with Inside with Matchers with BeforeAndAfterAll {
+  with Matchers with Inside with BeforeAndAfterAll {
 
   private[this] val akkaRemotingPort = freePort()
   private[this] val akkaHttpPort = freePort()
@@ -173,7 +173,6 @@ class LiquidityServerSpec extends fixture.WordSpec
     (ConnectionContext.https(sslContext), publicKey)
   }
 
-
   override protected type FixtureParam = (TestSubscriber.Probe[Message], TestPublisher.Probe[Message])
 
   override protected def beforeAll(): Unit = {
@@ -228,7 +227,7 @@ class LiquidityServerSpec extends fixture.WordSpec
         expectNotification(sub) shouldBe KeepAliveNotification
       )
     }
-    "send a CreateZoneResponse after a CreateZoneCommand" in { fixture =>
+    "reply with a CreateZoneResponse when sending a CreateZoneCommand" in { fixture =>
       val (sub, pub) = fixture
       expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       send(pub)(
@@ -247,7 +246,7 @@ class LiquidityServerSpec extends fixture.WordSpec
           zone.name shouldBe Some("Dave's Game")
       }
     }
-    "send a JoinZoneResponse after a JoinZoneCommand" in { fixture =>
+    "reply with a JoinZoneResponse when sending a JoinZoneCommand" in { fixture =>
       val (sub, pub) = fixture
       expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       send(pub)(
@@ -298,8 +297,7 @@ class LiquidityServerSpec extends fixture.WordSpec
   }
 
   private[this] def expectJsValue(sub: TestSubscriber.Probe[Message]): JsValue = {
-    sub.request(1)
-    val message = sub.expectNext()
+    val message = sub.requestNext()
     val jsonString = message.asTextMessage.getStrictText
     Json.parse(jsonString)
   }

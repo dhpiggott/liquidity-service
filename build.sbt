@@ -138,7 +138,8 @@ lazy val liquidityServer = project
   ))
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
-  .dependsOn(liquidityCertgen % IntegrationTest)
+  .dependsOn(liquidityCertgen % "it")
+  .settings(fork in IntegrationTest := true)
   .settings(libraryDependencies ++= Seq(
     scalaTest              % IntegrationTest,
     "org.apache.cassandra" % "cassandra-all" % "3.7" % IntegrationTest
@@ -161,16 +162,20 @@ lazy val liquidityClient = project
   )
   .dependsOn(liquidityModel)
   .dependsOn(liquidityProtocol)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
-      "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
-    ))
-  .dependsOn(liquidityCertgen % Test)
-  .dependsOn(liquidityServer % Test)
   .settings(libraryDependencies ++= Seq(
-    scalaTest          % Test,
-    "org.iq80.leveldb" % "leveldb" % "0.9" % Test
+    "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
+    "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
+  ))
+  .dependsOn(liquidityCertgen % "test")
+  .settings(libraryDependencies ++= Seq(
+    scalaTest % Test
+  ))
+  .configs(IntegrationTest)
+  .settings(Defaults.itSettings)
+  .dependsOn(liquidityServer % "it->it")
+  .settings(fork in IntegrationTest := true)
+  .settings(libraryDependencies ++= Seq(
+    scalaTest % Test
   ))
 
 lazy val liquidityBoardgame = project

@@ -18,7 +18,7 @@ import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, Matchers, WordSpec}
 
-class ZoneValidatorActorSpec extends WordSpec with Inside with Matchers with ClusteredAndPersistentActorSystem {
+class ZoneValidatorActorSpec extends WordSpec with Matchers with Inside with ClusteredAndPersistentActorSystem {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardName,
@@ -34,7 +34,7 @@ class ZoneValidatorActorSpec extends WordSpec with Inside with Matchers with Clu
   }
 
   "A ZoneValidatorActor" should {
-    "send a CreateZoneResponse after a CreateZoneCommand" in {
+    "reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = Some(Right(BigDecimal(0)))
       val sequenceNumber                      = 1L
@@ -63,7 +63,7 @@ class ZoneValidatorActorSpec extends WordSpec with Inside with Matchers with Clu
           zone.name shouldBe Some("Dave's Game")
       }
     }
-    "send an ErrorResponse when a JoinZoneCommand is sent but a zone has been created" in {
+    "reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = Some(Right(BigDecimal(0)))
       val sequenceNumber                      = 1L

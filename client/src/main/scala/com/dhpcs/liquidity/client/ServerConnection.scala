@@ -122,14 +122,30 @@ object ServerConnection {
                   filesDir: File,
                   keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
                   connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                  handlerWrapperFactory: HandlerWrapperFactory): ServerConnection = {
+                  handlerWrapperFactory: HandlerWrapperFactory): ServerConnection =
+    getInstance(
+      prngFixesApplicator,
+      filesDir,
+      keyStoreInputStreamProvider,
+      connectivityStatePublisherBuilder,
+      handlerWrapperFactory,
+      serverEndpoint = ServerEndpoint
+    )
+
+  def getInstance(prngFixesApplicator: PRNGFixesApplicator,
+                  filesDir: File,
+                  keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
+                  connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
+                  handlerWrapperFactory: HandlerWrapperFactory,
+                  serverEndpoint: String): ServerConnection = {
     if (instance == null) {
       prngFixesApplicator.apply()
       instance = new ServerConnection(
         filesDir,
         keyStoreInputStreamProvider,
         connectivityStatePublisherBuilder,
-        handlerWrapperFactory
+        handlerWrapperFactory,
+        serverEndpoint
       )
     }
     instance
@@ -161,7 +177,8 @@ object ServerConnection {
 class ServerConnection private(filesDir: File,
                                keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
                                connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                               handlerWrapperFactory: HandlerWrapperFactory)
+                               handlerWrapperFactory: HandlerWrapperFactory,
+                               serverEndpoint: String)
   extends WebSocketListener {
 
   private[this] lazy val client = {
@@ -608,7 +625,7 @@ class ServerConnection private(filesDir: File,
     activeState.handlerWrapper.post {
       val webSocketCall = WebSocketCall.create(
         client,
-        new okhttp3.Request.Builder().url(ServerEndpoint).build
+        new okhttp3.Request.Builder().url(serverEndpoint).build
       )
       webSocketCall.enqueue(this)
       activeState.subState = ConnectingSubState(webSocketCall)

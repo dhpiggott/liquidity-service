@@ -23,8 +23,8 @@ import scala.concurrent.duration._
 
 class ClientConnectionActorSpec
     extends fixture.WordSpec
-    with Inside
     with Matchers
+    with Inside
     with ClusteredAndPersistentActorSystem {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
@@ -63,7 +63,7 @@ class ClientConnectionActorSpec
         expectNotification(upstreamTestProbe) shouldBe KeepAliveNotification
       )
     }
-    "send a CreateZoneResponse after a CreateZoneCommand" in { fixture =>
+    "reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
       expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       val command = CreateZoneCommand(

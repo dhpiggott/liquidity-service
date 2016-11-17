@@ -1,5 +1,4 @@
 * Create a health-check tool
-* Create ServerConnectionSpec and BoardGameSpec
 * Rename play-json-rpc-testkit as play-json-testkit
 * Review:
   * https://github.com/cakesolutions/scala-kafka-client/blob/master/build.sbt

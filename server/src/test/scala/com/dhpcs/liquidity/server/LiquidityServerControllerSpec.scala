@@ -62,4 +62,5 @@ class LiquidityServerControllerSpec
         KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
       )
     )
+
 }

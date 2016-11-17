@@ -17,61 +17,37 @@ import scala.util.Try
 object BoardGame {
 
   trait GameDatabase {
+
     def insertGame(zoneId: ZoneId, created: Long, expires: Long, name: String): Long
-
     def checkAndUpdateGame(zoneId: ZoneId, name: String): java.lang.Long
-
     def updateGameName(gameId: Long, name: String): Unit
+
   }
 
   sealed trait JoinState
-
-  case object UNAVAILABLE extends JoinState
-
-  case object GENERAL_FAILURE extends JoinState
-
-  case object TLS_ERROR extends JoinState
-
-  case object UNSUPPORTED_VERSION extends JoinState
-
-  case object AVAILABLE extends JoinState
-
-  case object CONNECTING extends JoinState
-
+  case object UNAVAILABLE               extends JoinState
+  case object GENERAL_FAILURE           extends JoinState
+  case object TLS_ERROR                 extends JoinState
+  case object UNSUPPORTED_VERSION       extends JoinState
+  case object AVAILABLE                 extends JoinState
+  case object CONNECTING                extends JoinState
   case object WAITING_FOR_VERSION_CHECK extends JoinState
-
-  case object CREATING extends JoinState
-
-  case object JOINING extends JoinState
-
-  case object JOINED extends JoinState
-
-  case object QUITTING extends JoinState
-
-  case object DISCONNECTING extends JoinState
+  case object CREATING                  extends JoinState
+  case object JOINING                   extends JoinState
+  case object JOINED                    extends JoinState
+  case object QUITTING                  extends JoinState
+  case object DISCONNECTING             extends JoinState
 
   sealed trait Player extends Serializable {
+
     def zoneId: ZoneId
-
     def member: Member
-
     def account: Account
-
     def isBanker: Boolean
+
   }
 
   sealed trait Identity extends Player
-
-  sealed trait Transfer extends Serializable {
-    def creator: Either[(MemberId, Member), Player]
-
-    def from: Either[(AccountId, Account), Player]
-
-    def to: Either[(AccountId, Account), Player]
-
-    def transaction: Transaction
-  }
-
   case class PlayerWithBalanceAndConnectionState(zoneId: ZoneId,
                                                  member: Member,
                                                  account: Account,
@@ -79,7 +55,6 @@ object BoardGame {
                                                  isBanker: Boolean,
                                                  isConnected: Boolean)
       extends Player
-
   case class IdentityWithBalance(zoneId: ZoneId,
                                  member: Member,
                                  account: Account,
@@ -87,6 +62,14 @@ object BoardGame {
                                  isBanker: Boolean)
       extends Identity
 
+  sealed trait Transfer extends Serializable {
+
+    def creator: Either[(MemberId, Member), Player]
+    def from: Either[(AccountId, Account), Player]
+    def to: Either[(AccountId, Account), Player]
+    def transaction: Transaction
+
+  }
   case class TransferWithCurrency(from: Either[(AccountId, Account), Player],
                                   to: Either[(AccountId, Account), Player],
                                   creator: Either[(MemberId, Member), Player],
@@ -99,57 +82,34 @@ object BoardGame {
   }
 
   trait GameActionListener {
+
     def onChangeGameNameError(name: Option[String]): Unit
-
     def onChangeIdentityNameError(name: Option[String]): Unit
-
     def onCreateIdentityAccountError(name: Option[String]): Unit
-
     def onCreateIdentityMemberError(name: Option[String]): Unit
-
     def onCreateGameError(name: Option[String]): Unit
-
     def onDeleteIdentityError(name: Option[String]): Unit
-
     def onGameNameChanged(name: Option[String]): Unit
-
     def onIdentitiesUpdated(identities: Map[MemberId, IdentityWithBalance]): Unit
-
     def onIdentityCreated(identity: IdentityWithBalance): Unit
-
     def onIdentityReceived(identity: IdentityWithBalance): Unit
-
     def onIdentityRequired(): Unit
-
     def onIdentityRestored(identity: IdentityWithBalance): Unit
-
     def onJoinGameError(): Unit
-
     def onPlayerAdded(addedPlayer: PlayerWithBalanceAndConnectionState): Unit
-
     def onPlayerChanged(changedPlayer: PlayerWithBalanceAndConnectionState): Unit
-
     def onPlayersInitialized(players: Iterable[PlayerWithBalanceAndConnectionState]): Unit
-
     def onPlayerRemoved(removedPlayer: PlayerWithBalanceAndConnectionState): Unit
-
     def onPlayersUpdated(players: Map[MemberId, PlayerWithBalanceAndConnectionState]): Unit
-
     def onQuitGameError(): Unit
-
     def onRestoreIdentityError(name: Option[String]): Unit
-
     def onTransferAdded(addedTransfer: TransferWithCurrency): Unit
-
     def onTransferIdentityError(name: Option[String]): Unit
-
     def onTransferToPlayerError(name: Option[String]): Unit
-
     def onTransfersChanged(changedTransfers: Iterable[TransferWithCurrency]): Unit
-
     def onTransfersInitialized(transfers: Iterable[TransferWithCurrency]): Unit
-
     def onTransfersUpdated(transfers: Map[TransactionId, TransferWithCurrency]): Unit
+
   }
 
   class JoinRequestToken

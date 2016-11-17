@@ -16,6 +16,7 @@ import org.spongycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509Extensi
 import org.spongycastle.operator.jcajce.JcaContentSignerBuilder
 
 object ClientKey {
+
   private final val KeystoreFilename = "client.keystore"
   private final val EntryAlias       = "identity"
   private final val CommonName       = "com.dhpcs.liquidity"

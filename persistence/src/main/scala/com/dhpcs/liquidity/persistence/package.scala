@@ -4,6 +4,7 @@ import akka.actor.ActorPath
 import com.dhpcs.liquidity.model.{PublicKey, ValueFormat, ZoneId}
 
 package object persistence {
+
   implicit final val ActorPathFormat = ValueFormat[ActorPath, String](ActorPath.fromString, _.toSerializationFormat)
 
   final val ZoneIdStringPattern =

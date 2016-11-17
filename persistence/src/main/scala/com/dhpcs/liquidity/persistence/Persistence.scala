@@ -8,56 +8,26 @@ sealed trait Event {
   def timestamp: Long
 }
 
-case class ZoneCreatedEvent(timestamp: Long, zone: Zone) extends Event
-
-object ZoneCreatedEvent {
-  implicit final val ZoneCreatedEventFormat = Json.format[ZoneCreatedEvent]
-}
-
+case class ZoneCreatedEvent(timestamp: Long, zone: Zone)                                                extends Event
 case class ZoneJoinedEvent(timestamp: Long, clientConnectionActorPath: ActorPath, publicKey: PublicKey) extends Event
+case class ZoneQuitEvent(timestamp: Long, clientConnectionActorPath: ActorPath)                         extends Event
+case class ZoneNameChangedEvent(timestamp: Long, name: Option[String])                                  extends Event
+case class MemberCreatedEvent(timestamp: Long, member: Member)                                          extends Event
+case class MemberUpdatedEvent(timestamp: Long, member: Member)                                          extends Event
+case class AccountCreatedEvent(timestamp: Long, account: Account)                                       extends Event
+case class AccountUpdatedEvent(timestamp: Long, account: Account)                                       extends Event
+case class TransactionAddedEvent(timestamp: Long, transaction: Transaction)                             extends Event
 
-object ZoneJoinedEvent {
-  implicit final val ZoneJoinedEventFormat = Json.format[ZoneJoinedEvent]
-}
+object Event {
 
-case class ZoneQuitEvent(timestamp: Long, clientConnectionActorPath: ActorPath) extends Event
-
-object ZoneQuitEvent {
-  implicit final val ZoneQuitEventFormat = Json.format[ZoneQuitEvent]
-}
-
-case class ZoneNameChangedEvent(timestamp: Long, name: Option[String]) extends Event
-
-object ZoneNameChangedEvent {
-  implicit final val ZoneNameChangedEventFormat = Json.format[ZoneNameChangedEvent]
-}
-
-case class MemberCreatedEvent(timestamp: Long, member: Member) extends Event
-
-object MemberCreatedEvent {
-  implicit final val MemberCreatedEventFormat = Json.format[MemberCreatedEvent]
-}
-
-case class MemberUpdatedEvent(timestamp: Long, member: Member) extends Event
-
-object MemberUpdatedEvent {
-  implicit final val MemberUpdatedEventFormat = Json.format[MemberUpdatedEvent]
-}
-
-case class AccountCreatedEvent(timestamp: Long, account: Account) extends Event
-
-object AccountCreatedEvent {
-  implicit final val AccountCreatedEventFormat = Json.format[AccountCreatedEvent]
-}
-
-case class AccountUpdatedEvent(timestamp: Long, account: Account) extends Event
-
-object AccountUpdatedEvent {
-  implicit final val AccountUpdatedEventFormat = Json.format[AccountUpdatedEvent]
-}
-
-case class TransactionAddedEvent(timestamp: Long, transaction: Transaction) extends Event
-
-object TransactionAddedEvent {
+  implicit final val ZoneCreatedEventFormat      = Json.format[ZoneCreatedEvent]
+  implicit final val ZoneJoinedEventFormat       = Json.format[ZoneJoinedEvent]
+  implicit final val ZoneQuitEventFormat         = Json.format[ZoneQuitEvent]
+  implicit final val ZoneNameChangedEventFormat  = Json.format[ZoneNameChangedEvent]
+  implicit final val MemberCreatedEventFormat    = Json.format[MemberCreatedEvent]
+  implicit final val MemberUpdatedEventFormat    = Json.format[MemberUpdatedEvent]
+  implicit final val AccountCreatedEventFormat   = Json.format[AccountCreatedEvent]
+  implicit final val AccountUpdatedEventFormat   = Json.format[AccountUpdatedEvent]
   implicit final val TransactionAddedEventFormat = Json.format[TransactionAddedEvent]
+
 }

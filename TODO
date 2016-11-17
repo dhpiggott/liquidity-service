@@ -1,4 +1,3 @@
-* Add newlines as appropriate at start of blocks, name args where appropriate
 * Create a health-check tool
 * Create ServerConnectionSpec and BoardGameSpec
 * Rename play-json-rpc-testkit as play-json-testkit

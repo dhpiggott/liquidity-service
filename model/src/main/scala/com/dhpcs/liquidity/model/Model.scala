@@ -18,22 +18,24 @@ object ValueFormat {
   )
 }
 
-case class MemberId(id: Int)
-
-object MemberId {
-  implicit final val MemberIdFormat = ValueFormat[MemberId, Int](MemberId(_), _.id)
-}
-
 case class PublicKey(value: ByteString) {
   lazy val fingerprint = value.sha256.hex
 }
 
 object PublicKey {
+
   implicit final val PublicKeyFormat = ValueFormat[PublicKey, String](
     publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64)),
     publicKey => publicKey.value.base64)
 
   def apply(value: Array[Byte]): PublicKey = PublicKey(ByteString.of(value: _*))
+
+}
+
+case class MemberId(id: Int)
+
+object MemberId {
+  implicit final val MemberIdFormat = ValueFormat[MemberId, Int](MemberId(_), _.id)
 }
 
 case class Member(id: MemberId,
@@ -113,9 +115,11 @@ object Transaction {
 case class ZoneId(id: UUID)
 
 object ZoneId {
+
   implicit final val ZoneIdFormat = ValueFormat[ZoneId, UUID](ZoneId(_), _.id)
 
   def generate = apply(UUID.randomUUID)
+
 }
 
 case class Zone(id: ZoneId,

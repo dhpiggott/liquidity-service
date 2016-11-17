@@ -21,6 +21,7 @@ import play.api.libs.json.{JsObject, Json}
 import scala.concurrent.duration._
 
 object ZoneValidatorActor {
+
   def props: Props = Props(new ZoneValidatorActor)
 
   final val ShardName = "ZoneValidator"

@@ -15,6 +15,7 @@ import org.bouncycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509Extensi
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 
 object CertGen {
+
   private final val SubjectAlternativeName = "liquidity.dhpcs.com"
   private final val CommonName             = "liquidity.dhpcs.com"
   private final val KeyLength              = 2048

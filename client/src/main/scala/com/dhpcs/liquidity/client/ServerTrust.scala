@@ -8,6 +8,7 @@ import javax.net.ssl.X509TrustManager
 import scala.collection.JavaConverters._
 
 object ServerTrust {
+
   private final val TrustManager = new X509TrustManager {
     @throws(classOf[CertificateException])
     override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =

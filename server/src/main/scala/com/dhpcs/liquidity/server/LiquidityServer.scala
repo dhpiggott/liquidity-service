@@ -235,4 +235,5 @@ class LiquidityServer(config: Config,
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)
+
 }

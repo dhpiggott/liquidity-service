@@ -37,4 +37,5 @@ trait LiquidityServerController {
     HttpResponse(
       entity = HttpEntity(ContentType(`application/json`), Json.prettyPrint(body))
     )
+
 }

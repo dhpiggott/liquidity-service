@@ -36,6 +36,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 object LiquidityServerSpec {
+
   private final val KeyStoreEntryAlias = "identity"
   private final val KeyStoreEntryPassword = Array.emptyCharArray
 

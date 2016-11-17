@@ -14,6 +14,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 
 object JournalAuditor {
+
   private final val SentinelZoneId = ZoneId(UUID.fromString("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"))
 
   def main(args: Array[String]): Unit = {

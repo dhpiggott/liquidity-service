@@ -14,6 +14,7 @@ import play.api.data.validation.ValidationError
 import play.api.libs.json.{JsError, JsSuccess, Json, __}
 
 class ProtocolSpec extends FunSpec with Matchers {
+
   describe("A Command") {
     describe("with an invalid method")(
       it should behave like commandReadError(
@@ -324,4 +325,5 @@ class ProtocolSpec extends FunSpec with Matchers {
     )
 
   private[this] def ordered[A] = new JsResultUniformity[A]
+
 }

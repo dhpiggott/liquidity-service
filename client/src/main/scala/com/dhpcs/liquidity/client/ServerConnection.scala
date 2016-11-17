@@ -31,20 +31,22 @@ object ServerConnection {
   }
 
   trait ConnectivityStatePublisher {
+
     def isConnectionAvailable: Boolean
-
     def register(): Unit
-
     def unregister(): Unit
+
   }
 
   trait HandlerWrapperFactory {
-    def create(name: String): HandlerWrapper
 
+    def create(name: String): HandlerWrapper
     def main(): HandlerWrapper
+
   }
 
   abstract class HandlerWrapper {
+
     def post(runnable: Runnable): Unit
 
     def post(body: => Unit): Unit = post(new Runnable {
@@ -52,26 +54,18 @@ object ServerConnection {
     })
 
     def quit(): Unit
+
   }
 
   sealed trait ConnectionState
-
   case object UNAVAILABLE extends ConnectionState
-
   case object GENERAL_FAILURE extends ConnectionState
-
   case object TLS_ERROR extends ConnectionState
-
   case object UNSUPPORTED_VERSION extends ConnectionState
-
   case object AVAILABLE extends ConnectionState
-
   case object CONNECTING extends ConnectionState
-
   case object WAITING_FOR_VERSION_CHECK extends ConnectionState
-
   case object ONLINE extends ConnectionState
-
   case object DISCONNECTING extends ConnectionState
 
   trait ConnectionStateListener {
@@ -85,56 +79,39 @@ object ServerConnection {
   class ConnectionRequestToken
 
   trait ResponseCallback {
-    def onErrorReceived(errorResponse: ErrorResponse): Unit
 
+    def onErrorReceived(errorResponse: ErrorResponse): Unit
     def onResultReceived(resultResponse: ResultResponse): Unit = ()
+
   }
 
   private sealed trait State
-
   private sealed trait IdleState extends State
-
   private case object UnavailableIdleState extends IdleState
-
   private case object GeneralFailureIdleState extends IdleState
-
   private case object TlsErrorIdleState extends IdleState
-
   private case object UnsupportedVersionIdleState extends IdleState
-
   private case object AvailableIdleState extends IdleState
-
   private case class ActiveState(handlerWrapper: HandlerWrapper) extends State {
     var subState: SubState = _
   }
-
   private sealed trait SubState
-
   private case class ConnectingSubState(webSocketCall: WebSocketCall) extends SubState
-
   private sealed trait ConnectedSubState extends SubState {
     val webSocket: WebSocket
   }
-
   private case class WaitingForVersionCheckSubState(webSocket: WebSocket) extends ConnectedSubState
-
   private case class OnlineSubState(webSocket: WebSocket) extends ConnectedSubState
-
   private case object DisconnectingSubState extends SubState
 
   private case class PendingRequest(requestMessage: JsonRpcRequestMessage,
                                     callback: ResponseCallback)
 
   private sealed trait CloseCause
-
   private case object GeneralFailure extends CloseCause
-
   private case object TlsError extends CloseCause
-
   private case object UnsupportedVersion extends CloseCause
-
   private case object ServerDisconnect extends CloseCause
-
   private case object ClientDisconnect extends CloseCause
 
   private final val ServerEndpoint = "https://liquidity.dhpcs.com/ws"
@@ -186,6 +163,7 @@ class ServerConnection private(filesDir: File,
                                connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
                                handlerWrapperFactory: HandlerWrapperFactory)
   extends WebSocketListener {
+
   private[this] lazy val client = {
     val trustManager = ServerTrust.getTrustManager(keyStoreInputStreamProvider.get())
     new OkHttpClient.Builder()

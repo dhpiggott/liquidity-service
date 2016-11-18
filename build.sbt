@@ -36,11 +36,11 @@ lazy val noopPublish = Seq(
 
 lazy val akkaPersistenceSettings = Seq(
   libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-slf4j"                          % "2.4.12",
+    "com.typesafe.akka" %% "akka-slf4j"                          % "2.4.13",
     "ch.qos.logback"    % "logback-classic"                      % "1.1.7",
-    "com.typesafe.akka" %% "akka-persistence"                    % "2.4.12",
-    "com.typesafe.akka" %% "akka-cluster-tools"                  % "2.4.12",
-    "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.12",
+    "com.typesafe.akka" %% "akka-persistence"                    % "2.4.13",
+    "com.typesafe.akka" %% "akka-cluster-tools"                  % "2.4.13",
+    "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.13",
     "com.typesafe.akka" %% "akka-persistence-cassandra"          % "0.20",
     "io.netty"          % "netty-transport-native-epoll"         % "4.1.6.Final" classifier "linux-x86_64"
   )
@@ -79,7 +79,7 @@ lazy val liquidityPersistence = project
   )
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor" % "2.4.12"
+      "com.typesafe.akka" %% "akka-actor" % "2.4.13"
     ))
   .dependsOn(liquidityModel)
 
@@ -129,8 +129,8 @@ lazy val liquidityServer = project
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-http-experimental" % "2.4.11",
       playJson,
-      "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.12",
-      "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.12"
+      "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.13",
+      "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.13"
     ))
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,

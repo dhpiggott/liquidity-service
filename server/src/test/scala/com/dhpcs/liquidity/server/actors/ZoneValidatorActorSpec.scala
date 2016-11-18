@@ -18,7 +18,7 @@ import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, Matchers, WordSpec}
 
-class ZoneValidatorActorSpec extends WordSpec with Matchers with Inside with ClusteredAndPersistentActorSystem {
+class ZoneValidatorActorSpec extends WordSpec with LevelDbPersistenceTestFixtures with Matchers with Inside {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardName,

@@ -23,9 +23,9 @@ import scala.concurrent.duration._
 
 class ClientConnectionActorSpec
     extends fixture.WordSpec
+    with LevelDbPersistenceTestFixtures
     with Matchers
-    with Inside
-    with ClusteredAndPersistentActorSystem {
+    with Inside {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {

@@ -9,8 +9,7 @@ import com.typesafe.config.ConfigFactory
 import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-// TODO: Use this to DRY out LiquidityServerSpec and ServerConnectionSpec
-trait ClusteredAndPersistentActorSystem extends BeforeAndAfterAll { this: Suite =>
+trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
   private[this] val akkaRemotingPort = {
     val serverSocket = ServerSocketChannel.open().socket()

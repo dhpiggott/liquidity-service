@@ -4,7 +4,7 @@ import akka.testkit.TestProbe
 import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
 import org.scalatest.WordSpec
 
-class ClientsMonitorActorSpec extends WordSpec with ClusteredAndPersistentActorSystem {
+class ClientsMonitorActorSpec extends WordSpec with LevelDbPersistenceTestFixtures {
 
   "A ClientsMonitorActor" should {
     "provide a summary of the active clients" in {

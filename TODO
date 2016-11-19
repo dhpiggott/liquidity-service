@@ -1,6 +1,0 @@
-* Rename play-json-rpc-testkit as play-json-testkit
-* Review:
-  * https://github.com/cakesolutions/scala-kafka-client/blob/master/build.sbt
-  * https://github.com/cassandra-scala/troy/blob/master/build.sbt
-  * https://github.com/scalacenter/scaladex/blob/master/doc/user/publish-bintray.md
-  * https://github.com/scalacenter/scaladex/blob/master/doc/user/publish-scaladex.md

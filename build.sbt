@@ -176,8 +176,23 @@ lazy val liquidityClient = project
   .dependsOn(liquidityServer % "it->it")
   .settings(fork in IntegrationTest := true)
   .settings(libraryDependencies ++= Seq(
-    scalaTest % Test
+    scalaTest % IntegrationTest
   ))
+
+lazy val liquidityHealthcheck = project
+  .in(file("healthcheck"))
+  .settings(commonSettings)
+  .settings(noopPublish)
+  .settings(
+    name := "liquidity-healthcheck"
+  )
+  .dependsOn(liquidityClient)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.13",
+      scalaTest
+    ))
+  .enablePlugins(JavaAppPackaging, UniversalPlugin)
 
 lazy val liquidityBoardgame = project
   .in(file("boardgame"))
@@ -214,6 +229,7 @@ lazy val root = project
     liquidityCertgen,
     liquidityServer,
     liquidityClient,
+    liquidityHealthcheck,
     liquidityBoardgame,
     liquidityAnalytics
   )

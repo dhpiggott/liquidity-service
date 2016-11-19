@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.server
 
 import java.security.KeyStore
-import java.security.cert.X509Certificate
+import java.security.cert.{CertificateException, X509Certificate}
 import java.security.interfaces.RSAPublicKey
 import javax.net.ssl._
 
@@ -103,7 +103,7 @@ class LiquidityServer(config: Config,
                       readJournal: ReadJournal with CurrentPersistenceIdsQuery,
                       zoneValidatorShardRegion: ActorRef,
                       keyManagers: Array[KeyManager])(implicit system: ActorSystem, mat: Materializer)
-    extends LiquidityServerController {
+    extends HttpController {
 
   import system.dispatcher
 
@@ -121,9 +121,14 @@ class LiquidityServer(config: Config,
     sslContext.init(
       keyManagers,
       Array(new X509TrustManager {
-        override def getAcceptedIssuers: Array[X509Certificate]                                = Array()
+
         override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-        override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
+
+        override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
+          throw new CertificateException
+
+        override def getAcceptedIssuers: Array[X509Certificate] = Array.empty
+
       }),
       null
     )
@@ -137,13 +142,13 @@ class LiquidityServer(config: Config,
 
   private[this] val binding = Http().bindAndHandle(
     route,
-    config.getString("liquidity.http.interface"),
-    config.getInt("liquidity.http.port"),
+    config.getString("liquidity.server.http.interface"),
+    config.getInt("liquidity.server.http.port"),
     httpsConnectionContext
   )
 
   private[this] val keepAliveInterval = FiniteDuration(
-    config.getDuration("liquidity.http.keep-alive-interval", SECONDS),
+    config.getDuration("liquidity.server.http.keep-alive-interval", SECONDS),
     SECONDS
   )
 

@@ -19,15 +19,11 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Future
 
-class LiquidityServerControllerSpec
-    extends WordSpec
-    with Matchers
-    with ScalatestRouteTest
-    with LiquidityServerController {
+class HttpControllerSpec extends WordSpec with Matchers with ScalatestRouteTest with HttpController {
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
-  "A LiquidityServerController" should {
+  "A LiquidityController" should {
     "provide status information" in {
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> route ~> check {

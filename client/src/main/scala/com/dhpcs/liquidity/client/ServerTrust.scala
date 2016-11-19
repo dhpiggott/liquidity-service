@@ -11,13 +11,12 @@ object ServerTrust {
 
   private final val TrustManager = new X509TrustManager {
 
-    @throws(classOf[CertificateException])
     override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
       throw new CertificateException
 
-    @throws(classOf[CertificateException])
     override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
-      if (!chain.toSeq.headOption.map(_.getPublicKey).fold(false)(trustedKeys.contains)) throw new CertificateException
+      if (!chain.headOption.map(_.getPublicKey).fold(ifEmpty = false)(trustedKeys.contains))
+        throw new CertificateException
 
     override def getAcceptedIssuers: Array[X509Certificate] = Array.empty
 

@@ -80,7 +80,7 @@ trait CassandraPersistenceIntegrationTestFixtures extends BeforeAndAfterAll { th
          |}
          |cassandra-journal.contact-points = ["localhost:${CassandraLauncher.randomPort}"]
          |cassandra-snapshot-store.contact-points = ["localhost:${CassandraLauncher.randomPort}"]
-         |liquidity {
+         |liquidity.server {
          |  http {
          |    keep-alive-interval = "3 seconds"
          |    interface = "0.0.0.0"

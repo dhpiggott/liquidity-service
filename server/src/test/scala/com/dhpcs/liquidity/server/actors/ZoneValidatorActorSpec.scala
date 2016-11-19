@@ -6,7 +6,7 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
-import com.dhpcs.liquidity.model.{Member, MemberId, PublicKey, ZoneId}
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ClientConnectionActor.MessageReceivedConfirmation
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
@@ -59,8 +59,14 @@ class ZoneValidatorActorSpec extends WordSpec with LevelDbPersistenceTestFixture
       )
       inside(expectResultResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
         case CreateZoneResponse(zone) =>
+          zone.equityAccountId shouldBe AccountId(0)
           zone.members(MemberId(0)) shouldBe Member(MemberId(0), publicKey, name = Some("Dave"))
+          zone.accounts(AccountId(0)) shouldBe Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
+          zone.created should be > 0L
+          zone.expires should be > zone.created
+          zone.transactions shouldBe Map.empty
           zone.name shouldBe Some("Dave's Game")
+          zone.metadata shouldBe None
       }
     }
     "reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {

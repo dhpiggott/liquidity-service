@@ -13,7 +13,7 @@ import com.dhpcs.liquidity.persistence._
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 
-object JournalAuditor {
+object LiquidityAnalytics {
 
   private final val SentinelZoneId = ZoneId(UUID.fromString("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"))
 
@@ -71,7 +71,9 @@ object JournalAuditor {
                 case TransactionAddedEvent(_, transaction) =>
                   currentZone.copy(transactions = currentZone.transactions + (transaction.id -> transaction))
               }
-              val updatedModified = Math.max(currentModified, envelope.event.asInstanceOf[Event].timestamp)
+              val updatedModified = envelope.event match {
+                case event: Event => Math.max(currentModified, event.timestamp)
+              }
               val updatedBalances = envelope.event match {
                 case TransactionAddedEvent(_, transaction) =>
                   val updatedSourceBalance      = currentBalances(transaction.from) - transaction.value

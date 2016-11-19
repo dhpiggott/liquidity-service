@@ -2,8 +2,6 @@ scalafmtConfig in ThisBuild := Some(file(".scalafmt.conf"))
 
 lazy val commonSettings = Seq(
     scalaVersion := "2.11.8",
-    organization := "com.dhpcs",
-    resolvers += Resolver.bintrayRepo("dhpcs", "maven"),
     scalacOptions in Compile ++= Seq(
       "-target:jvm-1.8",
       "-encoding",
@@ -22,13 +20,28 @@ lazy val commonSettings = Seq(
       "-Ywarn-numeric-widen",
       "-Ywarn-unused",
       "-Ywarn-unused-import"
-    )
+    ),
+    resolvers += Resolver.bintrayRepo("dhpcs", "maven")
   ) ++
     addCommandAlias("validate",
                     ";scalafmtTest; test:scalafmtTest; it:scalafmtTest; coverage; test; it:test; coverageReport") ++
     addCommandAlias("validateAggregate", ";coverageAggregate")
 
-lazy val noopPublish = Seq(
+lazy val publishSettings = Seq(
+  startYear := Some(2015),
+  organization := "com.dhpcs",
+  organizationHomepage := Some(url("https://www.dhpcs.com/")),
+  organizationName := "dhpcs",
+  developers := List(
+    Developer(
+      id = "dhpiggott",
+      name = "David Piggott",
+      email = "david@piggott.me.uk",
+      url = url("https://dhpiggott.net/")
+    ))
+)
+
+lazy val noopPublishSettings = Seq(
   publishArtifact := false,
   publish := {},
   publishLocal := {}
@@ -57,6 +70,7 @@ lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.1"
 lazy val liquidityModel = project
   .in(file("model"))
   .settings(commonSettings)
+  .settings(publishSettings)
   .settings(
     name := "liquidity-model"
   )
@@ -74,25 +88,25 @@ lazy val liquidityModel = project
 lazy val liquidityPersistence = project
   .in(file("persistence"))
   .settings(commonSettings)
+  .settings(publishSettings)
   .settings(
     name := "liquidity-persistence"
   )
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor" % "2.4.13"
-    ))
+  .settings(libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-actor" % "2.4.13"
+  ))
   .dependsOn(liquidityModel)
 
 lazy val liquidityProtocol = project
   .in(file("protocol"))
   .settings(commonSettings)
+  .settings(publishSettings)
   .settings(
     name := "liquidity-protocol"
   )
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.dhpcs" %% "play-json-rpc" % "1.3.0"
-    ))
+  .settings(libraryDependencies ++= Seq(
+    "com.dhpcs" %% "play-json-rpc" % "1.3.0"
+  ))
   .dependsOn(liquidityModel)
   .settings(
     libraryDependencies ++= Seq(
@@ -103,7 +117,7 @@ lazy val liquidityProtocol = project
 lazy val liquidityCertgen = project
   .in(file("certgen"))
   .settings(commonSettings)
-  .settings(noopPublish)
+  .settings(noopPublishSettings)
   .settings(
     name := "liquidity-certgen"
   )
@@ -117,7 +131,7 @@ lazy val liquidityCertgen = project
 lazy val liquidityServer = project
   .in(file("server"))
   .settings(commonSettings)
-  .settings(noopPublish)
+  .settings(noopPublishSettings)
   .settings(
     name := "liquidity-server"
   )
@@ -158,6 +172,7 @@ lazy val liquidityServer = project
 lazy val liquidityClient = project
   .in(file("client"))
   .settings(commonSettings)
+  .settings(publishSettings)
   .settings(
     name := "liquidity-client"
   )
@@ -182,7 +197,7 @@ lazy val liquidityClient = project
 lazy val liquidityHealthcheck = project
   .in(file("healthcheck"))
   .settings(commonSettings)
-  .settings(noopPublish)
+  .settings(noopPublishSettings)
   .settings(
     name := "liquidity-healthcheck"
   )
@@ -197,6 +212,7 @@ lazy val liquidityHealthcheck = project
 lazy val liquidityBoardgame = project
   .in(file("boardgame"))
   .settings(commonSettings)
+  .settings(publishSettings)
   .settings(
     name := "liquidity-boardgame"
   )
@@ -205,7 +221,7 @@ lazy val liquidityBoardgame = project
 lazy val liquidityAnalytics = project
   .in(file("analytics"))
   .settings(commonSettings)
-  .settings(noopPublish)
+  .settings(noopPublishSettings)
   .settings(
     name := "liquidity-analytics"
   )
@@ -218,7 +234,7 @@ lazy val liquidityAnalytics = project
 lazy val root = project
   .in(file("."))
   .settings(commonSettings)
-  .settings(noopPublish)
+  .settings(noopPublishSettings)
   .settings(
     name := "liquidity"
   )

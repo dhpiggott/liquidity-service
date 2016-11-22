@@ -141,14 +141,14 @@ lazy val liquidityServer = project
   .settings(akkaPersistenceSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-http-experimental" % "2.4.11",
+      "com.typesafe.akka" %% "akka-http" % "10.0.0",
       playJson,
       "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.14",
       "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.14"
     ))
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
-    "com.typesafe.akka" %% "akka-http-testkit" % "2.4.11" % Test,
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.0" % Test,
     "org.iq80.leveldb"  % "leveldb" % "0.9" % Test
   ))
   .configs(IntegrationTest)

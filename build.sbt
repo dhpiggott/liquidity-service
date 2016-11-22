@@ -49,11 +49,11 @@ lazy val noopPublishSettings = Seq(
 
 lazy val akkaPersistenceSettings = Seq(
   libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-slf4j"                          % "2.4.13",
+    "com.typesafe.akka" %% "akka-slf4j"                          % "2.4.14",
     "ch.qos.logback"    % "logback-classic"                      % "1.1.7",
-    "com.typesafe.akka" %% "akka-persistence"                    % "2.4.13",
-    "com.typesafe.akka" %% "akka-cluster-tools"                  % "2.4.13",
-    "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.13",
+    "com.typesafe.akka" %% "akka-persistence"                    % "2.4.14",
+    "com.typesafe.akka" %% "akka-cluster-tools"                  % "2.4.14",
+    "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.14",
     "com.typesafe.akka" %% "akka-persistence-cassandra"          % "0.20",
     "io.netty"          % "netty-transport-native-epoll"         % "4.1.6.Final" classifier "linux-x86_64"
   )
@@ -93,7 +93,7 @@ lazy val liquidityPersistence = project
     name := "liquidity-persistence"
   )
   .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-actor" % "2.4.13"
+    "com.typesafe.akka" %% "akka-actor" % "2.4.14"
   ))
   .dependsOn(liquidityModel)
 
@@ -143,8 +143,8 @@ lazy val liquidityServer = project
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-http-experimental" % "2.4.11",
       playJson,
-      "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.13",
-      "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.13"
+      "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.14",
+      "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.14"
     ))
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
@@ -204,7 +204,7 @@ lazy val liquidityHealthcheck = project
   .dependsOn(liquidityClient)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.13",
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.14",
       scalaTest
     ))
   .enablePlugins(JavaAppPackaging, UniversalPlugin)

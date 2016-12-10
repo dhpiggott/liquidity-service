@@ -46,9 +46,11 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
          |    sharding.state-store-mode = ddata
          |  }
          |  extensions += "akka.cluster.ddata.DistributedData"
+         |  extensions += "akka.persistence.Persistence"
          |  persistence {
          |    journal {
          |      plugin = "akka.persistence.journal.leveldb"
+         |      auto-start-journals = ["akka.persistence.journal.leveldb"]
          |      leveldb {
          |        dir = "$journalDirectory"
          |        native = off
@@ -56,6 +58,7 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
          |    }
          |    snapshot-store {
          |      plugin = "akka.persistence.snapshot-store.local"
+         |      auto-start-snapshot-stores = ["akka.persistence.snapshot-store.local"]
          |      local.dir = "$snapshotStoreDirectory"
          |    }
          |  }

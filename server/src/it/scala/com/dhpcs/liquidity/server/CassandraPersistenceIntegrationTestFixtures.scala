@@ -69,9 +69,16 @@ trait CassandraPersistenceIntegrationTestFixtures extends BeforeAndAfterAll { th
          |    sharding.state-store-mode = ddata
          |  }
          |  extensions += "akka.cluster.ddata.DistributedData"
+         |  extensions += "akka.persistence.Persistence"
          |  persistence {
-         |    journal.plugin = "cassandra-journal"
-         |    snapshot-store.plugin = "cassandra-snapshot-store"
+         |    journal {
+         |      auto-start-journals = ["cassandra-journal"]
+         |      plugin = "cassandra-journal"
+         |    }
+         |    snapshot-store {
+         |      auto-start-snapshot-stores = ["cassandra-snapshot-store"]
+         |      plugin = "cassandra-snapshot-store"
+         |    }
          |  }
          |  http.server {
          |    remote-address-header = on

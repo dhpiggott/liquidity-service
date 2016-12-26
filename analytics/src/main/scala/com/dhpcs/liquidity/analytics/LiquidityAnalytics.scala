@@ -21,16 +21,19 @@ object LiquidityAnalytics {
     implicit val system = ActorSystem("liquidity")
     implicit val mat    = ActorMaterializer()
     implicit val ec     = ExecutionContext.global
-    try Await.result(for {
-      zonesAndBalances <- readZonesAndBalances()
-      recoveredSentinelZone  = zonesAndBalances.exists { case (zone, _, _) => zone.id == SentinelZoneId }
-      sortedZonesAndBalances = zonesAndBalances.sortBy { case (_, modified, _) => modified }
-      sortedSummaries        = sortedZonesAndBalances.map(summarise)
-    } yield {
-      println(sortedSummaries.mkString("", "\n", "\n"))
-      println(s"Recovered ${zonesAndBalances.size} zones")
-      if (!recoveredSentinelZone) throw sys.error(s"Failed to recover sentinel zone $SentinelZoneId")
-    }, Duration.Inf)
+    try Await.result(
+      for {
+        zonesAndBalances <- readZonesAndBalances()
+        recoveredSentinelZone  = zonesAndBalances.exists { case (zone, _, _) => zone.id == SentinelZoneId }
+        sortedZonesAndBalances = zonesAndBalances.sortBy { case (_, modified, _) => modified }
+        sortedSummaries        = sortedZonesAndBalances.map(summarise)
+      } yield {
+        println(sortedSummaries.mkString("", "\n", "\n"))
+        println(s"Recovered ${zonesAndBalances.size} zones")
+        if (!recoveredSentinelZone) throw sys.error(s"Failed to recover sentinel zone $SentinelZoneId")
+      },
+      Duration.Inf
+    )
     finally Await.result(
       system.terminate(),
       Duration.Inf
@@ -109,9 +112,11 @@ object LiquidityAnalytics {
          .par
          .map { member =>
            def balance(memberId: MemberId): BigDecimal =
-             zone.accounts.collectFirst {
-               case (accountId, account) if account.ownerMemberIds.contains(memberId) => balances(accountId)
-             }.getOrElse(BigDecimal(0))
+             zone.accounts
+               .collectFirst {
+                 case (accountId, account) if account.ownerMemberIds.contains(memberId) => balances(accountId)
+               }
+               .getOrElse(BigDecimal(0))
            val name    = member.name.getOrElse(unnamed)
            val padding = " " * (longestMemberNameLength - name.length)
            s"    $name: $padding${currencyFormat.format(balance(member.id))}"
@@ -126,10 +131,13 @@ object LiquidityAnalytics {
            .map { transaction =>
              def name(accountId: AccountId): String = {
                val account = zone.accounts(accountId)
-               val name = zone.members.collectFirst {
-                 case (memberId, member) if account.ownerMemberIds.contains(memberId) => member.name
+               val name = zone.members
+                 .collectFirst {
+                   case (memberId, member) if account.ownerMemberIds.contains(memberId) => member.name
 
-               }.flatten.getOrElse(unnamed)
+                 }
+                 .flatten
+                 .getOrElse(unnamed)
                val padding = " " * (longestMemberNameLength - name.length)
                s"$name$padding"
              }

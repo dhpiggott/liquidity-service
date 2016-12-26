@@ -122,7 +122,7 @@ class LiquidityServerSpec
         )
       )
       val zone = inside(expectResultResponse(sub, "createZone")) {
-        case createZoneResponse:CreateZoneResponse =>
+        case createZoneResponse: CreateZoneResponse =>
           val zone = createZoneResponse.zone
           zone.equityAccountId shouldBe AccountId(0)
           zone.members(MemberId(0)) shouldBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))

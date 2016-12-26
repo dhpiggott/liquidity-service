@@ -90,25 +90,27 @@ object Transaction {
       (JsPath \ "created").format(min[Long](0)) and
       (JsPath \ "description").formatNullable[String] and
       (JsPath \ "metadata").formatNullable[JsObject]
-    ) ((id, from, to, value, creator, created, description, metadata) =>
-    Transaction(
-      id,
-      from,
-      to,
-      value,
-      creator,
-      created,
-      description,
-      metadata
-    ), transaction =>
-    (transaction.id,
-      transaction.from,
-      transaction.to,
-      transaction.value,
-      transaction.creator,
-      transaction.created,
-      transaction.description,
-      transaction.metadata)
+  )(
+    (id, from, to, value, creator, created, description, metadata) =>
+      Transaction(
+        id,
+        from,
+        to,
+        value,
+        creator,
+        created,
+        description,
+        metadata
+    ),
+    transaction =>
+      (transaction.id,
+       transaction.from,
+       transaction.to,
+       transaction.value,
+       transaction.creator,
+       transaction.created,
+       transaction.description,
+       transaction.metadata)
   )
 }
 
@@ -146,26 +148,28 @@ object Zone {
       (JsPath \ "expires").format(min[Long](0)) and
       (JsPath \ "name").formatNullable[String] and
       (JsPath \ "metadata").formatNullable[JsObject]
-    ) ((id, equityAccountId, members, accounts, transactions, created, expires, name, metadata) =>
-    Zone(
-      id,
-      equityAccountId,
-      members.map(e => e.id -> e).toMap,
-      accounts.map(e => e.id -> e).toMap,
-      transactions.map(e => e.id -> e).toMap,
-      created,
-      expires,
-      name,
-      metadata
-    ), zone =>
-    (zone.id,
-      zone.equityAccountId,
-      zone.members.values.toSeq,
-      zone.accounts.values.toSeq,
-      zone.transactions.values.toSeq,
-      zone.created,
-      zone.expires,
-      zone.name,
-      zone.metadata)
+  )(
+    (id, equityAccountId, members, accounts, transactions, created, expires, name, metadata) =>
+      Zone(
+        id,
+        equityAccountId,
+        members.map(e => e.id      -> e).toMap,
+        accounts.map(e => e.id     -> e).toMap,
+        transactions.map(e => e.id -> e).toMap,
+        created,
+        expires,
+        name,
+        metadata
+    ),
+    zone =>
+      (zone.id,
+       zone.equityAccountId,
+       zone.members.values.toSeq,
+       zone.accounts.values.toSeq,
+       zone.transactions.values.toSeq,
+       zone.created,
+       zone.expires,
+       zone.name,
+       zone.metadata)
   )
 }

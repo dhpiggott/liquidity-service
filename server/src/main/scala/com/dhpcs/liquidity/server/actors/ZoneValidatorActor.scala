@@ -244,13 +244,15 @@ object ZoneValidatorActor {
     }
 
   private def checkTagAndMetadata(tag: Option[String], metadata: Option[JsObject]): Option[String] =
-    tag.collect {
-      case excessiveTag if excessiveTag.length > MaxStringLength =>
-        s"Tag length exceeds maximum ($MaxStringLength): $excessiveTag"
-    }.orElse(metadata.map(Json.stringify).collect {
-      case excessiveMetadataString if excessiveMetadataString.length > MaxMetadataSize =>
-        s"Metadata size exceeds maximum ($MaxMetadataSize): $excessiveMetadataString"
-    })
+    tag
+      .collect {
+        case excessiveTag if excessiveTag.length > MaxStringLength =>
+          s"Tag length exceeds maximum ($MaxStringLength): $excessiveTag"
+      }
+      .orElse(metadata.map(Json.stringify).collect {
+        case excessiveMetadataString if excessiveMetadataString.length > MaxMetadataSize =>
+          s"Metadata size exceeds maximum ($MaxMetadataSize): $excessiveMetadataString"
+      })
 
   private def checkTransaction(from: AccountId,
                                to: AccountId,

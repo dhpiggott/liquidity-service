@@ -92,10 +92,14 @@ class ServerConnectionSpec
 
   private[this] def send(command: Command): Future[Either[ErrorResponse, ResultResponse]] = {
     val promise = Promise[Either[ErrorResponse, ResultResponse]]
-    MainHandlerWrapper.post(serverConnection.sendCommand(command, new ResponseCallback {
-      override def onErrorReceived(errorResponse: ErrorResponse): Unit    = promise.success(Left(errorResponse))
-      override def onResultReceived(resultResponse: ResultResponse): Unit = promise.success(Right(resultResponse))
-    }))
+    MainHandlerWrapper.post(
+      serverConnection.sendCommand(
+        command,
+        new ResponseCallback {
+          override def onErrorReceived(errorResponse: ErrorResponse): Unit    = promise.success(Left(errorResponse))
+          override def onResultReceived(resultResponse: ResultResponse): Unit = promise.success(Right(resultResponse))
+        }
+      ))
     promise.future
   }
 

@@ -1,5 +1,3 @@
-scalafmtConfig in ThisBuild := Some(file(".scalafmt.conf"))
-
 lazy val commonSettings = Seq(
     scalaVersion := "2.11.8",
     scalacOptions in Compile ++= Seq(
@@ -23,8 +21,7 @@ lazy val commonSettings = Seq(
     ),
     resolvers += Resolver.bintrayRepo("dhpcs", "maven")
   ) ++
-    addCommandAlias("validate",
-                    ";scalafmtTest; test:scalafmtTest; it:scalafmtTest; coverage; test; it:test; coverageReport") ++
+    addCommandAlias("validate", ";scalafmtTest; coverage; test; it:test; coverageReport") ++
     addCommandAlias("validateAggregate", ";coverageAggregate")
 
 lazy val publishSettings = Seq(
@@ -139,13 +136,12 @@ lazy val liquidityServer = project
   .dependsOn(liquidityPersistence)
   .dependsOn(liquidityProtocol)
   .settings(akkaPersistenceSettings)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-http" % "10.0.1",
-      playJson,
-      "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.16",
-      "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.16"
-    ))
+  .settings(libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-http" % "10.0.1",
+    playJson,
+    "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.16",
+    "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.16"
+  ))
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.1" % Test,

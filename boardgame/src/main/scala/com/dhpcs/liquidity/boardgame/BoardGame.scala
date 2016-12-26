@@ -151,17 +151,20 @@ object BoardGame {
     )
 
   private def membersAccountsFromAccounts(accounts: Map[AccountId, Account]): Map[MemberId, AccountId] =
-    accounts.filter {
-      case (_, account) =>
-        account.ownerMemberIds.size == 1
-    }.groupBy {
-      case (_, account) =>
-        account.ownerMemberIds.head
-    }.collect {
-      case (memberId, memberAccounts) if memberAccounts.size == 1 =>
-        val (accountId, _) = memberAccounts.head
-        memberId -> accountId
-    }
+    accounts
+      .filter {
+        case (_, account) =>
+          account.ownerMemberIds.size == 1
+      }
+      .groupBy {
+        case (_, account) =>
+          account.ownerMemberIds.head
+      }
+      .collect {
+        case (memberId, memberAccounts) if memberAccounts.size == 1 =>
+          val (accountId, _) = memberAccounts.head
+          memberId -> accountId
+      }
 
   private def identitiesFromMembersAccounts(
       zoneId: ZoneId,
@@ -172,19 +175,21 @@ object BoardGame {
       members: Map[MemberId, Member],
       equityAccountId: AccountId,
       clientPublicKey: PublicKey): (Map[MemberId, IdentityWithBalance], Map[MemberId, IdentityWithBalance]) =
-    membersAccounts.collect {
-      case (memberId, accountId) if members(memberId).ownerPublicKey == clientPublicKey =>
-        memberId -> IdentityWithBalance(
-          zoneId,
-          members(memberId),
-          accounts(accountId),
-          (balances(accountId).bigDecimal, currency),
-          accountId == equityAccountId
-        )
-    }.partition {
-      case (_, identity) =>
-        !isHidden(identity.member)
-    }
+    membersAccounts
+      .collect {
+        case (memberId, accountId) if members(memberId).ownerPublicKey == clientPublicKey =>
+          memberId -> IdentityWithBalance(
+            zoneId,
+            members(memberId),
+            accounts(accountId),
+            (balances(accountId).bigDecimal, currency),
+            accountId == equityAccountId
+          )
+      }
+      .partition {
+        case (_, identity) =>
+          !isHidden(identity.member)
+      }
 
   private def isHidden(member: Member): Boolean =
     member.metadata.fold(ifEmpty = false)(
@@ -204,21 +209,23 @@ object BoardGame {
                                          equityAccountId: AccountId,
                                          connectedPublicKeys: Set[PublicKey])
     : (Map[MemberId, PlayerWithBalanceAndConnectionState], Map[MemberId, PlayerWithBalanceAndConnectionState]) =
-    membersAccounts.map {
-      case (memberId, accountId) =>
-        val member = members(memberId)
-        memberId -> PlayerWithBalanceAndConnectionState(
-          zoneId,
-          member,
-          accounts(accountId),
-          (balances(accountId).bigDecimal, currency),
-          accountId == equityAccountId,
-          connectedPublicKeys.contains(member.ownerPublicKey)
-        )
-    }.partition {
-      case (_, identity) =>
-        !isHidden(identity.member)
-    }
+    membersAccounts
+      .map {
+        case (memberId, accountId) =>
+          val member = members(memberId)
+          memberId -> PlayerWithBalanceAndConnectionState(
+            zoneId,
+            member,
+            accounts(accountId),
+            (balances(accountId).bigDecimal, currency),
+            accountId == equityAccountId,
+            connectedPublicKeys.contains(member.ownerPublicKey)
+          )
+      }
+      .partition {
+        case (_, identity) =>
+          !isHidden(identity.member)
+      }
 
   private def transfersFromTransactions(transactions: Map[TransactionId, Transaction],
                                         currency: Option[Either[String, Currency]],

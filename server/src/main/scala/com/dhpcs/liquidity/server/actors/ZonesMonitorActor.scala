@@ -20,10 +20,12 @@ object ZonesMonitorActor {
   def props(zoneCount: => Future[Int]): Props = Props(new ZonesMonitorActor(zoneCount))
 
   def zoneCount(readJournal: ReadJournal with CurrentPersistenceIdsQuery)(implicit mat: Materializer): Future[Int] =
-    readJournal.currentPersistenceIds.collect {
-      case ZoneIdStringPattern(uuidString) =>
-        ZoneId(UUID.fromString(uuidString))
-    }.runFold(0)((count, _) => count + 1)
+    readJournal.currentPersistenceIds
+      .collect {
+        case ZoneIdStringPattern(uuidString) =>
+          ZoneId(UUID.fromString(uuidString))
+      }
+      .runFold(0)((count, _) => count + 1)
 
   case object GetActiveZonesSummary
 

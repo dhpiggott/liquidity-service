@@ -19,8 +19,7 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
     port
   }
 
-  private[this] val journalDirectory       = FileUtils.createTempDir("liquidity-leveldb-journal")
-  private[this] val snapshotStoreDirectory = FileUtils.createTempDir("liquidity-leveldb-snapshot-store")
+  private[this] val journalDirectory = FileUtils.createTempDir("liquidity-leveldb-journal")
 
   private[this] val config =
     ConfigFactory
@@ -47,19 +46,12 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
          |  }
          |  extensions += "akka.cluster.ddata.DistributedData"
          |  extensions += "akka.persistence.Persistence"
-         |  persistence {
-         |    journal {
-         |      plugin = "akka.persistence.journal.leveldb"
-         |      auto-start-journals = ["akka.persistence.journal.leveldb"]
-         |      leveldb {
-         |        dir = "$journalDirectory"
-         |        native = off
-         |      }
-         |    }
-         |    snapshot-store {
-         |      plugin = "akka.persistence.snapshot-store.local"
-         |      auto-start-snapshot-stores = ["akka.persistence.snapshot-store.local"]
-         |      local.dir = "$snapshotStoreDirectory"
+         |  persistence.journal {
+         |    plugin = "akka.persistence.journal.leveldb"
+         |    auto-start-journals = ["akka.persistence.journal.leveldb"]
+         |    leveldb {
+         |      dir = "$journalDirectory"
+         |      native = off
          |    }
          |  }
          |}
@@ -71,7 +63,6 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
-    FileUtils.deleteRecursively(snapshotStoreDirectory)
     FileUtils.deleteRecursively(journalDirectory)
     super.afterAll()
   }

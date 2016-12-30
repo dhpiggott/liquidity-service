@@ -17,11 +17,11 @@ docker run --rm \
 for table in $(docker run --rm \
                    --net=liquidity_default \
                    --link liquidity_cassandra_1:cassandra \
-                   cassandra:3 sh -c 'exec cqlsh -e "USE akka; DESCRIBE TABLES;" cassandra')
+                   cassandra:3 sh -c 'exec cqlsh -e "USE liquidity_server; DESCRIBE TABLES;" cassandra')
 do
     docker run --rm \
         --volume $1/$table.csv:/mnt/import \
         --net=liquidity_default \
         --link liquidity_cassandra_1:cassandra \
-        cassandra:3 sh -c 'exec cqlsh -e "COPY akka.'$table' FROM '\''/mnt/import'\'' WITH NULL='\''null'\'';" cassandra'
+        cassandra:3 sh -c 'exec cqlsh -e "COPY liquidity_server.'$table' FROM '\''/mnt/import'\'' WITH NULL='\''null'\'';" cassandra'
 done

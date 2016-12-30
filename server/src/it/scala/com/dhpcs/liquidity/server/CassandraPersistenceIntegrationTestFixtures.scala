@@ -70,15 +70,9 @@ trait CassandraPersistenceIntegrationTestFixtures extends BeforeAndAfterAll { th
          |  }
          |  extensions += "akka.cluster.ddata.DistributedData"
          |  extensions += "akka.persistence.Persistence"
-         |  persistence {
-         |    journal {
-         |      auto-start-journals = ["cassandra-journal"]
-         |      plugin = "cassandra-journal"
-         |    }
-         |    snapshot-store {
-         |      auto-start-snapshot-stores = ["cassandra-snapshot-store"]
-         |      plugin = "cassandra-snapshot-store"
-         |    }
+         |  persistence.journal {
+         |    auto-start-journals = ["cassandra-journal"]
+         |    plugin = "cassandra-journal"
          |  }
          |  http.server {
          |    remote-address-header = on
@@ -86,13 +80,10 @@ trait CassandraPersistenceIntegrationTestFixtures extends BeforeAndAfterAll { th
          |  }
          |}
          |cassandra-journal.contact-points = ["localhost:${CassandraLauncher.randomPort}"]
-         |cassandra-snapshot-store.contact-points = ["localhost:${CassandraLauncher.randomPort}"]
-         |liquidity.server {
-         |  http {
-         |    keep-alive-interval = "3 seconds"
-         |    interface = "0.0.0.0"
-         |    port = "$akkaHttpPort"
-         |  }
+         |liquidity.server.http {
+         |  keep-alive-interval = "3 seconds"
+         |  interface = "0.0.0.0"
+         |  port = "$akkaHttpPort"
          |}
     """.stripMargin
       )

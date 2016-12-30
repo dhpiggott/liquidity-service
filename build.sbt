@@ -44,8 +44,7 @@ lazy val noopPublishSettings = Seq(
   publishLocal := {}
 )
 
-lazy val akkaPersistenceSettings = Seq(
-  libraryDependencies ++= Seq(
+lazy val akkaPersistenceSettings = libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-slf4j"                          % "2.4.16",
     "ch.qos.logback"    % "logback-classic"                      % "1.1.8",
     "com.typesafe.akka" %% "akka-persistence"                    % "2.4.16",
@@ -54,11 +53,13 @@ lazy val akkaPersistenceSettings = Seq(
     "com.typesafe.akka" %% "akka-persistence-cassandra"          % "0.22",
     "io.netty"          % "netty-transport-native-epoll"         % "4.1.6.Final" classifier "linux-x86_64"
   )
-)
 
-lazy val dockerSettings = Seq(
-  dockerBaseImage := "openjdk:8-jre"
-)
+lazy val akkaClusterShardingSettings = libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.16",
+    "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.16"
+  )
+
+lazy val dockerSettings = dockerBaseImage := "openjdk:8-jre"
 
 lazy val playJson = "com.typesafe.play" %% "play-json" % "2.3.10"
 
@@ -136,11 +137,10 @@ lazy val liquidityServer = project
   .dependsOn(liquidityPersistence)
   .dependsOn(liquidityProtocol)
   .settings(akkaPersistenceSettings)
+  .settings(akkaClusterShardingSettings)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-http" % "10.0.1",
-    playJson,
-    "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.16",
-    "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.16"
+    playJson
   ))
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
@@ -221,9 +221,15 @@ lazy val liquidityAnalytics = project
   .settings(
     name := "liquidity-analytics"
   )
-  .settings(akkaPersistenceSettings)
   .dependsOn(liquidityModel)
   .dependsOn(liquidityPersistence)
+  .settings(akkaPersistenceSettings)
+  .settings(akkaClusterShardingSettings)
+  .settings(libraryDependencies ++= Seq(
+    "com.datastax.cassandra"   % "cassandra-driver-core" % "3.1.2",
+    "com.google.code.findbugs" % "jsr305"                % "1.3.9" % Compile
+  ))
+  .settings(unmanagedClasspath in Compile ++= (unmanagedResources in Compile).value)
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(dockerSettings)
 

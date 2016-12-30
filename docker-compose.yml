@@ -14,6 +14,7 @@ services:
       - cassandra
   analytics:
     build: analytics
+    restart: always
     links:
       - cassandra
 volumes:

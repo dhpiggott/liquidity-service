@@ -27,8 +27,11 @@ cp $DIR/load-data.sh $DIR/image_stage/
 cp $DIR/save-data.sh $DIR/image_stage/
 
 rsync --archive \
-    --compress \
-    --delete \
+    --checksum \
     --human-readable \
+    --delete \
+    --delete-delay \
+    --partial \
+    --progress \
     --verbose \
     $DIR/image_stage/ $1/liquidity

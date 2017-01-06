@@ -226,7 +226,7 @@ lazy val liquidityAnalytics = project
   .settings(akkaPersistenceSettings)
   .settings(akkaClusterShardingSettings)
   .settings(libraryDependencies ++= Seq(
-    "com.datastax.cassandra"   % "cassandra-driver-core" % "3.1.2",
+    "com.datastax.cassandra"   % "cassandra-driver-core" % "3.1.3",
     "com.google.code.findbugs" % "jsr305"                % "1.3.9" % Compile
   ))
   .settings(unmanagedClasspath in Compile ++= (unmanagedResources in Compile).value)

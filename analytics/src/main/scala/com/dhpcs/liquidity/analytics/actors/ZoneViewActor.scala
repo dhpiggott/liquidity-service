@@ -2,9 +2,9 @@ package com.dhpcs.liquidity.analytics.actors
 
 import java.util.UUID
 
-import akka.actor.Status.Success
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.{Actor, Props}
 import akka.cluster.sharding.ShardRegion
+import akka.pattern.pipe
 import akka.persistence.query.EventEnvelope
 import akka.persistence.query.scaladsl.{CurrentEventsByPersistenceIdQuery, EventsByPersistenceIdQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
@@ -42,50 +42,13 @@ object ZoneViewActor {
 
 class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
                     cassandraViewClient: CassandraViewClient)(implicit mat: Materializer)
-    extends Actor
-    with ActorLogging {
+    extends Actor {
 
   import context.dispatcher
 
   private[this] val zoneId = ZoneId(UUID.fromString(self.path.name))
 
-  private[this] val killSwitch = {
-
-    val currentJournalState = for {
-      previousSequenceNumber <- cassandraViewClient.retrieveJournalSequenceNumber(zoneId)
-      previousZone <- previousSequenceNumber match {
-        case 0L => Future.successful(null)
-        case _  => cassandraViewClient.retrieveZone(zoneId)
-      }
-      previousConnectionCounts <- cassandraViewClient.retrieveConnectionCounts(zoneId)
-      previousBalances         <- cassandraViewClient.retrieveBalances(zoneId)
-      (currentSequenceNumber, currentZone, currentConnectionCounts, currentBalances) <- readJournal
-        .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber, Long.MaxValue)
-        .runFoldAsync((previousSequenceNumber, previousZone, previousConnectionCounts, previousBalances))(
-          updateViewAndApplyEvent)
-    } yield (currentSequenceNumber, currentZone, currentConnectionCounts, currentBalances)
-
-    val (killSwitch, done) = Source
-      .fromFuture(currentJournalState)
-      .viaMat(KillSwitches.single)(Keep.right)
-      .flatMapConcat {
-        case (currentSequenceNumber, currentZone, currentConnectionCounts, currentBalances) =>
-          readJournal
-            .eventsByPersistenceId(zoneId.persistenceId, currentSequenceNumber, Long.MaxValue)
-            .foldAsync((currentSequenceNumber, currentZone, currentConnectionCounts, currentBalances))(
-              updateViewAndApplyEvent)
-      }
-      .toMat(Sink.ignore)(Keep.both)
-      .run()
-
-    done.onFailure {
-      case t =>
-        log.error(t, "Stopping due to stream failure")
-        context.stop(self)
-    }
-
-    killSwitch
-  }
+  private[this] val killSwitch = KillSwitches.shared("zone-view-stream")
 
   override def postStop(): Unit = {
     killSwitch.shutdown()
@@ -93,7 +56,42 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
   }
 
   override def receive: Receive = {
-    case _: Start => sender() ! Success(())
+    case _: Start =>
+      val currentJournalState = for {
+        previousSequenceNumber <- cassandraViewClient.retrieveJournalSequenceNumber(zoneId)
+        previousZone <- previousSequenceNumber match {
+          case 0L => Future.successful(null)
+          case _  => cassandraViewClient.retrieveZone(zoneId)
+        }
+        previousConnectionCounts <- cassandraViewClient.retrieveConnectionCounts(zoneId)
+        previousBalances         <- cassandraViewClient.retrieveBalances(zoneId)
+        (currentSequenceNumber, currentZone, currentConnectionCounts, currentBalances) <- readJournal
+          .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber, Long.MaxValue)
+          .runFoldAsync((previousSequenceNumber, previousZone, previousConnectionCounts, previousBalances))(
+            updateViewAndApplyEvent)
+      } yield (currentSequenceNumber, currentZone, currentConnectionCounts, currentBalances)
+
+      currentJournalState.map(_ => ()).pipeTo(sender())
+
+      val done = Source
+        .fromFuture(currentJournalState)
+        .via(killSwitch.flow)
+        .flatMapConcat {
+          case (currentSequenceNumber, currentZone, currentConnectionCounts, currentBalances) =>
+            readJournal
+              .eventsByPersistenceId(zoneId.persistenceId, currentSequenceNumber, Long.MaxValue)
+              .foldAsync((currentSequenceNumber, currentZone, currentConnectionCounts, currentBalances))(
+                updateViewAndApplyEvent)
+        }
+        .toMat(Sink.ignore)(Keep.right)
+        .run()
+
+      done.onFailure {
+        case t =>
+          Console.err.println(s"Exiting due to stream failure:\n$t")
+          // TODO: Delegate escalation
+          sys.exit(1)
+      }
   }
 
   private[this] def updateViewAndApplyEvent(

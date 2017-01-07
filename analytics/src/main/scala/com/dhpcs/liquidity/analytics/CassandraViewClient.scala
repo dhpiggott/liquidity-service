@@ -139,7 +139,7 @@ object CassandraViewClient {
 
 class CassandraViewClient private (keyspace: String, session: Future[Session])(implicit ec: ExecutionContext) {
 
-  // TODO: DRY row ops, review idempotence
+  // TODO: DRY row ops
 
   private[this] val retrieveJournalSequenceNumberStatement = session.flatMap(
     _.prepareAsync(

@@ -39,7 +39,6 @@ object CassandraViewClient {
         // TODO: Full currency description?
         // TODO: Review when modified is updated, perhaps only update when zone is changed and add separate value for
         // matview that updates when connection, member, account or transaction events happen too
-        // TODO: Eliminate bucket?
         // TODO: Restore _by_id suffix
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.zones (
@@ -54,6 +53,7 @@ object CassandraViewClient {
                                      |  PRIMARY KEY ((bucket), id)
                                      |);
       """.stripMargin).asScala
+        // TODO: Eliminate bucket?
         _ <- session.executeAsync(s"""
                                      |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zones_by_modified AS
                                      |  SELECT * FROM $keyspace.zones
@@ -77,13 +77,12 @@ object CassandraViewClient {
                                      |  PRIMARY KEY ((zone_id), public_key)
                                      |);
       """.stripMargin).asScala
-        // TODO
-//        _ <- session.executeAsync(s"""
-//                                     |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.clients_by_public_key AS
-//                                     |  SELECT * FROM $keyspace.clients_by_zone
-//                                     |  WHERE modified IS NOT NULL AND id IS NOT NULL
-//                                     |  PRIMARY KEY ((public_key), zone_id, is_joined_now, last_joined);
-//      """.stripMargin).asScala
+        _ <- session.executeAsync(s"""
+                                     |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.clients_by_public_key AS
+                                     |  SELECT * FROM $keyspace.clients_by_zone
+                                     |  WHERE public_key IS NOT NULL AND zone_id IS NOT NULL AND last_joined IS NOT NULL AND total_joins IS NOT NULL
+                                     |  PRIMARY KEY ((public_key), zone_id);
+      """.stripMargin).asScala
         // TODO: Add modified timestamp
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (

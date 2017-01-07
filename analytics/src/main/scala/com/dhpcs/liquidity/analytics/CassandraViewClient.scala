@@ -3,8 +3,8 @@ package com.dhpcs.liquidity.analytics
 import java.util.Date
 
 import com.datastax.driver.core.Session
-import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.analytics.CassandraViewClient.RichListenableFuture
+import com.dhpcs.liquidity.model._
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
 import com.typesafe.config.Config
 import okio.ByteString
@@ -32,92 +32,105 @@ object CassandraViewClient {
       keyspace,
       for {
         session <- session
-        _ <- session
-          .executeAsync(s"""
-        |CREATE KEYSPACE IF NOT EXISTS $keyspace
-        |  WITH replication = {'class': 'SimpleStrategy' , 'replication_factor': '1'};
-      """.stripMargin)
-          .asScala
-        // TODO: Client connections
-        // TODO: Key fingerprints
+        _       <- session.executeAsync(s"""
+                                     |CREATE KEYSPACE IF NOT EXISTS $keyspace
+                                     |  WITH replication = {'class': 'SimpleStrategy' , 'replication_factor': '1'};
+      """.stripMargin).asScala
         // TODO: Full currency description?
         // TODO: Review when modified is updated, perhaps only update when zone is changed and add separate value for
         // matview that updates when connection, member, account or transaction events happen too
         // TODO: Eliminate bucket?
+        // TODO: Restore _by_id suffix
         _ <- session.executeAsync(s"""
-        |CREATE TABLE IF NOT EXISTS $keyspace.zones (
-        |  bucket int,
-        |  id uuid,
-        |  equity_account_id int,
-        |  created timestamp,
-        |  expires timestamp,
-        |  name text,
-        |  metadata text,
-        |  modified timestamp,
-        |  PRIMARY KEY ((bucket), id)
-        |);
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.zones (
+                                     |  bucket int,
+                                     |  id uuid,
+                                     |  equity_account_id int,
+                                     |  created timestamp,
+                                     |  expires timestamp,
+                                     |  name text,
+                                     |  metadata text,
+                                     |  modified timestamp,
+                                     |  PRIMARY KEY ((bucket), id)
+                                     |);
       """.stripMargin).asScala
         _ <- session.executeAsync(s"""
-        |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zones_by_modified AS
-        |  SELECT * FROM $keyspace.zones
-        |  WHERE modified IS NOT NULL AND id IS NOT NULL
-        |  PRIMARY KEY ((bucket), modified, id)
-        |  WITH CLUSTERING ORDER BY (modified desc);
+                                     |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zones_by_modified AS
+                                     |  SELECT * FROM $keyspace.zones
+                                     |  WHERE modified IS NOT NULL AND id IS NOT NULL
+                                     |  PRIMARY KEY ((bucket), modified, id);
       """.stripMargin).asScala
         _ <- session.executeAsync(s"""
-        |CREATE TABLE IF NOT EXISTS $keyspace.journal_sequence_numbers_by_zone (
-        |  id uuid,
-        |  journal_sequence_number bigint,
-        |  PRIMARY KEY (id)
-        |);
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.journal_sequence_numbers_by_zone (
+                                     |  id uuid,
+                                     |  journal_sequence_number bigint,
+                                     |  PRIMARY KEY (id)
+                                     |);
+      """.stripMargin).asScala
+        // TODO: Key fingerprints, active clients and unrecorded quits
+        _ <- session.executeAsync(s"""
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_zone (
+                                     |  zone_id uuid,
+                                     |  public_key blob,
+                                     |  total_joins int,
+                                     |  last_joined timestamp,
+                                     |  PRIMARY KEY ((zone_id), public_key)
+                                     |);
+      """.stripMargin).asScala
+        // TODO
+//        _ <- session.executeAsync(s"""
+//                                     |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.clients_by_public_key AS
+//                                     |  SELECT * FROM $keyspace.clients_by_zone
+//                                     |  WHERE modified IS NOT NULL AND id IS NOT NULL
+//                                     |  PRIMARY KEY ((public_key), zone_id, is_joined_now, last_joined);
+//      """.stripMargin).asScala
+        // TODO: Add modified timestamp
+        _ <- session.executeAsync(s"""
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
+                                     |  zone_id uuid,
+                                     |  id int,
+                                     |  owner_public_key blob,
+                                     |  name text,
+                                     |  metadata text,
+                                     |  PRIMARY KEY ((zone_id), id)
+                                     |);
       """.stripMargin).asScala
         // TODO: Add modified timestamp
         _ <- session.executeAsync(s"""
-        |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
-        |  zone_id uuid,
-        |  id int,
-        |  owner_public_key blob,
-        |  name text,
-        |  metadata text,
-        |  PRIMARY KEY ((zone_id), id)
-        |);
-      """.stripMargin).asScala
-        // TODO: Add modified timestamp
-        _ <- session.executeAsync(s"""
-        |CREATE TABLE IF NOT EXISTS $keyspace.accounts_by_zone (
-        |  zone_id uuid,
-        |  id int,
-        |  owner_member_ids set<int>,
-        |  owner_names list<text>,
-        |  name text,
-        |  metadata text,
-        |  PRIMARY KEY ((zone_id), id)
-        |);
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.accounts_by_zone (
+                                     |  zone_id uuid,
+                                     |  id int,
+                                     |  owner_member_ids set<int>,
+                                     |  owner_names list<text>,
+                                     |  name text,
+                                     |  metadata text,
+                                     |  PRIMARY KEY ((zone_id), id)
+                                     |);
       """.stripMargin).asScala
         _ <- session.executeAsync(s"""
-        |CREATE TABLE IF NOT EXISTS $keyspace.transactions_by_zone (
-        |  zone_id uuid,
-        |  id int,
-        |  "from" int,
-        |  from_owner_names list<text>,
-        |  "to" int,
-        |  to_owner_names list<text>,
-        |  value decimal,
-        |  creator int,
-        |  created timestamp,
-        |  description text,
-        |  metadata text,
-        |  PRIMARY KEY ((zone_id), id)
-        |);
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.transactions_by_zone (
+                                     |  zone_id uuid,
+                                     |  id int,
+                                     |  "from" int,
+                                     |  from_owner_names list<text>,
+                                     |  "to" int,
+                                     |  to_owner_names list<text>,
+                                     |  value decimal,
+                                     |  creator int,
+                                     |  created timestamp,
+                                     |  description text,
+                                     |  metadata text,
+                                     |  PRIMARY KEY ((zone_id), id)
+                                     |);
       """.stripMargin).asScala
         _ <- session.executeAsync(s"""
-        |CREATE TABLE IF NOT EXISTS $keyspace.balances_by_zone (
-        |  zone_id uuid,
-        |  account_id int,
-        |  owner_names list<text>,
-        |  balance decimal,
-        |  PRIMARY KEY ((zone_id), account_id)
-        |);
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.balances_by_zone (
+                                     |  zone_id uuid,
+                                     |  account_id int,
+                                     |  owner_names list<text>,
+                                     |  balance decimal,
+                                     |  PRIMARY KEY ((zone_id), account_id)
+                                     |);
       """.stripMargin).asScala
       } yield session
     )
@@ -147,6 +160,27 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
         case null => 0L
         case row  => row.getLong("journal_sequence_number")
       }
+
+  private[this] val retrieveConnectionCountsStatement = session.flatMap(
+    _.prepareAsync(
+      s"""
+         |SELECT public_key, total_joins
+         |FROM $keyspace.clients_by_zone
+         |WHERE zone_id = ?
+        """.stripMargin
+    ).asScala)
+
+  def retrieveConnectionCounts(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Map[PublicKey, Int]] =
+    for {
+      session   <- session
+      statement <- retrieveConnectionCountsStatement
+      resultSet <- session.executeAsync(statement.bind(zoneId.id)).asScala
+    } yield
+      (for {
+        row <- resultSet.iterator.asScala
+        publicKey  = PublicKey(ByteString.of(row.getBytes("public_key")))
+        totalJoins = row.getInt("total_joins")
+      } yield publicKey -> totalJoins).toMap
 
   private[this] val retrieveMembersStatement = session.flatMap(
     _.prepareAsync(
@@ -268,7 +302,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
       metadata = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
     } yield Zone(zoneId, equityAccountId, members, accounts, transactions, created, expires, name, metadata)
 
-  def ownerNames(members: Map[MemberId, Member], account: Account)(
+  private[this] def ownerNames(members: Map[MemberId, Member], account: Account)(
       implicit ec: ExecutionContext): java.util.List[String] =
     account.ownerMemberIds
       .map(members)
@@ -299,6 +333,31 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
             zone.name.orNull,
             zone.metadata.map(Json.stringify).orNull,
             new Date(zone.created)
+          ))
+        .asScala
+    } yield ()
+
+  private[this] val updateClientStatement = session.flatMap(
+    _.prepareAsync(
+      s"""
+         |UPDATE $keyspace.clients_by_zone
+         |SET total_joins = ?, last_joined = ?
+         |WHERE zone_id = ? AND public_key = ?
+        """.stripMargin
+    ).asScala)
+
+  def updateClient(zoneId: ZoneId, publicKey: PublicKey, totalJoins: Int, lastJoined: Long)(
+      implicit ec: ExecutionContext): Future[Unit] =
+    for {
+      session   <- session
+      statement <- updateClientStatement
+      _ <- session
+        .executeAsync(
+          statement.bind(
+            totalJoins: java.lang.Integer,
+            new Date(lastJoined),
+            zoneId.id,
+            publicKey.value.asByteBuffer
           ))
         .asScala
     } yield ()

@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.analytics.actors
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorRef, Props, Status}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.ask
 import akka.persistence.query.scaladsl.{AllPersistenceIdsQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink}
@@ -14,7 +14,6 @@ import com.dhpcs.liquidity.persistence.ZoneIdStringPattern
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.control.NonFatal
 
 object ZoneViewStarterActor {
 
@@ -26,7 +25,8 @@ object ZoneViewStarterActor {
 
 class ZoneViewStarterActor(readJournal: ReadJournal with AllPersistenceIdsQuery, zoneViewShardRegion: ActorRef)(
     implicit mat: Materializer)
-    extends Actor {
+    extends Actor
+    with ActorLogging {
 
   import context.dispatcher
 
@@ -42,7 +42,9 @@ class ZoneViewStarterActor(readJournal: ReadJournal with AllPersistenceIdsQuery,
       .run()
 
     done.onFailure {
-      case t => self ! Status.Failure(t)
+      case t =>
+        log.error(t, "Stopping due to stream failure")
+        context.stop(self)
     }
 
     killSwitch
@@ -53,9 +55,7 @@ class ZoneViewStarterActor(readJournal: ReadJournal with AllPersistenceIdsQuery,
     super.postStop()
   }
 
-  override def receive: Receive = {
-    case NonFatal(t) => throw t
-  }
+  override def receive: Receive = Actor.emptyBehavior
 
   private[this] def startZoneView(zoneId: ZoneId)(implicit timeout: Timeout): Future[Unit] =
     (zoneViewShardRegion ? Start(zoneId)).mapTo[Unit]

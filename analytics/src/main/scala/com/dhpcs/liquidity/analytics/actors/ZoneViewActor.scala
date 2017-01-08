@@ -88,7 +88,8 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
 
       done.onFailure {
         case t =>
-          Console.err.println(s"Exiting due to stream failure:\n$t")
+          Console.err.println("Exiting due to stream failure")
+          t.printStackTrace(Console.err)
           // TODO: Delegate escalation
           sys.exit(1)
       }
@@ -123,11 +124,11 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
           Future.successful(())
         case ZoneNameChangedEvent(_, name) =>
           cassandraViewClient.changeZoneName(zoneId, name)
-        case MemberCreatedEvent(_, member) =>
-          cassandraViewClient.createMember(zoneId)(member)
-        case MemberUpdatedEvent(_, member) =>
+        case MemberCreatedEvent(timestamp, member) =>
+          cassandraViewClient.createMember(zoneId, created = timestamp)(member)
+        case MemberUpdatedEvent(timestamp, member) =>
           for {
-            _ <- cassandraViewClient.updateMember(zoneId, member)
+            _ <- cassandraViewClient.updateMember(zoneId, modified = timestamp, member)
             updatedAccounts = previousZone.accounts.values.filter(_.ownerMemberIds.contains(member.id))
             _ <- cassandraViewClient.updateAccounts(previousZone, updatedAccounts)
             updatedTransactions = previousZone.transactions.values.filter(transaction =>
@@ -135,14 +136,14 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
             _ <- cassandraViewClient.updateTransactions(previousZone, updatedTransactions)
             _ <- cassandraViewClient.updateBalances(previousZone, updatedAccounts, previousBalances)
           } yield ()
-        case AccountCreatedEvent(_, account) =>
+        case AccountCreatedEvent(timestamp, account) =>
           for {
-            _ <- cassandraViewClient.createAccount(previousZone)(account)
+            _ <- cassandraViewClient.createAccount(previousZone, created = timestamp)(account)
             _ <- cassandraViewClient.createBalance(previousZone, BigDecimal(0))(account)
           } yield ()
-        case AccountUpdatedEvent(_, account) =>
+        case AccountUpdatedEvent(timestamp, account) =>
           for {
-            _ <- cassandraViewClient.updateAccount(previousZone)(account)
+            _ <- cassandraViewClient.updateAccount(previousZone, modified = timestamp, account)
             updatedTransactions = previousZone.transactions.values.filter(transaction =>
               transaction.from == account.id || transaction.to == account.id)
             _ <- cassandraViewClient.updateTransactions(previousZone, updatedTransactions)

@@ -36,10 +36,10 @@ object CassandraViewClient {
                                      |CREATE KEYSPACE IF NOT EXISTS $keyspace
                                      |  WITH replication = {'class': 'SimpleStrategy' , 'replication_factor': '1'};
       """.stripMargin).asScala
-        // TODO: Full currency description?
+        // TODO: Restore _by_id suffix
         // TODO: Review when modified is updated, perhaps only update when zone is changed and add separate value for
         // matview that updates when connection, member, account or transaction events happen too
-        // TODO: Restore _by_id suffix
+        // TODO: Full currency description?
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.zones (
                                      |  id uuid,
@@ -82,24 +82,27 @@ object CassandraViewClient {
                                      |  WHERE public_key IS NOT NULL AND zone_id IS NOT NULL AND last_joined IS NOT NULL AND total_joins IS NOT NULL
                                      |  PRIMARY KEY ((public_key), zone_id);
       """.stripMargin).asScala
-        // TODO: Add modified timestamp
+        // TODO: Read hidden flag?
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
                                      |  zone_id uuid,
                                      |  id int,
                                      |  owner_public_key blob,
+                                     |  created timestamp,
+                                     |  modified timestamp,
                                      |  name text,
                                      |  metadata text,
                                      |  PRIMARY KEY ((zone_id), id)
                                      |);
       """.stripMargin).asScala
-        // TODO: Add modified timestamp
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.accounts_by_zone (
                                      |  zone_id uuid,
                                      |  id int,
                                      |  owner_member_ids set<int>,
                                      |  owner_names list<text>,
+                                     |  created timestamp,
+                                     |  modified timestamp,
                                      |  name text,
                                      |  metadata text,
                                      |  PRIMARY KEY ((zone_id), id)
@@ -300,14 +303,6 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
       metadata = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
     } yield Zone(zoneId, equityAccountId, members, accounts, transactions, created, expires, name, metadata)
 
-  private[this] def ownerNames(members: Map[MemberId, Member], account: Account)(
-      implicit ec: ExecutionContext): java.util.List[String] =
-    account.ownerMemberIds
-      .map(members)
-      .toSeq
-      .map(_.name.getOrElse("<unnamed>"))
-      .asJava
-
   private[this] val createZoneStatement = session.flatMap(
     _.prepareAsync(
       s"""
@@ -386,15 +381,15 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val createMemberStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_key, name, metadata)
-         |VALUES (?, ?, ?, ?, ?)
+         |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_key, created, name, metadata)
+         |VALUES (?, ?, ?, ?, ?, ?)
           """.stripMargin
     ).asScala)
 
   def createMembers(zone: Zone)(implicit ec: ExecutionContext): Future[Unit] =
-    for (_ <- Future.traverse(zone.members.values)(createMember(zone.id))) yield ()
+    for (_ <- Future.traverse(zone.members.values)(createMember(zone.id, zone.created))) yield ()
 
-  def createMember(zoneId: ZoneId)(member: Member)(implicit ec: ExecutionContext): Future[Unit] =
+  def createMember(zoneId: ZoneId, created: Long)(member: Member)(implicit ec: ExecutionContext): Future[Unit] =
     for {
       session   <- session
       statement <- createMemberStatement
@@ -404,6 +399,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
             zoneId.id,
             member.id.id: java.lang.Integer,
             member.ownerPublicKey.value.asByteBuffer,
+            new Date(created),
             member.name.orNull,
             member.metadata.map(Json.stringify).orNull
           ))
@@ -414,12 +410,12 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.members_by_zone
-         |SET owner_public_key = ?, name = ?, metadata = ?
+         |SET owner_public_key = ?, modified = ?, name = ?, metadata = ?
          |WHERE zone_id = ? AND id = ?
           """.stripMargin
     ).asScala)
 
-  def updateMember(zoneId: ZoneId, member: Member)(implicit ec: ExecutionContext): Future[Unit] =
+  def updateMember(zoneId: ZoneId, modified: Long, member: Member)(implicit ec: ExecutionContext): Future[Unit] =
     for {
       session   <- session
       statement <- updateMemberStatement
@@ -427,6 +423,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
         .executeAsync(
           statement.bind(
             member.ownerPublicKey.value.asByteBuffer,
+            new Date(modified),
             member.name.orNull,
             member.metadata.map(Json.stringify).orNull,
             zoneId.id,
@@ -438,15 +435,15 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val createAccountStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |INSERT INTO $keyspace.accounts_by_zone (zone_id, id, owner_member_ids, owner_names, name, metadata)
-         |VALUES (?, ?, ?, ?, ?, ?)
+         |INSERT INTO $keyspace.accounts_by_zone (zone_id, id, owner_member_ids, owner_names, created, name, metadata)
+         |VALUES (?, ?, ?, ?, ?, ?, ?)
           """.stripMargin
     ).asScala)
 
   def createAccounts(zone: Zone)(implicit ec: ExecutionContext): Future[Unit] =
-    for (_ <- Future.traverse(zone.accounts.values)(createAccount(zone))) yield ()
+    for (_ <- Future.traverse(zone.accounts.values)(createAccount(zone, zone.created))) yield ()
 
-  def createAccount(zone: Zone)(account: Account)(implicit ec: ExecutionContext): Future[Unit] =
+  def createAccount(zone: Zone, created: Long)(account: Account)(implicit ec: ExecutionContext): Future[Unit] =
     for {
       session   <- session
       statement <- createAccountStatement
@@ -457,25 +454,47 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
             account.id.id: java.lang.Integer,
             account.ownerMemberIds.map(_.id).asJava,
             ownerNames(zone.members, account),
+            new Date(zone.created),
             account.name.orNull,
             account.metadata.map(Json.stringify).orNull
           ))
         .asScala
     } yield ()
 
-  private[this] val updateAccountStatement = session.flatMap(
+  private[this] val updateAccountsStatement = session.flatMap(
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.accounts_by_zone
-         |SET owner_member_ids = ?, owner_names = ?, name = ?, metadata = ?
+         |SET owner_names = ?
          |WHERE zone_id = ? AND id = ?
           """.stripMargin
     ).asScala)
 
   def updateAccounts(zone: Zone, accounts: Iterable[Account])(implicit ec: ExecutionContext): Future[Unit] =
-    for (_ <- Future.traverse(accounts)(updateAccount(zone))) yield ()
+    for {
+      session   <- session
+      statement <- updateAccountsStatement
+      _ <- Future.traverse(accounts)(
+        account =>
+          session
+            .executeAsync(statement.bind(
+              ownerNames(zone.members, account),
+              zone.id.id,
+              account.id.id: java.lang.Integer
+            ))
+            .asScala)
+    } yield ()
 
-  def updateAccount(zone: Zone)(account: Account)(implicit ec: ExecutionContext): Future[Unit] =
+  private[this] val updateAccountStatement = session.flatMap(
+    _.prepareAsync(
+      s"""
+         |UPDATE $keyspace.accounts_by_zone
+         |SET owner_member_ids = ?, owner_names = ?, modified = ?, name = ?, metadata = ?
+         |WHERE zone_id = ? AND id = ?
+          """.stripMargin
+    ).asScala)
+
+  def updateAccount(zone: Zone, modified: Long, account: Account)(implicit ec: ExecutionContext): Future[Unit] =
     for {
       session   <- session
       statement <- updateAccountStatement
@@ -484,6 +503,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
           statement.bind(
             account.ownerMemberIds.map(_.id).asJava,
             ownerNames(zone.members, account),
+            new Date(modified),
             account.name.orNull,
             account.metadata.map(Json.stringify).orNull,
             zone.id.id,
@@ -586,6 +606,14 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
           ))
         .asScala
     } yield ()
+
+  private[this] def ownerNames(members: Map[MemberId, Member], account: Account)(
+    implicit ec: ExecutionContext): java.util.List[String] =
+    account.ownerMemberIds
+      .map(members)
+      .toSeq
+      .map(_.name.getOrElse("<unnamed>"))
+      .asJava
 
   private[this] val updateBalanceStatement = session.flatMap(
     _.prepareAsync(

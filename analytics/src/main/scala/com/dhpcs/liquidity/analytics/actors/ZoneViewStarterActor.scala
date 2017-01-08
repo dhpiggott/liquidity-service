@@ -56,7 +56,8 @@ class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQu
 
     done.onFailure {
       case t =>
-        Console.err.println(s"Exiting due to stream failure:\n$t")
+        Console.err.println("Exiting due to stream failure")
+        t.printStackTrace(Console.err)
         // TODO: Delegate escalation
         sys.exit(1)
     }

@@ -122,8 +122,8 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
                                            totalJoins = previousConnectionCounts.getOrElse(publicKey, 0) + 1)
         case _: ZoneQuitEvent =>
           Future.successful(())
-        case ZoneNameChangedEvent(_, name) =>
-          cassandraViewClient.changeZoneName(zoneId, name)
+        case ZoneNameChangedEvent(timestamp, name) =>
+          cassandraViewClient.changeZoneName(zoneId, modified = timestamp, name)
         case MemberCreatedEvent(timestamp, member) =>
           cassandraViewClient.createMember(zoneId, created = timestamp)(member)
         case MemberUpdatedEvent(timestamp, member) =>
@@ -162,6 +162,8 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
       }
       _ <- envelope.event match {
         case _: ZoneCreatedEvent =>
+          Future.successful(())
+        case _: ZoneNameChangedEvent =>
           Future.successful(())
         case event: Event =>
           cassandraViewClient.updateZoneModified(zoneId, event.timestamp)

@@ -37,8 +37,6 @@ object CassandraViewClient {
                                      |CREATE KEYSPACE IF NOT EXISTS $keyspace
                                      |  WITH replication = {'class': 'SimpleStrategy' , 'replication_factor': '1'};
       """.stripMargin).asScala
-        // TODO: Review when modified is updated, perhaps only update when zone is changed and add separate value for
-        // matview that updates when connection, member, account or transaction events happen too
         // TODO: Full currency description?
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.zones_by_id(
@@ -46,10 +44,10 @@ object CassandraViewClient {
                                      |  bucket int,
                                      |  equity_account_id int,
                                      |  created timestamp,
+                                     |  modified timestamp,
                                      |  expires timestamp,
                                      |  name text,
                                      |  metadata text,
-                                     |  modified timestamp,
                                      |  PRIMARY KEY ((id), bucket)
                                      |);
       """.stripMargin).asScala
@@ -306,8 +304,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val createZoneStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |INSERT INTO $keyspace.zones_by_id(id, bucket, equity_account_id, created, expires, name, metadata, modified)
-         |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         |INSERT INTO $keyspace.zones_by_id(id, bucket, equity_account_id, created, expires, name, metadata)
+         |VALUES (?, ?, ?, ?, ?, ?, ?)
         """.stripMargin
     ).asScala)
 
@@ -324,8 +322,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
             new Date(zone.created),
             new Date(zone.expires),
             zone.name.orNull,
-            zone.metadata.map(Json.stringify).orNull,
-            new Date(zone.created)
+            zone.metadata.map(Json.stringify).orNull
           ))
         .asScala
     } yield ()
@@ -359,18 +356,19 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.zones_by_id
-         |SET name = ?
+         |SET modified = ?, name = ?
          |WHERE id = ? AND bucket = ?
         """.stripMargin
     ).asScala)
 
-  def changeZoneName(zoneId: ZoneId, name: Option[String])(implicit ec: ExecutionContext): Future[Unit] =
+  def changeZoneName(zoneId: ZoneId, modified: Long, name: Option[String])(implicit ec: ExecutionContext): Future[Unit] =
     for {
       session   <- session
       statement <- changeZoneNameStatement
       _ <- session
         .executeAsync(
           statement.bind(
+            new Date(modified),
             name.orNull,
             zoneId.id,
             1: java.lang.Integer

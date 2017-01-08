@@ -10,7 +10,7 @@ import akka.persistence.query.scaladsl.{CurrentEventsByPersistenceIdQuery, Event
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import com.dhpcs.liquidity.analytics.CassandraViewClient
-import com.dhpcs.liquidity.analytics.actors.ZoneViewActor.Start
+import com.dhpcs.liquidity.analytics.actors.ZoneViewActor.{Start, Started}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
 
@@ -19,8 +19,9 @@ import scala.concurrent.Future
 object ZoneViewActor {
 
   def props(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
-            cassandraViewClient: CassandraViewClient)(implicit mat: Materializer): Props =
-    Props(new ZoneViewActor(readJournal, cassandraViewClient))
+            cassandraViewClient: CassandraViewClient,
+            streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer): Props =
+    Props(new ZoneViewActor(readJournal, cassandraViewClient, streamFailureHandler))
 
   final val ShardName = "ZoneView"
 
@@ -37,11 +38,13 @@ object ZoneViewActor {
   }
 
   case class Start(zoneId: ZoneId)
+  case object Started
 
 }
 
 class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
-                    cassandraViewClient: CassandraViewClient)(implicit mat: Materializer)
+                    cassandraViewClient: CassandraViewClient,
+                    streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)
     extends Actor {
 
   import context.dispatcher
@@ -71,7 +74,7 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
             updateViewAndApplyEvent)
       } yield (currentSequenceNumber, currentZone, currentClientJoinCounts, currentBalances)
 
-      currentJournalState.map(_ => ()).pipeTo(sender())
+      currentJournalState.map(_ => Started).pipeTo(sender())
 
       val done = Source
         .fromFuture(currentJournalState)
@@ -88,10 +91,7 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
 
       done.onFailure {
         case t =>
-          Console.err.println("Exiting due to stream failure")
-          t.printStackTrace(Console.err)
-          // TODO: Delegate escalation
-          sys.exit(1)
+          streamFailureHandler.applyOrElse(t, throw _: Throwable)
       }
   }
 
@@ -118,7 +118,8 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
         case ZoneJoinedEvent(timestamp, _, publicKey) =>
           for {
             _ <- cassandraViewClient.updateClient(publicKey)
-            _ <- cassandraViewClient.updateZoneClient(zoneId,
+            _ <- cassandraViewClient.updateZoneClient(
+              zoneId,
               publicKey,
               zoneJoinCount = previousClientJoinCounts.getOrElse(publicKey, 0) + 1,
               lastJoined = timestamp)

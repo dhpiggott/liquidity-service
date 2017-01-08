@@ -8,7 +8,6 @@ import akka.persistence.query.scaladsl.{AllPersistenceIdsQuery, CurrentPersisten
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import akka.util.Timeout
-import com.dhpcs.liquidity.analytics.actors.ZoneViewActor.Start
 import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.persistence.ZoneIdStringPattern
 
@@ -18,13 +17,15 @@ import scala.concurrent.duration._
 object ZoneViewStarterActor {
 
   def props(readJournal: ReadJournal with CurrentPersistenceIdsQuery with AllPersistenceIdsQuery,
-            zoneViewShardRegion: ActorRef)(implicit mat: Materializer): Props =
-    Props(new ZoneViewStarterActor(readJournal, zoneViewShardRegion))
+            zoneViewShardRegion: ActorRef,
+            streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer): Props =
+    Props(new ZoneViewStarterActor(readJournal, zoneViewShardRegion, streamFailureHandler))
 
 }
 
 class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery with AllPersistenceIdsQuery,
-                           zoneViewShardRegion: ActorRef)(implicit mat: Materializer)
+                           zoneViewShardRegion: ActorRef,
+                           streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)
     extends Actor
     with ActorLogging {
 
@@ -56,10 +57,7 @@ class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQu
 
     done.onFailure {
       case t =>
-        Console.err.println("Exiting due to stream failure")
-        t.printStackTrace(Console.err)
-        // TODO: Delegate escalation
-        sys.exit(1)
+        streamFailureHandler.applyOrElse(t, throw _: Throwable)
     }
 
     killSwitch
@@ -68,7 +66,7 @@ class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQu
   private[this] implicit val zoneViewInitialisationTimeout = Timeout(30.seconds)
 
   private[this] def startZoneView(zoneId: ZoneId): Future[Unit] =
-    (zoneViewShardRegion ? Start(zoneId)).mapTo[Unit]
+    (zoneViewShardRegion ? ZoneViewActor.Start(zoneId)).mapTo[ZoneViewActor.Started.type].map(_ => ())
 
   override def postStop(): Unit = {
     killSwitch.shutdown()

@@ -42,22 +42,21 @@ object CassandraViewClient {
         // TODO: Restore _by_id suffix
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.zones (
-                                     |  bucket int,
                                      |  id uuid,
+                                     |  bucket int,
                                      |  equity_account_id int,
                                      |  created timestamp,
                                      |  expires timestamp,
                                      |  name text,
                                      |  metadata text,
                                      |  modified timestamp,
-                                     |  PRIMARY KEY ((bucket), id)
+                                     |  PRIMARY KEY ((id), bucket)
                                      |);
       """.stripMargin).asScala
-        // TODO: Eliminate bucket?
         _ <- session.executeAsync(s"""
                                      |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zones_by_modified AS
                                      |  SELECT * FROM $keyspace.zones
-                                     |  WHERE modified IS NOT NULL AND id IS NOT NULL
+                                     |  WHERE bucket IS NOT NULL AND modified IS NOT NULL
                                      |  PRIMARY KEY ((bucket), modified, id);
       """.stripMargin).asScala
         _ <- session.executeAsync(s"""
@@ -312,7 +311,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val createZoneStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |INSERT INTO $keyspace.zones (bucket, id, equity_account_id, created, expires, name, metadata, modified)
+         |INSERT INTO $keyspace.zones (id, bucket, equity_account_id, created, expires, name, metadata, modified)
          |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """.stripMargin
     ).asScala)
@@ -324,8 +323,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
       _ <- session
         .executeAsync(
           statement.bind(
-            1: java.lang.Integer,
             zone.id.id,
+            1: java.lang.Integer,
             zone.equityAccountId.id: java.lang.Integer,
             new Date(zone.created),
             new Date(zone.expires),
@@ -366,7 +365,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
       s"""
          |UPDATE $keyspace.zones
          |SET name = ?
-         |WHERE bucket = ? AND id = ?
+         |WHERE id = ? AND bucket = ?
         """.stripMargin
     ).asScala)
 
@@ -378,8 +377,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
         .executeAsync(
           statement.bind(
             name.orNull,
-            1: java.lang.Integer,
-            zoneId.id
+            zoneId.id,
+            1: java.lang.Integer
           ))
         .asScala
     } yield ()
@@ -625,7 +624,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
       s"""
          |UPDATE $keyspace.zones
          |SET modified = ?
-         |WHERE bucket = ? AND id = ?
+         |WHERE id = ? AND bucket = ?
         """.stripMargin
     ).asScala)
 
@@ -637,8 +636,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
         .executeAsync(
           statement.bind(
             new Date(modified),
-            1: java.lang.Integer,
-            zoneId.id
+            zoneId.id,
+            1: java.lang.Integer
           ))
         .asScala
     } yield ()

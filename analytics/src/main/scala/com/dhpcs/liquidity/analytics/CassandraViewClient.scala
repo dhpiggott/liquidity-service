@@ -30,18 +30,18 @@ object CassandraViewClient {
     val keyspace = config.getString("liquidity.analytics.cassandra.keyspace")
     new CassandraViewClient(
       keyspace,
+      // TODO: Zone, member and account update history tables?
       for {
         session <- session
         _       <- session.executeAsync(s"""
                                      |CREATE KEYSPACE IF NOT EXISTS $keyspace
                                      |  WITH replication = {'class': 'SimpleStrategy' , 'replication_factor': '1'};
       """.stripMargin).asScala
-        // TODO: Restore _by_id suffix
         // TODO: Review when modified is updated, perhaps only update when zone is changed and add separate value for
         // matview that updates when connection, member, account or transaction events happen too
         // TODO: Full currency description?
         _ <- session.executeAsync(s"""
-                                     |CREATE TABLE IF NOT EXISTS $keyspace.zones (
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.zones_by_id(
                                      |  id uuid,
                                      |  bucket int,
                                      |  equity_account_id int,
@@ -55,7 +55,7 @@ object CassandraViewClient {
       """.stripMargin).asScala
         _ <- session.executeAsync(s"""
                                      |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zones_by_modified AS
-                                     |  SELECT * FROM $keyspace.zones
+                                     |  SELECT * FROM $keyspace.zones_by_id
                                      |  WHERE bucket IS NOT NULL AND modified IS NOT NULL
                                      |  PRIMARY KEY ((bucket), modified, id);
       """.stripMargin).asScala
@@ -282,7 +282,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |SELECT equity_account_id, created, expires, name, metadata
-         |FROM $keyspace.zones
+         |FROM $keyspace.zones_by_id
          |WHERE bucket = ? and id = ?
         """.stripMargin
     ).asScala)
@@ -306,7 +306,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val createZoneStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |INSERT INTO $keyspace.zones (id, bucket, equity_account_id, created, expires, name, metadata, modified)
+         |INSERT INTO $keyspace.zones_by_id(id, bucket, equity_account_id, created, expires, name, metadata, modified)
          |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """.stripMargin
     ).asScala)
@@ -358,7 +358,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val changeZoneNameStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |UPDATE $keyspace.zones
+         |UPDATE $keyspace.zones_by_id
          |SET name = ?
          |WHERE id = ? AND bucket = ?
         """.stripMargin
@@ -650,7 +650,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val updateZoneModifiedStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |UPDATE $keyspace.zones
+         |UPDATE $keyspace.zones_by_id
          |SET modified = ?
          |WHERE id = ? AND bucket = ?
         """.stripMargin

@@ -38,7 +38,7 @@ class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQu
       .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId => startZoneView(zoneId).map(_ => zoneId))
       .runFold(Set.empty[ZoneId])(_ + _)
 
-    currentZoneIds.foreach(currentZones => log.info(s"Completed initialisation of ${currentZones.size} zone views"))
+    currentZoneIds.foreach(currentZones => log.info(s"Initialized ${currentZones.size} zone views"))
 
     val (killSwitch, done) = Source
       .fromFuture(currentZoneIds)
@@ -49,7 +49,8 @@ class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQu
             .allPersistenceIds()
             .collect { case ZoneIdStringPattern(uuidString) => ZoneId(UUID.fromString(uuidString)) }
             .filterNot(currentZoneIds.contains)
-            .mapAsyncUnordered(sys.runtime.availableProcessors)(startZoneView))
+            .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId =>
+              startZoneView(zoneId).map(_ => log.info(s"Initialized zone view for ${zoneId.id}"))))
       .toMat(Sink.ignore)(Keep.both)
       .run()
 

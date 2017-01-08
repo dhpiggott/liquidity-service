@@ -66,13 +66,13 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
           case 0L => Future.successful(null)
           case _  => cassandraViewClient.retrieveZone(zoneId)
         }
-        previousClientJoinCounts <- cassandraViewClient.retrieveClientJoinCounts(zoneId)
         previousBalances         <- cassandraViewClient.retrieveBalances(zoneId)
-        (currentSequenceNumber, currentZone, currentClientJoinCounts, currentBalances) <- readJournal
+        previousClientJoinCounts <- cassandraViewClient.retrieveClientJoinCounts(zoneId)
+        (currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts) <- readJournal
           .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber, Long.MaxValue)
-          .runFoldAsync((previousSequenceNumber, previousZone, previousClientJoinCounts, previousBalances))(
+          .runFoldAsync((previousSequenceNumber, previousZone, previousBalances, previousClientJoinCounts))(
             updateViewAndApplyEvent)
-      } yield (currentSequenceNumber, currentZone, currentClientJoinCounts, currentBalances)
+      } yield (currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts)
 
       currentJournalState.map(_ => Started).pipeTo(sender())
 
@@ -80,10 +80,10 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
         .fromFuture(currentJournalState)
         .via(killSwitch.flow)
         .flatMapConcat {
-          case (currentSequenceNumber, currentZone, currentClientJoinCounts, currentBalances) =>
+          case (currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts) =>
             readJournal
               .eventsByPersistenceId(zoneId.persistenceId, currentSequenceNumber, Long.MaxValue)
-              .foldAsync((currentSequenceNumber, currentZone, currentClientJoinCounts, currentBalances))(
+              .foldAsync((currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts))(
                 updateViewAndApplyEvent)
         }
         .toMat(Sink.ignore)(Keep.right)
@@ -96,19 +96,20 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
   }
 
   private[this] def updateViewAndApplyEvent(
-      previousSequenceNumberZoneClientJoinCountsAndBalances: (Long,
+      previousSequenceNumberZoneBalancesAndClientJoinCounts: (Long,
                                                               Zone,
-                                                              Map[PublicKey, Int],
-                                                              Map[AccountId, BigDecimal]),
-      envelope: EventEnvelope): Future[(Long, Zone, Map[PublicKey, Int], Map[AccountId, BigDecimal])] = {
+                                                              Map[AccountId, BigDecimal],
+                                                              Map[PublicKey, Int]),
+      envelope: EventEnvelope): Future[(Long, Zone, Map[AccountId, BigDecimal], Map[PublicKey, Int])] = {
 
-    val (_, previousZone, previousClientJoinCounts, previousBalances) =
-      previousSequenceNumberZoneClientJoinCountsAndBalances
+    val (_, previousZone, previousBalances, previousClientJoinCounts) =
+      previousSequenceNumberZoneBalancesAndClientJoinCounts
 
     val viewUpdate = for {
       _ <- envelope.event match {
         case ZoneCreatedEvent(_, zone) =>
           for {
+            _ <- cassandraViewClient.addZoneNameChange(zone.id, zone.created, zone.name)
             _ <- cassandraViewClient.createZone(zone)
             _ <- cassandraViewClient.createMembers(zone)
             _ <- cassandraViewClient.createAccounts(zone)
@@ -127,11 +128,18 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
         case _: ZoneQuitEvent =>
           Future.successful(())
         case ZoneNameChangedEvent(timestamp, name) =>
-          cassandraViewClient.changeZoneName(zoneId, modified = timestamp, name)
+          for {
+            _ <- cassandraViewClient.addZoneNameChange(zoneId, changed = timestamp, name)
+            _ <- cassandraViewClient.changeZoneName(zoneId, modified = timestamp, name)
+          } yield ()
         case MemberCreatedEvent(timestamp, member) =>
-          cassandraViewClient.createMember(zoneId, created = timestamp)(member)
+          for {
+            _ <- cassandraViewClient.addMemberUpdate(zoneId, updated = timestamp, member)
+            _ <- cassandraViewClient.createMember(zoneId, created = timestamp)(member)
+          } yield ()
         case MemberUpdatedEvent(timestamp, member) =>
           for {
+            _ <- cassandraViewClient.addMemberUpdate(zoneId, updated = timestamp, member)
             _ <- cassandraViewClient.updateMember(zoneId, modified = timestamp, member)
             updatedAccounts = previousZone.accounts.values.filter(_.ownerMemberIds.contains(member.id))
             _ <- cassandraViewClient.updateAccounts(previousZone, updatedAccounts)
@@ -142,11 +150,13 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
           } yield ()
         case AccountCreatedEvent(timestamp, account) =>
           for {
+            _ <- cassandraViewClient.addAccountUpdate(previousZone, updated = timestamp, account)
             _ <- cassandraViewClient.createAccount(previousZone, created = timestamp)(account)
             _ <- cassandraViewClient.createBalance(previousZone, BigDecimal(0))(account)
           } yield ()
         case AccountUpdatedEvent(timestamp, account) =>
           for {
+            _ <- cassandraViewClient.addAccountUpdate(previousZone, updated = timestamp, account)
             _ <- cassandraViewClient.updateAccount(previousZone, modified = timestamp, account)
             updatedTransactions = previousZone.transactions.values.filter(transaction =>
               transaction.from == account.id || transaction.to == account.id)
@@ -214,6 +224,6 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
     }
 
     for (_ <- viewUpdate)
-      yield (envelope.sequenceNr, updatedZone, updatedClientJoinCounts, updatedBalances)
+      yield (envelope.sequenceNr, updatedZone, updatedBalances, updatedClientJoinCounts)
   }
 }

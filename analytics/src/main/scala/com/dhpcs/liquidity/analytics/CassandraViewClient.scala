@@ -4,11 +4,12 @@ import java.util.Date
 
 import com.datastax.driver.core.Session
 import com.dhpcs.liquidity.analytics.CassandraViewClient.RichListenableFuture
+import com.dhpcs.liquidity.analytics.CassandraViewClient.RichMetadata
 import com.dhpcs.liquidity.model._
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
 import com.typesafe.config.Config
 import okio.ByteString
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsObject, Json, Reads}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -26,18 +27,21 @@ object CassandraViewClient {
     }
   }
 
+  implicit class RichMetadata(val metadata: Option[JsObject]) extends AnyVal {
+    def read[A: Reads](key: String): Option[A] = metadata.flatMap(metadata => (metadata \ key).asOpt[A])
+  }
+
   def apply(config: Config, session: Future[Session])(implicit ec: ExecutionContext): CassandraViewClient = {
     val keyspace = config.getString("liquidity.analytics.cassandra.keyspace")
     new CassandraViewClient(
       keyspace,
-      // TODO: Zone, member and account update history tables?
+      // TODO: Zone name, member and account update history tables?
       for {
         session <- session
         _       <- session.executeAsync(s"""
                                      |CREATE KEYSPACE IF NOT EXISTS $keyspace
                                      |  WITH replication = {'class': 'SimpleStrategy' , 'replication_factor': '1'};
       """.stripMargin).asScala
-        // TODO: Full currency description?
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.zones_by_id(
                                      |  id uuid,
@@ -48,6 +52,7 @@ object CassandraViewClient {
                                      |  expires timestamp,
                                      |  name text,
                                      |  metadata text,
+                                     |  currency text,
                                      |  PRIMARY KEY ((id), bucket)
                                      |);
       """.stripMargin).asScala
@@ -88,7 +93,6 @@ object CassandraViewClient {
                                      |  WHERE public_key IS NOT NULL AND zone_id IS NOT NULL AND zone_join_count IS NOT NULL AND last_joined IS NOT NULL
                                      |  PRIMARY KEY ((public_key), zone_id);
       """.stripMargin).asScala
-        // TODO: Read hidden flag?
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
                                      |  zone_id uuid,
@@ -98,6 +102,7 @@ object CassandraViewClient {
                                      |  modified timestamp,
                                      |  name text,
                                      |  metadata text,
+                                     |  hidden boolean,
                                      |  PRIMARY KEY ((zone_id), id)
                                      |);
       """.stripMargin).asScala
@@ -185,7 +190,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     } yield
       (for {
         row <- resultSet.iterator.asScala
-        publicKey  = PublicKey(ByteString.of(row.getBytes("public_key")))
+        publicKey     = PublicKey(ByteString.of(row.getBytes("public_key")))
         zoneJoinCount = row.getInt("zone_join_count")
       } yield publicKey -> zoneJoinCount).toMap
 
@@ -312,8 +317,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val createZoneStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |INSERT INTO $keyspace.zones_by_id(id, bucket, equity_account_id, created, expires, name, metadata)
-         |  VALUES (?, ?, ?, ?, ?, ?, ?)
+         |INSERT INTO $keyspace.zones_by_id(id, bucket, equity_account_id, created, expires, name, metadata, currency)
+         |  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """.stripMargin
     ).asScala)
 
@@ -321,6 +326,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     for {
       session   <- session
       statement <- createZoneStatement
+      currency = zone.metadata.read[String]("currency")
       _ <- session
         .executeAsync(
           statement.bind(
@@ -330,7 +336,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
             new Date(zone.created),
             new Date(zone.expires),
             zone.name.orNull,
-            zone.metadata.map(Json.stringify).orNull
+            zone.metadata.map(Json.stringify).orNull,
+            currency.orNull
           ))
         .asScala
     } yield ()
@@ -411,8 +418,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val createMemberStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_key, created, name, metadata)
-         |  VALUES (?, ?, ?, ?, ?, ?)
+         |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_key, created, name, metadata, hidden)
+         |  VALUES (?, ?, ?, ?, ?, ?, ?)
           """.stripMargin
     ).asScala)
 
@@ -423,6 +430,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     for {
       session   <- session
       statement <- createMemberStatement
+      hidden = member.metadata.read[Boolean]("hidden")
       _ <- session
         .executeAsync(
           statement.bind(
@@ -431,7 +439,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
             member.ownerPublicKey.value.asByteBuffer,
             new Date(created),
             member.name.orNull,
-            member.metadata.map(Json.stringify).orNull
+            member.metadata.map(Json.stringify).orNull,
+            hidden.map(hidden => hidden: java.lang.Boolean).orNull
           ))
         .asScala
     } yield ()
@@ -440,7 +449,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.members_by_zone
-         |  SET owner_public_key = ?, modified = ?, name = ?, metadata = ?
+         |  SET owner_public_key = ?, modified = ?, name = ?, metadata = ?, hidden = ?
          |  WHERE zone_id = ? AND id = ?
           """.stripMargin
     ).asScala)
@@ -449,6 +458,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     for {
       session   <- session
       statement <- updateMemberStatement
+      hidden = member.metadata.read[Boolean]("hidden")
       _ <- session
         .executeAsync(
           statement.bind(
@@ -456,6 +466,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
             new Date(modified),
             member.name.orNull,
             member.metadata.map(Json.stringify).orNull,
+            hidden.map(hidden => hidden: java.lang.Boolean).orNull,
             zoneId.id,
             member.id.id: java.lang.Integer
           ))

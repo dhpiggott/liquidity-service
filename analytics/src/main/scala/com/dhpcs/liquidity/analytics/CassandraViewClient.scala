@@ -64,20 +64,28 @@ object CassandraViewClient {
                                      |  PRIMARY KEY (id)
                                      |);
       """.stripMargin).asScala
-        // TODO: Key fingerprints, active clients and unrecorded quits
+        // TODO: Key fingerprints, active clients and unrecorded quits (need remember entities without distributed data, plus auto purge on restart)
+        _ <- session.executeAsync(s"""
+                                     |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_public_key (
+                                     |  public_key blob,
+                                     |  bucket int,
+                                     |  join_count counter,
+                                     |  PRIMARY KEY ((public_key), bucket)
+                                     |);
+      """.stripMargin).asScala
         _ <- session.executeAsync(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_zone (
                                      |  zone_id uuid,
                                      |  public_key blob,
-                                     |  total_joins int,
+                                     |  zone_join_count int,
                                      |  last_joined timestamp,
                                      |  PRIMARY KEY ((zone_id), public_key)
                                      |);
       """.stripMargin).asScala
         _ <- session.executeAsync(s"""
-                                     |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.clients_by_public_key AS
+                                     |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zone_clients_by_public_key AS
                                      |  SELECT * FROM $keyspace.clients_by_zone
-                                     |  WHERE public_key IS NOT NULL AND zone_id IS NOT NULL AND last_joined IS NOT NULL AND total_joins IS NOT NULL
+                                     |  WHERE public_key IS NOT NULL AND zone_id IS NOT NULL AND zone_join_count IS NOT NULL AND last_joined IS NOT NULL
                                      |  PRIMARY KEY ((public_key), zone_id);
       """.stripMargin).asScala
         // TODO: Read hidden flag?
@@ -144,8 +152,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |SELECT journal_sequence_number
-         |FROM $keyspace.journal_sequence_numbers_by_zone
-         |WHERE id = ?
+         |  FROM $keyspace.journal_sequence_numbers_by_zone
+         |  WHERE id = ?
         """.stripMargin
     ).asScala)
 
@@ -160,33 +168,33 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
         case row  => row.getLong("journal_sequence_number")
       }
 
-  private[this] val retrieveConnectionCountsStatement = session.flatMap(
+  private[this] val retrieveClientJoinCountsStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |SELECT public_key, total_joins
-         |FROM $keyspace.clients_by_zone
-         |WHERE zone_id = ?
+         |SELECT public_key, zone_join_count
+         |  FROM $keyspace.clients_by_zone
+         |  WHERE zone_id = ?
         """.stripMargin
     ).asScala)
 
-  def retrieveConnectionCounts(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Map[PublicKey, Int]] =
+  def retrieveClientJoinCounts(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Map[PublicKey, Int]] =
     for {
       session   <- session
-      statement <- retrieveConnectionCountsStatement
+      statement <- retrieveClientJoinCountsStatement
       resultSet <- session.executeAsync(statement.bind(zoneId.id)).asScala
     } yield
       (for {
         row <- resultSet.iterator.asScala
         publicKey  = PublicKey(ByteString.of(row.getBytes("public_key")))
-        totalJoins = row.getInt("total_joins")
-      } yield publicKey -> totalJoins).toMap
+        zoneJoinCount = row.getInt("zone_join_count")
+      } yield publicKey -> zoneJoinCount).toMap
 
   private[this] val retrieveMembersStatement = session.flatMap(
     _.prepareAsync(
       s"""
          |SELECT id, owner_public_key, name, metadata
-         |FROM $keyspace.members_by_zone
-         |WHERE zone_id = ?
+         |  FROM $keyspace.members_by_zone
+         |  WHERE zone_id = ?
         """.stripMargin
     ).asScala)
 
@@ -208,8 +216,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |SELECT id, owner_member_ids, name, metadata
-         |FROM $keyspace.accounts_by_zone
-         |WHERE zone_id = ?
+         |  FROM $keyspace.accounts_by_zone
+         |  WHERE zone_id = ?
         """.stripMargin
     ).asScala)
 
@@ -231,8 +239,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |SELECT id, "from", "to", value, creator, created, description, metadata
-         |FROM $keyspace.transactions_by_zone
-         |WHERE zone_id = ?
+         |  FROM $keyspace.transactions_by_zone
+         |  WHERE zone_id = ?
         """.stripMargin
     ).asScala)
 
@@ -259,8 +267,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |SELECT account_id, balance
-         |FROM $keyspace.balances_by_zone
-         |WHERE zone_id = ?
+         |  FROM $keyspace.balances_by_zone
+         |  WHERE zone_id = ?
         """.stripMargin
     ).asScala)
 
@@ -280,8 +288,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |SELECT equity_account_id, created, expires, name, metadata
-         |FROM $keyspace.zones_by_id
-         |WHERE bucket = ? and id = ?
+         |  FROM $keyspace.zones_by_id
+         |  WHERE bucket = ? and id = ?
         """.stripMargin
     ).asScala)
 
@@ -305,7 +313,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |INSERT INTO $keyspace.zones_by_id(id, bucket, equity_account_id, created, expires, name, metadata)
-         |VALUES (?, ?, ?, ?, ?, ?, ?)
+         |  VALUES (?, ?, ?, ?, ?, ?, ?)
         """.stripMargin
     ).asScala)
 
@@ -330,21 +338,44 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
   private[this] val updateClientStatement = session.flatMap(
     _.prepareAsync(
       s"""
-         |UPDATE $keyspace.clients_by_zone
-         |SET total_joins = ?, last_joined = ?
-         |WHERE zone_id = ? AND public_key = ?
+         |UPDATE $keyspace.clients_by_public_key
+         |  SET join_count = join_count + 1
+         |  WHERE public_key = ? AND bucket = ?
         """.stripMargin
     ).asScala)
 
-  def updateClient(zoneId: ZoneId, publicKey: PublicKey, totalJoins: Int, lastJoined: Long)(
-      implicit ec: ExecutionContext): Future[Unit] =
+  def updateClient(publicKey: PublicKey)(implicit ec: ExecutionContext): Future[Unit] =
     for {
       session   <- session
       statement <- updateClientStatement
       _ <- session
         .executeAsync(
           statement.bind(
-            totalJoins: java.lang.Integer,
+            publicKey.value.asByteBuffer,
+            1: java.lang.Integer
+          )
+        )
+        .asScala
+    } yield ()
+
+  private[this] val updateZoneClientStatement = session.flatMap(
+    _.prepareAsync(
+      s"""
+         |UPDATE $keyspace.clients_by_zone
+         |  SET zone_join_count = ?, last_joined = ?
+         |  WHERE zone_id = ? AND public_key = ?
+        """.stripMargin
+    ).asScala)
+
+  def updateZoneClient(zoneId: ZoneId, publicKey: PublicKey, zoneJoinCount: Int, lastJoined: Long)(
+      implicit ec: ExecutionContext): Future[Unit] =
+    for {
+      session   <- session
+      statement <- updateZoneClientStatement
+      _ <- session
+        .executeAsync(
+          statement.bind(
+            zoneJoinCount: java.lang.Integer,
             new Date(lastJoined),
             zoneId.id,
             publicKey.value.asByteBuffer
@@ -356,12 +387,13 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.zones_by_id
-         |SET modified = ?, name = ?
-         |WHERE id = ? AND bucket = ?
+         |  SET modified = ?, name = ?
+         |  WHERE id = ? AND bucket = ?
         """.stripMargin
     ).asScala)
 
-  def changeZoneName(zoneId: ZoneId, modified: Long, name: Option[String])(implicit ec: ExecutionContext): Future[Unit] =
+  def changeZoneName(zoneId: ZoneId, modified: Long, name: Option[String])(
+      implicit ec: ExecutionContext): Future[Unit] =
     for {
       session   <- session
       statement <- changeZoneNameStatement
@@ -380,7 +412,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_key, created, name, metadata)
-         |VALUES (?, ?, ?, ?, ?, ?)
+         |  VALUES (?, ?, ?, ?, ?, ?)
           """.stripMargin
     ).asScala)
 
@@ -408,8 +440,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.members_by_zone
-         |SET owner_public_key = ?, modified = ?, name = ?, metadata = ?
-         |WHERE zone_id = ? AND id = ?
+         |  SET owner_public_key = ?, modified = ?, name = ?, metadata = ?
+         |  WHERE zone_id = ? AND id = ?
           """.stripMargin
     ).asScala)
 
@@ -434,7 +466,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |INSERT INTO $keyspace.accounts_by_zone (zone_id, id, owner_member_ids, owner_names, created, name, metadata)
-         |VALUES (?, ?, ?, ?, ?, ?, ?)
+         |  VALUES (?, ?, ?, ?, ?, ?, ?)
           """.stripMargin
     ).asScala)
 
@@ -463,8 +495,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.accounts_by_zone
-         |SET owner_names = ?
-         |WHERE zone_id = ? AND id = ?
+         |  SET owner_names = ?
+         |  WHERE zone_id = ? AND id = ?
           """.stripMargin
     ).asScala)
 
@@ -475,11 +507,12 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
       _ <- Future.traverse(accounts)(
         account =>
           session
-            .executeAsync(statement.bind(
-              ownerNames(zone.members, account),
-              zone.id.id,
-              account.id.id: java.lang.Integer
-            ))
+            .executeAsync(
+              statement.bind(
+                ownerNames(zone.members, account),
+                zone.id.id,
+                account.id.id: java.lang.Integer
+              ))
             .asScala)
     } yield ()
 
@@ -487,8 +520,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.accounts_by_zone
-         |SET owner_member_ids = ?, owner_names = ?, modified = ?, name = ?, metadata = ?
-         |WHERE zone_id = ? AND id = ?
+         |  SET owner_member_ids = ?, owner_names = ?, modified = ?, name = ?, metadata = ?
+         |  WHERE zone_id = ? AND id = ?
           """.stripMargin
     ).asScala)
 
@@ -514,7 +547,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |INSERT INTO $keyspace.transactions_by_zone (zone_id, id, "from", from_owner_names, "to", to_owner_names, value, creator, created, description, metadata)
-         |VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         |  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           """.stripMargin
     ).asScala)
 
@@ -547,8 +580,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.transactions_by_zone
-         |SET "from" = ?, from_owner_names = ?, "to" = ?, to_owner_names = ?, value = ?, creator = ?, created = ?, description = ?, metadata = ?
-         |WHERE zone_id = ? AND id = ?
+         |  SET "from" = ?, from_owner_names = ?, "to" = ?, to_owner_names = ?, value = ?, creator = ?, created = ?, description = ?, metadata = ?
+         |  WHERE zone_id = ? AND id = ?
           """.stripMargin
     ).asScala)
 
@@ -582,7 +615,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |INSERT INTO $keyspace.balances_by_zone (zone_id, account_id, owner_names, balance)
-         |VALUES (?, ?, ?, ?)
+         |  VALUES (?, ?, ?, ?)
           """.stripMargin
     ).asScala)
 
@@ -606,7 +639,7 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     } yield ()
 
   private[this] def ownerNames(members: Map[MemberId, Member], account: Account)(
-    implicit ec: ExecutionContext): java.util.List[String] =
+      implicit ec: ExecutionContext): java.util.List[String] =
     account.ownerMemberIds
       .map(members)
       .toSeq
@@ -617,8 +650,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.balances_by_zone
-         |SET owner_names = ?, balance = ?
-         |WHERE zone_id = ? AND account_id = ?
+         |  SET owner_names = ?, balance = ?
+         |  WHERE zone_id = ? AND account_id = ?
           """.stripMargin
     ).asScala)
 
@@ -649,8 +682,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.zones_by_id
-         |SET modified = ?
-         |WHERE id = ? AND bucket = ?
+         |  SET modified = ?
+         |  WHERE id = ? AND bucket = ?
         """.stripMargin
     ).asScala)
 
@@ -672,8 +705,8 @@ class CassandraViewClient private (keyspace: String, session: Future[Session])(i
     _.prepareAsync(
       s"""
          |UPDATE $keyspace.journal_sequence_numbers_by_zone
-         |SET journal_sequence_number = ?
-         |WHERE id = ?
+         |  SET journal_sequence_number = ?
+         |  WHERE id = ?
         """.stripMargin
     ).asScala)
 

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [ -z "$1" ]
+if [ $# -eq 0 ]
   then
     echo "Usage: $0 target"
     exit 1

@@ -51,7 +51,7 @@ lazy val akkaPersistenceSettings = libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-cluster-tools"                  % "2.4.16",
     "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.16",
     "com.typesafe.akka" %% "akka-persistence-cassandra"          % "0.22",
-    "io.netty"          % "netty-transport-native-epoll"         % "4.1.6.Final" classifier "linux-x86_64"
+    "io.netty"          % "netty-transport-native-epoll"         % "4.1.7.Final" classifier "linux-x86_64"
   )
 
 lazy val akkaClusterShardingSettings = libraryDependencies ++= Seq(

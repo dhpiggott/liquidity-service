@@ -9,7 +9,7 @@ import akka.persistence.query.EventEnvelope
 import akka.persistence.query.scaladsl.{CurrentEventsByPersistenceIdQuery, EventsByPersistenceIdQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
-import com.dhpcs.liquidity.analytics.CassandraViewClient
+import com.dhpcs.liquidity.analytics.CassandraAnalyticsClient
 import com.dhpcs.liquidity.analytics.actors.ZoneViewActor.{Start, Started}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
@@ -19,9 +19,9 @@ import scala.concurrent.Future
 object ZoneViewActor {
 
   def props(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
-            cassandraViewClient: CassandraViewClient,
+            cassandraanalyticsClient: Future[CassandraAnalyticsClient],
             streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer): Props =
-    Props(new ZoneViewActor(readJournal, cassandraViewClient, streamFailureHandler))
+    Props(new ZoneViewActor(readJournal, cassandraanalyticsClient, streamFailureHandler))
 
   final val ShardName = "ZoneView"
 
@@ -43,7 +43,7 @@ object ZoneViewActor {
 }
 
 class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
-                    cassandraViewClient: CassandraViewClient,
+                    analyticsClientFuture: Future[CassandraAnalyticsClient],
                     streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)
     extends Actor {
 
@@ -61,18 +61,19 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
   override def receive: Receive = {
     case _: Start =>
       val currentJournalState = for {
-        previousSequenceNumber <- cassandraViewClient.retrieveJournalSequenceNumber(zoneId)
+        analyticsClient        <- analyticsClientFuture
+        previousSequenceNumber <- analyticsClient.journalSequenceNumberView.retrieve(zoneId)
         previousZone <- previousSequenceNumber match {
           case 0L => Future.successful(null)
-          case _  => cassandraViewClient.retrieveZone(zoneId)
+          case _  => analyticsClient.zonesView.retrieve(zoneId)
         }
-        previousBalances         <- cassandraViewClient.retrieveBalances(zoneId)
-        previousClientJoinCounts <- cassandraViewClient.retrieveClientJoinCounts(zoneId)
+        previousBalances         <- analyticsClient.balancesView.retrieve(zoneId)
+        previousClientJoinCounts <- analyticsClient.clientsView.retrieveJoinCounts(zoneId)
         (currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts) <- readJournal
           .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber, Long.MaxValue)
           .runFoldAsync((previousSequenceNumber, previousZone, previousBalances, previousClientJoinCounts))(
-            updateViewAndApplyEvent)
-      } yield (currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts)
+            updateViewAndApplyEvent(analyticsClient))
+      } yield (analyticsClient, currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts)
 
       currentJournalState.map(_ => Started).pipeTo(sender())
 
@@ -80,11 +81,11 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
         .fromFuture(currentJournalState)
         .via(killSwitch.flow)
         .flatMapConcat {
-          case (currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts) =>
+          case (analyticsClient, currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts) =>
             readJournal
               .eventsByPersistenceId(zoneId.persistenceId, currentSequenceNumber, Long.MaxValue)
               .foldAsync((currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts))(
-                updateViewAndApplyEvent)
+                updateViewAndApplyEvent(analyticsClient))
         }
         .toMat(Sink.ignore)(Keep.right)
         .run()
@@ -95,7 +96,7 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
       }
   }
 
-  private[this] def updateViewAndApplyEvent(
+  private[this] def updateViewAndApplyEvent(analyticsClient: CassandraAnalyticsClient)(
       previousSequenceNumberZoneBalancesAndClientJoinCounts: (Long,
                                                               Zone,
                                                               Map[AccountId, BigDecimal],
@@ -109,17 +110,13 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
       _ <- envelope.event match {
         case ZoneCreatedEvent(_, zone) =>
           for {
-            _ <- cassandraViewClient.addZoneNameChange(zone.id, zone.created, zone.name)
-            _ <- cassandraViewClient.createZone(zone)
-            _ <- cassandraViewClient.createMembers(zone)
-            _ <- cassandraViewClient.createAccounts(zone)
-            _ <- cassandraViewClient.addTransactions(zone)
-            _ <- cassandraViewClient.createBalances(zone, BigDecimal(0), zone.accounts.values)
+            _ <- analyticsClient.zonesView.create(zone)
+            _ <- analyticsClient.balancesView.create(zone, BigDecimal(0), zone.accounts.values)
           } yield ()
         case ZoneJoinedEvent(timestamp, _, publicKey) =>
           for {
-            _ <- cassandraViewClient.updateClient(publicKey)
-            _ <- cassandraViewClient.updateZoneClient(
+            _ <- analyticsClient.clientsView.update(publicKey)
+            _ <- analyticsClient.clientsView.updateZone(
               zoneId,
               publicKey,
               zoneJoinCount = previousClientJoinCounts.getOrElse(publicKey, 0) + 1,
@@ -128,49 +125,40 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
         case _: ZoneQuitEvent =>
           Future.successful(())
         case ZoneNameChangedEvent(timestamp, name) =>
-          for {
-            _ <- cassandraViewClient.addZoneNameChange(zoneId, changed = timestamp, name)
-            _ <- cassandraViewClient.changeZoneName(zoneId, modified = timestamp, name)
-          } yield ()
+          analyticsClient.zonesView.changeName(zoneId, modified = timestamp, name)
         case MemberCreatedEvent(timestamp, member) =>
-          for {
-            _ <- cassandraViewClient.addMemberUpdate(zoneId, updated = timestamp, member)
-            _ <- cassandraViewClient.createMember(zoneId, created = timestamp)(member)
-          } yield ()
+          analyticsClient.zonesView.membersView.create(zoneId, created = timestamp)(member)
         case MemberUpdatedEvent(timestamp, member) =>
           for {
-            _ <- cassandraViewClient.addMemberUpdate(zoneId, updated = timestamp, member)
-            _ <- cassandraViewClient.updateMember(zoneId, modified = timestamp, member)
+            _ <- analyticsClient.zonesView.membersView.update(zoneId, modified = timestamp, member)
             updatedAccounts = previousZone.accounts.values.filter(_.ownerMemberIds.contains(member.id))
-            _ <- cassandraViewClient.updateAccounts(previousZone, updatedAccounts)
+            _ <- analyticsClient.zonesView.accountsView.update(previousZone, updatedAccounts)
             updatedTransactions = previousZone.transactions.values.filter(transaction =>
               updatedAccounts.exists(_.id == transaction.from) || updatedAccounts.exists(_.id == transaction.to))
-            _ <- cassandraViewClient.updateTransactions(previousZone, updatedTransactions)
-            _ <- cassandraViewClient.updateBalances(previousZone, updatedAccounts, previousBalances)
+            _ <- analyticsClient.zonesView.transactionsView.update(previousZone, updatedTransactions)
+            _ <- analyticsClient.balancesView.update(previousZone, updatedAccounts, previousBalances)
           } yield ()
         case AccountCreatedEvent(timestamp, account) =>
           for {
-            _ <- cassandraViewClient.addAccountUpdate(previousZone, updated = timestamp, account)
-            _ <- cassandraViewClient.createAccount(previousZone, created = timestamp)(account)
-            _ <- cassandraViewClient.createBalance(previousZone, BigDecimal(0))(account)
+            _ <- analyticsClient.zonesView.accountsView.create(previousZone, created = timestamp)(account)
+            _ <- analyticsClient.balancesView.create(previousZone, BigDecimal(0))(account)
           } yield ()
         case AccountUpdatedEvent(timestamp, account) =>
           for {
-            _ <- cassandraViewClient.addAccountUpdate(previousZone, updated = timestamp, account)
-            _ <- cassandraViewClient.updateAccount(previousZone, modified = timestamp, account)
+            _ <- analyticsClient.zonesView.accountsView.update(previousZone, modified = timestamp, account)
             updatedTransactions = previousZone.transactions.values.filter(transaction =>
               transaction.from == account.id || transaction.to == account.id)
-            _ <- cassandraViewClient.updateTransactions(previousZone, updatedTransactions)
-            _ <- cassandraViewClient.updateBalance(previousZone)(account -> previousBalances(account.id))
+            _ <- analyticsClient.zonesView.transactionsView.update(previousZone, updatedTransactions)
+            _ <- analyticsClient.balancesView.update(previousZone)(account -> previousBalances(account.id))
           } yield ()
         case TransactionAddedEvent(_, transaction) =>
           for {
-            _ <- cassandraViewClient.addTransaction(previousZone)(transaction)
+            _ <- analyticsClient.zonesView.transactionsView.add(previousZone)(transaction)
             updatedSourceBalance      = previousBalances(transaction.from) - transaction.value
             updatedDestinationBalance = previousBalances(transaction.to) + transaction.value
-            _ <- cassandraViewClient.updateBalance(previousZone)(
+            _ <- analyticsClient.balancesView.update(previousZone)(
               previousZone.accounts(transaction.from) -> updatedSourceBalance)
-            _ <- cassandraViewClient.updateBalance(previousZone)(
+            _ <- analyticsClient.balancesView.update(previousZone)(
               previousZone.accounts(transaction.to) -> updatedDestinationBalance)
           } yield ()
       }
@@ -180,9 +168,9 @@ class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQu
         case _: ZoneNameChangedEvent =>
           Future.successful(())
         case event: Event =>
-          cassandraViewClient.updateZoneModified(zoneId, event.timestamp)
+          analyticsClient.zonesView.updateModified(zoneId, event.timestamp)
       }
-      _ <- cassandraViewClient.updateJournalSequenceNumber(zoneId, envelope.sequenceNr)
+      _ <- analyticsClient.journalSequenceNumberView.update(zoneId, envelope.sequenceNr)
     } yield ()
 
     val updatedZone = envelope.event match {

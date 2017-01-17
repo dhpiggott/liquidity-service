@@ -23,6 +23,7 @@ object ZoneViewStarterActor {
 
 }
 
+// TODO: Rename?
 class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery with AllPersistenceIdsQuery,
                            zoneViewShardRegion: ActorRef,
                            streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)

@@ -9,7 +9,7 @@ import akka.stream.ActorMaterializer
 import com.dhpcs.liquidity.analytics.actors.{ZoneViewActor, ZoneViewStarterActor}
 import com.typesafe.config.ConfigFactory
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
 
 object LiquidityAnalytics {
@@ -22,7 +22,7 @@ object LiquidityAnalytics {
     implicit val ec     = scala.concurrent.ExecutionContext.global
     val analyticsClientFuture = for {
       session         <- readJournal.session.underlying()
-      analyticsClient <- CassandraAnalyticsClient(config, session)
+      analyticsClient <- CassandraAnalyticsClient(config)(session, ExecutionContext.global)
     } yield analyticsClient
     val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
       Console.err.println("Exiting due to stream failure")

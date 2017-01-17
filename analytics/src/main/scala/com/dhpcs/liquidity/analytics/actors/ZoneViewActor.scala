@@ -42,6 +42,7 @@ object ZoneViewActor {
 
 }
 
+// TODO: Rename?
 class ZoneViewActor(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
                     analyticsClientFuture: Future[CassandraAnalyticsClient],
                     streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)

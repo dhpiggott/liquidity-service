@@ -70,7 +70,7 @@ object LiquidityServer {
     implicit val mat    = ActorMaterializer()
     val readJournal     = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
     val zoneValidatorShardRegion = ClusterSharding(system).start(
-      typeName = ZoneValidatorActor.ShardName,
+      typeName = ZoneValidatorActor.ShardTypeName,
       entityProps = ZoneValidatorActor.props,
       settings = ClusterShardingSettings(system),
       extractEntityId = ZoneValidatorActor.extractEntityId,

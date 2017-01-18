@@ -96,7 +96,7 @@ trait CassandraPersistenceIntegrationTestFixtures extends BeforeAndAfterAll { th
     PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
 
   protected[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
-    typeName = ZoneValidatorActor.ShardName,
+    typeName = ZoneValidatorActor.ShardTypeName,
     entityProps = ZoneValidatorActor.props,
     settings = ClusterShardingSettings(system),
     extractEntityId = ZoneValidatorActor.extractEntityId,

@@ -21,7 +21,7 @@ import org.scalatest.{Inside, Matchers, WordSpec}
 class ZoneValidatorActorSpec extends WordSpec with LevelDbPersistenceTestFixtures with Matchers with Inside {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
-    typeName = ZoneValidatorActor.ShardName,
+    typeName = ZoneValidatorActor.ShardTypeName,
     entityProps = ZoneValidatorActor.props,
     settings = ClusterShardingSettings(system),
     extractEntityId = ZoneValidatorActor.extractEntityId,

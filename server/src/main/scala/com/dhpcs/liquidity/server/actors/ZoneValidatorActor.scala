@@ -24,7 +24,7 @@ object ZoneValidatorActor {
 
   def props: Props = Props(new ZoneValidatorActor)
 
-  final val ShardName = "ZoneValidator"
+  final val ShardTypeName = "zone-validator"
 
   val extractEntityId: ShardRegion.ExtractEntityId = {
     case EnvelopedAuthenticatedCommandWithIds(zoneId, message) =>

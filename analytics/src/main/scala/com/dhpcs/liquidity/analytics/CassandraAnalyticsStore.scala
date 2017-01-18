@@ -3,12 +3,12 @@ package com.dhpcs.liquidity.analytics
 import java.util.Date
 
 import com.datastax.driver.core.{PreparedStatement, ResultSet, Session}
-import com.dhpcs.liquidity.analytics.CassandraAnalyticsClient.ZonesView.{AccountsView, MembersView, TransactionsView}
-import com.dhpcs.liquidity.analytics.CassandraAnalyticsClient.{
-  BalancesView,
-  ClientsView,
-  JournalSequenceNumbersView,
-  ZonesView
+import com.dhpcs.liquidity.analytics.CassandraAnalyticsStore.ZoneStore.{AccountStore, MemberStore, TransactionStore}
+import com.dhpcs.liquidity.analytics.CassandraAnalyticsStore.{
+  BalanceStore,
+  ClientStore,
+  JournalSequenceNumberStore,
+  ZoneStore
 }
 import com.dhpcs.liquidity.model.{Zone, _}
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
@@ -19,24 +19,24 @@ import play.api.libs.json.{JsObject, Json, Reads}
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
-object CassandraAnalyticsClient {
+object CassandraAnalyticsStore {
 
-  def apply(config: Config)(implicit session: Session, ec: ExecutionContext): Future[CassandraAnalyticsClient] = {
+  def apply(config: Config)(implicit session: Session, ec: ExecutionContext): Future[CassandraAnalyticsStore] = {
     val keyspace = config.getString("liquidity.analytics.cassandra.keyspace")
     for {
       _                          <- execute(s"""
-                                                            |CREATE KEYSPACE IF NOT EXISTS $keyspace
-                                                            |  WITH replication = {'class': 'SimpleStrategy' , 'replication_factor': '1'};
+                                               |CREATE KEYSPACE IF NOT EXISTS $keyspace
+                                               |  WITH replication = {'class': 'SimpleStrategy' , 'replication_factor': '1'};
       """.stripMargin)
-      journalSequenceNumbersView <- JournalSequenceNumbersView(keyspace)
-      zonesView                  <- ZonesView(keyspace)
-      balancesView               <- BalancesView(keyspace)
-      clientsView                <- ClientsView(keyspace)
-    } yield new CassandraAnalyticsClient(journalSequenceNumbersView, zonesView, balancesView, clientsView)
+      journalSequenceNumberStore <- JournalSequenceNumberStore(keyspace)
+      zoneStore                  <- ZoneStore(keyspace)
+      balanceStore               <- BalanceStore(keyspace)
+      clientStore                <- ClientStore(keyspace)
+    } yield new CassandraAnalyticsStore(journalSequenceNumberStore, zoneStore, balanceStore, clientStore)
   }
 
-  object JournalSequenceNumbersView {
-    def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[JournalSequenceNumbersView] =
+  object JournalSequenceNumberStore {
+    def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[JournalSequenceNumberStore] =
       for {
         _ <- execute(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.journal_sequence_numbers_by_zone (
@@ -45,10 +45,10 @@ object CassandraAnalyticsClient {
                                      |  PRIMARY KEY (id)
                                      |);
       """.stripMargin)
-      } yield new JournalSequenceNumbersView(keyspace)
+      } yield new JournalSequenceNumberStore(keyspace)
   }
 
-  class JournalSequenceNumbersView private (keyspace: String)(implicit session: Session) {
+  class JournalSequenceNumberStore private (keyspace: String)(implicit session: Session) {
 
     private[this] val retrieveStatement = prepareStatement(s"""
                        |SELECT journal_sequence_number
@@ -78,10 +78,10 @@ object CassandraAnalyticsClient {
 
   }
 
-  object ZonesView {
+  object ZoneStore {
 
-    object MembersView {
-      def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[MembersView] =
+    object MemberStore {
+      def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[MemberStore] =
         for {
           _ <- execute(s"""
                                        |CREATE TABLE IF NOT EXISTS $keyspace.member_updates_by_id (
@@ -109,10 +109,10 @@ object CassandraAnalyticsClient {
                                        |  PRIMARY KEY ((zone_id), id)
                                        |);
       """.stripMargin)
-        } yield new MembersView(keyspace)
+        } yield new MemberStore(keyspace)
     }
 
-    class MembersView private (keyspace: String)(implicit session: Session) {
+    class MemberStore private (keyspace: String)(implicit session: Session) {
 
       private[this] val retrieveStatement = prepareStatement(s"""
                          |SELECT id, owner_public_key, name, metadata
@@ -189,8 +189,8 @@ object CassandraAnalyticsClient {
 
     }
 
-    object AccountsView {
-      def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[AccountsView] =
+    object AccountStore {
+      def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[AccountStore] =
         for {
           _ <- execute(s"""
                                        |CREATE TABLE IF NOT EXISTS $keyspace.account_updates_by_id (
@@ -219,10 +219,10 @@ object CassandraAnalyticsClient {
                                        |  PRIMARY KEY ((zone_id), id)
                                        |);
       """.stripMargin)
-        } yield new AccountsView(keyspace)
+        } yield new AccountStore(keyspace)
     }
 
-    class AccountsView private (keyspace: String)(implicit session: Session) {
+    class AccountStore private (keyspace: String)(implicit session: Session) {
 
       private[this] val retrieveStatement = prepareStatement(s"""
                          |SELECT id, owner_member_ids, name, metadata
@@ -319,8 +319,8 @@ object CassandraAnalyticsClient {
 
     }
 
-    object TransactionsView {
-      def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[TransactionsView] =
+    object TransactionStore {
+      def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[TransactionStore] =
         for {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.transactions_by_zone (
@@ -338,10 +338,10 @@ object CassandraAnalyticsClient {
                           |  PRIMARY KEY ((zone_id), id)
                           |);
       """.stripMargin)
-        } yield new TransactionsView(keyspace)
+        } yield new TransactionStore(keyspace)
     }
 
-    class TransactionsView private (keyspace: String)(implicit session: Session) {
+    class TransactionStore private (keyspace: String)(implicit session: Session) {
 
       private[this] val retrieveStatement = prepareStatement(s"""
                          |SELECT id, "from", "to", value, creator, created, description, metadata
@@ -409,7 +409,7 @@ object CassandraAnalyticsClient {
 
     }
 
-    def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[ZonesView] =
+    def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[ZoneStore] =
       for {
         _                <- execute(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.zone_name_changes_by_id (
@@ -439,17 +439,17 @@ object CassandraAnalyticsClient {
                            |  WHERE bucket IS NOT NULL AND modified IS NOT NULL
                            |  PRIMARY KEY ((bucket), modified, id);
       """.stripMargin)
-        membersView      <- MembersView(keyspace)
-        accountsView     <- AccountsView(keyspace)
-        transactionsView <- TransactionsView(keyspace)
-      } yield new ZonesView(keyspace, membersView, accountsView, transactionsView)
+        membersView      <- MemberStore(keyspace)
+        accountsView     <- AccountStore(keyspace)
+        transactionsView <- TransactionStore(keyspace)
+      } yield new ZoneStore(keyspace, membersView, accountsView, transactionsView)
 
   }
 
-  class ZonesView private (keyspace: String,
-                           val membersView: MembersView,
-                           val accountsView: AccountsView,
-                           val transactionsView: TransactionsView)(implicit session: Session) {
+  class ZoneStore private (keyspace: String,
+                           val memberStore: MemberStore,
+                           val accountStore: AccountStore,
+                           val transactionStore: TransactionStore)(implicit session: Session) {
 
     private[this] val retrieveStatement = prepareStatement(s"""
                        |SELECT equity_account_id, created, expires, name, metadata
@@ -462,9 +462,9 @@ object CassandraAnalyticsClient {
         resultSet <- retrieveStatement.execute(1: java.lang.Integer, zoneId.id)
         row             = resultSet.one
         equityAccountId = AccountId(row.getInt("equity_account_id"))
-        members      <- membersView.retrieve(zoneId)
-        accounts     <- accountsView.retrieve(zoneId)
-        transactions <- transactionsView.retrieve(zoneId)
+        members      <- memberStore.retrieve(zoneId)
+        accounts     <- accountStore.retrieve(zoneId)
+        transactions <- transactionStore.retrieve(zoneId)
         created  = row.getTimestamp("created").getTime
         expires  = row.getTimestamp("expires").getTime
         name     = Option(row.getString("name"))
@@ -489,9 +489,9 @@ object CassandraAnalyticsClient {
           zone.metadata.map(Json.stringify).orNull,
           zone.metadata.read[String]("currency").orNull
         )
-        _ <- Future.traverse(zone.members.values)(membersView.create(zone.id, zone.created))
-        _ <- Future.traverse(zone.accounts.values)(accountsView.create(zone, zone.created))
-        _ <- Future.traverse(zone.transactions.values)(transactionsView.add(zone))
+        _ <- Future.traverse(zone.members.values)(memberStore.create(zone.id, zone.created))
+        _ <- Future.traverse(zone.accounts.values)(accountStore.create(zone, zone.created))
+        _ <- Future.traverse(zone.transactions.values)(transactionStore.add(zone))
       } yield ()
 
     private[this] val changeNameStatement = prepareStatement(s"""
@@ -539,8 +539,8 @@ object CassandraAnalyticsClient {
 
   }
 
-  object BalancesView {
-    def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[BalancesView] =
+  object BalanceStore {
+    def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[BalanceStore] =
       for {
         _ <- execute(s"""
                                      |CREATE TABLE IF NOT EXISTS $keyspace.balances_by_zone (
@@ -551,10 +551,10 @@ object CassandraAnalyticsClient {
                                      |  PRIMARY KEY ((zone_id), account_id)
                                      |);
       """.stripMargin)
-      } yield new BalancesView(keyspace)
+      } yield new BalanceStore(keyspace)
   }
 
-  class BalancesView private (keyspace: String)(implicit session: Session) {
+  class BalanceStore private (keyspace: String)(implicit session: Session) {
 
     private[this] val retrieveStatement = prepareStatement(s"""
                        |SELECT account_id, balance
@@ -610,8 +610,8 @@ object CassandraAnalyticsClient {
     }
   }
 
-  object ClientsView {
-    def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[ClientsView] =
+  object ClientStore {
+    def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[ClientStore] =
       for {
         // TODO: Key fingerprints, (dis)connect history, review of counter use, active clients and unrecorded quits
         // (need remember-entities without distributed data, plus auto purge on restart)
@@ -638,10 +638,10 @@ object CassandraAnalyticsClient {
                                      |  WHERE public_key IS NOT NULL AND zone_id IS NOT NULL AND zone_join_count IS NOT NULL AND last_joined IS NOT NULL
                                      |  PRIMARY KEY ((public_key), zone_id);
       """.stripMargin)
-      } yield new ClientsView(keyspace)
+      } yield new ClientStore(keyspace)
   }
 
-  class ClientsView private (keyspace: String)(implicit session: Session) {
+  class ClientStore private (keyspace: String)(implicit session: Session) {
 
     private[this] val retrieveJoinCountsStatement = prepareStatement(s"""
                        |SELECT public_key, zone_join_count
@@ -725,7 +725,7 @@ object CassandraAnalyticsClient {
 
 }
 
-class CassandraAnalyticsClient private (val journalSequenceNumberView: JournalSequenceNumbersView,
-                                        val zonesView: ZonesView,
-                                        val balancesView: BalancesView,
-                                        val clientsView: ClientsView)
+class CassandraAnalyticsStore private (val journalSequenceNumberStore: JournalSequenceNumberStore,
+                                       val zoneStore: ZoneStore,
+                                       val balanceStore: BalanceStore,
+                                       val clientStore: ClientStore)

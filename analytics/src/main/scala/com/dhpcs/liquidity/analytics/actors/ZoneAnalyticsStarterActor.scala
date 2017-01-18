@@ -14,19 +14,18 @@ import com.dhpcs.liquidity.persistence.ZoneIdStringPattern
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-object ZoneViewStarterActor {
+object ZoneAnalyticsStarterActor {
 
   def props(readJournal: ReadJournal with CurrentPersistenceIdsQuery with AllPersistenceIdsQuery,
-            zoneViewShardRegion: ActorRef,
+            zoneAnalyticsShardRegion: ActorRef,
             streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer): Props =
-    Props(new ZoneViewStarterActor(readJournal, zoneViewShardRegion, streamFailureHandler))
+    Props(new ZoneAnalyticsStarterActor(readJournal, zoneAnalyticsShardRegion, streamFailureHandler))
 
 }
 
-// TODO: Rename?
-class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery with AllPersistenceIdsQuery,
-                           zoneViewShardRegion: ActorRef,
-                           streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)
+class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery with AllPersistenceIdsQuery,
+                                zoneViewShardRegion: ActorRef,
+                                streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)
     extends Actor
     with ActorLogging {
 
@@ -67,7 +66,7 @@ class ZoneViewStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQu
   private[this] implicit val zoneViewInitialisationTimeout = Timeout(30.seconds)
 
   private[this] def startZoneView(zoneId: ZoneId): Future[Unit] =
-    (zoneViewShardRegion ? ZoneViewActor.Start(zoneId)).mapTo[ZoneViewActor.Started.type].map(_ => ())
+    (zoneViewShardRegion ? ZoneAnalyticsActor.Start(zoneId)).mapTo[ZoneAnalyticsActor.Started.type].map(_ => ())
 
   override def postStop(): Unit = {
     killSwitch.shutdown()

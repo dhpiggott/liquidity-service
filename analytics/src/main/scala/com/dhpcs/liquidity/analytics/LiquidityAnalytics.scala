@@ -6,43 +6,40 @@ import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerS
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.stream.ActorMaterializer
-import com.dhpcs.liquidity.analytics.actors.{ZoneViewActor, ZoneViewStarterActor}
+import com.dhpcs.liquidity.analytics.actors.{ZoneAnalyticsActor, ZoneAnalyticsStarterActor}
 import com.typesafe.config.ConfigFactory
 
-import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext}
 
 object LiquidityAnalytics {
 
   def main(args: Array[String]): Unit = {
-    val config          = ConfigFactory.load
-    implicit val system = ActorSystem("liquidity")
-    implicit val mat    = ActorMaterializer()
-    val readJournal     = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
-    implicit val ec     = scala.concurrent.ExecutionContext.global
-    val analyticsClientFuture = for {
-      session         <- readJournal.session.underlying()
-      analyticsClient <- CassandraAnalyticsClient(config)(session, ExecutionContext.global)
-    } yield analyticsClient
+    val config               = ConfigFactory.load
+    implicit val system      = ActorSystem("liquidity")
+    implicit val mat         = ActorMaterializer()
+    val readJournal          = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
+    implicit val ec          = ExecutionContext.global
+    val futureAnalyticsStore = readJournal.session.underlying().flatMap(CassandraAnalyticsStore(config)(_, ec))
     val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
       Console.err.println("Exiting due to stream failure")
       t.printStackTrace(Console.err)
       sys.exit(1)
     }
-    val zoneViewShardRegion = ClusterSharding(system).start(
-      typeName = ZoneViewActor.ShardName,
-      entityProps = ZoneViewActor.props(readJournal, analyticsClientFuture, streamFailureHandler),
+    val zoneAnalyticsShardRegion = ClusterSharding(system).start(
+      typeName = ZoneAnalyticsActor.ShardTypeName,
+      entityProps = ZoneAnalyticsActor.props(readJournal, futureAnalyticsStore, streamFailureHandler),
       settings = ClusterShardingSettings(system),
-      extractEntityId = ZoneViewActor.extractEntityId,
-      extractShardId = ZoneViewActor.extractShardId
+      extractEntityId = ZoneAnalyticsActor.extractEntityId,
+      extractShardId = ZoneAnalyticsActor.extractShardId
     )
     system.actorOf(
       ClusterSingletonManager.props(
-        singletonProps = ZoneViewStarterActor.props(readJournal, zoneViewShardRegion, streamFailureHandler),
+        singletonProps = ZoneAnalyticsStarterActor.props(readJournal, zoneAnalyticsShardRegion, streamFailureHandler),
         terminationMessage = PoisonPill,
-        settings = ClusterSingletonManagerSettings(system).withSingletonName("zone-view-starter")
+        settings = ClusterSingletonManagerSettings(system).withSingletonName("zone-analytics-starter")
       ),
-      name = "zone-view-starter-singleton"
+      name = "zone-analytics-starter-singleton"
     )
     sys.addShutdownHook {
       Await.result(system.terminate(), Duration.Inf)

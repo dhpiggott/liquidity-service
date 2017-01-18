@@ -39,11 +39,11 @@ object CassandraAnalyticsStore {
     def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[JournalSequenceNumberStore] =
       for {
         _ <- execute(s"""
-                                     |CREATE TABLE IF NOT EXISTS $keyspace.journal_sequence_numbers_by_zone (
-                                     |  id uuid,
-                                     |  journal_sequence_number bigint,
-                                     |  PRIMARY KEY (id)
-                                     |);
+                        |CREATE TABLE IF NOT EXISTS $keyspace.journal_sequence_numbers_by_zone (
+                        |  id uuid,
+                        |  journal_sequence_number bigint,
+                        |  PRIMARY KEY (id)
+                        |);
       """.stripMargin)
       } yield new JournalSequenceNumberStore(keyspace)
   }
@@ -84,30 +84,31 @@ object CassandraAnalyticsStore {
       def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[MemberStore] =
         for {
           _ <- execute(s"""
-                                       |CREATE TABLE IF NOT EXISTS $keyspace.member_updates_by_id (
-                                       |  zone_id uuid,
-                                       |  id int,
-                                       |  updated timestamp,
-                                       |  owner_public_key blob,
-                                       |  created timestamp,
-                                       |  name text,
-                                       |  metadata text,
-                                       |  hidden boolean,
-                                       |  PRIMARY KEY ((zone_id), id, updated)
-                                       |);
+                          |CREATE TABLE IF NOT EXISTS $keyspace.member_updates_by_id (
+                          |  zone_id uuid,
+                          |  id int,
+                          |  updated timestamp,
+                          |  owner_fingerprint text,
+                          |  created timestamp,
+                          |  name text,
+                          |  metadata text,
+                          |  hidden boolean,
+                          |  PRIMARY KEY ((zone_id), id, updated)
+                          |);
       """.stripMargin)
           _ <- execute(s"""
-                                       |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
-                                       |  zone_id uuid,
-                                       |  id int,
-                                       |  owner_public_key blob,
-                                       |  created timestamp,
-                                       |  modified timestamp,
-                                       |  name text,
-                                       |  metadata text,
-                                       |  hidden boolean,
-                                       |  PRIMARY KEY ((zone_id), id)
-                                       |);
+                          |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
+                          |  zone_id uuid,
+                          |  id int,
+                          |  owner_public_key blob,
+                          |  owner_fingerprint text,
+                          |  created timestamp,
+                          |  modified timestamp,
+                          |  name text,
+                          |  metadata text,
+                          |  hidden boolean,
+                          |  PRIMARY KEY ((zone_id), id)
+                          |);
       """.stripMargin)
         } yield new MemberStore(keyspace)
     }
@@ -132,8 +133,8 @@ object CassandraAnalyticsStore {
             } yield memberId -> Member(memberId, ownerPublicKey, name, metadata)).toMap
 
       private[this] val createStatement = prepareStatement(s"""
-                         |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_key, created, name, metadata, hidden)
-                         |  VALUES (?, ?, ?, ?, ?, ?, ?)
+                         |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_key, owner_fingerprint, created, name, metadata, hidden)
+                         |  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           """.stripMargin)
 
       def create(zoneId: ZoneId, created: Long)(member: Member)(implicit ec: ExecutionContext): Future[Unit] =
@@ -143,6 +144,7 @@ object CassandraAnalyticsStore {
             zoneId.id,
             member.id.id: java.lang.Integer,
             member.ownerPublicKey.value.asByteBuffer,
+            member.ownerPublicKey.fingerprint,
             new Date(created),
             member.name.orNull,
             member.metadata.map(Json.stringify).orNull,
@@ -152,7 +154,7 @@ object CassandraAnalyticsStore {
 
       private[this] val updateStatement = prepareStatement(s"""
                          |UPDATE $keyspace.members_by_zone
-                         |  SET owner_public_key = ?, modified = ?, name = ?, metadata = ?, hidden = ?
+                         |  SET owner_public_key = ?, owner_fingerprint = ?, modified = ?, name = ?, metadata = ?, hidden = ?
                          |  WHERE zone_id = ? AND id = ?
           """.stripMargin)
 
@@ -161,6 +163,7 @@ object CassandraAnalyticsStore {
           _ <- addUpdate(zoneId, updated = modified, member)
           _ <- updateStatement.execute(
             member.ownerPublicKey.value.asByteBuffer,
+            member.ownerPublicKey.fingerprint,
             new Date(modified),
             member.name.orNull,
             member.metadata.map(Json.stringify).orNull,
@@ -171,7 +174,7 @@ object CassandraAnalyticsStore {
         } yield ()
 
       private[this] val addUpdateStatement = prepareStatement(s"""
-                         |INSERT INTO $keyspace.member_updates_by_id (zone_id, id, updated, owner_public_key, name, metadata, hidden)
+                         |INSERT INTO $keyspace.member_updates_by_id (zone_id, id, updated, owner_fingerprint, name, metadata, hidden)
                          |  VALUES (?, ?, ?, ?, ?, ?, ?)
         """.stripMargin)
 
@@ -181,7 +184,7 @@ object CassandraAnalyticsStore {
                zoneId.id,
                member.id.id: java.lang.Integer,
                new Date(updated),
-               member.ownerPublicKey.value.asByteBuffer,
+               member.ownerPublicKey.fingerprint,
                member.name.orNull,
                member.metadata.map(Json.stringify).orNull,
                member.metadata.read[Boolean]("hidden").map(hidden => hidden: java.lang.Boolean).orNull
@@ -193,31 +196,31 @@ object CassandraAnalyticsStore {
       def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[AccountStore] =
         for {
           _ <- execute(s"""
-                                       |CREATE TABLE IF NOT EXISTS $keyspace.account_updates_by_id (
-                                       |  zone_id uuid,
-                                       |  id int,
-                                       |  updated timestamp,
-                                       |  owner_member_ids set<int>,
-                                       |  owner_names list<text>,
-                                       |  created timestamp,
-                                       |  modified timestamp,
-                                       |  name text,
-                                       |  metadata text,
-                                       |  PRIMARY KEY ((zone_id), id, updated)
-                                       |);
+                          |CREATE TABLE IF NOT EXISTS $keyspace.account_updates_by_id (
+                          |  zone_id uuid,
+                          |  id int,
+                          |  updated timestamp,
+                          |  owner_member_ids set<int>,
+                          |  owner_names list<text>,
+                          |  created timestamp,
+                          |  modified timestamp,
+                          |  name text,
+                          |  metadata text,
+                          |  PRIMARY KEY ((zone_id), id, updated)
+                          |);
       """.stripMargin)
           _ <- execute(s"""
-                                       |CREATE TABLE IF NOT EXISTS $keyspace.accounts_by_zone (
-                                       |  zone_id uuid,
-                                       |  id int,
-                                       |  owner_member_ids set<int>,
-                                       |  owner_names list<text>,
-                                       |  created timestamp,
-                                       |  modified timestamp,
-                                       |  name text,
-                                       |  metadata text,
-                                       |  PRIMARY KEY ((zone_id), id)
-                                       |);
+                          |CREATE TABLE IF NOT EXISTS $keyspace.accounts_by_zone (
+                          |  zone_id uuid,
+                          |  id int,
+                          |  owner_member_ids set<int>,
+                          |  owner_names list<text>,
+                          |  created timestamp,
+                          |  modified timestamp,
+                          |  name text,
+                          |  metadata text,
+                          |  PRIMARY KEY ((zone_id), id)
+                          |);
       """.stripMargin)
         } yield new AccountStore(keyspace)
     }
@@ -412,32 +415,32 @@ object CassandraAnalyticsStore {
     def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[ZoneStore] =
       for {
         _                <- execute(s"""
-                                     |CREATE TABLE IF NOT EXISTS $keyspace.zone_name_changes_by_id (
-                                     |  id uuid,
-                                     |  changed timestamp,
-                                     |  name text,
-                                     |  PRIMARY KEY ((id), changed)
-                                     |);
+                                       |CREATE TABLE IF NOT EXISTS $keyspace.zone_name_changes_by_id (
+                                       |  id uuid,
+                                       |  changed timestamp,
+                                       |  name text,
+                                       |  PRIMARY KEY ((id), changed)
+                                       |);
       """.stripMargin)
         _                <- execute(s"""
-                                     |CREATE TABLE IF NOT EXISTS $keyspace.zones_by_id(
-                                     |  id uuid,
-                                     |  bucket int,
-                                     |  equity_account_id int,
-                                     |  created timestamp,
-                                     |  modified timestamp,
-                                     |  expires timestamp,
-                                     |  name text,
-                                     |  metadata text,
-                                     |  currency text,
-                                     |  PRIMARY KEY ((id), bucket)
-                                     |);
+                                       |CREATE TABLE IF NOT EXISTS $keyspace.zones_by_id(
+                                       |  id uuid,
+                                       |  bucket int,
+                                       |  equity_account_id int,
+                                       |  created timestamp,
+                                       |  modified timestamp,
+                                       |  expires timestamp,
+                                       |  name text,
+                                       |  metadata text,
+                                       |  currency text,
+                                       |  PRIMARY KEY ((id), bucket)
+                                       |);
       """.stripMargin)
         _                <- execute(s"""
-                           |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zones_by_modified AS
-                           |  SELECT * FROM $keyspace.zones_by_id
-                           |  WHERE bucket IS NOT NULL AND modified IS NOT NULL
-                           |  PRIMARY KEY ((bucket), modified, id);
+                                       |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zones_by_modified AS
+                                       |  SELECT * FROM $keyspace.zones_by_id
+                                       |  WHERE bucket IS NOT NULL AND modified IS NOT NULL
+                                       |  PRIMARY KEY ((bucket), modified, id);
       """.stripMargin)
         membersView      <- MemberStore(keyspace)
         accountsView     <- AccountStore(keyspace)
@@ -543,13 +546,13 @@ object CassandraAnalyticsStore {
     def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[BalanceStore] =
       for {
         _ <- execute(s"""
-                                     |CREATE TABLE IF NOT EXISTS $keyspace.balances_by_zone (
-                                     |  zone_id uuid,
-                                     |  account_id int,
-                                     |  owner_names list<text>,
-                                     |  balance decimal,
-                                     |  PRIMARY KEY ((zone_id), account_id)
-                                     |);
+                        |CREATE TABLE IF NOT EXISTS $keyspace.balances_by_zone (
+                        |  zone_id uuid,
+                        |  account_id int,
+                        |  owner_names list<text>,
+                        |  balance decimal,
+                        |  PRIMARY KEY ((zone_id), account_id)
+                        |);
       """.stripMargin)
       } yield new BalanceStore(keyspace)
   }
@@ -613,30 +616,31 @@ object CassandraAnalyticsStore {
   object ClientStore {
     def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[ClientStore] =
       for {
-        // TODO: Key fingerprints, (dis)connect history, review of counter use, active clients and unrecorded quits
-        // (need remember-entities without distributed data, plus auto purge on restart)
+        // TODO: Is this one really needed?
         _ <- execute(s"""
-                                     |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_public_key (
-                                     |  public_key blob,
-                                     |  bucket int,
-                                     |  join_count counter,
-                                     |  PRIMARY KEY ((public_key), bucket)
-                                     |);
+                        |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_fingerprint (
+                        |  fingerprint text,
+                        |  public_key blob,
+                        |  PRIMARY KEY (fingerprint)
+                        |);
+      """.stripMargin)
+        // TODO: Zone name etc.? Will need to update each time zone changes.
+        // Also (dis)connect history, active clients and unrecorded quits (will need persistent-remember-entities and
+        // to auto purge of "active" clients on restart).
+        _ <- execute(s"""
+                        |CREATE TABLE IF NOT EXISTS $keyspace.zone_clients_by_zone (
+                        |  zone_id uuid,
+                        |  fingerprint text,
+                        |  zone_join_count int,
+                        |  last_joined timestamp,
+                        |  PRIMARY KEY ((zone_id), fingerprint)
+                        |);
       """.stripMargin)
         _ <- execute(s"""
-                                     |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_zone (
-                                     |  zone_id uuid,
-                                     |  public_key blob,
-                                     |  zone_join_count int,
-                                     |  last_joined timestamp,
-                                     |  PRIMARY KEY ((zone_id), public_key)
-                                     |);
-      """.stripMargin)
-        _ <- execute(s"""
-                                     |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zone_clients_by_public_key AS
-                                     |  SELECT * FROM $keyspace.clients_by_zone
-                                     |  WHERE public_key IS NOT NULL AND zone_id IS NOT NULL AND zone_join_count IS NOT NULL AND last_joined IS NOT NULL
-                                     |  PRIMARY KEY ((public_key), zone_id);
+                        |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.client_zones_by_fingerprint AS
+                        |  SELECT * FROM $keyspace.zone_clients_by_zone
+                        |  WHERE fingerprint IS NOT NULL AND zone_id IS NOT NULL
+                        |  PRIMARY KEY ((fingerprint), zone_id);
       """.stripMargin)
       } yield new ClientStore(keyspace)
   }
@@ -644,36 +648,36 @@ object CassandraAnalyticsStore {
   class ClientStore private (keyspace: String)(implicit session: Session) {
 
     private[this] val retrieveJoinCountsStatement = prepareStatement(s"""
-                       |SELECT public_key, zone_join_count
-                       |  FROM $keyspace.clients_by_zone
+                       |SELECT fingerprint, zone_join_count
+                       |  FROM $keyspace.zone_clients_by_zone
                        |  WHERE zone_id = ?
         """.stripMargin)
 
-    def retrieveJoinCounts(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Map[PublicKey, Int]] =
+    def retrieveJoinCounts(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Map[String, Int]] =
       for (resultSet <- retrieveJoinCountsStatement.execute(zoneId.id))
         yield
           (for {
             row <- resultSet.iterator.asScala
-            publicKey     = PublicKey(ByteString.of(row.getBytes("public_key")))
+            fingerprint   = row.getString("fingerprint")
             zoneJoinCount = row.getInt("zone_join_count")
-          } yield publicKey -> zoneJoinCount).toMap
+          } yield fingerprint -> zoneJoinCount).toMap
 
     private[this] val updateStatement = prepareStatement(s"""
-                       |UPDATE $keyspace.clients_by_public_key
-                       |  SET join_count = join_count + 1
-                       |  WHERE public_key = ? AND bucket = ?
+                       |UPDATE $keyspace.clients_by_fingerprint
+                       |  SET public_key = ?
+                       |  WHERE fingerprint = ?
         """.stripMargin)
 
     def update(publicKey: PublicKey)(implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- updateStatement.execute(
              publicKey.value.asByteBuffer,
-             1: java.lang.Integer
+             publicKey.fingerprint
            )) yield ()
 
     private[this] val updateZoneStatement = prepareStatement(s"""
-                       |UPDATE $keyspace.clients_by_zone
+                       |UPDATE $keyspace.zone_clients_by_zone
                        |  SET zone_join_count = ?, last_joined = ?
-                       |  WHERE zone_id = ? AND public_key = ?
+                       |  WHERE zone_id = ? AND fingerprint = ?
         """.stripMargin)
 
     def updateZone(zoneId: ZoneId, publicKey: PublicKey, zoneJoinCount: Int, lastJoined: Long)(
@@ -683,7 +687,7 @@ object CassandraAnalyticsStore {
           zoneJoinCount: java.lang.Integer,
           new Date(lastJoined),
           zoneId.id,
-          publicKey.value.asByteBuffer
+          publicKey.fingerprint
         )
       } yield ()
 

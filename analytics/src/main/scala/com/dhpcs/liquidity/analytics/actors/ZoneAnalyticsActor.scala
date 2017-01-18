@@ -97,12 +97,15 @@ class ZoneAnalyticsActor(
       }
   }
 
-  private[this] def updateStoreAndApplyEvent(analyticsStore: CassandraAnalyticsStore)(
-      previousSequenceNumberZoneBalancesAndClientJoinCounts: (Long,
-                                                              Zone,
-                                                              Map[AccountId, BigDecimal],
-                                                              Map[PublicKey, Int]),
-      envelope: EventEnvelope): Future[(Long, Zone, Map[AccountId, BigDecimal], Map[PublicKey, Int])] = {
+  private[this] def updateStoreAndApplyEvent(
+      analyticsStore: CassandraAnalyticsStore)(previousSequenceNumberZoneBalancesAndClientJoinCounts: (Long,
+                                                                                                       Zone,
+                                                                                                       Map[AccountId,
+                                                                                                           BigDecimal],
+                                                                                                       Map[String,
+                                                                                                           Int]),
+                                               envelope: EventEnvelope)
+    : Future[(Long, Zone, Map[AccountId, BigDecimal], Map[String, Int])] = {
 
     val (_, previousZone, previousBalances, previousClientJoinCounts) =
       previousSequenceNumberZoneBalancesAndClientJoinCounts
@@ -128,7 +131,8 @@ class ZoneAnalyticsActor(
 
     val updatedClientJoinCounts = envelope.event match {
       case ZoneJoinedEvent(_, _, publicKey) =>
-        previousClientJoinCounts + (publicKey -> (previousClientJoinCounts.getOrElse(publicKey, 0) + 1))
+        previousClientJoinCounts + (publicKey.fingerprint -> (previousClientJoinCounts.getOrElse(publicKey.fingerprint,
+                                                                                                 0) + 1))
       case _ =>
         previousClientJoinCounts
     }
@@ -158,7 +162,7 @@ class ZoneAnalyticsActor(
             _ <- analyticsStore.clientStore.updateZone(
               zoneId,
               publicKey,
-              zoneJoinCount = previousClientJoinCounts.getOrElse(publicKey, 0) + 1,
+              zoneJoinCount = previousClientJoinCounts.getOrElse(publicKey.fingerprint, 0) + 1,
               lastJoined = timestamp)
           } yield ()
         case _: ZoneQuitEvent =>

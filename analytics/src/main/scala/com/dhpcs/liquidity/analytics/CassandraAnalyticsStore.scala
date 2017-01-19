@@ -2,6 +2,7 @@ package com.dhpcs.liquidity.analytics
 
 import java.util.Date
 
+import akka.actor.ActorPath
 import com.datastax.driver.core.{PreparedStatement, ResultSet, Session}
 import com.dhpcs.liquidity.analytics.CassandraAnalyticsStore.ZoneStore.{AccountStore, MemberStore, TransactionStore}
 import com.dhpcs.liquidity.analytics.CassandraAnalyticsStore.{
@@ -616,80 +617,121 @@ object CassandraAnalyticsStore {
   object ClientStore {
     def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[ClientStore] =
       for {
-        // TODO: Is this one really needed?
         _ <- execute(s"""
-                        |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_fingerprint (
-                        |  fingerprint text,
-                        |  public_key blob,
-                        |  PRIMARY KEY (fingerprint)
-                        |);
-      """.stripMargin)
-        // TODO: Zone name etc.? Will need to update each time zone changes.
-        // Also (dis)connect history, active clients and unrecorded quits (will need persistent-remember-entities and
-        // to auto purge of "active" clients on restart).
-        _ <- execute(s"""
-                        |CREATE TABLE IF NOT EXISTS $keyspace.zone_clients_by_zone (
+                        |CREATE TABLE IF NOT EXISTS $keyspace.client_sessions_by_zone_fingerprint (
                         |  zone_id uuid,
                         |  fingerprint text,
-                        |  zone_join_count int,
+                        |  joined timestamp,
+                        |  actor_path text,
+                        |  quit timestamp,
+                        |  PRIMARY KEY ((zone_id, fingerprint), joined, actor_path)
+                        |);
+      """.stripMargin)
+        _ <- execute(s"""
+                        |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_zone (
+                        |  zone_id uuid,
+                        |  public_key blob,
+                        |  fingerprint text,
                         |  last_joined timestamp,
-                        |  PRIMARY KEY ((zone_id), fingerprint)
+                        |  current_actor_path text,
+                        |  last_quit timestamp,
+                        |  PRIMARY KEY ((zone_id), public_key)
                         |);
       """.stripMargin)
         _ <- execute(s"""
                         |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.client_zones_by_fingerprint AS
-                        |  SELECT * FROM $keyspace.zone_clients_by_zone
-                        |  WHERE fingerprint IS NOT NULL AND zone_id IS NOT NULL
-                        |  PRIMARY KEY ((fingerprint), zone_id);
+                        |  SELECT * FROM $keyspace.clients_by_zone
+                        |  WHERE public_key IS NOT NULL AND last_joined IS NOT NULL
+                        |  PRIMARY KEY ((public_key), zone_id, last_joined);
       """.stripMargin)
       } yield new ClientStore(keyspace)
   }
 
   class ClientStore private (keyspace: String)(implicit session: Session) {
 
-    private[this] val retrieveJoinCountsStatement = prepareStatement(s"""
-                       |SELECT fingerprint, zone_join_count
-                       |  FROM $keyspace.zone_clients_by_zone
+    private[this] val retrieveStatement = prepareStatement(s"""
+                       |SELECT public_key, last_joined, current_actor_path
+                       |  FROM $keyspace.clients_by_zone
                        |  WHERE zone_id = ?
         """.stripMargin)
 
-    def retrieveJoinCounts(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Map[String, Int]] =
-      for (resultSet <- retrieveJoinCountsStatement.execute(zoneId.id))
+    def retrieve(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Map[ActorPath, (Long, PublicKey)]] =
+      for (resultSet <- retrieveStatement.execute(zoneId.id))
         yield
           (for {
-            row <- resultSet.iterator.asScala
-            fingerprint   = row.getString("fingerprint")
-            zoneJoinCount = row.getInt("zone_join_count")
-          } yield fingerprint -> zoneJoinCount).toMap
+            row <- resultSet.iterator.asScala if !row.isNull("current_actor_path")
+            publicKey        = PublicKey(ByteString.of(row.getBytes("public_key")))
+            lastJoined       = row.getTimestamp("last_joined").getTime
+            currentActorPath = ActorPath.fromString(row.getString("current_actor_path"))
+          } yield currentActorPath -> (lastJoined -> publicKey)).toMap
 
-    private[this] val updateStatement = prepareStatement(s"""
-                       |UPDATE $keyspace.clients_by_fingerprint
-                       |  SET public_key = ?
-                       |  WHERE fingerprint = ?
+    private[this] val createOrUpdateStatement = prepareStatement(s"""
+                       |INSERT INTO $keyspace.clients_by_zone (zone_id, public_key, fingerprint, last_joined, current_actor_path, last_quit)
+                       |  VALUES (?, ?, ?, ?, ?, null)
         """.stripMargin)
 
-    def update(publicKey: PublicKey)(implicit ec: ExecutionContext): Future[Unit] =
-      for (_ <- updateStatement.execute(
-             publicKey.value.asByteBuffer,
-             publicKey.fingerprint
-           )) yield ()
-
-    private[this] val updateZoneStatement = prepareStatement(s"""
-                       |UPDATE $keyspace.zone_clients_by_zone
-                       |  SET zone_join_count = ?, last_joined = ?
-                       |  WHERE zone_id = ? AND fingerprint = ?
-        """.stripMargin)
-
-    def updateZone(zoneId: ZoneId, publicKey: PublicKey, zoneJoinCount: Int, lastJoined: Long)(
+    def createOrUpdate(zoneId: ZoneId, publicKey: PublicKey, joined: Long, actorPath: ActorPath)(
         implicit ec: ExecutionContext): Future[Unit] =
       for {
-        _ <- updateZoneStatement.execute(
-          zoneJoinCount: java.lang.Integer,
-          new Date(lastJoined),
+        _ <- openSession(zoneId, publicKey, joined, actorPath)
+        _ <- createOrUpdateStatement.execute(
           zoneId.id,
-          publicKey.fingerprint
+          publicKey.value.asByteBuffer,
+          publicKey.fingerprint,
+          new Date(joined),
+          actorPath.toSerializationFormat
         )
       } yield ()
+
+    private[this] val updateStatement = prepareStatement(s"""
+                       |UPDATE $keyspace.clients_by_zone
+                       |  SET current_actor_path = null, last_quit = ?
+                       |  WHERE zone_id = ? AND public_key = ?
+        """.stripMargin)
+
+    def update(zoneId: ZoneId, publicKey: PublicKey, joined: Long, actorPath: ActorPath, quit: Long)(
+        implicit ec: ExecutionContext): Future[Unit] =
+      for {
+        _ <- closeSession(zoneId, publicKey, joined, actorPath, quit)
+        _ <- updateStatement.execute(
+          new Date(quit),
+          zoneId.id,
+          publicKey.value.asByteBuffer
+        )
+      } yield ()
+
+    private[this] val openSessionStatement = prepareStatement(s"""
+                         |INSERT INTO $keyspace.client_sessions_by_zone_fingerprint (zone_id, fingerprint, joined, actor_path)
+                         |  VALUES (?, ?, ?, ?)
+          """.stripMargin)
+
+    private[this] def openSession(zoneId: ZoneId, publicKey: PublicKey, joined: Long, actorPath: ActorPath)(
+        implicit ec: ExecutionContext): Future[Unit] =
+      for (_ <- openSessionStatement.execute(
+             zoneId.id,
+             publicKey.fingerprint,
+             new Date(joined),
+             actorPath.toSerializationFormat
+           )) yield ()
+
+    private[this] val closeSessionStatement = prepareStatement(s"""
+                         |UPDATE $keyspace.client_sessions_by_zone_fingerprint
+                         |  SET quit = ?
+                         |  WHERE zone_id = ? AND fingerprint = ? AND joined = ? AND actor_path = ?
+          """.stripMargin)
+
+    private[this] def closeSession(zoneId: ZoneId,
+                                   publicKey: PublicKey,
+                                   joined: Long,
+                                   actorPath: ActorPath,
+                                   quit: Long)(implicit ec: ExecutionContext): Future[Unit] =
+      for (_ <- closeSessionStatement.execute(
+             new Date(quit),
+             zoneId.id,
+             publicKey.fingerprint,
+             new Date(joined),
+             actorPath.toSerializationFormat
+           )) yield ()
 
   }
 

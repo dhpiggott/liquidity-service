@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.analytics.actors
 
 import java.util.UUID
 
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorPath, Props}
 import akka.cluster.sharding.ShardRegion
 import akka.pattern.pipe
 import akka.persistence.query.EventEnvelope
@@ -68,13 +68,13 @@ class ZoneAnalyticsActor(
           case 0L => Future.successful(null)
           case _  => analyticsStore.zoneStore.retrieve(zoneId)
         }
-        previousBalances         <- analyticsStore.balanceStore.retrieve(zoneId)
-        previousClientJoinCounts <- analyticsStore.clientStore.retrieveJoinCounts(zoneId)
-        (currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts) <- readJournal
+        previousBalances <- analyticsStore.balanceStore.retrieve(zoneId)
+        previousClients  <- analyticsStore.clientStore.retrieve(zoneId)
+        (currentSequenceNumber, currentZone, currentBalances, currentClients) <- readJournal
           .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber, Long.MaxValue)
-          .runFoldAsync((previousSequenceNumber, previousZone, previousBalances, previousClientJoinCounts))(
+          .runFoldAsync((previousSequenceNumber, previousZone, previousBalances, previousClients))(
             updateStoreAndApplyEvent(analyticsStore))
-      } yield (analyticsStore, currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts)
+      } yield (analyticsStore, currentSequenceNumber, currentZone, currentBalances, currentClients)
 
       currentJournalState.map(_ => Started).pipeTo(sender())
 
@@ -82,10 +82,10 @@ class ZoneAnalyticsActor(
         .fromFuture(currentJournalState)
         .via(killSwitch.flow)
         .flatMapConcat {
-          case (analyticsStore, currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts) =>
+          case (analyticsStore, currentSequenceNumber, currentZone, currentBalances, currentClients) =>
             readJournal
               .eventsByPersistenceId(zoneId.persistenceId, currentSequenceNumber, Long.MaxValue)
-              .foldAsync((currentSequenceNumber, currentZone, currentBalances, currentClientJoinCounts))(
+              .foldAsync((currentSequenceNumber, currentZone, currentBalances, currentClients))(
                 updateStoreAndApplyEvent(analyticsStore))
         }
         .toMat(Sink.ignore)(Keep.right)
@@ -97,18 +97,15 @@ class ZoneAnalyticsActor(
       }
   }
 
-  private[this] def updateStoreAndApplyEvent(
-      analyticsStore: CassandraAnalyticsStore)(previousSequenceNumberZoneBalancesAndClientJoinCounts: (Long,
-                                                                                                       Zone,
-                                                                                                       Map[AccountId,
-                                                                                                           BigDecimal],
-                                                                                                       Map[String,
-                                                                                                           Int]),
-                                               envelope: EventEnvelope)
-    : Future[(Long, Zone, Map[AccountId, BigDecimal], Map[String, Int])] = {
+  private[this] def updateStoreAndApplyEvent(analyticsStore: CassandraAnalyticsStore)(
+      previousSequenceNumberZoneBalancesAndClients: (Long,
+                                                     Zone,
+                                                     Map[AccountId, BigDecimal],
+                                                     Map[ActorPath, (Long, PublicKey)]),
+      envelope: EventEnvelope): Future[(Long, Zone, Map[AccountId, BigDecimal], Map[ActorPath, (Long, PublicKey)])] = {
 
-    val (_, previousZone, previousBalances, previousClientJoinCounts) =
-      previousSequenceNumberZoneBalancesAndClientJoinCounts
+    val (_, previousZone, previousBalances, previousClients) =
+      previousSequenceNumberZoneBalancesAndClients
 
     val updatedZone = envelope.event match {
       case ZoneCreatedEvent(_, zone) =>
@@ -129,12 +126,13 @@ class ZoneAnalyticsActor(
         previousZone
     }
 
-    val updatedClientJoinCounts = envelope.event match {
-      case ZoneJoinedEvent(_, _, publicKey) =>
-        previousClientJoinCounts + (publicKey.fingerprint -> (previousClientJoinCounts.getOrElse(publicKey.fingerprint,
-                                                                                                 0) + 1))
+    val updatedClients = envelope.event match {
+      case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey) =>
+        previousClients + (clientConnectionActorPath -> (timestamp -> publicKey))
+      case ZoneQuitEvent(_, clientConnectionActorPath) =>
+        previousClients - clientConnectionActorPath
       case _ =>
-        previousClientJoinCounts
+        previousClients
     }
 
     val updatedBalances = envelope.event match {
@@ -156,17 +154,23 @@ class ZoneAnalyticsActor(
             _ <- analyticsStore.zoneStore.create(zone)
             _ <- analyticsStore.balanceStore.create(zone, BigDecimal(0), zone.accounts.values)
           } yield ()
-        case ZoneJoinedEvent(timestamp, _, publicKey) =>
-          for {
-            _ <- analyticsStore.clientStore.update(publicKey)
-            _ <- analyticsStore.clientStore.updateZone(
-              zoneId,
-              publicKey,
-              zoneJoinCount = previousClientJoinCounts.getOrElse(publicKey.fingerprint, 0) + 1,
-              lastJoined = timestamp)
-          } yield ()
-        case _: ZoneQuitEvent =>
-          Future.successful(())
+        case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey) =>
+          analyticsStore.clientStore.createOrUpdate(zoneId,
+                                                    publicKey,
+                                                    joined = timestamp,
+                                                    actorPath = clientConnectionActorPath)
+        case ZoneQuitEvent(timestamp, clientConnectionActorPath) =>
+          previousClients.get(clientConnectionActorPath) match {
+            case None =>
+              // FIXME: Why/how can this happen?
+              Future.successful(())
+            case Some((joined, publicKey)) =>
+              analyticsStore.clientStore.update(zoneId,
+                                                publicKey,
+                                                joined,
+                                                actorPath = clientConnectionActorPath,
+                                                quit = timestamp)
+          }
         case ZoneNameChangedEvent(timestamp, name) =>
           analyticsStore.zoneStore.changeName(zoneId, modified = timestamp, name)
         case MemberCreatedEvent(timestamp, member) =>
@@ -214,6 +218,6 @@ class ZoneAnalyticsActor(
           analyticsStore.zoneStore.updateModified(zoneId, event.timestamp)
       }
       _ <- analyticsStore.journalSequenceNumberStore.update(zoneId, envelope.sequenceNr)
-    } yield (envelope.sequenceNr, updatedZone, updatedBalances, updatedClientJoinCounts)
+    } yield (envelope.sequenceNr, updatedZone, updatedBalances, updatedClients)
   }
 }

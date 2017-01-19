@@ -17,5 +17,4 @@ package object persistence {
   implicit class RichPublicKey(val publicKey: PublicKey) extends AnyVal {
     def persistenceId: String = s"client-${publicKey.fingerprint})"
   }
-
 }

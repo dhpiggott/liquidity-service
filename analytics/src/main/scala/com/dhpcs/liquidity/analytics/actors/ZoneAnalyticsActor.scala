@@ -127,9 +127,12 @@ class ZoneAnalyticsActor(
     }
 
     val updatedClients = envelope.event match {
-      case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey) =>
+      case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey)
+          if clientConnectionActorPath.name != "deadLetters" =>
         previousClients + (clientConnectionActorPath -> (timestamp -> publicKey))
-      case ZoneQuitEvent(_, clientConnectionActorPath) =>
+      case ZoneQuitEvent(_, clientConnectionActorPath)
+          if clientConnectionActorPath.name != "deadLetters"
+            && previousClients.contains(clientConnectionActorPath) =>
         previousClients - clientConnectionActorPath
       case _ =>
         previousClients
@@ -154,23 +157,25 @@ class ZoneAnalyticsActor(
             _ <- analyticsStore.zoneStore.create(zone)
             _ <- analyticsStore.balanceStore.create(zone, BigDecimal(0), zone.accounts.values)
           } yield ()
-        case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey) =>
+        case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey)
+            if clientConnectionActorPath.name != "deadLetters" =>
           analyticsStore.clientStore.createOrUpdate(zoneId,
                                                     publicKey,
                                                     joined = timestamp,
                                                     actorPath = clientConnectionActorPath)
-        case ZoneQuitEvent(timestamp, clientConnectionActorPath) =>
-          previousClients.get(clientConnectionActorPath) match {
-            case None =>
-              // FIXME: Why/how can this happen?
-              Future.successful(())
-            case Some((joined, publicKey)) =>
-              analyticsStore.clientStore.update(zoneId,
-                                                publicKey,
-                                                joined,
-                                                actorPath = clientConnectionActorPath,
-                                                quit = timestamp)
-          }
+        case _: ZoneJoinedEvent =>
+          Future.successful(())
+        case ZoneQuitEvent(timestamp, clientConnectionActorPath)
+            if clientConnectionActorPath.name != "deadLetters"
+              && previousClients.contains(clientConnectionActorPath) =>
+          val (joined, publicKey) = previousClients(clientConnectionActorPath)
+          analyticsStore.clientStore.update(zoneId,
+                                            publicKey,
+                                            joined,
+                                            actorPath = clientConnectionActorPath,
+                                            quit = timestamp)
+        case _: ZoneQuitEvent =>
+          Future.successful(())
         case ZoneNameChangedEvent(timestamp, name) =>
           analyticsStore.zoneStore.changeName(zoneId, modified = timestamp, name)
         case MemberCreatedEvent(timestamp, member) =>

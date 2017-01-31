@@ -114,9 +114,9 @@ object ClientConnectionActor {
       Sink.actorRefWithAck(
         factory.actorOf(
           Props(new Actor {
-            val flowActor                                       = context.watch(context.actorOf(props(outActor), name))
+            val flowActor: ActorRef                             = context.watch(context.actorOf(props(outActor), name))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
-            override def receive = {
+            override def receive: Receive = {
               case _: Status.Success | _: Status.Failure =>
                 flowActor ! PoisonPill
               case _: Terminated =>

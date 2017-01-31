@@ -17,7 +17,7 @@ import com.dhpcs.liquidity.protocol.{Command, CreateZoneCommand, CreateZoneRespo
 import com.dhpcs.liquidity.server.{CassandraPersistenceIntegrationTestFixtures, LiquidityServer}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
-import org.scalatest.{BeforeAndAfterAll, Inside, Matchers, fixture}
+import org.scalatest._
 import org.spongycastle.jce.provider.BouncyCastleProvider
 
 import scala.concurrent.duration.Duration
@@ -119,7 +119,7 @@ class ServerConnectionSpec
   implicit override val patienceConfig =
     PatienceConfig(timeout = scaled(Span(5, Seconds)), interval = scaled(Span(1, Second)))
 
-  override protected def withFixture(test: OneArgTest) = {
+  override protected def withFixture(test: OneArgTest): Outcome = {
     val server = new LiquidityServer(
       config,
       readJournal,

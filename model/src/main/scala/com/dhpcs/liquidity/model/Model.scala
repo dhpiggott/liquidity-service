@@ -19,12 +19,12 @@ object ValueFormat {
 }
 
 case class PublicKey(value: ByteString) {
-  lazy val fingerprint = value.sha256.hex
+  lazy val fingerprint: String = value.sha256.hex
 }
 
 object PublicKey {
 
-  implicit final val PublicKeyFormat = ValueFormat[PublicKey, String](
+  implicit final val PublicKeyFormat: Format[PublicKey] = ValueFormat[PublicKey, String](
     publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64)),
     publicKey => publicKey.value.base64)
 
@@ -35,7 +35,7 @@ object PublicKey {
 case class MemberId(id: Int)
 
 object MemberId {
-  implicit final val MemberIdFormat = ValueFormat[MemberId, Int](MemberId(_), _.id)
+  implicit final val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Int](MemberId(_), _.id)
 }
 
 case class Member(id: MemberId,
@@ -44,13 +44,13 @@ case class Member(id: MemberId,
                   metadata: Option[JsObject] = None)
 
 object Member {
-  implicit final val MemberFormat = Json.format[Member]
+  implicit final val MemberFormat: Format[Member] = Json.format[Member]
 }
 
 case class AccountId(id: Int)
 
 object AccountId {
-  implicit final val AccountIdFormat = ValueFormat[AccountId, Int](AccountId(_), _.id)
+  implicit final val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Int](AccountId(_), _.id)
 }
 
 case class Account(id: AccountId,
@@ -59,13 +59,14 @@ case class Account(id: AccountId,
                    metadata: Option[JsObject] = None)
 
 object Account {
-  implicit final val AccountFormat = Json.format[Account]
+  implicit final val AccountFormat: Format[Account] = Json.format[Account]
 }
 
 case class TransactionId(id: Int)
 
 object TransactionId {
-  implicit final val TransactionIdFormat = ValueFormat[TransactionId, Int](TransactionId(_), _.id)
+  implicit final val TransactionIdFormat: Format[TransactionId] =
+    ValueFormat[TransactionId, Int](TransactionId(_), _.id)
 }
 
 case class Transaction(id: TransactionId,
@@ -118,9 +119,9 @@ case class ZoneId(id: UUID)
 
 object ZoneId {
 
-  implicit final val ZoneIdFormat = ValueFormat[ZoneId, UUID](ZoneId(_), _.id)
+  implicit final val ZoneIdFormat: Format[ZoneId] = ValueFormat[ZoneId, UUID](ZoneId(_), _.id)
 
-  def generate = apply(UUID.randomUUID)
+  def generate: ZoneId = apply(UUID.randomUUID)
 
 }
 

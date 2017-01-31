@@ -29,7 +29,7 @@ object ServerTrust {
     TrustManager
   }
 
-  private def loadTrustedKeys(keyStoreInputStream: InputStream): Unit = {
+  private def loadTrustedKeys(keyStoreInputStream: InputStream): Unit =
     if (trustedKeys == null) {
       val keyStore = KeyStore.getInstance("PKCS12")
       try {
@@ -40,5 +40,5 @@ object ServerTrust {
         }.toSet
       } finally keyStoreInputStream.close()
     }
-  }
+
 }

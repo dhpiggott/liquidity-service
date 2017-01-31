@@ -8,14 +8,14 @@ import com.dhpcs.liquidity.model.ValueFormatSpec.TestValue
 import okio.ByteString
 import org.scalatest.{FunSpec, Matchers}
 import play.api.data.validation.ValidationError
-import play.api.libs.json.{JsError, Json, __}
+import play.api.libs.json.{Format, JsError, Json, __}
 
 object ValueFormatSpec {
 
   case class TestValue(value: String)
 
   object TestValue {
-    implicit final val TestFormat = ValueFormat[TestValue, String](TestValue(_), _.value)
+    implicit final val TestFormat: Format[TestValue] = ValueFormat[TestValue, String](TestValue(_), _.value)
   }
 
 }

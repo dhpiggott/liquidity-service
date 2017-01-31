@@ -1,12 +1,13 @@
 package com.dhpcs.liquidity.server
 
+import java.io.File
 import java.net.InetSocketAddress
 import java.nio.channels.ServerSocketChannel
 import java.security.cert.Certificate
 import java.security.{KeyStore, PrivateKey}
 import javax.net.ssl.{KeyManager, KeyManagerFactory}
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.cassandra.testkit.CassandraLauncher
@@ -16,22 +17,22 @@ import akka.testkit.TestKit
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor
 import com.dhpcs.liquidity.server.CassandraPersistenceIntegrationTestFixtures._
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.cassandra.io.util.FileUtils
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.fixture
 
 object CassandraPersistenceIntegrationTestFixtures {
 
-  protected final val KeyStoreEntryAlias    = "identity"
-  protected final val KeyStoreEntryPassword = Array.emptyCharArray
+  protected final val KeyStoreEntryAlias                 = "identity"
+  protected final val KeyStoreEntryPassword: Array[Char] = Array.emptyCharArray
 
 }
 
 trait CassandraPersistenceIntegrationTestFixtures extends BeforeAndAfterAll { this: fixture.Suite =>
 
-  protected[this] val akkaRemotingPort = freePort()
-  protected[this] val akkaHttpPort     = freePort()
+  protected[this] val akkaRemotingPort: Int = freePort()
+  protected[this] val akkaHttpPort: Int     = freePort()
 
   protected[this] def freePort(): Int = {
     val serverSocket = ServerSocketChannel.open().socket()
@@ -41,9 +42,9 @@ trait CassandraPersistenceIntegrationTestFixtures extends BeforeAndAfterAll { th
     port
   }
 
-  protected[this] val cassandraDirectory = FileUtils.createTempFile("liquidity-cassandra-data", null)
+  protected[this] val cassandraDirectory: File = FileUtils.createTempFile("liquidity-cassandra-data", null)
 
-  protected[this] val config =
+  protected[this] val config: Config =
     ConfigFactory
       .parseString(
         s"""
@@ -92,10 +93,10 @@ trait CassandraPersistenceIntegrationTestFixtures extends BeforeAndAfterAll { th
   protected[this] implicit val system = ActorSystem("liquidity", config)
   protected[this] implicit val mat    = ActorMaterializer()
 
-  protected[this] val readJournal =
+  protected[this] val readJournal: CassandraReadJournal =
     PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
 
-  protected[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
+  protected[this] val zoneValidatorShardRegion: ActorRef = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardTypeName,
     entityProps = ZoneValidatorActor.props,
     settings = ClusterShardingSettings(system),

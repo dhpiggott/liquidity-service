@@ -16,7 +16,7 @@ import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
 }
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
-import org.scalatest.{Inside, Matchers, fixture}
+import org.scalatest.{Inside, Matchers, Outcome, fixture}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration._
@@ -35,7 +35,7 @@ class ClientConnectionActorSpec
 
   override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
-  override protected def withFixture(test: OneArgTest) = {
+  override protected def withFixture(test: OneArgTest): Outcome = {
     val sinkTestProbe                     = TestProbe()
     val zoneValidatorShardRegionTestProbe = TestProbe()
     val upstreamTestProbe                 = TestProbe()

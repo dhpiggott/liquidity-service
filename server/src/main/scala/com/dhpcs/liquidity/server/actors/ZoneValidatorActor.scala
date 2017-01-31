@@ -84,50 +84,50 @@ object ZoneValidatorActor {
                            balances: Map[AccountId, BigDecimal] = Map.empty.withDefaultValue(BigDecimal(0)),
                            clientConnections: Map[ActorPath, PublicKey] = Map.empty[ActorPath, PublicKey]) {
 
-    def updated(event: Event) = event match {
+    def updated(event: Event): State = event match {
       case zoneCreatedEvent: ZoneCreatedEvent =>
         copy(
           zone = zoneCreatedEvent.zone
         )
-      case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey) =>
+      case ZoneJoinedEvent(_, clientConnectionActorPath, publicKey) =>
         copy(
           clientConnections = clientConnections + (clientConnectionActorPath -> publicKey)
         )
-      case ZoneQuitEvent(timestamp, clientConnectionActorPath) =>
+      case ZoneQuitEvent(_, clientConnectionActorPath) =>
         copy(
           clientConnections = clientConnections - clientConnectionActorPath
         )
-      case ZoneNameChangedEvent(timestamp, name) =>
+      case ZoneNameChangedEvent(_, name) =>
         copy(
           zone = zone.copy(
             name = name
           )
         )
-      case MemberCreatedEvent(timestamp, member) =>
+      case MemberCreatedEvent(_, member) =>
         copy(
           zone = zone.copy(
             members = zone.members + (member.id -> member)
           )
         )
-      case MemberUpdatedEvent(timestamp, member) =>
+      case MemberUpdatedEvent(_, member) =>
         copy(
           zone = zone.copy(
             members = zone.members + (member.id -> member)
           )
         )
-      case AccountCreatedEvent(timestamp, account) =>
+      case AccountCreatedEvent(_, account) =>
         copy(
           zone = zone.copy(
             accounts = zone.accounts + (account.id -> account)
           )
         )
-      case AccountUpdatedEvent(timestamp, account) =>
+      case AccountUpdatedEvent(_, account) =>
         copy(
           zone = zone.copy(
             accounts = zone.accounts + (account.id -> account)
           )
         )
-      case TransactionAddedEvent(timestamp, transaction) =>
+      case TransactionAddedEvent(_, transaction) =>
         val updatedSourceBalance      = balances(transaction.from) - transaction.value
         val updatedDestinationBalance = balances(transaction.to) + transaction.value
         copy(
@@ -321,7 +321,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def waitForZone: Receive =
     publishStatus orElse messageReceivedConfirmation orElse waitForTimeout orElse {
-      case AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber, deliveryId) =>
+      case AuthenticatedCommandWithIds(_, command, correlationId, sequenceNumber, deliveryId) =>
         passivationCountdownActor ! CommandReceivedEvent
         exactlyOnce(sequenceNumber, deliveryId) {
           command match {

@@ -15,7 +15,7 @@ import com.dhpcs.liquidity.protocol._
 import okio.ByteString
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
-import org.scalatest.{Inside, Matchers, fixture}
+import org.scalatest.{Inside, Matchers, Outcome, fixture}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Await
@@ -54,7 +54,7 @@ class LiquidityServerSpec
 
   override protected type FixtureParam = (TestSubscriber.Probe[Message], TestPublisher.Probe[Message])
 
-  override protected def withFixture(test: OneArgTest) = {
+  override protected def withFixture(test: OneArgTest): Outcome = {
     val server = new LiquidityServer(
       config,
       readJournal,

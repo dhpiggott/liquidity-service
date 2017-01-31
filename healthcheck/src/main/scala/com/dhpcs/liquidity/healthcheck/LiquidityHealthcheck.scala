@@ -21,7 +21,7 @@ import com.dhpcs.liquidity.protocol._
 import okio.ByteString
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
-import org.scalatest.{BeforeAndAfterAll, Inside, Matchers, fixture}
+import org.scalatest._
 import org.spongycastle.jce.provider.BouncyCastleProvider
 import play.api.libs.json.Json
 
@@ -191,7 +191,7 @@ class LiquidityHealthcheck
   implicit override val patienceConfig =
     PatienceConfig(timeout = scaled(Span(5, Seconds)), interval = scaled(Span(1, Second)))
 
-  override protected def withFixture(test: OneArgTest) = {
+  override protected def withFixture(test: OneArgTest): Outcome = {
     val (queue, sub) = Source
       .queue[ConnectionState](bufferSize = 0, overflowStrategy = OverflowStrategy.backpressure)
       .toMat(TestSink.probe)(Keep.both)

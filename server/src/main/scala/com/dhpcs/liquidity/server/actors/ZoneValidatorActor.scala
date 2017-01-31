@@ -317,7 +317,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       state = state.copy(
         clientConnections = Map.empty
       )
-      self ! PublishStatus
   }
 
   private[this] def waitForZone: Receive =

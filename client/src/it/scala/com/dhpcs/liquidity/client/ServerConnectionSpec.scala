@@ -128,7 +128,7 @@ class ServerConnectionSpec
     )
     val (queue, sub) = Source
       .queue[ConnectionState](bufferSize = 0, overflowStrategy = OverflowStrategy.backpressure)
-      .toMat(TestSink.probe)(Keep.both)
+      .toMat(TestSink.probe[ServerConnection.ConnectionState])(Keep.both)
       .run()
     val connectionStateListener = new ConnectionStateListener {
       override def onConnectionStateChanged(connectionState: ConnectionState): Unit = queue.offer(connectionState)

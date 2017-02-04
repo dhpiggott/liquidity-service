@@ -25,23 +25,11 @@ lazy val commonSettings = Seq(
     addCommandAlias("validateAggregate", ";coverageAggregate")
 
 lazy val publishSettings = Seq(
-  startYear := Some(2015),
-  organization := "com.dhpcs",
-  organizationHomepage := Some(url("https://www.dhpcs.com/")),
-  organizationName := "dhpcs",
-  developers := List(
-    Developer(
-      id = "dhpiggott",
-      name = "David Piggott",
-      email = "david@piggott.me.uk",
-      url = url("https://dhpiggott.net/")
-    ))
+  organization := "com.dhpcs"
 )
 
 lazy val noopPublishSettings = Seq(
-  publishArtifact := false,
-  publish := {},
-  publishLocal := {}
+  publishM2 := {}
 )
 
 lazy val akkaPersistenceSettings = libraryDependencies ++= Seq(

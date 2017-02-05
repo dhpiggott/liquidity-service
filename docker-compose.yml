@@ -5,11 +5,18 @@ services:
     restart: always
     volumes:
     - cassandra-data:/var/lib/cassandra
+  akka-cluster:
+    build: akka-cluster
   server:
     build: server
     ports:
      - '443:443'
     restart: always
+    environment:
+      JAVA_OPTS: >
+        -Dcom.sun.management.jmxremote.port=9999
+        -Dcom.sun.management.jmxremote.authenticate=false
+        -Dcom.sun.management.jmxremote.ssl=false
     links:
       - cassandra
   analytics:

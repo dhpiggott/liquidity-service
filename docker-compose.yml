@@ -7,18 +7,39 @@ services:
     - cassandra-data:/var/lib/cassandra
   akka-cluster:
     build: akka-cluster
-  server:
+  zone-host-seed:
     build: server
-    ports:
-     - '443:443'
     restart: always
+    extra_hosts:
+      - "zone-host-seed:127.0.0.1"
     environment:
+      AKKA_HOSTNAME: zone-host-seed
       JAVA_OPTS: >
+        -Dakka.cluster.roles.0=zone-host
+        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host-seed:2552
         -Dcom.sun.management.jmxremote.port=9999
         -Dcom.sun.management.jmxremote.authenticate=false
         -Dcom.sun.management.jmxremote.ssl=false
     links:
       - cassandra
+  client-relay-seed:
+    build: server
+    ports:
+     - '443:443'
+    restart: always
+    extra_hosts:
+      - "client-relay-seed:127.0.0.1"
+    environment:
+      AKKA_HOSTNAME: client-relay-seed
+      JAVA_OPTS: >
+        -Dakka.cluster.roles.0=client-relay
+        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host-seed:2552
+        -Dcom.sun.management.jmxremote.port=9999
+        -Dcom.sun.management.jmxremote.authenticate=false
+        -Dcom.sun.management.jmxremote.ssl=false
+    links:
+      - cassandra
+      - zone-host-seed
   analytics:
     build: analytics
     restart: always

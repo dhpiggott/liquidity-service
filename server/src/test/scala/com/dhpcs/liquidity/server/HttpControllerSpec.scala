@@ -26,7 +26,7 @@ class HttpControllerSpec extends WordSpec with Matchers with ScalatestRouteTest 
   "A LiquidityController" should {
     "provide status information" in {
       val getRequest = RequestBuilding.Get("/status")
-      getRequest ~> route ~> check {
+      getRequest ~> route(enableClientRelay = true) ~> check {
         status shouldBe StatusCodes.OK
         contentType shouldBe ContentType(`application/json`)
         Json.parse(entityAs[String]) shouldBe Json.obj()
@@ -36,7 +36,7 @@ class HttpControllerSpec extends WordSpec with Matchers with ScalatestRouteTest 
       val wsProbe = WSProbe()
       WS("/ws", wsProbe.flow).addHeader(
         `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
-      ) ~> route ~> check {
+      ) ~> route(enableClientRelay = true) ~> check {
         isWebSocketUpgrade shouldBe true
         val message = "Hello"
         wsProbe.sendMessage(message)

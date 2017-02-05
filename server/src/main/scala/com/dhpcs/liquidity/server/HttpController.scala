@@ -14,7 +14,8 @@ import scala.concurrent.{ExecutionContext, Future}
 
 trait HttpController {
 
-  protected[this] def route(implicit ec: ExecutionContext): Route = status ~ ws
+  protected[this] def route(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
+    status ~ (if (enableClientRelay) ws else reject)
 
   private[this] def status(implicit ec: ExecutionContext) = path("status")(
     get(

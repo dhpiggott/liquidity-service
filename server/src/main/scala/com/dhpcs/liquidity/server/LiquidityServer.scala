@@ -7,6 +7,7 @@ import javax.net.ssl._
 
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem}
+import akka.cluster.Cluster
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.StatusCodes._
@@ -39,7 +40,7 @@ import com.dhpcs.liquidity.server.actors.{
 }
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
-import play.api.libs.json.Json._
+import play.api.libs.json.Json.JsValueWrapper
 import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
@@ -47,6 +48,9 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
 object LiquidityServer {
+
+  private final val ZoneHostRole    = "zone-host"
+  private final val ClientRelayRole = "client-relay"
 
   private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore.p12"
   private final val EnabledCipherSuites = Seq(
@@ -70,13 +74,23 @@ object LiquidityServer {
     implicit val system = ActorSystem("liquidity")
     implicit val mat    = ActorMaterializer()
     val readJournal     = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
-    val zoneValidatorShardRegion = ClusterSharding(system).start(
-      typeName = ZoneValidatorActor.ShardTypeName,
-      entityProps = ZoneValidatorActor.props,
-      settings = ClusterShardingSettings(system),
-      extractEntityId = ZoneValidatorActor.extractEntityId,
-      extractShardId = ZoneValidatorActor.extractShardId
-    )
+    val zoneValidatorShardRegion =
+      if (Cluster(system).selfRoles.contains(ZoneHostRole))
+        ClusterSharding(system).start(
+          typeName = ZoneValidatorActor.ShardTypeName,
+          entityProps = ZoneValidatorActor.props,
+          settings = ClusterShardingSettings(system).withRole(ZoneHostRole),
+          extractEntityId = ZoneValidatorActor.extractEntityId,
+          extractShardId = ZoneValidatorActor.extractShardId
+        )
+      else
+        ClusterSharding(system).startProxy(
+          typeName = ZoneValidatorActor.ShardTypeName,
+          role = Some(ZoneHostRole),
+          extractEntityId = ZoneValidatorActor.extractEntityId,
+          extractShardId = ZoneValidatorActor.extractShardId
+        )
+
     val keyStore = KeyStore.getInstance("PKCS12")
     keyStore.load(
       getClass.getClassLoader.getResourceAsStream(KeyStoreFilename),
@@ -142,7 +156,7 @@ class LiquidityServer(config: Config,
   }
 
   private[this] val binding = Http().bindAndHandle(
-    route,
+    route(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
     config.getString("liquidity.server.http.interface"),
     config.getInt("liquidity.server.http.port"),
     httpsConnectionContext

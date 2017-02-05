@@ -40,7 +40,9 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
          |    port = $akkaRemotingPort
          |  }
          |  cluster {
+         |    auto-down-unreachable-after = 5s
          |    metrics.enabled = off
+         |    roles = ["zone-host", "client-relay"]
          |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
          |    sharding.state-store-mode = ddata
          |  }

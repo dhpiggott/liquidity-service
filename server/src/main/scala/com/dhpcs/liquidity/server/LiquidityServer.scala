@@ -7,7 +7,7 @@ import javax.net.ssl._
 
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem}
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.headers.`Tls-Session-Info`
@@ -39,6 +39,7 @@ import com.dhpcs.liquidity.server.actors.{
 }
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
+import play.api.libs.json.Json._
 import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
@@ -167,6 +168,7 @@ class LiquidityServer(config: Config,
   }
 
   override protected[this] def getStatus: Future[JsValue] = {
+    def fingerprint(id: String): JsValueWrapper = ByteString.encodeUtf8(id).sha256.hex
     def clientsStatus(activeClientsSummary: ActiveClientsSummary): JsObject =
       Json.obj(
         "count" -> activeClientsSummary.activeClientSummaries.size,
@@ -187,7 +189,7 @@ class LiquidityServer(config: Config,
               clientConnections
               ) =>
             Json.obj(
-              "zoneIdFingerprint" -> ByteString.encodeUtf8(zoneId.id.toString).sha256.hex,
+              "zoneIdFingerprint" -> fingerprint(zoneId.id.toString),
               "metadata"          -> metadata,
               "members"           -> Json.obj("count" -> members.size),
               "accounts"          -> Json.obj("count" -> accounts.size),
@@ -199,16 +201,45 @@ class LiquidityServer(config: Config,
             )
         }
       )
+    def shardRegionStatus(shardRegionState: ShardRegion.CurrentShardRegionState): JsObject =
+      Json.obj(
+        "count" -> shardRegionState.shards.size,
+        "shards" -> Json.obj(shardRegionState.shards.toSeq.sortBy(_.shardId).map {
+          case ShardRegion.ShardState(shardId, entityIds) =>
+            shardId ->
+              (Json.arr(entityIds.toSeq.sorted.map(fingerprint): _*): JsValueWrapper)
+        }: _*)
+      )
+    def clusterShardingStatus(clusterShardingStats: ShardRegion.ClusterShardingStats): JsObject =
+      Json.obj(
+        "count" -> clusterShardingStats.regions.size,
+        "regions" -> Json.obj(clusterShardingStats.regions.toSeq.sortBy { case (address, _) => address }.map {
+          case (address, shardRegionStats) =>
+            address.toString ->
+              (Json.obj(shardRegionStats.stats.toSeq
+                .sortBy { case (shardId, _) => shardId }
+                .map {
+                  case (shardId, entityCount) =>
+                    shardId -> (entityCount: JsValueWrapper)
+                }: _*): JsValueWrapper)
+        }: _*)
+      )
     implicit val askTimeout = Timeout(5.seconds)
     for {
       activeClientsSummary <- (clientsMonitorActor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
       activeZonesSummary   <- (zonesMonitorActor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
       totalZonesCount      <- (zonesMonitorActor ? GetZoneCount).mapTo[ZoneCount]
+      shardRegionState <- (zoneValidatorShardRegion ? ShardRegion.GetShardRegionState)
+        .mapTo[ShardRegion.CurrentShardRegionState]
+      clusterShardingStats <- (zoneValidatorShardRegion ? ShardRegion.GetClusterShardingStats(askTimeout.duration))
+        .mapTo[ShardRegion.ClusterShardingStats]
     } yield
       Json.obj(
         "clients"         -> clientsStatus(activeClientsSummary),
         "totalZonesCount" -> totalZonesCount.count,
-        "activeZones"     -> activeZonesStatus(activeZonesSummary)
+        "activeZones"     -> activeZonesStatus(activeZonesSummary),
+        "shardRegions"    -> shardRegionStatus(shardRegionState),
+        "clusterSharding" -> clusterShardingStatus(clusterShardingStats)
       )
   }
 

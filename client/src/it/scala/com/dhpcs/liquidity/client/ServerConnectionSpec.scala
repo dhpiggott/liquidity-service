@@ -87,7 +87,8 @@ class ServerConnectionSpec
     keyStoreInputStreamProvider,
     connectivityStatePublisherBuilder,
     handlerWrapperFactory,
-    serverEndpoint = s"https://localhost:$akkaHttpPort/ws"
+    hostname = Some("localhost"),
+    port = Some(akkaHttpPort)
   )
 
   private[this] def send(command: Command): Future[Either[ErrorResponse, ResultResponse]] = {

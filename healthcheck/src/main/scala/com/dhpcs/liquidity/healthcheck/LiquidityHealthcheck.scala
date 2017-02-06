@@ -91,14 +91,14 @@ object LiquidityHealthcheck {
   )
 
   def main(args: Array[String]): Unit =
-    (new LiquidityHealthcheck).execute(
+    new LiquidityHealthcheck(hostname = args.headOption).execute(
       durations = true,
       stats = true
     )
 
 }
 
-class LiquidityHealthcheck
+class LiquidityHealthcheck(hostname: Option[String])
     extends fixture.WordSpec
     with Matchers
     with ScalaFutures
@@ -155,7 +155,8 @@ class LiquidityHealthcheck
     filesDirDirectory,
     keyStoreInputStreamProvider,
     connectivityStatePublisherBuilder,
-    handlerWrapperFactory
+    handlerWrapperFactory,
+    hostname
   )
 
   private[this] def send(command: Command): Future[Either[ErrorResponse, ResultResponse]] = {

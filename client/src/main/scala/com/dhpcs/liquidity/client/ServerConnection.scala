@@ -114,8 +114,6 @@ object ServerConnection {
   private case object ServerDisconnect extends CloseCause
   private case object ClientDisconnect extends CloseCause
 
-  private final val ServerEndpoint = "https://liquidity.dhpcs.com/ws"
-
   private var instance: ServerConnection = _
 
   def getInstance(prngFixesApplicator: PRNGFixesApplicator,
@@ -128,8 +126,7 @@ object ServerConnection {
       filesDir,
       keyStoreInputStreamProvider,
       connectivityStatePublisherBuilder,
-      handlerWrapperFactory,
-      serverEndpoint = ServerEndpoint
+      handlerWrapperFactory
     )
 
   def getInstance(prngFixesApplicator: PRNGFixesApplicator,
@@ -137,7 +134,8 @@ object ServerConnection {
                   keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
                   connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
                   handlerWrapperFactory: HandlerWrapperFactory,
-                  serverEndpoint: String): ServerConnection = {
+                  hostname: Option[String] = None,
+                  port: Option[Int] = None): ServerConnection = {
     if (instance == null) {
       prngFixesApplicator.apply()
       instance = new ServerConnection(
@@ -145,7 +143,8 @@ object ServerConnection {
         keyStoreInputStreamProvider,
         connectivityStatePublisherBuilder,
         handlerWrapperFactory,
-        serverEndpoint
+        hostname.getOrElse("liquidity.dhpcs.com"),
+        port.getOrElse(443)
       )
     }
     instance
@@ -178,7 +177,8 @@ class ServerConnection private(filesDir: File,
                                keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
                                connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
                                handlerWrapperFactory: HandlerWrapperFactory,
-                               serverEndpoint: String)
+                               hostname: String,
+                               port: Int)
   extends WebSocketListener {
 
   private[this] lazy val client = {
@@ -188,6 +188,9 @@ class ServerConnection private(filesDir: File,
         ClientKey.getKeyManagers(filesDir),
         Array(trustManager)
       ), trustManager)
+      .hostnameVerifier(new HostnameVerifier {
+        override def verify(host: String, session: SSLSession): Boolean = true
+      })
       .readTimeout(0, TimeUnit.SECONDS)
       .writeTimeout(0, TimeUnit.SECONDS)
       .build()
@@ -625,7 +628,7 @@ class ServerConnection private(filesDir: File,
     activeState.handlerWrapper.post {
       val webSocketCall = WebSocketCall.create(
         client,
-        new okhttp3.Request.Builder().url(serverEndpoint).build
+        new okhttp3.Request.Builder().url(s"https://$hostname:$port/ws").build
       )
       webSocketCall.enqueue(this)
       activeState.subState = ConnectingSubState(webSocketCall)

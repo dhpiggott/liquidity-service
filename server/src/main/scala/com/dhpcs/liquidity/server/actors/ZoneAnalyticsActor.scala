@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.analytics.actors
+package com.dhpcs.liquidity.server.actors
 
 import java.util.UUID
 
@@ -9,10 +9,10 @@ import akka.persistence.query.EventEnvelope
 import akka.persistence.query.scaladsl.{CurrentEventsByPersistenceIdQuery, EventsByPersistenceIdQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
-import com.dhpcs.liquidity.analytics.CassandraAnalyticsStore
-import com.dhpcs.liquidity.analytics.actors.ZoneAnalyticsActor.{Start, Started}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
+import com.dhpcs.liquidity.server.CassandraAnalyticsStore
+import com.dhpcs.liquidity.server.actors.ZoneAnalyticsActor.{Start, Started}
 
 import scala.concurrent.Future
 

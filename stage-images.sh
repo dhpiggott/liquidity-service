@@ -18,11 +18,10 @@ trap finish EXIT
 mkdir $DIR/image-stage
 
 (cd $DIR && sbt validate)
-(cd $DIR && sbt liquidityServer/docker:stage liquidityAnalytics/docker:stage)
+(cd $DIR && sbt liquidityServer/docker:stage)
 
 cp --recursive $DIR/akka-cluster $DIR/image-stage/akka-cluster
 cp --recursive $DIR/server/target/docker/stage $DIR/image-stage/server
-cp --recursive $DIR/analytics/target/docker/stage $DIR/image-stage/analytics
 cp $DIR/docker-compose.yml $DIR/image-stage/
 cp $DIR/load-data.sh $DIR/image-stage/
 cp $DIR/save-data.sh $DIR/image-stage/

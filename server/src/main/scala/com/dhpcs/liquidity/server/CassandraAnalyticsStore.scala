@@ -1,17 +1,17 @@
-package com.dhpcs.liquidity.analytics
+package com.dhpcs.liquidity.server
 
 import java.util.Date
 
 import akka.actor.ActorPath
 import com.datastax.driver.core.{PreparedStatement, ResultSet, Session}
-import com.dhpcs.liquidity.analytics.CassandraAnalyticsStore.ZoneStore.{AccountStore, MemberStore, TransactionStore}
-import com.dhpcs.liquidity.analytics.CassandraAnalyticsStore.{
+import com.dhpcs.liquidity.model.{Zone, _}
+import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore.{AccountStore, MemberStore, TransactionStore}
+import com.dhpcs.liquidity.server.CassandraAnalyticsStore.{
   BalanceStore,
   ClientStore,
   JournalSequenceNumberStore,
   ZoneStore
 }
-import com.dhpcs.liquidity.model.{Zone, _}
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
 import com.typesafe.config.Config
 import okio.ByteString

@@ -22,6 +22,22 @@ services:
         -Dcom.sun.management.jmxremote.ssl=false
     links:
       - cassandra
+  analytics-seed:
+    build: server
+    restart: always
+    extra_hosts:
+      - "analytics-seed:127.0.0.1"
+    environment:
+      AKKA_HOSTNAME: analytics-seed
+      JAVA_OPTS: >
+        -Dakka.cluster.roles.0=analytics
+        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host-seed:2552
+        -Dcom.sun.management.jmxremote.port=9999
+        -Dcom.sun.management.jmxremote.authenticate=false
+        -Dcom.sun.management.jmxremote.ssl=false
+    links:
+      - cassandra
+      - zone-host-seed
   client-relay-seed:
     build: server
     ports:
@@ -40,10 +56,5 @@ services:
     links:
       - cassandra
       - zone-host-seed
-  analytics:
-    build: analytics
-    restart: always
-    links:
-      - cassandra
 volumes:
   cassandra-data:

@@ -127,7 +127,9 @@ lazy val liquidityServer = project
   .settings(akkaPersistenceSettings)
   .settings(akkaClusterShardingSettings)
   .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-http" % "10.0.3",
+    "com.google.code.findbugs" % "jsr305"                % "3.0.1" % Compile,
+    "com.datastax.cassandra"   % "cassandra-driver-core" % "3.1.3",
+    "com.typesafe.akka"        %% "akka-http"            % "10.0.3",
     playJson
   ))
   .settings(libraryDependencies ++= Seq(
@@ -202,25 +204,6 @@ lazy val liquidityBoardgame = project
   )
   .dependsOn(liquidityClient)
 
-lazy val liquidityAnalytics = project
-  .in(file("analytics"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
-  .settings(
-    name := "liquidity-analytics"
-  )
-  .dependsOn(liquidityModel)
-  .dependsOn(liquidityPersistence)
-  .settings(akkaPersistenceSettings)
-  .settings(akkaClusterShardingSettings)
-  .settings(libraryDependencies ++= Seq(
-    "com.datastax.cassandra"   % "cassandra-driver-core" % "3.1.3",
-    "com.google.code.findbugs" % "jsr305"                % "3.0.1" % Compile
-  ))
-  .settings(unmanagedClasspath in Compile ++= (unmanagedResources in Compile).value)
-  .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .settings(dockerSettings)
-
 lazy val root = project
   .in(file("."))
   .settings(commonSettings)
@@ -236,6 +219,5 @@ lazy val root = project
     liquidityServer,
     liquidityClient,
     liquidityHealthcheck,
-    liquidityBoardgame,
-    liquidityAnalytics
+    liquidityBoardgame
   )

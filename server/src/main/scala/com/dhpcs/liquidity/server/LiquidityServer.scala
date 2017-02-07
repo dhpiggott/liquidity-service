@@ -6,9 +6,10 @@ import java.security.interfaces.RSAPublicKey
 import javax.net.ssl._
 
 import akka.NotUsed
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.cluster.Cluster
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
+import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
 import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.headers.`Tls-Session-Info`
@@ -32,12 +33,7 @@ import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{
   GetZoneCount,
   ZoneCount
 }
-import com.dhpcs.liquidity.server.actors.{
-  ClientConnectionActor,
-  ClientsMonitorActor,
-  ZoneValidatorActor,
-  ZonesMonitorActor
-}
+import com.dhpcs.liquidity.server.actors._
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
 import play.api.libs.json.Json.JsValueWrapper
@@ -45,12 +41,13 @@ import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 object LiquidityServer {
 
   private final val ZoneHostRole    = "zone-host"
   private final val ClientRelayRole = "client-relay"
+  private final val AnalyticsRole   = "analytics"
 
   private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore.p12"
   private final val EnabledCipherSuites = Seq(
@@ -70,10 +67,18 @@ object LiquidityServer {
   private final val RequiredClientKeyLength = 2048
 
   def main(args: Array[String]): Unit = {
-    val config          = ConfigFactory.load
-    implicit val system = ActorSystem("liquidity")
-    implicit val mat    = ActorMaterializer()
-    val readJournal     = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
+    val config               = ConfigFactory.load
+    implicit val system      = ActorSystem("liquidity")
+    implicit val mat         = ActorMaterializer()
+    val readJournal          = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
+    implicit val ec          = ExecutionContext.global
+    val futureAnalyticsStore = readJournal.session.underlying().flatMap(CassandraAnalyticsStore(config)(_, ec))
+    val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
+      Console.err.println("Exiting due to stream failure")
+      t.printStackTrace(Console.err)
+      sys.exit(1)
+    }
+
     val zoneValidatorShardRegion =
       if (Cluster(system).selfRoles.contains(ZoneHostRole))
         ClusterSharding(system).start(
@@ -90,6 +95,25 @@ object LiquidityServer {
           extractEntityId = ZoneValidatorActor.extractEntityId,
           extractShardId = ZoneValidatorActor.extractShardId
         )
+
+    if (Cluster(system).selfRoles.contains(AnalyticsRole)) {
+      val zoneAnalyticsShardRegion = ClusterSharding(system).start(
+        typeName = ZoneAnalyticsActor.ShardTypeName,
+        entityProps = ZoneAnalyticsActor.props(readJournal, futureAnalyticsStore, streamFailureHandler),
+        settings = ClusterShardingSettings(system).withRole(AnalyticsRole),
+        extractEntityId = ZoneAnalyticsActor.extractEntityId,
+        extractShardId = ZoneAnalyticsActor.extractShardId
+      )
+      system.actorOf(
+        ClusterSingletonManager.props(
+          singletonProps = ZoneAnalyticsStarterActor.props(readJournal, zoneAnalyticsShardRegion, streamFailureHandler),
+          terminationMessage = PoisonPill,
+          settings =
+            ClusterSingletonManagerSettings(system).withSingletonName("zone-analytics-starter").withRole(AnalyticsRole)
+        ),
+        name = "zone-analytics-starter-singleton"
+      )
+    }
 
     val keyStore = KeyStore.getInstance("PKCS12")
     keyStore.load(

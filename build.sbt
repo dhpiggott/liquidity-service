@@ -34,7 +34,7 @@ lazy val noopPublishSettings = Seq(
 
 lazy val akkaPersistenceSettings = libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-slf4j"                          % "2.4.16",
-    "ch.qos.logback"    % "logback-classic"                      % "1.1.10",
+    "ch.qos.logback"    % "logback-classic"                      % "1.2.1",
     "com.typesafe.akka" %% "akka-persistence"                    % "2.4.16",
     "com.typesafe.akka" %% "akka-cluster-tools"                  % "2.4.16",
     "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.16",

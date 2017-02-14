@@ -128,7 +128,7 @@ lazy val liquidityServer = project
   .settings(akkaClusterShardingSettings)
   .settings(libraryDependencies ++= Seq(
     "com.google.code.findbugs" % "jsr305"                % "3.0.1" % Compile,
-    "com.datastax.cassandra"   % "cassandra-driver-core" % "3.1.3",
+    "com.datastax.cassandra"   % "cassandra-driver-core" % "3.1.4",
     "com.typesafe.akka"        %% "akka-http"            % "10.0.3",
     playJson
   ))

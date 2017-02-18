@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 

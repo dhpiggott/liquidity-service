@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import java.security.KeyFactory
 import java.security.interfaces.RSAPublicKey
@@ -12,9 +12,10 @@ import akka.cluster.sharding.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
-import com.dhpcs.liquidity.server.actors.ZoneValidatorActor._
+import com.dhpcs.liquidity.server.actor.ZoneValidatorActor._
 import com.dhpcs.liquidity.ws.protocol._
 import play.api.libs.json.{JsObject, Json}
 
@@ -45,38 +46,6 @@ object ZoneValidatorActor {
   final val Topic = "Zone"
 
   private final val RequiredOwnerKeyLength = 2048
-
-  case class EnvelopedAuthenticatedCommandWithIds(zoneId: ZoneId,
-                                                  authenticatedCommandWithIds: AuthenticatedCommandWithIds)
-
-  case class AuthenticatedCommandWithIds(publicKey: PublicKey,
-                                         command: Command,
-                                         correlationId: Option[Either[String, BigDecimal]],
-                                         sequenceNumber: Long,
-                                         deliveryId: Long)
-
-  case class CommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long)
-
-  case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
-                               correlationId: Option[Either[String, BigDecimal]],
-                               sequenceNumber: Long,
-                               deliveryId: Long)
-
-  case class ZoneRestarted(zoneId: ZoneId)
-
-  case class ResponseWithIds(response: Either[ErrorResponse, ResultResponse],
-                             correlationId: Option[Either[String, BigDecimal]],
-                             sequenceNumber: Long,
-                             deliveryId: Long)
-
-  case class NotificationWithIds(notification: Notification, sequenceNumber: Long, deliveryId: Long)
-
-  case class ActiveZoneSummary(zoneId: ZoneId,
-                               metadata: Option[JsObject],
-                               members: Set[Member],
-                               accounts: Set[Account],
-                               transactions: Set[Transaction],
-                               clientConnections: Set[PublicKey])
 
   private val ZoneLifetime = 2.days
 
@@ -446,7 +415,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   }
 
   private[this] def messageReceivedConfirmation: Receive = {
-    case ClientConnectionActor.MessageReceivedConfirmation(deliveryId) =>
+    case MessageReceivedConfirmation(deliveryId) =>
       confirmDelivery(deliveryId)
       pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) - deliveryId))
       if (pendingDeliveries(sender().path).isEmpty) {

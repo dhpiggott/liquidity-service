@@ -1,11 +1,11 @@
 package com.dhpcs.liquidity.ws.protocol
 
-import com.dhpcs.jsonrpc.Message.MessageFormats
-import com.dhpcs.jsonrpc.{CommandCompanion, NotificationCompanion, ResponseCompanion, Message => WsMessage}
+import com.dhpcs.jsonrpc.Message.{MessageFormats, objectFormat}
+import com.dhpcs.jsonrpc.{CommandCompanion, NotificationCompanion, ResponseCompanion}
 import com.dhpcs.liquidity.model._
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads.min
-import play.api.libs.json.{Format, JsObject, JsPath, Json}
+import play.api.libs.json._
 
 sealed trait Message
 
@@ -91,6 +91,32 @@ object Command extends CommandCompanion[Command] {
     "addTransaction" -> addTransactionCommandFormat
   )
 
+  implicit final val CommandFormat: Format[Command] = Format[Command](
+    Reads(json => {
+      val (methodReads, _) = CommandFormats
+      for {
+        jsObject <- json.validate[JsObject]
+        method   <- (jsObject \ "method").validate[String]
+        value    <- (jsObject \ "value").validate[JsValue]
+        result <- methodReads.get(method) match {
+          case None        => JsError(s"unknown method $method")
+          case Some(reads) => reads.reads(value)
+        }
+      } yield result
+    }),
+    Writes(command => {
+      val (_, classWrites) = CommandFormats
+      classWrites.get(command.getClass) match {
+        case None => sys.error(s"No format found for ${command.getClass}")
+        case Some((method, writes)) =>
+          Json.obj(
+            "method" -> method,
+            "value"  -> writes.asInstanceOf[OFormat[Command]].writes(command)
+          )
+      }
+    })
+  )
+
 }
 
 sealed trait Response                                                     extends Message
@@ -109,14 +135,41 @@ object Response extends ResponseCompanion[ResultResponse] {
   override final val ResponseFormats = MessageFormats(
     "createZone"     -> Json.format[CreateZoneResponse],
     "joinZone"       -> Json.format[JoinZoneResponse],
-    "quitZone"       -> WsMessage.objectFormat(QuitZoneResponse),
-    "changeZoneName" -> WsMessage.objectFormat(ChangeZoneNameResponse),
+    "quitZone"       -> objectFormat(QuitZoneResponse),
+    "changeZoneName" -> objectFormat(ChangeZoneNameResponse),
     "createMember"   -> Json.format[CreateMemberResponse],
-    "updateMember"   -> WsMessage.objectFormat(UpdateMemberResponse),
+    "updateMember"   -> objectFormat(UpdateMemberResponse),
     "createAccount"  -> Json.format[CreateAccountResponse],
-    "updateAccount"  -> WsMessage.objectFormat(UpdateAccountResponse),
+    "updateAccount"  -> objectFormat(UpdateAccountResponse),
     "addTransaction" -> Json.format[AddTransactionResponse]
   )
+
+  implicit final val ResultResponseFormat: Format[ResultResponse] = Format[ResultResponse](
+    Reads(json => {
+      val (methodReads, _) = ResponseFormats
+      for {
+        jsObject <- json.validate[JsObject]
+        method   <- (jsObject \ "method").validate[String]
+        value    <- (jsObject \ "value").validate[JsValue]
+        result <- methodReads.get(method) match {
+          case None        => JsError(s"unknown method $method")
+          case Some(reads) => reads.reads(value)
+        }
+      } yield result
+    }),
+    Writes(resultResponse => {
+      val (_, classWrites) = ResponseFormats
+      classWrites.get(resultResponse.getClass) match {
+        case None => sys.error(s"No format found for ${resultResponse.getClass}")
+        case Some((method, writes)) =>
+          Json.obj(
+            "method" -> method,
+            "value"  -> writes.asInstanceOf[Format[ResultResponse]].writes(resultResponse)
+          )
+      }
+    })
+  )
+
 }
 
 sealed trait Notification extends Message
@@ -138,7 +191,7 @@ case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction
 object Notification extends NotificationCompanion[Notification] {
   override final val NotificationFormats = MessageFormats(
     "supportedVersions" -> Json.format[SupportedVersionsNotification],
-    "keepAlive"         -> WsMessage.objectFormat(KeepAliveNotification),
+    "keepAlive"         -> objectFormat(KeepAliveNotification),
     "clientJoinedZone"  -> Json.format[ClientJoinedZoneNotification],
     "clientQuitZone"    -> Json.format[ClientQuitZoneNotification],
     "zoneTerminated"    -> Json.format[ZoneTerminatedNotification],
@@ -149,4 +202,31 @@ object Notification extends NotificationCompanion[Notification] {
     "accountUpdated"    -> Json.format[AccountUpdatedNotification],
     "transactionAdded"  -> Json.format[TransactionAddedNotification]
   )
+
+  implicit final val NotificationFormat: Format[Notification] = Format[Notification](
+    Reads(json => {
+      val (methodReads, _) = NotificationFormats
+      for {
+        jsObject <- json.validate[JsObject]
+        method   <- (jsObject \ "method").validate[String]
+        value    <- (jsObject \ "value").validate[JsValue]
+        result <- methodReads.get(method) match {
+          case None        => JsError(s"unknown method $method")
+          case Some(reads) => reads.reads(value)
+        }
+      } yield result
+    }),
+    Writes(notification => {
+      val (_, classWrites) = NotificationFormats
+      classWrites.get(notification.getClass) match {
+        case None => sys.error(s"No format found for ${notification.getClass}")
+        case Some((method, writes)) =>
+          Json.obj(
+            "method" -> method,
+            "value"  -> writes.asInstanceOf[Writes[Notification]].writes(notification)
+          )
+      }
+    })
+  )
+
 }

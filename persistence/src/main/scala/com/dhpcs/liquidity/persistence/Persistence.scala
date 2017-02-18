@@ -4,7 +4,7 @@ import akka.actor.ActorPath
 import com.dhpcs.liquidity.model._
 import play.api.libs.json.{Format, Json}
 
-sealed trait Event {
+sealed trait Event extends Serializable {
   def timestamp: Long
 }
 

@@ -19,8 +19,8 @@ import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model.{Member, MemberId}
-import com.dhpcs.liquidity.server.actors.ZoneValidatorActor
 import com.dhpcs.liquidity.server._
+import com.dhpcs.liquidity.server.actor.ZoneValidatorActor
 import com.dhpcs.liquidity.ws.protocol.{Command, CreateZoneCommand, CreateZoneResponse, ResultResponse}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.cassandra.io.util.FileUtils
@@ -52,11 +52,20 @@ class ServerConnectionSpec
            |  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
            |  actor {
            |    provider = "akka.cluster.ClusterActorRefProvider"
-           |    serializers.event = "com.dhpcs.liquidity.persistence.PlayJsonEventSerializer"
-           |    serialization-bindings {
-           |      "java.io.Serializable" = none
-           |      "com.dhpcs.liquidity.persistence.Event" = event
+           |    serializers {
+           |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
+           |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
+           |      persistence-event = "com.dhpcs.liquidity.persistence.EventSerializer"
            |    }
+           |    serialization-bindings {
+           |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
+           |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
+           |      "com.dhpcs.liquidity.persistence.Event" = persistence-event
+           |    }
+           |    enable-additional-serialization-bindings = on
+           |    allow-java-serialization = on
+           |    serialize-messages = on
+           |    serialize-creators = off
            |  }
            |  remote.netty.tcp {
            |    hostname = "localhost"

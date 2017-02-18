@@ -22,7 +22,7 @@ import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import com.dhpcs.jsonrpc.{JsonRpcMessage, _}
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.actors.ZoneValidatorActor
+import com.dhpcs.liquidity.server.actor.ZoneValidatorActor
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import okio.ByteString
@@ -47,10 +47,20 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
           |akka {
           |  actor {
           |    provider = "akka.cluster.ClusterActorRefProvider"
-          |    serializers.event = "com.dhpcs.liquidity.persistence.PlayJsonEventSerializer"
-          |    serialization-bindings {
-          |      "com.dhpcs.liquidity.persistence.Event" = event
+          |    serializers {
+          |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
+          |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
+          |      persistence-event = "com.dhpcs.liquidity.persistence.EventSerializer"
           |    }
+          |    serialization-bindings {
+          |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
+          |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
+          |      "com.dhpcs.liquidity.persistence.Event" = persistence-event
+          |    }
+          |    enable-additional-serialization-bindings = on
+          |    allow-java-serialization = on
+          |    serialize-messages = on
+          |    serialize-creators = off
           |  }
           |  cluster {
           |    metrics.enabled = off
@@ -234,7 +244,7 @@ sealed abstract class LiquidityServerSpec
               name = Some("Dave's Game")
             )
           )
-          inside(expectResultResponse(sub, "createZone")) {
+          inside(expectResponse(sub, "createZone")) {
             case CreateZoneResponse(zone) =>
               zone.equityAccountId shouldBe AccountId(0)
               zone.members(MemberId(0)) shouldBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
@@ -259,7 +269,7 @@ sealed abstract class LiquidityServerSpec
               name = Some("Dave's Game")
             )
           )
-          val zone = inside(expectResultResponse(sub, "createZone")) {
+          val zone = inside(expectResponse(sub, "createZone")) {
             case createZoneResponse: CreateZoneResponse =>
               val zone = createZoneResponse.zone
               zone.equityAccountId shouldBe AccountId(0)
@@ -275,7 +285,7 @@ sealed abstract class LiquidityServerSpec
           send(pub)(
             JoinZoneCommand(zone.id)
           )
-          inside(expectResultResponse(sub, "joinZone")) {
+          inside(expectResponse(sub, "joinZone")) {
             case joinZoneResponse: JoinZoneResponse =>
               joinZoneResponse.zone shouldBe zone
               joinZoneResponse.connectedClients shouldBe Set(clientPublicKey)
@@ -344,8 +354,7 @@ sealed abstract class LiquidityServerSpec
     }
   }
 
-  private[this] def expectResultResponse[A](sub: TestSubscriber.Probe[JsonRpcMessage],
-                                            method: String): ResultResponse = {
+  private[this] def expectResponse(sub: TestSubscriber.Probe[JsonRpcMessage], method: String): ResultResponse = {
     sub.request(1)
     sub.expectNextPF {
       case jsonRpcResponseMessage: JsonRpcResponseMessage =>

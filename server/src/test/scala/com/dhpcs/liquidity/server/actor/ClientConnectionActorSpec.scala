@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import java.net.InetAddress
 import java.security.KeyPairGenerator
@@ -7,13 +7,13 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
-import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
-import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
+import com.dhpcs.liquidity.actor.protocol.{
   AuthenticatedCommandWithIds,
   EnvelopedAuthenticatedCommandWithIds,
   ResponseWithIds
 }
+import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._

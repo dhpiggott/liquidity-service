@@ -1,8 +1,8 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import akka.testkit.TestProbe
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
-import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{GetZoneCount, ZoneCount}
+import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.{GetZoneCount, ZoneCount}
 import org.scalatest.WordSpec
 
 import scala.concurrent.Future

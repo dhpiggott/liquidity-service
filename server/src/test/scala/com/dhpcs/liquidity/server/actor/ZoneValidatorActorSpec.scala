@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import java.security.KeyPairGenerator
 
@@ -6,15 +6,9 @@ import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
-import com.dhpcs.liquidity.server.actors.ClientConnectionActor.MessageReceivedConfirmation
-import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
-  AuthenticatedCommandWithIds,
-  CommandReceivedConfirmation,
-  EnvelopedAuthenticatedCommandWithIds,
-  ResponseWithIds
-}
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, Matchers, WordSpec}

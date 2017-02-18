@@ -1,8 +1,8 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import akka.testkit.TestProbe
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
-import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
+import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
 import org.scalatest.WordSpec
 
 class ClientsMonitorActorSpec extends WordSpec with InMemPersistenceTestFixtures {

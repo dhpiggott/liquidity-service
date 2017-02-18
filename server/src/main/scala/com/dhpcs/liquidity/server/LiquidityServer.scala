@@ -24,16 +24,17 @@ import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.scaladsl.Flow
 import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
 import akka.util.Timeout
+import com.dhpcs.liquidity.actor.protocol.{ActiveClientSummary, ActiveZoneSummary}
 import com.dhpcs.liquidity.model.PublicKey
 import com.dhpcs.liquidity.server.LiquidityServer._
-import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
-import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{
+import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
+import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.{
   ActiveZonesSummary,
   GetActiveZonesSummary,
   GetZoneCount,
   ZoneCount
 }
-import com.dhpcs.liquidity.server.actors._
+import com.dhpcs.liquidity.server.actor._
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
 import play.api.libs.json.Json.JsValueWrapper
@@ -211,14 +212,14 @@ class LiquidityServer(config: Config,
       Json.obj(
         "count" -> activeClientsSummary.activeClientSummaries.size,
         "publicKeyFingerprints" -> activeClientsSummary.activeClientSummaries.map {
-          case ClientConnectionActor.ActiveClientSummary(publicKey) => publicKey.fingerprint
+          case ActiveClientSummary(publicKey) => publicKey.fingerprint
         }.sorted
       )
     def activeZonesStatus(activeZonesSummary: ActiveZonesSummary): JsObject =
       Json.obj(
         "count" -> activeZonesSummary.activeZoneSummaries.size,
         "zones" -> activeZonesSummary.activeZoneSummaries.toSeq.sortBy(_.zoneId.id).map {
-          case ZoneValidatorActor.ActiveZoneSummary(
+          case ActiveZoneSummary(
               zoneId,
               metadata,
               members,

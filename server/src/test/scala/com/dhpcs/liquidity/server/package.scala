@@ -2,8 +2,8 @@ package com.dhpcs.liquidity
 
 import java.net.InetSocketAddress
 import java.nio.channels.ServerSocketChannel
-import java.security.{KeyStore, PrivateKey}
 import java.security.cert.Certificate
+import java.security.{KeyStore, PrivateKey}
 import javax.net.ssl.{KeyManager, KeyManagerFactory}
 
 package object server {

@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 
@@ -12,7 +12,7 @@ import akka.stream.{KillSwitches, Materializer}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore
-import com.dhpcs.liquidity.server.actors.ZoneAnalyticsActor.{Start, Started}
+import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.{Start, Started}
 
 import scala.concurrent.Future
 

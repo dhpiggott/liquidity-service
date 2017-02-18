@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 
@@ -25,9 +25,10 @@ import akka.stream.{Materializer, OverflowStrategy}
 import akka.util.ByteString
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.persistence.RichPublicKey
-import com.dhpcs.liquidity.server.actors.ClientConnectionActor._
+import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol._
 import play.api.libs.json.Json
 
@@ -69,10 +70,6 @@ object ClientConnectionActor {
 
   final val Topic = "Client"
 
-  case class MessageReceivedConfirmation(deliveryId: Long)
-
-  case class ActiveClientSummary(publicKey: PublicKey)
-
   case object ActorSinkInit
 
   case object ActorSinkAck
@@ -93,7 +90,7 @@ object ClientConnectionActor {
 
   private class KeepAliveGeneratorActor(keepAliveInterval: FiniteDuration) extends Actor {
 
-    import com.dhpcs.liquidity.server.actors.ClientConnectionActor.KeepAliveGeneratorActor._
+    import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
 
     context.setReceiveTimeout(keepAliveInterval)
 
@@ -198,7 +195,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     with ActorLogging
     with AtLeastOnceDelivery {
 
-  import com.dhpcs.liquidity.server.actors.ClientConnectionActor.KeepAliveGeneratorActor._
+  import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
   import context.dispatcher
 
   private[this] val mediator                = DistributedPubSub(context.system).mediator
@@ -255,7 +252,7 @@ class ClientConnectionActor(ip: RemoteAddress,
                 commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
                 deliver(zoneValidatorShardRegion.path) { deliveryId =>
                   pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-                  ZoneValidatorActor.AuthenticatedCommandWithIds(
+                  AuthenticatedCommandWithIds(
                     publicKey,
                     zoneCommand,
                     correlationId,
@@ -265,19 +262,19 @@ class ClientConnectionActor(ip: RemoteAddress,
                 }
             }
         }
-      case ZoneValidatorActor.ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
+      case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           createZone(createZoneCommand, correlationId)
         )
-      case ZoneValidatorActor.ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
+      case ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           send(response, correlationId)
         )
-      case ZoneValidatorActor.NotificationWithIds(notification, sequenceNumber, deliveryId) =>
+      case NotificationWithIds(notification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           send(notification)
         )
-      case ZoneValidatorActor.ZoneRestarted(zoneId) =>
+      case ZoneRestarted(zoneId) =>
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
           ZoneId(UUID.fromString(validator.path.name)) != zoneId)
         commandSequenceNumbers = commandSequenceNumbers - zoneId
@@ -297,7 +294,7 @@ class ClientConnectionActor(ip: RemoteAddress,
   }
 
   private[this] def commandReceivedConfirmation: Receive = {
-    case ZoneValidatorActor.CommandReceivedConfirmation(zoneId, deliveryId) =>
+    case CommandReceivedConfirmation(zoneId, deliveryId) =>
       confirmDelivery(deliveryId)
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) - deliveryId))
       if (pendingDeliveries(zoneId).isEmpty) {
@@ -328,9 +325,9 @@ class ClientConnectionActor(ip: RemoteAddress,
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      ZoneValidatorActor.EnvelopedAuthenticatedCommandWithIds(
+      EnvelopedAuthenticatedCommandWithIds(
         zoneId,
-        ZoneValidatorActor.AuthenticatedCommandWithIds(
+        AuthenticatedCommandWithIds(
           publicKey,
           createZoneCommand,
           correlationId,

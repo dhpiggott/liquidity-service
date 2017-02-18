@@ -19,9 +19,9 @@ import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol._
 import okio.ByteString
+import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
-import org.scalatest._
 import org.spongycastle.jce.provider.BouncyCastleProvider
 import play.api.libs.json.Json
 

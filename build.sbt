@@ -71,6 +71,19 @@ lazy val liquidityModel = project
       "com.dhpcs" %% "play-json-rpc-testkit" % "1.4.1" % Test
     ))
 
+lazy val liquiditySerialization = project
+  .in(file("serialization"))
+  .settings(commonSettings)
+  .settings(publishSettings)
+  .settings(
+    name := "liquidity-serialization"
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-actor" % "2.4.17",
+      playJson
+    ))
+
 lazy val liquidityPersistence = project
   .in(file("persistence"))
   .settings(commonSettings)
@@ -82,6 +95,7 @@ lazy val liquidityPersistence = project
     "com.typesafe.akka" %% "akka-actor" % "2.4.17"
   ))
   .dependsOn(liquidityModel)
+  .dependsOn(liquiditySerialization)
 
 lazy val liquidityWsProtocol = project
   .in(file("ws-protocol"))
@@ -99,6 +113,17 @@ lazy val liquidityWsProtocol = project
       scalaTest   % Test,
       "com.dhpcs" %% "play-json-rpc-testkit" % "1.4.1" % Test
     ))
+
+lazy val liquidityActorProtocol = project
+  .in(file("actor-protocol"))
+  .settings(commonSettings)
+  .settings(publishSettings)
+  .settings(
+    name := "liquidity-actor-protocol"
+  )
+  .dependsOn(liquidityModel)
+  .dependsOn(liquidityWsProtocol)
+  .dependsOn(liquiditySerialization)
 
 lazy val liquidityCertgen = project
   .in(file("certgen"))
@@ -124,6 +149,7 @@ lazy val liquidityServer = project
   .dependsOn(liquidityModel)
   .dependsOn(liquidityPersistence)
   .dependsOn(liquidityWsProtocol)
+  .dependsOn(liquidityActorProtocol)
   .settings(akkaPersistenceSettings)
   .settings(akkaClusterShardingSettings)
   .settings(libraryDependencies ++= Seq(
@@ -141,8 +167,8 @@ lazy val liquidityServer = project
   .settings(SbtMultiJvm.multiJvmSettings)
   .dependsOn(liquidityCertgen % "multi-jvm")
   .settings(libraryDependencies ++= Seq(
-    scalaTest           % MultiJvm,
-    "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.4.17" % MultiJvm,
+    scalaTest              % MultiJvm,
+    "com.typesafe.akka"    %% "akka-multi-node-testkit" % "2.4.17" % MultiJvm,
     "org.apache.cassandra" % "cassandra-all" % "3.7" % MultiJvm exclude ("io.netty", "netty-all")
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
@@ -170,7 +196,7 @@ lazy val liquidityClient = project
   ))
   .dependsOn(liquidityCertgen % "test")
   .settings(libraryDependencies ++= Seq(
-    scalaTest % Test,
+    scalaTest              % Test,
     "org.apache.cassandra" % "cassandra-all" % "3.7" % IntegrationTest exclude ("io.netty", "netty-all")
   ))
   .configs(IntegrationTest)
@@ -214,8 +240,10 @@ lazy val root = project
   )
   .aggregate(
     liquidityModel,
+    liquiditySerialization,
     liquidityPersistence,
     liquidityWsProtocol,
+    liquidityActorProtocol,
     liquidityCertgen,
     liquidityServer,
     liquidityClient,

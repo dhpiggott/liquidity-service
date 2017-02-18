@@ -1,9 +1,10 @@
-package com.dhpcs.liquidity.server.actors
+package com.dhpcs.liquidity.server.actor
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
-import com.dhpcs.liquidity.server.actors.ClientsMonitorActor.{
+import com.dhpcs.liquidity.actor.protocol.ActiveClientSummary
+import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{
   ActiveClientsSummary,
   GetActiveClientsSummary,
   PublishStatus
@@ -15,7 +16,7 @@ object ClientsMonitorActor {
 
   def props: Props = Props(new ClientsMonitorActor)
 
-  case class ActiveClientsSummary(activeClientSummaries: Seq[ClientConnectionActor.ActiveClientSummary])
+  case class ActiveClientsSummary(activeClientSummaries: Seq[ActiveClientSummary])
 
   case object GetActiveClientsSummary
 
@@ -32,7 +33,7 @@ class ClientsMonitorActor extends Actor with ActorLogging {
 
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 
-  private[this] var activeClientSummaries = Map.empty[ActorRef, ClientConnectionActor.ActiveClientSummary]
+  private[this] var activeClientSummaries = Map.empty[ActorRef, ActiveClientSummary]
 
   override def postStop(): Unit = {
     publishStatusTick.cancel()
@@ -42,7 +43,7 @@ class ClientsMonitorActor extends Actor with ActorLogging {
   override def receive: Receive = {
     case PublishStatus =>
       log.info(s"${activeClientSummaries.size} clients are active")
-    case activeClientSummary: ClientConnectionActor.ActiveClientSummary =>
+    case activeClientSummary: ActiveClientSummary =>
       if (!activeClientSummaries.contains(sender())) {
         context.watch(sender())
       }

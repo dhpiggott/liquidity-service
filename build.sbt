@@ -49,7 +49,7 @@ lazy val akkaClusterShardingSettings = libraryDependencies ++= Seq(
 
 lazy val dockerSettings = dockerBaseImage := "openjdk:8-jre"
 
-lazy val playJson = "com.typesafe.play" %% "play-json" % "2.3.10"
+lazy val playJson = "com.typesafe.play" %% "play-json" % "2.5.12"
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.1"
 
@@ -68,7 +68,7 @@ lazy val liquidityModel = project
   .settings(
     libraryDependencies ++= Seq(
       scalaTest   % Test,
-      "com.dhpcs" %% "play-json-rpc-testkit" % "1.3.0" % Test
+      "com.dhpcs" %% "play-json-rpc-testkit" % "1.4.0" % Test
     ))
 
 lazy val liquidityPersistence = project
@@ -91,13 +91,13 @@ lazy val liquidityProtocol = project
     name := "liquidity-protocol"
   )
   .settings(libraryDependencies ++= Seq(
-    "com.dhpcs" %% "play-json-rpc" % "1.3.0"
+    "com.dhpcs" %% "play-json-rpc" % "1.4.0"
   ))
   .dependsOn(liquidityModel)
   .settings(
     libraryDependencies ++= Seq(
       scalaTest   % Test,
-      "com.dhpcs" %% "play-json-rpc-testkit" % "1.3.0" % Test
+      "com.dhpcs" %% "play-json-rpc-testkit" % "1.4.0" % Test
     ))
 
 lazy val liquidityCertgen = project

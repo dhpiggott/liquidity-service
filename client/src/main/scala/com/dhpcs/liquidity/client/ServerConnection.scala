@@ -471,8 +471,8 @@ class ServerConnection private(filesDir: File,
                       sys.error("Waiting for version check")
                     case _: OnlineSubState =>
                       jsonRpcResponseMessage.id.fold(
-                        ifEmpty = sys.error(s"JSON-RPC message ID missing, jsonRpcResponseMessage.eitherErrorOrResult" +
-                          s"=${jsonRpcResponseMessage.eitherErrorOrResult}")
+                        ifEmpty = sys.error(s"JSON-RPC message ID missing, jsonRpcResponseMessage.errorOrResult" +
+                          s"=${jsonRpcResponseMessage.errorOrResult}")
                       )(id =>
                         id.right.toOption.fold(
                           ifEmpty = sys.error(s"JSON-RPC message ID was not a number, id=$id")

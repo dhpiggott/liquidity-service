@@ -204,9 +204,10 @@ class ProtocolSpec extends FunSpec with Matchers {
       it should behave like notificationReadError(
         JsonRpcNotificationMessage(
           "invalidMethod",
-          Right(
-            Json.obj()
-          )
+          Some(
+            Right(
+              Json.obj()
+            ))
         ),
         None
       )
@@ -216,9 +217,10 @@ class ProtocolSpec extends FunSpec with Matchers {
         it should behave like notificationReadError(
           JsonRpcNotificationMessage(
             "clientJoinedZone",
-            Left(
-              Json.arr()
-            )
+            Some(
+              Left(
+                Json.arr()
+              ))
           ),
           Some(
             JsError(List((__, List(ValidationError("notification parameters must be named")))))
@@ -229,9 +231,10 @@ class ProtocolSpec extends FunSpec with Matchers {
         it should behave like notificationReadError(
           JsonRpcNotificationMessage(
             "clientJoinedZone",
-            Right(
-              Json.obj()
-            )
+            Some(
+              Right(
+                Json.obj()
+              ))
           ),
           Some(
             JsError(
@@ -249,12 +252,13 @@ class ProtocolSpec extends FunSpec with Matchers {
       )
       implicit val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
         "clientJoinedZone",
-        Right(
-          Json.obj(
-            "zoneId"    -> "a52e984e-f0aa-4481-802b-74622cb3f6f6",
-            "publicKey" -> ByteString.of(publicKeyBytes: _*).base64
-          )
-        )
+        Some(
+          Right(
+            Json.obj(
+              "zoneId"    -> "a52e984e-f0aa-4481-802b-74622cb3f6f6",
+              "publicKey" -> ByteString.of(publicKeyBytes: _*).base64
+            )
+          ))
       )
       it should behave like notificationRead
       it should behave like notificationWrite

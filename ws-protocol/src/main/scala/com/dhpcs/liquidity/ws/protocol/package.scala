@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity
+package com.dhpcs.liquidity.ws
 
 package object protocol {
 

@@ -14,8 +14,8 @@ import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
-import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor._
+import com.dhpcs.liquidity.ws.protocol._
 import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.duration._

@@ -13,8 +13,8 @@ import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model.{Member, MemberId}
-import com.dhpcs.liquidity.protocol.{Command, CreateZoneCommand, CreateZoneResponse, ResultResponse}
 import com.dhpcs.liquidity.server.{CassandraPersistenceIntegrationTestFixtures, LiquidityServer}
+import com.dhpcs.liquidity.ws.protocol.{Command, CreateZoneCommand, CreateZoneResponse, ResultResponse}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
 import org.scalatest._

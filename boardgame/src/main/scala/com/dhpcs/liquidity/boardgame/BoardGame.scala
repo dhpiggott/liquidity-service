@@ -7,7 +7,7 @@ import com.dhpcs.liquidity.boardgame.BoardGame._
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.protocol._
+import com.dhpcs.liquidity.ws.protocol._
 import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.ExecutionContext.Implicits.global

@@ -8,7 +8,7 @@ import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model.PublicKey
-import com.dhpcs.liquidity.protocol._
+import com.dhpcs.liquidity.ws.protocol._
 import okhttp3.ws.{WebSocket, WebSocketCall, WebSocketListener}
 import okhttp3.{OkHttpClient, RequestBody, ResponseBody}
 import okio.Buffer

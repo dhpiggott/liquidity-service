@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.protocol
+package com.dhpcs.liquidity.ws.protocol
 
 import java.security.KeyPairGenerator
 import java.util.UUID
@@ -13,7 +13,7 @@ import org.scalatest.{FunSpec, Matchers}
 import play.api.data.validation.ValidationError
 import play.api.libs.json.{JsError, JsSuccess, Json, __}
 
-class ProtocolSpec extends FunSpec with Matchers {
+class WsProtocolSpec extends FunSpec with Matchers {
 
   describe("A Command") {
     describe("with an invalid method")(

@@ -11,7 +11,7 @@ import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.protocol._
+import com.dhpcs.liquidity.ws.protocol._
 import okio.ByteString
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._

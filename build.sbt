@@ -83,12 +83,12 @@ lazy val liquidityPersistence = project
   ))
   .dependsOn(liquidityModel)
 
-lazy val liquidityProtocol = project
-  .in(file("protocol"))
+lazy val liquidityWsProtocol = project
+  .in(file("ws-protocol"))
   .settings(commonSettings)
   .settings(publishSettings)
   .settings(
-    name := "liquidity-protocol"
+    name := "liquidity-ws-protocol"
   )
   .settings(libraryDependencies ++= Seq(
     "com.dhpcs" %% "play-json-rpc" % "1.4.0"
@@ -123,7 +123,7 @@ lazy val liquidityServer = project
   )
   .dependsOn(liquidityModel)
   .dependsOn(liquidityPersistence)
-  .dependsOn(liquidityProtocol)
+  .dependsOn(liquidityWsProtocol)
   .settings(akkaPersistenceSettings)
   .settings(akkaClusterShardingSettings)
   .settings(libraryDependencies ++= Seq(
@@ -163,7 +163,7 @@ lazy val liquidityClient = project
     name := "liquidity-client"
   )
   .dependsOn(liquidityModel)
-  .dependsOn(liquidityProtocol)
+  .dependsOn(liquidityWsProtocol)
   .settings(libraryDependencies ++= Seq(
     "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
     "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
@@ -214,7 +214,7 @@ lazy val root = project
   .aggregate(
     liquidityModel,
     liquidityPersistence,
-    liquidityProtocol,
+    liquidityWsProtocol,
     liquidityCertgen,
     liquidityServer,
     liquidityClient,

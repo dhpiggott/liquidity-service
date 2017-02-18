@@ -17,7 +17,7 @@ import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.protocol._
+import com.dhpcs.liquidity.ws.protocol._
 import okio.ByteString
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}

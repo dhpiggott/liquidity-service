@@ -8,12 +8,12 @@ import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
   AuthenticatedCommandWithIds,
   EnvelopedAuthenticatedCommandWithIds,
   ResponseWithIds
 }
+import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest.{Inside, Matchers, Outcome, fixture}

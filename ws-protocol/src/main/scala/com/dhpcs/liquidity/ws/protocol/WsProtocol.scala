@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.protocol
+package com.dhpcs.liquidity.ws.protocol
 
 import com.dhpcs.jsonrpc.Message.MessageFormats
 import com.dhpcs.jsonrpc.{CommandCompanion, NotificationCompanion, ResponseCompanion, Message => WsMessage}

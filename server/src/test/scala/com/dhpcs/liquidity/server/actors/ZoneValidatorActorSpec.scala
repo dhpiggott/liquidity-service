@@ -7,7 +7,6 @@ import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.protocol._
 import com.dhpcs.liquidity.server.actors.ClientConnectionActor.MessageReceivedConfirmation
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
   AuthenticatedCommandWithIds,
@@ -15,6 +14,7 @@ import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
   EnvelopedAuthenticatedCommandWithIds,
   ResponseWithIds
 }
+import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, Matchers, WordSpec}
 

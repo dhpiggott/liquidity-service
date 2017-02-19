@@ -134,8 +134,7 @@ lazy val liquidityServer = project
   ))
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.3" % Test,
-    "org.iq80.leveldb"  % "leveldb" % "0.9" % Test
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.3" % Test
   ))
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)

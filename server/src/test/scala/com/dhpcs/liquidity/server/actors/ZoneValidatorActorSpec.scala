@@ -18,7 +18,7 @@ import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, Matchers, WordSpec}
 
-class ZoneValidatorActorSpec extends WordSpec with LevelDbPersistenceTestFixtures with Matchers with Inside {
+class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures with Matchers with Inside {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardTypeName,

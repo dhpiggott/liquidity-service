@@ -6,10 +6,9 @@ import java.nio.channels.ServerSocketChannel
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
-import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
+trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
   private[this] val akkaRemotingPort = {
     val serverSocket = ServerSocketChannel.open().socket()
@@ -18,8 +17,6 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
     serverSocket.close()
     port
   }
-
-  private[this] val journalDirectory = FileUtils.createTempDir("liquidity-leveldb-journal")
 
   private[this] val config =
     ConfigFactory
@@ -49,12 +46,8 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
          |  extensions += "akka.cluster.ddata.DistributedData"
          |  extensions += "akka.persistence.Persistence"
          |  persistence.journal {
-         |    plugin = "akka.persistence.journal.leveldb"
-         |    auto-start-journals = ["akka.persistence.journal.leveldb"]
-         |    leveldb {
-         |      dir = "$journalDirectory"
-         |      native = off
-         |    }
+         |    auto-start-journals = ["akka.persistence.journal.inmem"]
+         |    plugin = "akka.persistence.journal.inmem"
          |  }
          |}
     """.stripMargin
@@ -65,7 +58,6 @@ trait LevelDbPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
-    FileUtils.deleteRecursively(journalDirectory)
     super.afterAll()
   }
 }

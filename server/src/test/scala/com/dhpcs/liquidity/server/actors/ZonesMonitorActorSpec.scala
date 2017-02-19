@@ -6,7 +6,7 @@ import org.scalatest.WordSpec
 
 import scala.concurrent.Future
 
-class ZonesMonitorActorSpec extends WordSpec with LevelDbPersistenceTestFixtures {
+class ZonesMonitorActorSpec extends WordSpec with InMemPersistenceTestFixtures {
 
   "A ZonesMonitorActor" should {
     "provide a count of the number of zones" in {

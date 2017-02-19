@@ -23,7 +23,7 @@ import scala.concurrent.duration._
 
 class ClientConnectionActorSpec
     extends fixture.WordSpec
-    with LevelDbPersistenceTestFixtures
+    with InMemPersistenceTestFixtures
     with Matchers
     with Inside {
 

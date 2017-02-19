@@ -10,9 +10,9 @@ class ServerTrustSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
   private[this] val (certificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
   private[this] val keyStoreInputStream = {
-    val to = new ByteArrayOutputStream
-    CertGen.saveCert(to, "PKCS12", certificate)
-    new ByteArrayInputStream(to.toByteArray)
+    val out = new ByteArrayOutputStream
+    CertGen.saveCert(out, "PKCS12", certificate)
+    new ByteArrayInputStream(out.toByteArray)
   }
 
   "ServerTrust's trust manager" should {

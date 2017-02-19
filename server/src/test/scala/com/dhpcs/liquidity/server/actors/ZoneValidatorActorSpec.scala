@@ -7,6 +7,7 @@ import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actors.ClientConnectionActor.MessageReceivedConfirmation
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
   AuthenticatedCommandWithIds,
@@ -18,7 +19,7 @@ import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.EitherValues._
 import org.scalatest.{Inside, Matchers, WordSpec}
 
-class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures with Matchers with Inside {
+class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures with Inside with Matchers {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardTypeName,

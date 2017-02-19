@@ -21,7 +21,7 @@ lazy val commonSettings = Seq(
     ),
     resolvers += Resolver.bintrayRepo("dhpcs", "maven")
   ) ++
-    addCommandAlias("validate", ";scalafmtTest; coverage; test; it:test; coverageReport") ++
+    addCommandAlias("validate", ";scalafmtTest; coverage; test; multi-jvm:test; it:test; coverageReport") ++
     addCommandAlias("validateAggregate", ";coverageAggregate")
 
 lazy val publishSettings = Seq(
@@ -132,17 +132,18 @@ lazy val liquidityServer = project
     "com.typesafe.akka"        %% "akka-http"            % "10.0.3",
     playJson
   ))
+  .dependsOn(liquidityCertgen % Test)
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.3" % Test
   ))
-  .configs(IntegrationTest)
-  .settings(Defaults.itSettings)
-  .dependsOn(liquidityCertgen % "it")
-  .settings(fork in IntegrationTest := true)
+  .configs(MultiJvm)
+  .settings(SbtMultiJvm.multiJvmSettings)
+  .dependsOn(liquidityCertgen % "multi-jvm")
   .settings(libraryDependencies ++= Seq(
-    scalaTest              % IntegrationTest,
-    "org.apache.cassandra" % "cassandra-all" % "3.7" % IntegrationTest
+    scalaTest           % MultiJvm,
+    "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.4.17" % MultiJvm,
+    "org.apache.cassandra" % "cassandra-all" % "3.7" % MultiJvm exclude ("io.netty", "netty-all")
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(dockerSettings)
@@ -169,11 +170,12 @@ lazy val liquidityClient = project
   ))
   .dependsOn(liquidityCertgen % "test")
   .settings(libraryDependencies ++= Seq(
-    scalaTest % Test
+    scalaTest % Test,
+    "org.apache.cassandra" % "cassandra-all" % "3.7" % IntegrationTest exclude ("io.netty", "netty-all")
   ))
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
-  .dependsOn(liquidityServer % "it->it")
+  .dependsOn(liquidityServer % "it->test")
   .settings(fork in IntegrationTest := true)
   .settings(libraryDependencies ++= Seq(
     scalaTest % IntegrationTest

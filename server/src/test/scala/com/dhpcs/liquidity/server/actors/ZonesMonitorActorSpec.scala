@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.server.actors
 
 import akka.testkit.TestProbe
+import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actors.ZonesMonitorActor.{GetZoneCount, ZoneCount}
 import org.scalatest.WordSpec
 

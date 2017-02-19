@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actors.ZoneValidatorActor.{
   AuthenticatedCommandWithIds,
   EnvelopedAuthenticatedCommandWithIds,
@@ -21,11 +22,7 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration._
 
-class ClientConnectionActorSpec
-    extends fixture.WordSpec
-    with InMemPersistenceTestFixtures
-    with Matchers
-    with Inside {
+class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTestFixtures with Inside with Matchers {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {

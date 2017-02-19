@@ -1,7 +1,4 @@
-package com.dhpcs.liquidity.server.actors
-
-import java.net.InetSocketAddress
-import java.nio.channels.ServerSocketChannel
+package com.dhpcs.liquidity.server
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
@@ -10,13 +7,7 @@ import org.scalatest.{BeforeAndAfterAll, Suite}
 
 trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
-  private[this] val akkaRemotingPort = {
-    val serverSocket = ServerSocketChannel.open().socket()
-    serverSocket.bind(new InetSocketAddress("localhost", 0))
-    val port = serverSocket.getLocalPort
-    serverSocket.close()
-    port
-  }
+  private[this] val akkaRemotingPort = freePort()
 
   private[this] val config =
     ConfigFactory
@@ -37,7 +28,6 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
          |    port = $akkaRemotingPort
          |  }
          |  cluster {
-         |    auto-down-unreachable-after = 5s
          |    metrics.enabled = off
          |    roles = ["zone-host", "client-relay"]
          |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]

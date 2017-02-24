@@ -3,12 +3,11 @@ package com.dhpcs.liquidity.server
 import java.security.cert.{CertificateException, X509Certificate}
 import javax.net.ssl.{SSLContext, X509TrustManager}
 
-import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import akka.cluster.MemberStatus.Up
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
-import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSocketRequest}
+import akka.http.scaladsl.model.ws.WebSocketRequest
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.cassandra.testkit.CassandraLauncher
@@ -16,13 +15,14 @@ import akka.persistence.query.PersistenceQuery
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Flow, Keep, Source}
+import akka.stream.scaladsl.{Flow, Keep}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import com.dhpcs.jsonrpc.{JsonRpcMessage, _}
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.actor.ZoneValidatorActor
+import com.dhpcs.liquidity.server.actor.ClientConnectionActor.WrappedJsonRpcMessage
+import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, ZoneValidatorActor}
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import okio.ByteString
@@ -30,7 +30,6 @@ import org.apache.cassandra.io.util.FileUtils
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest._
-import play.api.libs.json.{JsError, JsSuccess, JsValue, Json}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -298,31 +297,6 @@ sealed abstract class LiquidityServerSpec
     "wait for the others to be ready to stop" in enterBarrier("stop")
   )
 
-  private[this] val wsMessageToJsonRpcMessageFlow: Flow[Message, JsonRpcMessage, NotUsed] = {
-    val wsMessageToStringFlow: Flow[Message, String, NotUsed] = Flow[Message].flatMapConcat {
-      case _: BinaryMessage                 => sys.error(s"Received binary message")
-      case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
-      case TextMessage.Strict(text)         => Source.single(text)
-    }
-    val stringToJsValueFlow: Flow[String, JsValue, NotUsed] = Flow[String].map(Json.parse)
-    val jsValueToJsonRpcMessageFlow: Flow[JsValue, JsonRpcMessage, NotUsed] = Flow[JsValue].map(jsValue =>
-      jsValue.validate[JsonRpcMessage] match {
-        case JsError(errors) =>
-          sys.error(s"Failed to parse $jsValue as JSON-RPC message with errors: $errors")
-        case JsSuccess(jsonRpcMessage, _) => jsonRpcMessage
-    })
-    wsMessageToStringFlow.via(stringToJsValueFlow).via(jsValueToJsonRpcMessageFlow)
-  }
-
-  private[this] val jsonRpcMessageToWsMessageFlow: Flow[JsonRpcMessage, Message, NotUsed] = {
-    import JsonRpcMessage.JsonRpcMessageFormat
-    val jsonRpcMessageToJsValueFlow: Flow[JsonRpcMessage, JsValue, NotUsed] =
-      Flow[JsonRpcMessage].map(jsonRpcMessage => Json.toJson(jsonRpcMessage))
-    val jsValueToStringFlow: Flow[JsValue, String, NotUsed]   = Flow[JsValue].map(Json.prettyPrint)
-    val stringToWsMessageFlow: Flow[String, Message, NotUsed] = Flow[String].map(TextMessage.Strict)
-    jsonRpcMessageToJsValueFlow.via(jsValueToStringFlow).via(stringToWsMessageFlow)
-  }
-
   private[this] def withWsTestProbes(
       test: (TestSubscriber.Probe[JsonRpcMessage], TestPublisher.Probe[JsonRpcMessage]) => Unit): Unit = {
     val testProbeFlow = Flow.fromSinkAndSourceMat(
@@ -330,9 +304,11 @@ sealed abstract class LiquidityServerSpec
       TestSource.probe[JsonRpcMessage]
     )(Keep.both)
     val wsClientFlow =
-      wsMessageToJsonRpcMessageFlow
+      ClientConnectionActor.WsMessageToWrappedJsonRpcMessageFlow
+        .map(_.jsonRpcMessage)
         .viaMat(testProbeFlow)(Keep.right)
-        .via(jsonRpcMessageToWsMessageFlow)
+        .map(WrappedJsonRpcMessage)
+        .via(ClientConnectionActor.WrappedJsonRpcMessageToWsMessageFlow)
     val (_, (sub, pub)) = Http().singleWebSocketRequest(
       WebSocketRequest(s"wss://localhost:$akkaHttpPort/ws"),
       wsClientFlow,

@@ -8,6 +8,7 @@ import akka.actor.{
   ActorLogging,
   ActorRef,
   ActorRefFactory,
+  NoSerializationVerificationNeeded,
   PoisonPill,
   Props,
   ReceiveTimeout,
@@ -22,7 +23,6 @@ import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage, Message => WsMes
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
-import akka.util.ByteString
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.actor.protocol._
@@ -30,11 +30,9 @@ import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.persistence.RichPublicKey
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol._
-import play.api.libs.json.Json
+import play.api.libs.json.{JsError, JsSuccess, Json}
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
 
 object ClientConnectionActor {
 
@@ -57,18 +55,44 @@ object ClientConnectionActor {
                     zoneValidatorShardRegion: ActorRef,
                     keepAliveInterval: FiniteDuration)(implicit factory: ActorRefFactory,
                                                        mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
-    wsMessageToString
+    WsMessageToWrappedJsonRpcMessageFlow
       .via(
-        actorFlow[String, String](
+        actorFlow[WrappedJsonRpcMessage, WrappedJsonRpcMessage](
           props = props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
           name = publicKey.fingerprint
         )
       )
       .via(
-        stringToWsMessage
+        WrappedJsonRpcMessageToWsMessageFlow
       )
 
+  final val WsMessageToWrappedJsonRpcMessageFlow: Flow[WsMessage, WrappedJsonRpcMessage, NotUsed] =
+    Flow[WsMessage]
+      .flatMapConcat {
+        case _: BinaryMessage                 => sys.error(s"Received binary message")
+        case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
+        case TextMessage.Strict(text)         => Source.single(text)
+      }
+      .map(jsValue =>
+        Json.parse(jsValue).validate[JsonRpcMessage] match {
+          case JsError(errors) =>
+            sys.error(s"Failed to parse $jsValue as JSON-RPC message with errors: $errors")
+          case JsSuccess(jsonRpcMessage, _) => WrappedJsonRpcMessage(jsonRpcMessage)
+      })
+
+  final val WrappedJsonRpcMessageToWsMessageFlow: Flow[WrappedJsonRpcMessage, WsMessage, NotUsed] =
+    Flow[WrappedJsonRpcMessage].map(
+      wrappedJsonRpcMessage =>
+        TextMessage.Strict(
+          Json.stringify(
+            Json.toJson(
+              wrappedJsonRpcMessage.jsonRpcMessage
+            ))
+      ))
+
   final val Topic = "Client"
+
+  case class WrappedJsonRpcMessage(jsonRpcMessage: JsonRpcMessage) extends NoSerializationVerificationNeeded
 
   case object ActorSinkInit
 
@@ -132,57 +156,21 @@ object ClientConnectionActor {
     )
   }
 
-  private def wsMessageToString(implicit mat: Materializer): Flow[WsMessage, String, NotUsed] =
-    Flow[WsMessage].mapAsync[String](1) {
-      case TextMessage.Strict(text) =>
-        Future.successful(text)
-      case TextMessage.Streamed(textStream) =>
-        textStream.runFold("")(_ ++ _)
-      case BinaryMessage.Strict(data) =>
-        Future.successful(data.utf8String)
-      case BinaryMessage.Streamed(byteStream) =>
-        import mat.executionContext
-        byteStream.runFold(ByteString.empty)(_ ++ _).map(_.utf8String)
-    }
-
-  private def stringToWsMessage: Flow[String, WsMessage, NotUsed] =
-    Flow[String].map[WsMessage](TextMessage.Strict)
-
-  private def readCommand(
-      jsonString: String): (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
-    Try(Json.parse(jsonString)) match {
-      case Failure(exception) =>
-        None -> Left(
-          JsonRpcResponseError.parseError(exception)
+  private def readCommand(jsonRpcRequestMessage: JsonRpcRequestMessage)
+    : (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
+    Command.read(jsonRpcRequestMessage) match {
+      case None =>
+        jsonRpcRequestMessage.id -> Left(
+          JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method)
         )
-      case Success(json) =>
-        Json
-          .fromJson[JsonRpcRequestMessage](json)
-          .fold(
-            errors =>
-              None -> Left(
-                JsonRpcResponseError.invalidRequest(errors)
-            ),
-            jsonRpcRequestMessage =>
-              Command
-                .read(jsonRpcRequestMessage)
-                .fold[(Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command])](
-                  jsonRpcRequestMessage.id -> Left(
-                    JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method)
-                  )
-                )(
-                  commandJsResult =>
-                    commandJsResult.fold(
-                      errors =>
-                        jsonRpcRequestMessage.id -> Left(
-                          JsonRpcResponseError.invalidParams(errors)
-                      ),
-                      command =>
-                        jsonRpcRequestMessage.id -> Right(
-                          command
-                      )
-                  ))
-          )
+      case Some(JsError(errors)) =>
+        jsonRpcRequestMessage.id -> Left(
+          JsonRpcResponseError.invalidParams(errors)
+        )
+      case Some(JsSuccess(command, _)) =>
+        jsonRpcRequestMessage.id -> Right(
+          command
+        )
     }
 }
 
@@ -231,10 +219,10 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   private[this] def receiveActorSinkMessages: Receive =
     publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
-      case jsonString: String =>
+      case WrappedJsonRpcMessage(jsonRpcRequestMessage: JsonRpcRequestMessage) =>
         sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
-        readCommand(jsonString) match {
+        readCommand(jsonRpcRequestMessage) match {
           case (id, Left(jsonRpcResponseError)) =>
             log.warning(s"Receive error: $jsonRpcResponseError")
             send(
@@ -353,10 +341,7 @@ class ClientConnectionActor(ip: RemoteAddress,
       ))
 
   private[this] def send(jsonRpcMessage: JsonRpcMessage): Unit = {
-    upstream ! Json.stringify(
-      Json.toJson(
-        jsonRpcMessage
-      ))
+    upstream ! WrappedJsonRpcMessage(jsonRpcMessage)
     keepAliveGeneratorActor ! FrameSentEvent
   }
 }

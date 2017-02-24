@@ -14,11 +14,11 @@ import com.dhpcs.liquidity.actor.protocol.{
 }
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
+import com.dhpcs.liquidity.server.actor.ClientConnectionActor.WrappedJsonRpcMessage
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest.{Inside, Matchers, Outcome, fixture}
-import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.duration._
 
@@ -106,30 +106,24 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
       correlationId: Option[Either[String, BigDecimal]]): Unit = {
     sinkTestProbe.send(
       clientConnection,
-      Json.stringify(
-        Json.toJson(
-          Command.write(command, id = correlationId)
-        ))
+      WrappedJsonRpcMessage(Command.write(command, id = correlationId))
     )
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
   }
 
   private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification = {
-    val jsValue                    = expectJsValue(upstreamTestProbe)
-    val jsonRpcNotificationMessage = jsValue.asOpt[JsonRpcNotificationMessage]
-    val notification               = Notification.read(jsonRpcNotificationMessage.value)
+    val notification = upstreamTestProbe.expectMsgPF() {
+      case WrappedJsonRpcMessage(jsonRpcNotificationMessage: JsonRpcNotificationMessage) =>
+        Notification.read(jsonRpcNotificationMessage)
+    }
     notification.value.asOpt.value
   }
 
   private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): ResultResponse = {
-    val jsValue                = expectJsValue(upstreamTestProbe)
-    val jsonRpcResponseMessage = jsValue.asOpt[JsonRpcResponseMessage]
-    val response               = Response.read(jsonRpcResponseMessage.value, method)
+    val response = upstreamTestProbe.expectMsgPF() {
+      case WrappedJsonRpcMessage(jsonRpcResponseMessage: JsonRpcResponseMessage) =>
+        Response.read(jsonRpcResponseMessage, method)
+    }
     response.asOpt.value.right.value
-  }
-
-  private[this] def expectJsValue(upstreamTestProbe: TestProbe): JsValue = {
-    val jsonString = upstreamTestProbe.expectMsgType[String]
-    Json.parse(jsonString)
   }
 }

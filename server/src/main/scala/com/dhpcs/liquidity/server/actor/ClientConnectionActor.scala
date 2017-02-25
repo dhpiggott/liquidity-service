@@ -8,6 +8,7 @@ import akka.actor.{
   ActorLogging,
   ActorRef,
   ActorRefFactory,
+  Deploy,
   NoSerializationVerificationNeeded,
   PoisonPill,
   Props,
@@ -135,7 +136,7 @@ object ClientConnectionActor {
       Sink.actorRefWithAck(
         factory.actorOf(
           Props(new Actor {
-            val flowActor: ActorRef                             = context.watch(context.actorOf(props(outActor), name))
+            val flowActor: ActorRef                             = context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive: Receive = {
               case _: Status.Success | _: Status.Failure =>
@@ -146,7 +147,7 @@ object ClientConnectionActor {
               case other =>
                 flowActor.forward(other)
             }
-          })
+          }).withDeploy(Deploy.local)
         ),
         onInitMessage = ActorSinkInit,
         ackMessage = ActorSinkAck,
@@ -186,9 +187,10 @@ class ClientConnectionActor(ip: RemoteAddress,
   import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
   import context.dispatcher
 
-  private[this] val mediator                = DistributedPubSub(context.system).mediator
-  private[this] val publishStatusTick       = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
-  private[this] val keepAliveGeneratorActor = context.actorOf(KeepAliveGeneratorActor.props(keepAliveInterval))
+  private[this] val mediator          = DistributedPubSub(context.system).mediator
+  private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
+  private[this] val keepAliveGeneratorActor =
+    context.actorOf(KeepAliveGeneratorActor.props(keepAliveInterval).withDeploy(Deploy.local))
 
   private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)

@@ -6,7 +6,7 @@ import java.security.interfaces.RSAPublicKey
 import javax.net.ssl._
 
 import akka.NotUsed
-import akka.actor.{ActorRef, ActorSystem, PoisonPill}
+import akka.actor.{ActorRef, ActorSystem, Deploy, PoisonPill}
 import akka.cluster.Cluster
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
@@ -148,11 +148,11 @@ class LiquidityServer(config: Config,
   import system.dispatcher
 
   private[this] val clientsMonitorActor = system.actorOf(
-    ClientsMonitorActor.props,
+    ClientsMonitorActor.props.withDeploy(Deploy.local),
     "clients-monitor"
   )
   private[this] val zonesMonitorActor = system.actorOf(
-    ZonesMonitorActor.props(ZonesMonitorActor.zoneCount(readJournal)),
+    ZonesMonitorActor.props(ZonesMonitorActor.zoneCount(readJournal)).withDeploy(Deploy.local),
     "zones-monitor"
   )
 

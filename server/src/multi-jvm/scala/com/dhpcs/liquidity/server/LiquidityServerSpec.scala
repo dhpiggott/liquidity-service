@@ -59,7 +59,7 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
           |    enable-additional-serialization-bindings = on
           |    allow-java-serialization = on
           |    serialize-messages = on
-          |    serialize-creators = off
+          |    serialize-creators = on
           |  }
           |  cluster {
           |    metrics.enabled = off

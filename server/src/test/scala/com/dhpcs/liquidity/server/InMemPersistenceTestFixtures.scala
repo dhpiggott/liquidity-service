@@ -30,7 +30,7 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
          |    enable-additional-serialization-bindings = on
          |    allow-java-serialization = on
          |    serialize-messages = on
-         |    serialize-creators = off
+         |    serialize-creators = on
          |  }
          |  remote.netty.tcp {
          |    hostname = "localhost"

@@ -5,7 +5,7 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, ActorPath, ActorRef, PoisonPill, Props, ReceiveTimeout, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorPath, ActorRef, Deploy, PoisonPill, Props, ReceiveTimeout, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
@@ -250,9 +250,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   import ZoneValidatorActor.PassivationCountdownActor._
   import context.dispatcher
 
-  private[this] val mediator                  = DistributedPubSub(context.system).mediator
-  private[this] val publishStatusTick         = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
-  private[this] val passivationCountdownActor = context.actorOf(PassivationCountdownActor.props)
+  private[this] val mediator          = DistributedPubSub(context.system).mediator
+  private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
+  private[this] val passivationCountdownActor =
+    context.actorOf(PassivationCountdownActor.props.withDeploy(Deploy.local))
 
   private[this] val zoneId = ZoneId(UUID.fromString(self.path.name))
 

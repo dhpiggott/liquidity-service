@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 import java.security.KeyPairGenerator
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, Deploy}
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
@@ -37,8 +37,10 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
     val zoneValidatorShardRegionTestProbe = TestProbe()
     val upstreamTestProbe                 = TestProbe()
     val clientConnection = system.actorOf(
-      ClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegionTestProbe.ref, keepAliveInterval = 3.seconds)(
-        upstreamTestProbe.ref)
+      ClientConnectionActor
+        .props(ip, publicKey, zoneValidatorShardRegionTestProbe.ref, keepAliveInterval = 3.seconds)(
+          upstreamTestProbe.ref)
+        .withDeploy(Deploy.local)
     )
     sinkTestProbe.send(clientConnection, ClientConnectionActor.ActorSinkInit)
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)

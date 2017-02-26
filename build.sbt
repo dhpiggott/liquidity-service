@@ -32,23 +32,6 @@ lazy val noopPublishSettings = Seq(
   publishM2 := {}
 )
 
-lazy val akkaPersistenceSettings = libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-slf4j"                          % "2.4.17",
-    "ch.qos.logback"    % "logback-classic"                      % "1.2.1",
-    "com.typesafe.akka" %% "akka-persistence"                    % "2.4.17",
-    "com.typesafe.akka" %% "akka-cluster-tools"                  % "2.4.17",
-    "com.typesafe.akka" %% "akka-persistence-query-experimental" % "2.4.17",
-    "com.typesafe.akka" %% "akka-persistence-cassandra"          % "0.23",
-    "io.netty"          % "netty-transport-native-epoll"         % "4.1.8.Final" classifier "linux-x86_64"
-  )
-
-lazy val akkaClusterShardingSettings = libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-cluster-sharding"              % "2.4.17",
-    "com.typesafe.akka" %% "akka-distributed-data-experimental" % "2.4.17"
-  )
-
-lazy val dockerSettings = dockerBaseImage := "openjdk:8-jre"
-
 lazy val playJson = "com.typesafe.play" %% "play-json" % "2.5.12"
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.1"
@@ -150,12 +133,21 @@ lazy val liquidityServer = project
   .dependsOn(liquidityPersistence)
   .dependsOn(liquidityWsProtocol)
   .dependsOn(liquidityActorProtocol)
-  .settings(akkaPersistenceSettings)
-  .settings(akkaClusterShardingSettings)
   .settings(libraryDependencies ++= Seq(
-    "com.google.code.findbugs" % "jsr305"                % "3.0.1" % Compile,
-    "com.datastax.cassandra"   % "cassandra-driver-core" % "3.1.4",
-    "com.typesafe.akka"        %% "akka-http"            % "10.0.4",
+    "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.17",
+    "ch.qos.logback"           % "logback-classic"                      % "1.2.1",
+    "com.typesafe.akka"        %% "akka-actor"                          % "2.4.17",
+    "com.typesafe.akka"        %% "akka-cluster"                        % "2.4.17",
+    "com.typesafe.akka"        %% "akka-cluster-sharding"               % "2.4.17",
+    "com.typesafe.akka"        %% "akka-cluster-tools"                  % "2.4.17",
+    "com.typesafe.akka"        %% "akka-distributed-data-experimental"  % "2.4.17",
+    "com.typesafe.akka"        %% "akka-persistence"                    % "2.4.17",
+    "com.typesafe.akka"        %% "akka-persistence-query-experimental" % "2.4.17",
+    "com.typesafe.akka"        %% "akka-persistence-cassandra"          % "0.23",
+    "io.netty"                 % "netty-transport-native-epoll"         % "4.1.8.Final" classifier "linux-x86_64",
+    "com.google.code.findbugs" % "jsr305"                               % "3.0.1" % Compile,
+    "com.datastax.cassandra"   % "cassandra-driver-core"                % "3.1.4",
+    "com.typesafe.akka"        %% "akka-http"                           % "10.0.4",
     playJson
   ))
   .dependsOn(liquidityCertgen % Test)
@@ -172,8 +164,8 @@ lazy val liquidityServer = project
     "org.apache.cassandra" % "cassandra-all" % "3.7" % MultiJvm exclude ("io.netty", "netty-all")
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .settings(dockerSettings)
   .settings(
+    dockerBaseImage := "openjdk:8-jre",
     daemonUser in Docker := "root",
     bashScriptExtraDefines ++= Seq(
       "addJava -Djdk.tls.ephemeralDHKeySize=2048",

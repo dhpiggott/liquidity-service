@@ -1,11 +1,11 @@
 package com.dhpcs.liquidity.client
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, InputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
 import java.nio.file.Files
 import java.security.Security
 import java.util.concurrent.Executors
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.cassandra.testkit.CassandraLauncher
@@ -22,7 +22,7 @@ import com.dhpcs.liquidity.model.{Member, MemberId}
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActor
 import com.dhpcs.liquidity.ws.protocol.{Command, CreateZoneCommand, CreateZoneResponse, ResultResponse}
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.ConfigFactory
 import org.apache.cassandra.io.util.FileUtils
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -30,7 +30,7 @@ import org.scalatest.time.{Second, Seconds, Span}
 import org.spongycastle.jce.provider.BouncyCastleProvider
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
 class ServerConnectionSpec
     extends fixture.WordSpec
@@ -39,10 +39,10 @@ class ServerConnectionSpec
     with Inside
     with Matchers {
 
-  private[this] val cassandraDirectory: File = FileUtils.createTempFile("liquidity-cassandra-data", null)
-  private[this] val akkaRemotingPort: Int    = freePort()
-  private[this] val akkaHttpPort: Int        = freePort()
-  private[this] val config: Config =
+  private[this] val cassandraDirectory = FileUtils.createTempFile("liquidity-cassandra-data", null)
+  private[this] val akkaRemotingPort   = freePort()
+  private[this] val akkaHttpPort       = freePort()
+  private[this] val config =
     ConfigFactory
       .parseString(
         s"""
@@ -102,10 +102,15 @@ class ServerConnectionSpec
   private[this] implicit val system = ActorSystem("liquidity", config)
   private[this] implicit val mat    = ActorMaterializer()
 
-  private[this] val readJournal: CassandraReadJournal =
+  private[this] val readJournal =
     PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
 
-  private[this] val zoneValidatorShardRegion: ActorRef = ClusterSharding(system).start(
+  private[this] val futureAnalyticsStore =
+    readJournal.session
+      .underlying()
+      .flatMap(CassandraAnalyticsStore(system.settings.config)(_, ExecutionContext.global))(ExecutionContext.global)
+
+  private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardTypeName,
     entityProps = ZoneValidatorActor.props,
     settings = ClusterShardingSettings(system),
@@ -121,6 +126,7 @@ class ServerConnectionSpec
   private[this] val server = new LiquidityServer(
     config,
     readJournal,
+    futureAnalyticsStore,
     zoneValidatorShardRegion,
     serverKeyManagers
   )

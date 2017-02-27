@@ -31,7 +31,7 @@ import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest._
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
 
 object LiquidityServerSpecConfig extends MultiNodeConfig {
@@ -118,6 +118,11 @@ sealed abstract class LiquidityServerSpec
   private[this] val readJournal =
     PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
 
+  private[this] val futureAnalyticsStore =
+    readJournal.session
+      .underlying()
+      .flatMap(CassandraAnalyticsStore(system.settings.config)(_, ExecutionContext.global))(ExecutionContext.global)
+
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardTypeName,
     entityProps = ZoneValidatorActor.props,
@@ -138,6 +143,7 @@ sealed abstract class LiquidityServerSpec
          |liquidity.server.http.port = "$akkaHttpPort"
           """.stripMargin).withFallback(system.settings.config),
     readJournal,
+    futureAnalyticsStore,
     zoneValidatorShardRegion,
     serverKeyManagers
   )

@@ -6,7 +6,7 @@ import java.security.interfaces.RSAPublicKey
 import javax.net.ssl._
 
 import akka.NotUsed
-import akka.actor.{ActorRef, ActorSystem, Deploy, PoisonPill}
+import akka.actor.{ActorPath, ActorRef, ActorSystem, Deploy, PoisonPill}
 import akka.cluster.Cluster
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
@@ -25,7 +25,7 @@ import akka.stream.scaladsl.Flow
 import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
 import akka.util.Timeout
 import com.dhpcs.liquidity.actor.protocol.{ActiveClientSummary, ActiveZoneSummary}
-import com.dhpcs.liquidity.model.PublicKey
+import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
 import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.{
@@ -129,6 +129,7 @@ object LiquidityServer {
     val server = new LiquidityServer(
       config,
       readJournal,
+      futureAnalyticsStore,
       zoneValidatorShardRegion,
       keyManagerFactory.getKeyManagers
     )
@@ -141,6 +142,7 @@ object LiquidityServer {
 
 class LiquidityServer(config: Config,
                       readJournal: ReadJournal with CurrentPersistenceIdsQuery,
+                      futureAnalyticsStore: Future[CassandraAnalyticsStore],
                       zoneValidatorShardRegion: ActorRef,
                       keyManagers: Array[KeyManager])(implicit system: ActorSystem, mat: Materializer)
     extends HttpController {
@@ -310,5 +312,14 @@ class LiquidityServer(config: Config,
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)
+
+  override protected[this] def zoneOpt(zoneId: ZoneId): Future[Option[Zone]] =
+    futureAnalyticsStore.flatMap(_.zoneStore.retrieveOpt(zoneId))
+
+  override protected[this] def balances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
+    futureAnalyticsStore.flatMap(_.balanceStore.retrieve(zoneId))
+
+  override protected[this] def clients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
+    futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId))
 
 }

@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.server
 import java.util.Date
 
 import akka.actor.ActorPath
-import com.datastax.driver.core.{PreparedStatement, ResultSet, Session}
+import com.datastax.driver.core.{PreparedStatement, ResultSet, Row, Session}
 import com.dhpcs.liquidity.model.{Zone, _}
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore.{AccountStore, MemberStore, TransactionStore}
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore.{
@@ -464,16 +464,31 @@ object CassandraAnalyticsStore {
     def retrieve(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Zone] =
       for {
         resultSet <- retrieveStatement.execute(1: java.lang.Integer, zoneId.id)
-        row             = resultSet.one
-        equityAccountId = AccountId(row.getInt("equity_account_id"))
+        zone      <- toZone(zoneId)(resultSet.one)
+      } yield zone
+
+    def retrieveOpt(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Option[Zone]] = {
+      (for {
+        resultSet <- retrieveStatement.execute(1: java.lang.Integer, zoneId.id)
+        zoneOpt = Option(resultSet.one).map(toZone(zoneId))
+      } yield zoneOpt).flatMap {
+        case None             => Future.successful(None)
+        case Some(futureZone) => futureZone.map(Some(_))
+      }
+    }
+
+    private[this] def toZone(zoneId: ZoneId)(row: Row)(implicit ec: ExecutionContext): Future[Zone] = {
+      for {
         members      <- memberStore.retrieve(zoneId)
         accounts     <- accountStore.retrieve(zoneId)
         transactions <- transactionStore.retrieve(zoneId)
-        created  = row.getTimestamp("created").getTime
-        expires  = row.getTimestamp("expires").getTime
-        name     = Option(row.getString("name"))
-        metadata = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
+        equityAccountId = AccountId(row.getInt("equity_account_id"))
+        created         = row.getTimestamp("created").getTime
+        expires         = row.getTimestamp("expires").getTime
+        name            = Option(row.getString("name"))
+        metadata        = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
       } yield Zone(zoneId, equityAccountId, members, accounts, transactions, created, expires, name, metadata)
+    }
 
     private[this] val createStatement = prepareStatement(s"""
                        |INSERT INTO $keyspace.zones_by_id(id, bucket, equity_account_id, created, expires, name, metadata, currency)

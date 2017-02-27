@@ -4,6 +4,7 @@ import java.net.InetAddress
 import java.security.KeyPairGenerator
 
 import akka.NotUsed
+import akka.actor.ActorPath
 import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.headers.`Remote-Address`
@@ -12,7 +13,7 @@ import akka.http.scaladsl.model.{ContentType, RemoteAddress, StatusCodes}
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
-import com.dhpcs.liquidity.model.PublicKey
+import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.{Matchers, WordSpec}
 import play.api.libs.json.{JsValue, Json}
@@ -58,5 +59,13 @@ class HttpControllerSpec extends WordSpec with Matchers with ScalatestRouteTest 
         KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
       )
     )
+
+  override protected[this] def zoneOpt(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
+
+  override protected[this] def balances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
+    Future.successful(Map.empty)
+
+  override protected[this] def clients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
+    Future.successful(Map.empty)
 
 }

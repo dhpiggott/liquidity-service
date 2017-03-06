@@ -10,6 +10,7 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
+import com.dhpcs.jsonrpc.JsonRpcMessage.CorrelationId
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.actor.protocol._
@@ -440,9 +441,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     }
   }
 
-  private[this] def handleZoneCommand(publicKey: PublicKey,
-                                      command: Command,
-                                      correlationId: Option[Either[String, BigDecimal]]): Unit = {
+  private[this] def handleZoneCommand(publicKey: PublicKey, command: Command, correlationId: CorrelationId): Unit = {
     command match {
       case createZoneCommand: CreateZoneCommand =>
         val sequenceNumber = messageSequenceNumbers(sender().path)
@@ -750,14 +749,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     }
 
   private[this] def deliverResponse(response: Either[ErrorResponse, ResultResponse],
-                                    commandCorrelationId: Option[Either[String, BigDecimal]]): Unit = {
+                                    correlationId: CorrelationId): Unit = {
     val sequenceNumber = messageSequenceNumbers(sender().path)
     messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))
     deliver(sender().path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) + deliveryId))
       ResponseWithIds(
         response,
-        commandCorrelationId,
+        correlationId,
         sequenceNumber,
         deliveryId
       )

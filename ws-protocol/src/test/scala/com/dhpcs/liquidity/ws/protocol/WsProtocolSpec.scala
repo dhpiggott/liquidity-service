@@ -4,11 +4,11 @@ import java.security.KeyPairGenerator
 import java.util.UUID
 
 import com.dhpcs.json.JsResultUniformity
+import com.dhpcs.jsonrpc.JsonRpcMessage.{ArrayParams, CorrelationId, NumericCorrelationId, ObjectParams}
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.model._
 import okio.ByteString
-import org.scalatest.OptionValues._
 import org.scalatest.{FunSpec, Matchers}
 import play.api.data.validation.ValidationError
 import play.api.libs.json.{JsError, JsSuccess, Json, __}
@@ -20,15 +20,12 @@ class WsProtocolSpec extends FunSpec with Matchers {
       it should behave like commandReadError(
         JsonRpcRequestMessage(
           "invalidMethod",
-          Some(
-            Right(
-              Json.obj()
-            )),
-          Some(
-            Right(1)
-          )
+          ObjectParams(
+            Json.obj()
+          ),
+          NumericCorrelationId(1)
         ),
-        None
+        JsError("unknown method invalidMethod")
       )
     )
     describe("of type CreateZoneCommand with metadata") {
@@ -36,34 +33,24 @@ class WsProtocolSpec extends FunSpec with Matchers {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "createZone",
-            Some(
-              Left(
-                Json.arr()
-              )),
-            Some(
-              Right(1)
-            )
+            ArrayParams(
+              Json.arr()
+            ),
+            NumericCorrelationId(1)
           ),
-          Some(
-            JsError(List((__, List(ValidationError("command parameters must be named")))))
-          )
+          JsError(List((__, List(ValidationError("command parameters must be named")))))
         )
       )
       describe("with empty params")(
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "createZone",
-            Some(
-              Right(
-                Json.obj()
-              )),
-            Some(
-              Right(1)
-            )
+            ObjectParams(
+              Json.obj()
+            ),
+            NumericCorrelationId(1)
           ),
-          Some(
-            JsError(List((__ \ "equityOwnerPublicKey", List(ValidationError("error.path.missing")))))
-          )
+          JsError(List((__ \ "equityOwnerPublicKey", List(ValidationError("error.path.missing")))))
         )
       )
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
@@ -80,26 +67,21 @@ class WsProtocolSpec extends FunSpec with Matchers {
           )
         )
       )
-      implicit val id = Right(
-        BigDecimal(1)
-      )
+      implicit val id = NumericCorrelationId(1)
       implicit val jsonRpcRequestMessage = JsonRpcRequestMessage(
         "createZone",
-        Some(
-          Right(
-            Json.obj(
-              "equityOwnerPublicKey" -> ByteString.of(publicKeyBytes: _*).base64,
-              "equityOwnerName"      -> "Banker",
-              "equityAccountName"    -> "Bank",
-              "name"                 -> "Dave's zone",
-              "metadata" -> Json.obj(
-                "currency" -> "GBP"
-              )
+        ObjectParams(
+          Json.obj(
+            "equityOwnerPublicKey" -> ByteString.of(publicKeyBytes: _*).base64,
+            "equityOwnerName"      -> "Banker",
+            "equityAccountName"    -> "Bank",
+            "name"                 -> "Dave's zone",
+            "metadata" -> Json.obj(
+              "currency" -> "GBP"
             )
-          )),
-        Some(
-          Right(1)
-        )
+          )
+        ),
+        NumericCorrelationId(1)
       )
       it should behave like commandRead
       it should behave like commandWrite
@@ -109,23 +91,18 @@ class WsProtocolSpec extends FunSpec with Matchers {
         it should behave like commandReadError(
           JsonRpcRequestMessage(
             "addTransaction",
-            Some(
-              Right(
-                Json.obj(
-                  "zoneId"   -> "6b5f604d-f116-44f8-9807-d26324c81034",
-                  "actingAs" -> 0,
-                  "from"     -> 0,
-                  "to"       -> 1,
-                  "value"    -> -1
-                )
-              )),
-            Some(
-              Right(1)
-            )
+            ObjectParams(
+              Json.obj(
+                "zoneId"   -> "6b5f604d-f116-44f8-9807-d26324c81034",
+                "actingAs" -> 0,
+                "from"     -> 0,
+                "to"       -> 1,
+                "value"    -> -1
+              )
+            ),
+            NumericCorrelationId(1)
           ),
-          Some(
-            JsError(List((__ \ "value", List(ValidationError("error.min", 0)))))
-          )
+          JsError(List((__ \ "value", List(ValidationError("error.min", 0)))))
         )
       )
     )
@@ -137,7 +114,7 @@ class WsProtocolSpec extends FunSpec with Matchers {
         it should behave like responseReadError(
           JsonRpcResponseMessage(
             Right(Json.obj()),
-            Some(Right(0))
+            NumericCorrelationId(0)
           ),
           "createZone",
           JsError(List((__ \ "zone", List(ValidationError("error.path.missing")))))
@@ -165,9 +142,7 @@ class WsProtocolSpec extends FunSpec with Matchers {
         )
       )
     )
-    implicit val id = Right(
-      BigDecimal(1)
-    )
+    implicit val id = NumericCorrelationId(1)
     implicit val jsonRpcResponseMessage = JsonRpcResponseMessage(
       Right(
         Json.obj(
@@ -190,9 +165,7 @@ class WsProtocolSpec extends FunSpec with Matchers {
           )
         )
       ),
-      Some(
-        Right(1)
-      )
+      NumericCorrelationId(1)
     )
     implicit val method = "createZone"
     it should behave like responseRead
@@ -204,12 +177,11 @@ class WsProtocolSpec extends FunSpec with Matchers {
       it should behave like notificationReadError(
         JsonRpcNotificationMessage(
           "invalidMethod",
-          Some(
-            Right(
-              Json.obj()
-            ))
+          ObjectParams(
+            Json.obj()
+          )
         ),
-        None
+        JsError("unknown method invalidMethod")
       )
     )
     describe("of type ClientJoinedZoneNotification") {
@@ -217,31 +189,26 @@ class WsProtocolSpec extends FunSpec with Matchers {
         it should behave like notificationReadError(
           JsonRpcNotificationMessage(
             "clientJoinedZone",
-            Some(
-              Left(
-                Json.arr()
-              ))
+            ArrayParams(
+              Json.arr()
+            )
           ),
-          Some(
-            JsError(List((__, List(ValidationError("notification parameters must be named")))))
-          )
+          JsError(List((__, List(ValidationError("notification parameters must be named")))))
         )
       )
       describe("with empty params")(
         it should behave like notificationReadError(
           JsonRpcNotificationMessage(
             "clientJoinedZone",
-            Some(
-              Right(
-                Json.obj()
-              ))
+            ObjectParams(
+              Json.obj()
+            )
           ),
-          Some(
-            JsError(
-              List(
-                (__ \ "zoneId", List(ValidationError("error.path.missing"))),
-                (__ \ "publicKey", List(ValidationError("error.path.missing")))
-              ))
+          JsError(
+            List(
+              (__ \ "zoneId", List(ValidationError("error.path.missing"))),
+              (__ \ "publicKey", List(ValidationError("error.path.missing")))
+            )
           )
         )
       )
@@ -252,37 +219,34 @@ class WsProtocolSpec extends FunSpec with Matchers {
       )
       implicit val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
         "clientJoinedZone",
-        Some(
-          Right(
-            Json.obj(
-              "zoneId"    -> "a52e984e-f0aa-4481-802b-74622cb3f6f6",
-              "publicKey" -> ByteString.of(publicKeyBytes: _*).base64
-            )
-          ))
+        ObjectParams(
+          Json.obj(
+            "zoneId"    -> "a52e984e-f0aa-4481-802b-74622cb3f6f6",
+            "publicKey" -> ByteString.of(publicKeyBytes: _*).base64
+          )
+        )
       )
       it should behave like notificationRead
       it should behave like notificationWrite
     }
   }
 
-  private[this] def commandReadError(jsonRpcRequestMessage: JsonRpcRequestMessage, jsError: Option[JsError]) =
+  private[this] def commandReadError(jsonRpcRequestMessage: JsonRpcRequestMessage, jsError: JsError) =
     it(s"should fail to decode with error $jsError") {
       val jsResult = Command.read(jsonRpcRequestMessage)
-      jsError.fold(jsResult shouldBe empty)(
-        jsResult.value should equal(_)(after being ordered[Command])
-      )
+      jsResult should equal(jsError)(after being ordered[Command])
     }
 
   private[this] def commandRead(implicit jsonRpcRequestMessage: JsonRpcRequestMessage, command: Command) =
     it(s"should decode to $command")(
-      Command.read(jsonRpcRequestMessage) should be(Some(JsSuccess(command)))
+      Command.read(jsonRpcRequestMessage) should be(JsSuccess(command))
     )
 
   private[this] def commandWrite(implicit command: Command,
-                                 id: Either[String, BigDecimal],
+                                 id: CorrelationId,
                                  jsonRpcRequestMessage: JsonRpcRequestMessage) =
     it(s"should encode to $jsonRpcRequestMessage")(
-      Command.write(command, Some(id)) should be(jsonRpcRequestMessage)
+      Command.write(command, id) should be(jsonRpcRequestMessage)
     )
 
   private[this] def responseReadError(jsonRpcResponseMessage: JsonRpcResponseMessage,
@@ -301,25 +265,22 @@ class WsProtocolSpec extends FunSpec with Matchers {
     )
 
   private[this] def responseWrite(implicit errorOrResponse: Either[ErrorResponse, ResultResponse],
-                                  id: Either[String, BigDecimal],
+                                  id: CorrelationId,
                                   jsonRpcResponseMessage: JsonRpcResponseMessage) =
     it(s"should encode to $jsonRpcResponseMessage")(
-      Response.write(errorOrResponse, Some(id)) should be(jsonRpcResponseMessage)
+      Response.write(errorOrResponse, id) should be(jsonRpcResponseMessage)
     )
 
-  private[this] def notificationReadError(jsonRpcNotificationMessage: JsonRpcNotificationMessage,
-                                          jsError: Option[JsError]) =
+  private[this] def notificationReadError(jsonRpcNotificationMessage: JsonRpcNotificationMessage, jsError: JsError) =
     it(s"should fail to decode with error $jsError") {
       val notificationJsResult = Notification.read(jsonRpcNotificationMessage)
-      jsError.fold(notificationJsResult shouldBe empty)(
-        notificationJsResult.value should equal(_)(after being ordered[Notification])
-      )
+      notificationJsResult should equal(jsError)(after being ordered[Notification])
     }
 
   private[this] def notificationRead(implicit jsonRpcNotificationMessage: JsonRpcNotificationMessage,
                                      notification: Notification) =
     it(s"should decode to $notification")(
-      Notification.read(jsonRpcNotificationMessage) should be(Some(JsSuccess(notification)))
+      Notification.read(jsonRpcNotificationMessage) should be(JsSuccess(notification))
     )
 
   private[this] def notificationWrite(implicit notification: Notification,

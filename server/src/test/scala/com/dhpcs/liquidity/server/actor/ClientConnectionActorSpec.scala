@@ -6,6 +6,7 @@ import java.security.KeyPairGenerator
 import akka.actor.{ActorRef, Deploy}
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
+import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NumericCorrelationId}
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.actor.protocol.{
   AuthenticatedCommandWithIds,
@@ -73,7 +74,7 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
         equityAccountMetadata = None,
         name = Some("Dave's Game")
       )
-      val correlationId = Some(Right(BigDecimal(0)))
+      val correlationId = NumericCorrelationId(0)
       send(sinkTestProbe, clientConnection)(command, correlationId)
       val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedAuthenticatedCommandWithIds]) {
         case envelopedMessage @ EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
@@ -103,9 +104,8 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
     }
   }
 
-  private[this] def send(sinkTestProbe: TestProbe, clientConnection: ActorRef)(
-      command: Command,
-      correlationId: Option[Either[String, BigDecimal]]): Unit = {
+  private[this] def send(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
+                                                                               correlationId: CorrelationId): Unit = {
     sinkTestProbe.send(
       clientConnection,
       WrappedJsonRpcMessage(Command.write(command, id = correlationId))
@@ -118,7 +118,7 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
       case WrappedJsonRpcMessage(jsonRpcNotificationMessage: JsonRpcNotificationMessage) =>
         Notification.read(jsonRpcNotificationMessage)
     }
-    notification.value.asOpt.value
+    notification.asOpt.value
   }
 
   private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): ResultResponse = {

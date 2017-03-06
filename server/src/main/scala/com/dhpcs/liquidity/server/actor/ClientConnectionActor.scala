@@ -20,10 +20,11 @@ import akka.actor.{
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.RemoteAddress
-import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage, Message => WsMessage}
+import akka.http.scaladsl.model.ws.{TextMessage, Message => WsMessage}
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
+import com.dhpcs.jsonrpc.JsonRpcMessage.CorrelationId
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.actor.protocol._
@@ -69,17 +70,11 @@ object ClientConnectionActor {
 
   final val WsMessageToWrappedJsonRpcMessageFlow: Flow[WsMessage, WrappedJsonRpcMessage, NotUsed] =
     Flow[WsMessage]
-      .flatMapConcat {
-        case _: BinaryMessage                 => sys.error(s"Received binary message")
+      .flatMapConcat(_.asTextMessage match {
         case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
         case TextMessage.Strict(text)         => Source.single(text)
-      }
-      .map(jsValue =>
-        Json.parse(jsValue).validate[JsonRpcMessage] match {
-          case JsError(errors) =>
-            sys.error(s"Failed to parse $jsValue as JSON-RPC message with errors: $errors")
-          case JsSuccess(jsonRpcMessage, _) => WrappedJsonRpcMessage(jsonRpcMessage)
       })
+      .map(jsonString => WrappedJsonRpcMessage(Json.parse(jsonString).as[JsonRpcMessage]))
 
   final val WrappedJsonRpcMessageToWsMessageFlow: Flow[WrappedJsonRpcMessage, WsMessage, NotUsed] =
     Flow[WrappedJsonRpcMessage].map(
@@ -157,22 +152,18 @@ object ClientConnectionActor {
     )
   }
 
-  private def readCommand(jsonRpcRequestMessage: JsonRpcRequestMessage)
-    : (Option[Either[String, BigDecimal]], Either[JsonRpcResponseError, Command]) =
-    Command.read(jsonRpcRequestMessage) match {
-      case None =>
-        jsonRpcRequestMessage.id -> Left(
-          JsonRpcResponseError.methodNotFound(jsonRpcRequestMessage.method)
+  private def readCommand(
+      jsonRpcRequestMessage: JsonRpcRequestMessage): (CorrelationId, Either[JsonRpcResponseError, Command]) =
+    jsonRpcRequestMessage.id -> (Command.read(jsonRpcRequestMessage) match {
+      case JsError(errors) =>
+        Left(
+          JsonRpcResponseError.invalidRequest(errors)
         )
-      case Some(JsError(errors)) =>
-        jsonRpcRequestMessage.id -> Left(
-          JsonRpcResponseError.invalidParams(errors)
-        )
-      case Some(JsSuccess(command, _)) =>
-        jsonRpcRequestMessage.id -> Right(
+      case JsSuccess(command, _) =>
+        Right(
           command
         )
-    }
+    })
 }
 
 class ClientConnectionActor(ip: RemoteAddress,
@@ -225,12 +216,12 @@ class ClientConnectionActor(ip: RemoteAddress,
         sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
         readCommand(jsonRpcRequestMessage) match {
-          case (id, Left(jsonRpcResponseError)) =>
+          case (correlationId, Left(jsonRpcResponseError)) =>
             log.warning(s"Receive error: $jsonRpcResponseError")
             send(
               JsonRpcResponseMessage(
                 Left(jsonRpcResponseError),
-                id
+                correlationId
               ))
           case (correlationId, Right(command)) =>
             command match {
@@ -308,8 +299,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  private[this] def createZone(createZoneCommand: CreateZoneCommand,
-                               correlationId: Option[Either[String, BigDecimal]]): Unit = {
+  private[this] def createZone(createZoneCommand: CreateZoneCommand, correlationId: CorrelationId): Unit = {
     val zoneId         = ZoneId.generate
     val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
@@ -328,8 +318,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  private[this] def send(response: Either[ErrorResponse, ResultResponse],
-                         correlationId: Option[Either[String, BigDecimal]]): Unit =
+  private[this] def send(response: Either[ErrorResponse, ResultResponse], correlationId: CorrelationId): Unit =
     send(
       Response.write(
         response,

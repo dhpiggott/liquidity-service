@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.actor.protocol
 
 import com.dhpcs.jsonrpc.JsonRpcMessage
+import com.dhpcs.jsonrpc.JsonRpcMessage.CorrelationId
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol.{Command, CreateZoneCommand, Notification, ResultResponse}
@@ -10,7 +11,7 @@ sealed abstract class ZoneValidatorMessage extends Serializable
 
 case class AuthenticatedCommandWithIds(publicKey: PublicKey,
                                        command: Command,
-                                       correlationId: Option[Either[String, BigDecimal]],
+                                       correlationId: CorrelationId,
                                        sequenceNumber: Long,
                                        deliveryId: Long)
     extends ZoneValidatorMessage
@@ -22,7 +23,7 @@ case class EnvelopedAuthenticatedCommandWithIds(zoneId: ZoneId,
 case class CommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
 
 case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
-                             correlationId: Option[Either[String, BigDecimal]],
+                             correlationId: CorrelationId,
                              sequenceNumber: Long,
                              deliveryId: Long)
     extends ZoneValidatorMessage
@@ -30,7 +31,7 @@ case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
 case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
 case class ResponseWithIds(response: Either[ErrorResponse, ResultResponse],
-                           correlationId: Option[Either[String, BigDecimal]],
+                           correlationId: CorrelationId,
                            sequenceNumber: Long,
                            deliveryId: Long)
     extends ZoneValidatorMessage
@@ -47,8 +48,6 @@ case class ActiveZoneSummary(zoneId: ZoneId,
     extends ZoneValidatorMessage
 
 object ZoneValidatorMessage {
-
-  implicit final val IdFormat: Format[Either[String, BigDecimal]] = JsonRpcMessage.IdFormat
 
   implicit final val AuthenticatedCommandWithIdsFormat: Format[AuthenticatedCommandWithIds] =
     Json.format[AuthenticatedCommandWithIds]

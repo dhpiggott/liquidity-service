@@ -4,6 +4,7 @@ import java.security.KeyPairGenerator
 
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
+import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NumericCorrelationId}
 import com.dhpcs.jsonrpc.JsonRpcResponseError
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.liquidity.actor.protocol._
@@ -31,7 +32,7 @@ class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures 
   "A ZoneValidatorActor" should {
     "reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
       val (clientConnectionTestProbe, zoneId) = setup()
-      val correlationId                       = Some(Right(BigDecimal(0)))
+      val correlationId                       = NumericCorrelationId(0)
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe)(
         EnvelopedAuthenticatedCommandWithIds(
@@ -66,7 +67,7 @@ class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures 
     }
     "reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
-      val correlationId                       = Some(Right(BigDecimal(0)))
+      val correlationId                       = NumericCorrelationId(0)
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe, zoneId)(
         AuthenticatedCommandWithIds(
@@ -113,17 +114,17 @@ class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures 
   }
 
   private[this] def expectErrorResponse(clientConnectionTestProbe: TestProbe,
-                                        correlationId: Option[Either[String, BigDecimal]],
+                                        correlationId: CorrelationId,
                                         sequenceNumber: Long): ErrorResponse =
     expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber).left.value
 
   private[this] def expectResultResponse(clientConnectionTestProbe: TestProbe,
-                                         correlationId: Option[Either[String, BigDecimal]],
+                                         correlationId: CorrelationId,
                                          sequenceNumber: Long): ResultResponse =
     expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber).right.value
 
   private[this] def expectResponse[A](clientConnectionTestProbe: TestProbe,
-                                      correlationId: Option[Either[String, BigDecimal]],
+                                      correlationId: CorrelationId,
                                       sequenceNumber: Long): Either[ErrorResponse, ResultResponse] = {
     val responseWithIds = clientConnectionTestProbe.expectMsgType[ResponseWithIds]
     responseWithIds.correlationId shouldBe correlationId

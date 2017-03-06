@@ -51,7 +51,7 @@ lazy val liquidityModel = project
   .settings(
     libraryDependencies ++= Seq(
       scalaTest   % Test,
-      "com.dhpcs" %% "play-json-rpc-testkit" % "1.4.1" % Test
+      "com.dhpcs" %% "play-json-testkit" % "1.5.0" % Test
     ))
 
 lazy val liquiditySerialization = project
@@ -88,13 +88,13 @@ lazy val liquidityWsProtocol = project
     name := "liquidity-ws-protocol"
   )
   .settings(libraryDependencies ++= Seq(
-    "com.dhpcs" %% "play-json-rpc" % "1.4.1"
+    "com.dhpcs" %% "play-json-rpc" % "1.5.0"
   ))
   .dependsOn(liquidityModel)
   .settings(
     libraryDependencies ++= Seq(
       scalaTest   % Test,
-      "com.dhpcs" %% "play-json-rpc-testkit" % "1.4.1" % Test
+      "com.dhpcs" %% "play-json-testkit" % "1.5.0" % Test
     ))
 
 lazy val liquidityActorProtocol = project

@@ -4,6 +4,7 @@ import java.io.{File, IOException, InputStream}
 import java.util.concurrent.TimeUnit
 import javax.net.ssl._
 
+import com.dhpcs.jsonrpc.JsonRpcMessage.{NoCorrelationId, NumericCorrelationId, StringCorrelationId}
 import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
 import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcNotificationMessage, JsonRpcRequestMessage, JsonRpcResponseMessage}
 import com.dhpcs.liquidity.client.ServerConnection._
@@ -14,7 +15,7 @@ import okhttp3.{OkHttpClient, RequestBody, ResponseBody}
 import okio.Buffer
 import play.api.libs.json.Json
 
-import scala.util.{Failure, Right, Success, Try}
+import scala.util.Right
 
 object ServerConnection {
 
@@ -49,24 +50,25 @@ object ServerConnection {
 
     def post(runnable: Runnable): Unit
 
-    def post(body: => Unit): Unit = post(new Runnable {
-      override def run(): Unit = body
-    })
+    def post(body: => Unit): Unit =
+      post(new Runnable {
+        override def run(): Unit = body
+      })
 
     def quit(): Unit
 
   }
 
   sealed abstract class ConnectionState
-  case object UNAVAILABLE extends ConnectionState
-  case object GENERAL_FAILURE extends ConnectionState
-  case object TLS_ERROR extends ConnectionState
-  case object UNSUPPORTED_VERSION extends ConnectionState
-  case object AVAILABLE extends ConnectionState
-  case object CONNECTING extends ConnectionState
+  case object UNAVAILABLE               extends ConnectionState
+  case object GENERAL_FAILURE           extends ConnectionState
+  case object TLS_ERROR                 extends ConnectionState
+  case object UNSUPPORTED_VERSION       extends ConnectionState
+  case object AVAILABLE                 extends ConnectionState
+  case object CONNECTING                extends ConnectionState
   case object WAITING_FOR_VERSION_CHECK extends ConnectionState
-  case object ONLINE extends ConnectionState
-  case object DISCONNECTING extends ConnectionState
+  case object ONLINE                    extends ConnectionState
+  case object DISCONNECTING             extends ConnectionState
 
   trait ConnectionStateListener {
     def onConnectionStateChanged(connectionState: ConnectionState): Unit
@@ -86,12 +88,12 @@ object ServerConnection {
   }
 
   private sealed abstract class State
-  private sealed abstract class IdleState extends State
-  private case object UnavailableIdleState extends IdleState
-  private case object GeneralFailureIdleState extends IdleState
-  private case object TlsErrorIdleState extends IdleState
+  private sealed abstract class IdleState         extends State
+  private case object UnavailableIdleState        extends IdleState
+  private case object GeneralFailureIdleState     extends IdleState
+  private case object TlsErrorIdleState           extends IdleState
   private case object UnsupportedVersionIdleState extends IdleState
-  private case object AvailableIdleState extends IdleState
+  private case object AvailableIdleState          extends IdleState
   private case class ActiveState(handlerWrapper: HandlerWrapper) extends State {
     var subState: SubState = _
   }
@@ -101,18 +103,17 @@ object ServerConnection {
     val webSocket: WebSocket
   }
   private case class WaitingForVersionCheckSubState(webSocket: WebSocket) extends ConnectedSubState
-  private case class OnlineSubState(webSocket: WebSocket) extends ConnectedSubState
-  private case object DisconnectingSubState extends SubState
+  private case class OnlineSubState(webSocket: WebSocket)                 extends ConnectedSubState
+  private case object DisconnectingSubState                               extends SubState
 
-  private case class PendingRequest(requestMessage: JsonRpcRequestMessage,
-                                    callback: ResponseCallback)
+  private case class PendingRequest(requestMessage: JsonRpcRequestMessage, callback: ResponseCallback)
 
   private sealed abstract class CloseCause
-  private case object GeneralFailure extends CloseCause
-  private case object TlsError extends CloseCause
+  private case object GeneralFailure     extends CloseCause
+  private case object TlsError           extends CloseCause
   private case object UnsupportedVersion extends CloseCause
-  private case object ServerDisconnect extends CloseCause
-  private case object ClientDisconnect extends CloseCause
+  private case object ServerDisconnect   extends CloseCause
+  private case object ClientDisconnect   extends CloseCause
 
   private var instance: ServerConnection = _
 
@@ -161,33 +162,28 @@ object ServerConnection {
     sslContext.getSocketFactory
   }
 
-  private def readJsonRpcMessage(jsonString: String): Either[String, JsonRpcMessage] =
-    Try(Json.parse(jsonString)) match {
-      case Failure(exception) =>
-        Left(s"Invalid JSON: $exception")
-      case Success(json) =>
-        Json.fromJson[JsonRpcMessage](json).fold(
-          errors => Left(s"Invalid JSON-RPC message: $errors"),
-          Right(_)
-        )
-    }
+  private def readJsonRpcMessage(message: ResponseBody): JsonRpcMessage = message.contentType match {
+    case WebSocket.BINARY => sys.error("Received binary frame")
+    case WebSocket.TEXT   => Json.parse(message.string).as[JsonRpcMessage]
+  }
 }
 
-class ServerConnection private(filesDir: File,
-                               keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
-                               connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                               handlerWrapperFactory: HandlerWrapperFactory,
-                               hostname: String,
-                               port: Int)
-  extends WebSocketListener {
+class ServerConnection private (filesDir: File,
+                                keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
+                                connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
+                                handlerWrapperFactory: HandlerWrapperFactory,
+                                hostname: String,
+                                port: Int)
+    extends WebSocketListener {
 
   private[this] lazy val client = {
     val trustManager = ServerTrust.getTrustManager(keyStoreInputStreamProvider.get())
     new OkHttpClient.Builder()
       .sslSocketFactory(createSslSocketFactory(
-        ClientKey.getKeyManagers(filesDir),
-        Array(trustManager)
-      ), trustManager)
+                          ClientKey.getKeyManagers(filesDir),
+                          Array(trustManager)
+                        ),
+                        trustManager)
       .hostnameVerifier(new HostnameVerifier {
         override def verify(host: String, session: SSLSession): Boolean = true
       })
@@ -197,16 +193,16 @@ class ServerConnection private(filesDir: File,
   }
 
   private[this] val connectivityStatePublisher = connectivityStatePublisherBuilder.build(this)
-  private[this] val mainHandlerWrapper = handlerWrapperFactory.main()
+  private[this] val mainHandlerWrapper         = handlerWrapperFactory.main()
 
-  private[this] var pendingRequests = Map.empty[BigDecimal, PendingRequest]
-  private[this] var commandIdentifier = BigDecimal(0)
-  private[this] var state: State = UnavailableIdleState
+  private[this] var pendingRequests    = Map.empty[BigDecimal, PendingRequest]
+  private[this] var commandIdentifier  = BigDecimal(0)
+  private[this] var state: State       = UnavailableIdleState
   private[this] var hasFailed: Boolean = _
 
   private[this] var _connectionState: ConnectionState = UNAVAILABLE
-  private[this] var connectionStateListeners = Set.empty[ConnectionStateListener]
-  private[this] var connectRequestTokens = Set.empty[ConnectionRequestToken]
+  private[this] var connectionStateListeners          = Set.empty[ConnectionStateListener]
+  private[this] var connectRequestTokens              = Set.empty[ConnectionRequestToken]
 
   private[this] var notificationReceiptListeners = Set.empty[NotificationReceiptListener]
 
@@ -236,10 +232,10 @@ class ServerConnection private(filesDir: File,
       connectRequestTokens = connectRequestTokens + token
     }
     if ((_connectionState == ServerConnection.AVAILABLE
-      || _connectionState == ServerConnection.GENERAL_FAILURE
-      || _connectionState == ServerConnection.TLS_ERROR
-      || _connectionState == ServerConnection.UNSUPPORTED_VERSION)
-      && (!hasFailed || retry)) {
+        || _connectionState == ServerConnection.GENERAL_FAILURE
+        || _connectionState == ServerConnection.TLS_ERROR
+        || _connectionState == ServerConnection.UNSUPPORTED_VERSION)
+        && (!hasFailed || retry)) {
       connect()
     }
   }
@@ -254,7 +250,8 @@ class ServerConnection private(filesDir: File,
         case _: WaitingForVersionCheckSubState =>
           sys.error("Waiting for version check")
         case onlineSubState: OnlineSubState =>
-          val jsonRpcRequestMessage = Command.write(command, Some(Right(commandIdentifier)))
+          val correlationId         = NumericCorrelationId(commandIdentifier)
+          val jsonRpcRequestMessage = Command.write(command, correlationId)
           commandIdentifier = commandIdentifier + 1
           try {
             onlineSubState.webSocket.sendMessage(
@@ -266,8 +263,7 @@ class ServerConnection private(filesDir: File,
               )
             )
             pendingRequests = pendingRequests +
-              (jsonRpcRequestMessage.id.get.right.get ->
-                PendingRequest(jsonRpcRequestMessage, responseCallback))
+              (correlationId.value -> PendingRequest(jsonRpcRequestMessage, responseCallback))
           } catch {
             // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
             case _: IOException =>
@@ -280,8 +276,8 @@ class ServerConnection private(filesDir: File,
       connectRequestTokens = connectRequestTokens - token
       if (connectRequestTokens.isEmpty) {
         if (_connectionState == ServerConnection.CONNECTING
-          || _connectionState == ServerConnection.WAITING_FOR_VERSION_CHECK
-          || _connectionState == ServerConnection.ONLINE) {
+            || _connectionState == ServerConnection.WAITING_FOR_VERSION_CHECK
+            || _connectionState == ServerConnection.ONLINE) {
           disconnect(1001)
         }
       }
@@ -303,11 +299,7 @@ class ServerConnection private(filesDir: File,
   def handleConnectivityStateChange(): Unit =
     if (!connectivityStatePublisher.isConnectionAvailable) {
       state match {
-        case AvailableIdleState
-             | GeneralFailureIdleState
-             | TlsErrorIdleState
-             | UnsupportedVersionIdleState =>
-
+        case AvailableIdleState | GeneralFailureIdleState | TlsErrorIdleState | UnsupportedVersionIdleState =>
           state = UnavailableIdleState
           _connectionState = UNAVAILABLE
           connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
@@ -392,101 +384,101 @@ class ServerConnection private(filesDir: File,
         })
     })
 
-  override def onMessage(message: ResponseBody): Unit = message.contentType match {
-    case WebSocket.BINARY =>
-      sys.error("Received binary frame")
-    case WebSocket.TEXT =>
-      readJsonRpcMessage(message.string) match {
-        case Left(error) =>
-          sys.error(error)
-        case Right(jsonRpcMessage) =>
-          mainHandlerWrapper.post(state match {
-            case _: IdleState =>
-              sys.error("Not connected")
-            case activeState: ActiveState =>
-              jsonRpcMessage match {
-                case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
-                  activeState.handlerWrapper.post {
-                    Notification.read(jsonRpcNotificationMessage).fold(
-                      ifEmpty = sys.error(s"No notification type exists with method" +
-                        s"=${jsonRpcNotificationMessage.method}")
-                    )(_.fold(
-                      errors => sys.error(s"Invalid Notification: $errors"), {
-                        case SupportedVersionsNotification(compatibleVersionNumbers) =>
-                          activeState.subState match {
-                            case _: ConnectingSubState =>
-                              sys.error("Not connected")
-                            case _: OnlineSubState =>
-                              sys.error("Already online")
-                            case WaitingForVersionCheckSubState(webSocket) =>
-                              if (!compatibleVersionNumbers.contains(VersionNumber)) {
-                                mainHandlerWrapper.post(
-                                  disconnect(1001)
+  override def onMessage(message: ResponseBody): Unit = {
+    val jsonRpcMessage = readJsonRpcMessage(message)
+    mainHandlerWrapper.post(state match {
+      case _: IdleState =>
+        sys.error("Not connected")
+      case activeState: ActiveState =>
+        jsonRpcMessage match {
+          case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
+            activeState.handlerWrapper.post {
+              Notification
+                .read(jsonRpcNotificationMessage)
+                .fold(
+                  errors => sys.error(s"Invalid Notification: $errors"), {
+                    case SupportedVersionsNotification(compatibleVersionNumbers) =>
+                      activeState.subState match {
+                        case _: ConnectingSubState =>
+                          sys.error("Not connected")
+                        case _: OnlineSubState =>
+                          sys.error("Already online")
+                        case WaitingForVersionCheckSubState(webSocket) =>
+                          if (!compatibleVersionNumbers.contains(VersionNumber)) {
+                            mainHandlerWrapper.post(
+                              disconnect(1001)
+                            )
+                          } else {
+                            activeState.handlerWrapper.post {
+                              activeState.subState = OnlineSubState(webSocket)
+                              mainHandlerWrapper.post {
+                                _connectionState = ONLINE
+                                connectionStateListeners.foreach(
+                                  _.onConnectionStateChanged(_connectionState)
                                 )
-                              } else {
-                                activeState.handlerWrapper.post {
-                                  activeState.subState = OnlineSubState(webSocket)
-                                  mainHandlerWrapper.post {
-                                    _connectionState = ONLINE
-                                    connectionStateListeners.foreach(
-                                      _.onConnectionStateChanged(_connectionState)
-                                    )
-                                  }
-                                }
                               }
-                            case DisconnectingSubState =>
+                            }
                           }
-                        case KeepAliveNotification =>
-                          activeState.subState match {
-                            case _: ConnectingSubState =>
-                              sys.error("Not connected")
-                            case _: WaitingForVersionCheckSubState =>
-                              sys.error("Waiting for version check")
-                            case _: OnlineSubState =>
-                            case DisconnectingSubState =>
-                          }
-                        case zoneNotification: ZoneNotification =>
-                          activeState.subState match {
-                            case _: ConnectingSubState =>
-                              sys.error("Not connected")
-                            case _: WaitingForVersionCheckSubState =>
-                              sys.error("Waiting for version check")
-                            case _: OnlineSubState =>
-                              activeState.handlerWrapper.post(
-                                mainHandlerWrapper.post(
-                                  notificationReceiptListeners.foreach(
-                                    _.onZoneNotificationReceived(zoneNotification)
-                                  )
-                                )
-                              )
-                            case DisconnectingSubState =>
-                          }
-                      }))
-                  }
-                case jsonRpcResponseMessage: JsonRpcResponseMessage =>
-                  activeState.handlerWrapper.post(activeState.subState match {
-                    case _: ConnectingSubState =>
-                      sys.error("Not connected")
-                    case _: WaitingForVersionCheckSubState =>
-                      sys.error("Waiting for version check")
-                    case _: OnlineSubState =>
-                      jsonRpcResponseMessage.id.fold(
-                        ifEmpty = sys.error(s"JSON-RPC message ID missing, jsonRpcResponseMessage.errorOrResult" +
-                          s"=${jsonRpcResponseMessage.errorOrResult}")
-                      )(id =>
-                        id.right.toOption.fold(
-                          ifEmpty = sys.error(s"JSON-RPC message ID was not a number, id=$id")
-                        )(commandIdentifier =>
+                        case DisconnectingSubState =>
+                      }
+                    case KeepAliveNotification =>
+                      activeState.subState match {
+                        case _: ConnectingSubState =>
+                          sys.error("Not connected")
+                        case _: WaitingForVersionCheckSubState =>
+                          sys.error("Waiting for version check")
+                        case _: OnlineSubState     =>
+                        case DisconnectingSubState =>
+                      }
+                    case zoneNotification: ZoneNotification =>
+                      activeState.subState match {
+                        case _: ConnectingSubState =>
+                          sys.error("Not connected")
+                        case _: WaitingForVersionCheckSubState =>
+                          sys.error("Waiting for version check")
+                        case _: OnlineSubState =>
                           activeState.handlerWrapper.post(
-                            pendingRequests.get(commandIdentifier).fold(
-                              ifEmpty = sys.error(s"No pending request exists with commandIdentifier" +
-                                s"=$commandIdentifier")
-                            ) { pendingRequest =>
-                              pendingRequests = pendingRequests - commandIdentifier
-                              Response.read(
+                            mainHandlerWrapper.post(
+                              notificationReceiptListeners.foreach(
+                                _.onZoneNotificationReceived(zoneNotification)
+                              )
+                            )
+                          )
+                        case DisconnectingSubState =>
+                      }
+                  }
+                )
+            }
+          case jsonRpcResponseMessage: JsonRpcResponseMessage =>
+            activeState.handlerWrapper.post(activeState.subState match {
+              case _: ConnectingSubState =>
+                sys.error("Not connected")
+              case _: WaitingForVersionCheckSubState =>
+                sys.error("Waiting for version check")
+              case _: OnlineSubState =>
+                jsonRpcResponseMessage.id match {
+                  case NoCorrelationId =>
+                    sys.error(
+                      s"JSON-RPC message ID missing, jsonRpcResponseMessage.errorOrResult" +
+                        s"=${jsonRpcResponseMessage.errorOrResult}")
+                  case StringCorrelationId(value) =>
+                    sys.error(s"JSON-RPC message ID was not a number, id=$value")
+                  case NumericCorrelationId(value) =>
+                    activeState.handlerWrapper.post(
+                      pendingRequests
+                        .get(value)
+                        .fold(
+                          ifEmpty = sys.error(s"No pending request exists with commandIdentifier" +
+                            s"=$value")
+                        ) {
+                          pendingRequest =>
+                            pendingRequests = pendingRequests - value
+                            Response
+                              .read(
                                 jsonRpcResponseMessage,
                                 pendingRequest.requestMessage.method
-                              ).fold(
+                              )
+                              .fold(
                                 errors => sys.error(s"Invalid Response: $errors"), {
                                   case Left(errorResponse) =>
                                     mainHandlerWrapper.post(
@@ -496,26 +488,25 @@ class ServerConnection private(filesDir: File,
                                     mainHandlerWrapper.post(
                                       pendingRequest.callback.onResultReceived(resultResponse)
                                     )
-                                })
-                            }
-                          )
-                        )
-                      )
-                    case DisconnectingSubState =>
-                  })
-                case jsonRpc_Message =>
-                  activeState.handlerWrapper.post(activeState.subState match {
-                    case _: ConnectingSubState =>
-                      sys.error("Not connected")
-                    case _: WaitingForVersionCheckSubState =>
-                      sys.error("Waiting for version check")
-                    case _: OnlineSubState =>
-                      sys.error(s"Received $jsonRpc_Message")
-                    case DisconnectingSubState =>
-                  })
-              }
-          })
-      }
+                                }
+                              )
+                        }
+                    )
+                }
+              case DisconnectingSubState =>
+            })
+          case jsonRpc_Message =>
+            activeState.handlerWrapper.post(activeState.subState match {
+              case _: ConnectingSubState =>
+                sys.error("Not connected")
+              case _: WaitingForVersionCheckSubState =>
+                sys.error("Waiting for version check")
+              case _: OnlineSubState =>
+                sys.error(s"Received $jsonRpc_Message")
+              case DisconnectingSubState =>
+            })
+        }
+    })
   }
 
   override def onOpen(webSocket: WebSocket, response: okhttp3.Response): Unit =
@@ -542,10 +533,7 @@ class ServerConnection private(filesDir: File,
       sys.error("Already connecting/connected/disconnecting")
     case UnavailableIdleState =>
       sys.error("Connection unavailable")
-    case AvailableIdleState
-         | GeneralFailureIdleState
-         | TlsErrorIdleState
-         | UnsupportedVersionIdleState =>
+    case AvailableIdleState | GeneralFailureIdleState | TlsErrorIdleState | UnsupportedVersionIdleState =>
       doOpen()
   }
 
@@ -581,9 +569,7 @@ class ServerConnection private(filesDir: File,
       })
   }
 
-  private[this] def doClose(handlerWrapper: HandlerWrapper,
-                            closeCause: CloseCause,
-                            reconnect: Boolean = false): Unit = {
+  private[this] def doClose(handlerWrapper: HandlerWrapper, closeCause: CloseCause, reconnect: Boolean = false): Unit = {
     handlerWrapper.quit()
     commandIdentifier = 0
     pendingRequests = Map.empty

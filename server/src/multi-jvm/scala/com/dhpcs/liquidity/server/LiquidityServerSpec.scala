@@ -18,6 +18,7 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
+import com.dhpcs.jsonrpc.JsonRpcMessage.NoCorrelationId
 import com.dhpcs.jsonrpc.{JsonRpcMessage, _}
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model._
@@ -31,8 +32,8 @@ import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest._
 
-import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext}
 
 object LiquidityServerSpecConfig extends MultiNodeConfig {
 
@@ -325,14 +326,14 @@ sealed abstract class LiquidityServerSpec
   }
 
   private[this] def send(pub: TestPublisher.Probe[JsonRpcMessage])(command: Command): Unit =
-    pub.sendNext(Command.write(command, id = None))
+    pub.sendNext(Command.write(command, id = NoCorrelationId))
 
   private[this] def expectNotification(sub: TestSubscriber.Probe[JsonRpcMessage]): Notification = {
     sub.request(1)
     sub.expectNextPF {
       case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
         val notification = Notification.read(jsonRpcNotificationMessage)
-        notification.value.asOpt.value
+        notification.asOpt.value
     }
   }
 

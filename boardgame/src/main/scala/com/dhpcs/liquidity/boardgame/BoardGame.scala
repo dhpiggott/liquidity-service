@@ -24,7 +24,7 @@ object BoardGame {
 
   }
 
-  sealed trait JoinState
+  sealed abstract class JoinState
   case object UNAVAILABLE               extends JoinState
   case object GENERAL_FAILURE           extends JoinState
   case object TLS_ERROR                 extends JoinState
@@ -38,7 +38,7 @@ object BoardGame {
   case object QUITTING                  extends JoinState
   case object DISCONNECTING             extends JoinState
 
-  sealed trait Player extends Serializable {
+  sealed abstract class Player extends Serializable {
 
     def zoneId: ZoneId
     def member: Member
@@ -47,7 +47,7 @@ object BoardGame {
 
   }
 
-  sealed trait Identity extends Player
+  sealed abstract class Identity extends Player
   case class PlayerWithBalanceAndConnectionState(zoneId: ZoneId,
                                                  member: Member,
                                                  account: Account,
@@ -62,7 +62,7 @@ object BoardGame {
                                  isBanker: Boolean)
       extends Identity
 
-  sealed trait Transfer extends Serializable {
+  sealed abstract class Transfer extends Serializable {
 
     def creator: Either[(MemberId, Member), Player]
     def from: Either[(AccountId, Account), Player]

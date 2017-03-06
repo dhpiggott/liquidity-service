@@ -57,7 +57,7 @@ object ServerConnection {
 
   }
 
-  sealed trait ConnectionState
+  sealed abstract class ConnectionState
   case object UNAVAILABLE extends ConnectionState
   case object GENERAL_FAILURE extends ConnectionState
   case object TLS_ERROR extends ConnectionState
@@ -85,8 +85,8 @@ object ServerConnection {
 
   }
 
-  private sealed trait State
-  private sealed trait IdleState extends State
+  private sealed abstract class State
+  private sealed abstract class IdleState extends State
   private case object UnavailableIdleState extends IdleState
   private case object GeneralFailureIdleState extends IdleState
   private case object TlsErrorIdleState extends IdleState
@@ -95,9 +95,9 @@ object ServerConnection {
   private case class ActiveState(handlerWrapper: HandlerWrapper) extends State {
     var subState: SubState = _
   }
-  private sealed trait SubState
+  private sealed abstract class SubState
   private case class ConnectingSubState(webSocketCall: WebSocketCall) extends SubState
-  private sealed trait ConnectedSubState extends SubState {
+  private sealed abstract class ConnectedSubState extends SubState {
     val webSocket: WebSocket
   }
   private case class WaitingForVersionCheckSubState(webSocket: WebSocket) extends ConnectedSubState
@@ -107,7 +107,7 @@ object ServerConnection {
   private case class PendingRequest(requestMessage: JsonRpcRequestMessage,
                                     callback: ResponseCallback)
 
-  private sealed trait CloseCause
+  private sealed abstract class CloseCause
   private case object GeneralFailure extends CloseCause
   private case object TlsError extends CloseCause
   private case object UnsupportedVersion extends CloseCause

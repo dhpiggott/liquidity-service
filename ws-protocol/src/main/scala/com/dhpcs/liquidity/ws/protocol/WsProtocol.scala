@@ -7,10 +7,10 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads.min
 import play.api.libs.json._
 
-sealed trait Message
+sealed abstract class Message
 
-sealed trait Command extends Message
-sealed trait ZoneCommand extends Command {
+sealed abstract class Command extends Message
+sealed abstract class ZoneCommand extends Command {
   val zoneId: ZoneId
 }
 
@@ -119,8 +119,8 @@ object Command extends CommandCompanion[Command] {
 
 }
 
-sealed trait Response                                                     extends Message
-sealed trait ResultResponse                                               extends Response
+sealed abstract class Response                                            extends Message
+sealed abstract class ResultResponse                                      extends Response
 case class CreateZoneResponse(zone: Zone)                                 extends ResultResponse
 case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends ResultResponse
 case object QuitZoneResponse                                              extends ResultResponse
@@ -172,8 +172,8 @@ object Response extends ResponseCompanion[ResultResponse] {
 
 }
 
-sealed trait Notification extends Message
-sealed trait ZoneNotification extends Notification {
+sealed abstract class Notification extends Message
+sealed abstract class ZoneNotification extends Notification {
   val zoneId: ZoneId
 }
 case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Int])      extends Notification

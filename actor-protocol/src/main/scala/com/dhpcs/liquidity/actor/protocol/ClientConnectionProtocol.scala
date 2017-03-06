@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.actor.protocol
 import com.dhpcs.liquidity.model.PublicKey
 import play.api.libs.json.{Format, Json}
 
-sealed trait ClientConnectionMessage extends Serializable
+sealed abstract class ClientConnectionMessage extends Serializable
 
 case class MessageReceivedConfirmation(deliveryId: Long) extends ClientConnectionMessage
 

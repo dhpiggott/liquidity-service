@@ -6,7 +6,7 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol.{Command, CreateZoneCommand, Notification, ResultResponse}
 import play.api.libs.json._
 
-sealed trait ZoneValidatorMessage extends Serializable
+sealed abstract class ZoneValidatorMessage extends Serializable
 
 case class AuthenticatedCommandWithIds(publicKey: PublicKey,
                                        command: Command,

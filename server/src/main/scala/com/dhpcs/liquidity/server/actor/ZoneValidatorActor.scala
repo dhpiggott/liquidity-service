@@ -101,8 +101,8 @@ object ZoneValidatorActor {
         val updatedDestinationBalance = balances(transaction.to) + transaction.value
         copy(
           balances = balances +
-              (transaction.from -> updatedSourceBalance) +
-              (transaction.to   -> updatedDestinationBalance),
+            (transaction.from -> updatedSourceBalance) +
+            (transaction.to   -> updatedDestinationBalance),
           zone = zone.copy(
             transactions = zone.transactions + (transaction.id -> transaction)
           )

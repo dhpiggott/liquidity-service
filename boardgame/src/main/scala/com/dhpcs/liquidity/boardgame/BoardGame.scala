@@ -785,7 +785,7 @@ class BoardGame private (serverConnection: ServerConnection,
           )
           state.memberIdsToAccountIds = state.memberIdsToAccountIds ++ createdMembersAccounts
           state.accountIdsToMemberIds = state.accountIdsToMemberIds ++
-              createdMembersAccounts.map(_.swap)
+            createdMembersAccounts.map(_.swap)
           val (createdIdentity, createdHiddenIdentity) = identitiesFromMembersAccounts(
             zoneNotification.zoneId,
             createdMembersAccounts,
@@ -853,8 +853,8 @@ class BoardGame private (serverConnection: ServerConnection,
             transactions = state.zone.transactions + (transaction.id -> transaction)
           )
           state.balances = state.balances +
-              (transaction.from -> (state.balances(transaction.from) - transaction.value)) +
-              (transaction.to   -> (state.balances(transaction.to) + transaction.value))
+            (transaction.from -> (state.balances(transaction.from) - transaction.value)) +
+            (transaction.to   -> (state.balances(transaction.to) + transaction.value))
           val changedMembersAccounts = membersAccountsFromAccounts(
             Map(
               transaction.from -> state.zone.accounts(transaction.from),
@@ -961,8 +961,8 @@ class BoardGame private (serverConnection: ServerConnection,
             var balances         = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
             for (transaction <- joinZoneResponse.zone.transactions.values) {
               balances = balances +
-                  (transaction.from -> (balances(transaction.from) - transaction.value)) +
-                  (transaction.to   -> (balances(transaction.to) + transaction.value))
+                (transaction.from -> (balances(transaction.from) - transaction.value)) +
+                (transaction.to   -> (balances(transaction.to) + transaction.value))
             }
             val currency = currencyFromMetadata(joinZoneResponse.zone.metadata)
             val memberIdsToAccountIds = membersAccountsFromAccounts(

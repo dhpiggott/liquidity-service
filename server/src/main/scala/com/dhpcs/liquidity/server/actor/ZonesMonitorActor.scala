@@ -30,11 +30,11 @@ object ZonesMonitorActor {
 
   case object GetActiveZonesSummary
 
-  case class ActiveZonesSummary(activeZoneSummaries: Set[ActiveZoneSummary])
+  final case class ActiveZonesSummary(activeZoneSummaries: Set[ActiveZoneSummary])
 
   case object GetZoneCount
 
-  case class ZoneCount(count: Int)
+  final case class ZoneCount(count: Int)
 
   private case object PublishStatus
 

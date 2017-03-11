@@ -37,7 +37,7 @@ object ZoneAnalyticsActor {
       (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
   }
 
-  case class Start(zoneId: ZoneId)
+  final case class Start(zoneId: ZoneId)
   case object Started
 
 }

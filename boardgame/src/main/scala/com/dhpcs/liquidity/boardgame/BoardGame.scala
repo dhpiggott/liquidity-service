@@ -48,18 +48,19 @@ object BoardGame {
   }
 
   sealed abstract class Identity extends Player
-  case class PlayerWithBalanceAndConnectionState(zoneId: ZoneId,
-                                                 member: Member,
-                                                 account: Account,
-                                                 balanceWithCurrency: (BigDecimal, Option[Either[String, Currency]]),
-                                                 isBanker: Boolean,
-                                                 isConnected: Boolean)
+  final case class PlayerWithBalanceAndConnectionState(
+      zoneId: ZoneId,
+      member: Member,
+      account: Account,
+      balanceWithCurrency: (BigDecimal, Option[Either[String, Currency]]),
+      isBanker: Boolean,
+      isConnected: Boolean)
       extends Player
-  case class IdentityWithBalance(zoneId: ZoneId,
-                                 member: Member,
-                                 account: Account,
-                                 balanceWithCurrency: (BigDecimal, Option[Either[String, Currency]]),
-                                 isBanker: Boolean)
+  final case class IdentityWithBalance(zoneId: ZoneId,
+                                       member: Member,
+                                       account: Account,
+                                       balanceWithCurrency: (BigDecimal, Option[Either[String, Currency]]),
+                                       isBanker: Boolean)
       extends Identity
 
   sealed abstract class Transfer extends Serializable {
@@ -70,11 +71,11 @@ object BoardGame {
     def transaction: Transaction
 
   }
-  case class TransferWithCurrency(from: Either[(AccountId, Account), Player],
-                                  to: Either[(AccountId, Account), Player],
-                                  creator: Either[(MemberId, Member), Player],
-                                  transaction: Transaction,
-                                  currency: Option[Either[String, Currency]])
+  final case class TransferWithCurrency(from: Either[(AccountId, Account), Player],
+                                        to: Either[(AccountId, Account), Player],
+                                        creator: Either[(MemberId, Member), Player],
+                                        transaction: Transaction,
+                                        currency: Option[Either[String, Currency]])
       extends Transfer
 
   trait JoinStateListener {

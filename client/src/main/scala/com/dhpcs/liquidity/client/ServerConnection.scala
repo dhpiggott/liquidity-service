@@ -94,19 +94,19 @@ object ServerConnection {
   private case object TlsErrorIdleState           extends IdleState
   private case object UnsupportedVersionIdleState extends IdleState
   private case object AvailableIdleState          extends IdleState
-  private case class ActiveState(handlerWrapper: HandlerWrapper) extends State {
+  private final case class ActiveState(handlerWrapper: HandlerWrapper) extends State {
     var subState: SubState = _
   }
   private sealed abstract class SubState
-  private case class ConnectingSubState(webSocketCall: WebSocketCall) extends SubState
+  private final case class ConnectingSubState(webSocketCall: WebSocketCall) extends SubState
   private sealed abstract class ConnectedSubState extends SubState {
     val webSocket: WebSocket
   }
-  private case class WaitingForVersionCheckSubState(webSocket: WebSocket) extends ConnectedSubState
-  private case class OnlineSubState(webSocket: WebSocket)                 extends ConnectedSubState
-  private case object DisconnectingSubState                               extends SubState
+  private final case class WaitingForVersionCheckSubState(webSocket: WebSocket) extends ConnectedSubState
+  private final case class OnlineSubState(webSocket: WebSocket)                 extends ConnectedSubState
+  private case object DisconnectingSubState                                     extends SubState
 
-  private case class PendingRequest(requestMessage: JsonRpcRequestMessage, callback: ResponseCallback)
+  private final case class PendingRequest(requestMessage: JsonRpcRequestMessage, callback: ResponseCallback)
 
   private sealed abstract class CloseCause
   private case object GeneralFailure     extends CloseCause

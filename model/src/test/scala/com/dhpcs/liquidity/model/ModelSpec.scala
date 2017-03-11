@@ -12,7 +12,7 @@ import play.api.libs.json.{Format, JsError, Json, __}
 
 object ValueFormatSpec {
 
-  case class TestValue(value: String)
+  final case class TestValue(value: String)
 
   object TestValue {
     implicit final val TestFormat: Format[TestValue] = ValueFormat[TestValue, String](TestValue(_), _.value)

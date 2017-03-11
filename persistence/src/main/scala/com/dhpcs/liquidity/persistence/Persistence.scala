@@ -8,15 +8,16 @@ sealed abstract class Event extends Serializable {
   def timestamp: Long
 }
 
-case class ZoneCreatedEvent(timestamp: Long, zone: Zone)                                                extends Event
-case class ZoneJoinedEvent(timestamp: Long, clientConnectionActorPath: ActorPath, publicKey: PublicKey) extends Event
-case class ZoneQuitEvent(timestamp: Long, clientConnectionActorPath: ActorPath)                         extends Event
-case class ZoneNameChangedEvent(timestamp: Long, name: Option[String])                                  extends Event
-case class MemberCreatedEvent(timestamp: Long, member: Member)                                          extends Event
-case class MemberUpdatedEvent(timestamp: Long, member: Member)                                          extends Event
-case class AccountCreatedEvent(timestamp: Long, account: Account)                                       extends Event
-case class AccountUpdatedEvent(timestamp: Long, account: Account)                                       extends Event
-case class TransactionAddedEvent(timestamp: Long, transaction: Transaction)                             extends Event
+final case class ZoneCreatedEvent(timestamp: Long, zone: Zone) extends Event
+final case class ZoneJoinedEvent(timestamp: Long, clientConnectionActorPath: ActorPath, publicKey: PublicKey)
+    extends Event
+final case class ZoneQuitEvent(timestamp: Long, clientConnectionActorPath: ActorPath) extends Event
+final case class ZoneNameChangedEvent(timestamp: Long, name: Option[String])          extends Event
+final case class MemberCreatedEvent(timestamp: Long, member: Member)                  extends Event
+final case class MemberUpdatedEvent(timestamp: Long, member: Member)                  extends Event
+final case class AccountCreatedEvent(timestamp: Long, account: Account)               extends Event
+final case class AccountUpdatedEvent(timestamp: Long, account: Account)               extends Event
+final case class TransactionAddedEvent(timestamp: Long, transaction: Transaction)     extends Event
 
 object Event {
 

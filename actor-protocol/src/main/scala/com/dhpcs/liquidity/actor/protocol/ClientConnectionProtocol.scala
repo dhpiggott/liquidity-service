@@ -5,9 +5,9 @@ import play.api.libs.json.{Format, Json}
 
 sealed abstract class ClientConnectionMessage extends Serializable
 
-case class MessageReceivedConfirmation(deliveryId: Long) extends ClientConnectionMessage
+final case class MessageReceivedConfirmation(deliveryId: Long) extends ClientConnectionMessage
 
-case class ActiveClientSummary(publicKey: PublicKey) extends ClientConnectionMessage
+final case class ActiveClientSummary(publicKey: PublicKey) extends ClientConnectionMessage
 
 object ClientConnectionMessage {
 

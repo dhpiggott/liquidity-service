@@ -88,7 +88,7 @@ object ClientConnectionActor {
 
   final val Topic = "Client"
 
-  case class WrappedJsonRpcMessage(jsonRpcMessage: JsonRpcMessage) extends NoSerializationVerificationNeeded
+  final case class WrappedJsonRpcMessage(jsonRpcMessage: JsonRpcMessage) extends NoSerializationVerificationNeeded
 
   case object ActorSinkInit
 

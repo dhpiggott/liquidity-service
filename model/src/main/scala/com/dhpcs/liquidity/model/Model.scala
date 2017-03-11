@@ -18,7 +18,7 @@ object ValueFormat {
   )
 }
 
-case class PublicKey(value: ByteString) {
+final case class PublicKey(value: ByteString) {
   lazy val fingerprint: String = value.sha256.hex
 }
 
@@ -32,51 +32,51 @@ object PublicKey {
 
 }
 
-case class MemberId(id: Int)
+final case class MemberId(id: Int)
 
 object MemberId {
   implicit final val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Int](MemberId(_), _.id)
 }
 
-case class Member(id: MemberId,
-                  ownerPublicKey: PublicKey,
-                  name: Option[String] = None,
-                  metadata: Option[JsObject] = None)
+final case class Member(id: MemberId,
+                        ownerPublicKey: PublicKey,
+                        name: Option[String] = None,
+                        metadata: Option[JsObject] = None)
 
 object Member {
   implicit final val MemberFormat: Format[Member] = Json.format[Member]
 }
 
-case class AccountId(id: Int)
+final case class AccountId(id: Int)
 
 object AccountId {
   implicit final val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Int](AccountId(_), _.id)
 }
 
-case class Account(id: AccountId,
-                   ownerMemberIds: Set[MemberId],
-                   name: Option[String] = None,
-                   metadata: Option[JsObject] = None)
+final case class Account(id: AccountId,
+                         ownerMemberIds: Set[MemberId],
+                         name: Option[String] = None,
+                         metadata: Option[JsObject] = None)
 
 object Account {
   implicit final val AccountFormat: Format[Account] = Json.format[Account]
 }
 
-case class TransactionId(id: Int)
+final case class TransactionId(id: Int)
 
 object TransactionId {
   implicit final val TransactionIdFormat: Format[TransactionId] =
     ValueFormat[TransactionId, Int](TransactionId(_), _.id)
 }
 
-case class Transaction(id: TransactionId,
-                       from: AccountId,
-                       to: AccountId,
-                       value: BigDecimal,
-                       creator: MemberId,
-                       created: Long,
-                       description: Option[String] = None,
-                       metadata: Option[JsObject] = None) {
+final case class Transaction(id: TransactionId,
+                             from: AccountId,
+                             to: AccountId,
+                             value: BigDecimal,
+                             creator: MemberId,
+                             created: Long,
+                             description: Option[String] = None,
+                             metadata: Option[JsObject] = None) {
   require(value >= 0)
   require(created >= 0)
 }
@@ -115,7 +115,7 @@ object Transaction {
   )
 }
 
-case class ZoneId(id: UUID)
+final case class ZoneId(id: UUID)
 
 object ZoneId {
 
@@ -125,15 +125,15 @@ object ZoneId {
 
 }
 
-case class Zone(id: ZoneId,
-                equityAccountId: AccountId,
-                members: Map[MemberId, Member],
-                accounts: Map[AccountId, Account],
-                transactions: Map[TransactionId, Transaction],
-                created: Long,
-                expires: Long,
-                name: Option[String] = None,
-                metadata: Option[JsObject] = None) {
+final case class Zone(id: ZoneId,
+                      equityAccountId: AccountId,
+                      members: Map[MemberId, Member],
+                      accounts: Map[AccountId, Account],
+                      transactions: Map[TransactionId, Transaction],
+                      created: Long,
+                      expires: Long,
+                      name: Option[String] = None,
+                      metadata: Option[JsObject] = None) {
   require(created >= 0)
   require(expires >= 0)
 }

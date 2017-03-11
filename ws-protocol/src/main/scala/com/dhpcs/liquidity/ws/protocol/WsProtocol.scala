@@ -14,36 +14,36 @@ sealed abstract class ZoneCommand extends Command {
   val zoneId: ZoneId
 }
 
-case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
-                             equityOwnerName: Option[String],
-                             equityOwnerMetadata: Option[JsObject],
-                             equityAccountName: Option[String],
-                             equityAccountMetadata: Option[JsObject],
-                             name: Option[String] = None,
-                             metadata: Option[JsObject] = None)
+final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
+                                   equityOwnerName: Option[String],
+                                   equityOwnerMetadata: Option[JsObject],
+                                   equityAccountName: Option[String],
+                                   equityAccountMetadata: Option[JsObject],
+                                   name: Option[String] = None,
+                                   metadata: Option[JsObject] = None)
     extends Command
-case class JoinZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
-case class QuitZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
-case class ChangeZoneNameCommand(zoneId: ZoneId, name: Option[String]) extends ZoneCommand
-case class CreateMemberCommand(zoneId: ZoneId,
-                               ownerPublicKey: PublicKey,
-                               name: Option[String] = None,
-                               metadata: Option[JsObject] = None)
+final case class JoinZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
+final case class QuitZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
+final case class ChangeZoneNameCommand(zoneId: ZoneId, name: Option[String]) extends ZoneCommand
+final case class CreateMemberCommand(zoneId: ZoneId,
+                                     ownerPublicKey: PublicKey,
+                                     name: Option[String] = None,
+                                     metadata: Option[JsObject] = None)
     extends ZoneCommand
-case class UpdateMemberCommand(zoneId: ZoneId, member: Member) extends ZoneCommand
-case class CreateAccountCommand(zoneId: ZoneId,
-                                ownerMemberIds: Set[MemberId],
-                                name: Option[String] = None,
-                                metadata: Option[JsObject] = None)
+final case class UpdateMemberCommand(zoneId: ZoneId, member: Member) extends ZoneCommand
+final case class CreateAccountCommand(zoneId: ZoneId,
+                                      ownerMemberIds: Set[MemberId],
+                                      name: Option[String] = None,
+                                      metadata: Option[JsObject] = None)
     extends ZoneCommand
-case class UpdateAccountCommand(zoneId: ZoneId, account: Account) extends ZoneCommand
-case class AddTransactionCommand(zoneId: ZoneId,
-                                 actingAs: MemberId,
-                                 from: AccountId,
-                                 to: AccountId,
-                                 value: BigDecimal,
-                                 description: Option[String] = None,
-                                 metadata: Option[JsObject] = None)
+final case class UpdateAccountCommand(zoneId: ZoneId, account: Account) extends ZoneCommand
+final case class AddTransactionCommand(zoneId: ZoneId,
+                                       actingAs: MemberId,
+                                       from: AccountId,
+                                       to: AccountId,
+                                       value: BigDecimal,
+                                       description: Option[String] = None,
+                                       metadata: Option[JsObject] = None)
     extends ZoneCommand {
   require(value >= 0)
 }
@@ -119,17 +119,17 @@ object Command extends CommandCompanion[Command] {
 
 }
 
-sealed abstract class Response                                            extends Message
-sealed abstract class ResultResponse                                      extends Response
-case class CreateZoneResponse(zone: Zone)                                 extends ResultResponse
-case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends ResultResponse
-case object QuitZoneResponse                                              extends ResultResponse
-case object ChangeZoneNameResponse                                        extends ResultResponse
-case class CreateMemberResponse(member: Member)                           extends ResultResponse
-case object UpdateMemberResponse                                          extends ResultResponse
-case class CreateAccountResponse(account: Account)                        extends ResultResponse
-case object UpdateAccountResponse                                         extends ResultResponse
-case class AddTransactionResponse(transaction: Transaction)               extends ResultResponse
+sealed abstract class Response                                                  extends Message
+sealed abstract class ResultResponse                                            extends Response
+final case class CreateZoneResponse(zone: Zone)                                 extends ResultResponse
+final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends ResultResponse
+case object QuitZoneResponse                                                    extends ResultResponse
+case object ChangeZoneNameResponse                                              extends ResultResponse
+final case class CreateMemberResponse(member: Member)                           extends ResultResponse
+case object UpdateMemberResponse                                                extends ResultResponse
+final case class CreateAccountResponse(account: Account)                        extends ResultResponse
+case object UpdateAccountResponse                                               extends ResultResponse
+final case class AddTransactionResponse(transaction: Transaction)               extends ResultResponse
 
 object Response extends ResponseCompanion[ResultResponse] {
   override final val ResponseFormats = MessageFormats(
@@ -176,17 +176,17 @@ sealed abstract class Notification extends Message
 sealed abstract class ZoneNotification extends Notification {
   val zoneId: ZoneId
 }
-case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Int])      extends Notification
-case object KeepAliveNotification                                                 extends Notification
-case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey)     extends ZoneNotification
-case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey)       extends ZoneNotification
-case class ZoneTerminatedNotification(zoneId: ZoneId)                             extends ZoneNotification
-case class ZoneNameChangedNotification(zoneId: ZoneId, name: Option[String])      extends ZoneNotification
-case class MemberCreatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
-case class MemberUpdatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
-case class AccountCreatedNotification(zoneId: ZoneId, account: Account)           extends ZoneNotification
-case class AccountUpdatedNotification(zoneId: ZoneId, account: Account)           extends ZoneNotification
-case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
+final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Int])      extends Notification
+case object KeepAliveNotification                                                       extends Notification
+final case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey)     extends ZoneNotification
+final case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey)       extends ZoneNotification
+final case class ZoneTerminatedNotification(zoneId: ZoneId)                             extends ZoneNotification
+final case class ZoneNameChangedNotification(zoneId: ZoneId, name: Option[String])      extends ZoneNotification
+final case class MemberCreatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
+final case class MemberUpdatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
+final case class AccountCreatedNotification(zoneId: ZoneId, account: Account)           extends ZoneNotification
+final case class AccountUpdatedNotification(zoneId: ZoneId, account: Account)           extends ZoneNotification
+final case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
 
 object Notification extends NotificationCompanion[Notification] {
   override final val NotificationFormats = MessageFormats(

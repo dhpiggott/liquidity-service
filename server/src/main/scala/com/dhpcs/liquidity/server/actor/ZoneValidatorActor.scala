@@ -50,9 +50,9 @@ object ZoneValidatorActor {
 
   private val ZoneLifetime = 2.days
 
-  private case class State(zone: Zone = null,
-                           balances: Map[AccountId, BigDecimal] = Map.empty.withDefaultValue(BigDecimal(0)),
-                           clientConnections: Map[ActorPath, PublicKey] = Map.empty[ActorPath, PublicKey]) {
+  private final case class State(zone: Zone = null,
+                                 balances: Map[AccountId, BigDecimal] = Map.empty.withDefaultValue(BigDecimal(0)),
+                                 clientConnections: Map[ActorPath, PublicKey] = Map.empty[ActorPath, PublicKey]) {
 
     def updated(event: Event): State = event match {
       case zoneCreatedEvent: ZoneCreatedEvent =>

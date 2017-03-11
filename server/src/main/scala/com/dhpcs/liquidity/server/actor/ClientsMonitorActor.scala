@@ -16,7 +16,7 @@ object ClientsMonitorActor {
 
   def props: Props = Props(new ClientsMonitorActor)
 
-  case class ActiveClientsSummary(activeClientSummaries: Seq[ActiveClientSummary])
+  final case class ActiveClientsSummary(activeClientSummaries: Seq[ActiveClientSummary])
 
   case object GetActiveClientsSummary
 

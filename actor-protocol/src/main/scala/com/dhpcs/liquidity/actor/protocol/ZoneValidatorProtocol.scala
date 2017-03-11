@@ -9,42 +9,42 @@ import play.api.libs.json._
 
 sealed abstract class ZoneValidatorMessage extends Serializable
 
-case class AuthenticatedCommandWithIds(publicKey: PublicKey,
-                                       command: Command,
-                                       correlationId: CorrelationId,
-                                       sequenceNumber: Long,
-                                       deliveryId: Long)
+final case class AuthenticatedCommandWithIds(publicKey: PublicKey,
+                                             command: Command,
+                                             correlationId: CorrelationId,
+                                             sequenceNumber: Long,
+                                             deliveryId: Long)
     extends ZoneValidatorMessage
 
-case class EnvelopedAuthenticatedCommandWithIds(zoneId: ZoneId,
-                                                authenticatedCommandWithIds: AuthenticatedCommandWithIds)
+final case class EnvelopedAuthenticatedCommandWithIds(zoneId: ZoneId,
+                                                      authenticatedCommandWithIds: AuthenticatedCommandWithIds)
     extends ZoneValidatorMessage
 
-case class CommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
+final case class CommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
 
-case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
-                             correlationId: CorrelationId,
-                             sequenceNumber: Long,
-                             deliveryId: Long)
+final case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
+                                   correlationId: CorrelationId,
+                                   sequenceNumber: Long,
+                                   deliveryId: Long)
     extends ZoneValidatorMessage
 
-case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
+final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
-case class ResponseWithIds(response: Either[ErrorResponse, ResultResponse],
-                           correlationId: CorrelationId,
-                           sequenceNumber: Long,
-                           deliveryId: Long)
+final case class ResponseWithIds(response: Either[ErrorResponse, ResultResponse],
+                                 correlationId: CorrelationId,
+                                 sequenceNumber: Long,
+                                 deliveryId: Long)
     extends ZoneValidatorMessage
 
-case class NotificationWithIds(notification: Notification, sequenceNumber: Long, deliveryId: Long)
+final case class NotificationWithIds(notification: Notification, sequenceNumber: Long, deliveryId: Long)
     extends ZoneValidatorMessage
 
-case class ActiveZoneSummary(zoneId: ZoneId,
-                             metadata: Option[JsObject],
-                             members: Set[Member],
-                             accounts: Set[Account],
-                             transactions: Set[Transaction],
-                             clientConnections: Set[PublicKey])
+final case class ActiveZoneSummary(zoneId: ZoneId,
+                                   metadata: Option[JsObject],
+                                   members: Set[Member],
+                                   accounts: Set[Account],
+                                   transactions: Set[Transaction],
+                                   clientConnections: Set[PublicKey])
     extends ZoneValidatorMessage
 
 object ZoneValidatorMessage {

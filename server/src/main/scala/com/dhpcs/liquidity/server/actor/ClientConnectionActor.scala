@@ -63,21 +63,18 @@ object ClientConnectionActor {
       .map(jsonString => WrappedJsonRpcMessage(Json.parse(jsonString).as[JsonRpcMessage]))
 
   final val WrappedJsonRpcMessageToWsMessageFlow: Flow[WrappedJsonRpcMessage, WsMessage, NotUsed] =
-    Flow[WrappedJsonRpcMessage].map(
-      wrappedJsonRpcMessage =>
+    Flow[WrappedJsonRpcMessage].map {
+      case WrappedJsonRpcMessage(jsonRpcMessage) =>
         TextMessage.Strict(
-          Json.stringify(
-            Json.toJson(
-              wrappedJsonRpcMessage.jsonRpcMessage
-            ))
-      ))
+          Json.stringify(Json.toJson(jsonRpcMessage))
+        )
+    }
 
   final val Topic = "Client"
 
   final case class WrappedJsonRpcMessage(jsonRpcMessage: JsonRpcMessage) extends NoSerializationVerificationNeeded
 
   case object ActorSinkInit
-
   case object ActorSinkAck
 
   private case object PublishStatus
@@ -87,9 +84,7 @@ object ClientConnectionActor {
     def props(keepAliveInterval: FiniteDuration): Props = Props(new KeepAliveGeneratorActor(keepAliveInterval))
 
     case object FrameReceivedEvent
-
     case object FrameSentEvent
-
     case object SendKeepAlive
 
   }
@@ -101,9 +96,8 @@ object ClientConnectionActor {
     context.setReceiveTimeout(keepAliveInterval)
 
     override def receive: Receive = {
-      case ReceiveTimeout =>
-        context.parent ! SendKeepAlive
-      case FrameReceivedEvent | FrameSentEvent =>
+      case ReceiveTimeout                      => context.parent ! SendKeepAlive
+      case FrameReceivedEvent | FrameSentEvent => ()
     }
   }
 

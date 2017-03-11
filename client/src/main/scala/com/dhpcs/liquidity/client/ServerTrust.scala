@@ -15,7 +15,7 @@ object ServerTrust {
       throw new CertificateException
 
     override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
-      if (!chain.headOption.map(_.getPublicKey).fold(ifEmpty = false)(trustedKeys.contains))
+      if (!chain.headOption.map(_.getPublicKey).exists(trustedKeys.contains))
         throw new CertificateException
 
     override def getAcceptedIssuers: Array[X509Certificate] = Array.empty

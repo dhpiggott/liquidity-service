@@ -117,11 +117,8 @@ object ZoneValidatorActor {
     def props: Props = Props(new PassivationCountdownActor)
 
     case object CommandReceivedEvent
-
     case object RequestPassivate
-
     case object Start
-
     case object Stop
 
     private final val PassivationTimeout = 2.minutes
@@ -135,79 +132,73 @@ object ZoneValidatorActor {
     context.setReceiveTimeout(PassivationTimeout)
 
     override def receive: Receive = {
-      case ReceiveTimeout =>
-        context.parent ! RequestPassivate
+      case ReceiveTimeout       => context.parent ! RequestPassivate
       case CommandReceivedEvent =>
-      case Start =>
-        context.setReceiveTimeout(PassivationTimeout)
-      case Stop =>
-        context.setReceiveTimeout(Duration.Undefined)
+      case Start                => context.setReceiveTimeout(PassivationTimeout)
+      case Stop                 => context.setReceiveTimeout(Duration.Undefined)
     }
   }
 
   private def checkAccountOwners(zone: Zone, owners: Set[MemberId]): Option[String] = {
     val invalidAccountOwners = owners -- zone.members.keys
-    if (invalidAccountOwners.nonEmpty) {
+    if (invalidAccountOwners.nonEmpty)
       Some(s"Invalid account owners: $invalidAccountOwners")
-    } else {
+    else
       None
-    }
   }
 
   private def checkCanModify(zone: Zone, memberId: MemberId, publicKey: PublicKey): Option[String] =
-    zone.members
-      .get(memberId)
-      .fold[Option[String]](ifEmpty = Some("Member does not exist"))(member =>
-        if (publicKey != member.ownerPublicKey) {
+    zone.members.get(memberId) match {
+      case None => Some("Member does not exist")
+      case Some(member) =>
+        if (publicKey != member.ownerPublicKey)
           Some("Client's public key does not match Member's public key")
-        } else {
+        else
           None
-      })
+    }
 
   private def checkCanModify(zone: Zone, accountId: AccountId, publicKey: PublicKey): Option[String] =
-    zone.accounts
-      .get(accountId)
-      .fold[Option[String]](ifEmpty = Some("Account does not exist"))(account =>
-        if (!account.ownerMemberIds.exists(memberId =>
-              zone.members.get(memberId).fold(ifEmpty = false)(publicKey == _.ownerPublicKey))) {
+    zone.accounts.get(accountId) match {
+      case None => Some("Account does not exist")
+      case Some(account) =>
+        if (!account.ownerMemberIds.exists(
+              memberId => zone.members.get(memberId).exists(publicKey == _.ownerPublicKey)))
           Some("Client's public key does not match that of any account owner member")
-        } else {
+        else
           None
-      })
+    }
 
   private def checkCanModify(zone: Zone,
                              accountId: AccountId,
                              actingAs: MemberId,
                              publicKey: PublicKey): Option[String] =
-    zone.accounts
-      .get(accountId)
-      .fold[Option[String]](ifEmpty = Some("Account does not exist"))(account =>
-        if (!account.ownerMemberIds.contains(actingAs)) {
+    zone.accounts.get(accountId) match {
+      case None => Some("Account does not exist")
+      case Some(account) =>
+        if (!account.ownerMemberIds.contains(actingAs))
           Some("Member is not an account owner")
-        } else {
-          zone.members
-            .get(actingAs)
-            .fold[Option[String]](ifEmpty = Some("Member does not exist"))(member =>
-              if (publicKey != member.ownerPublicKey) {
+        else
+          zone.members.get(actingAs) match {
+            case None => Some("Member does not exist")
+            case Some(member) =>
+              if (publicKey != member.ownerPublicKey)
                 Some("Client's public key does not match Member's public key")
-              } else {
+              else
                 None
-            })
-      })
+          }
+    }
 
   private def checkOwnerPublicKey(ownerPublicKey: PublicKey): Option[String] =
-    try {
-      if (KeyFactory
-            .getInstance("RSA")
-            .generatePublic(new X509EncodedKeySpec(ownerPublicKey.value.toByteArray))
-            .asInstanceOf[RSAPublicKey]
-            .getModulus
-            .bitLength != RequiredOwnerKeyLength) {
-        Some("Invalid owner public key length")
-      } else {
-        None
-      }
-    } catch {
+    try if (KeyFactory
+              .getInstance("RSA")
+              .generatePublic(new X509EncodedKeySpec(ownerPublicKey.value.toByteArray))
+              .asInstanceOf[RSAPublicKey]
+              .getModulus
+              .bitLength != RequiredOwnerKeyLength)
+      Some("Invalid owner public key length")
+    else
+      None
+    catch {
       case _: InvalidKeySpecException =>
         Some("Invalid owner public key type")
     }
@@ -228,19 +219,18 @@ object ZoneValidatorActor {
                                value: BigDecimal,
                                zone: Zone,
                                balances: Map[AccountId, BigDecimal]): Option[String] =
-    if (!zone.accounts.contains(from)) {
+    if (!zone.accounts.contains(from))
       Some(s"Invalid transaction source account: $from")
-    } else if (!zone.accounts.contains(to)) {
+    else if (!zone.accounts.contains(to))
       Some(s"Invalid transaction destination account: $to")
-    } else if (to == from) {
+    else if (to == from)
       Some(s"Invalid reflexive transaction (source: $from, destination: $to)")
-    } else {
+    else {
       val updatedSourceBalance = balances(from) - value
-      if (updatedSourceBalance < 0 && from != zone.equityAccountId) {
+      if (updatedSourceBalance < 0 && from != zone.equityAccountId)
         Some(s"Illegal transaction value: $value")
-      } else {
+      else
         None
-      }
     }
 }
 
@@ -389,14 +379,13 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def updateState(event: Event): Unit = {
     state = state.updated(event)
-    if (event.isInstanceOf[ZoneCreatedEvent]) {
+    if (event.isInstanceOf[ZoneCreatedEvent])
       context.become(withZone)
-    }
   }
 
   private[this] def publishStatus: Receive = {
     case PublishStatus =>
-      if (state.zone != null) {
+      if (state.zone != null)
         mediator ! Publish(
           Topic,
           ActiveZoneSummary(
@@ -408,16 +397,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             state.clientConnections.values.toSet
           )
         )
-      }
   }
 
   private[this] def messageReceivedConfirmation: Receive = {
     case MessageReceivedConfirmation(deliveryId) =>
       confirmDelivery(deliveryId)
       pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) - deliveryId))
-      if (pendingDeliveries(sender().path).isEmpty) {
+      if (pendingDeliveries(sender().path).isEmpty)
         pendingDeliveries = pendingDeliveries - sender().path
-      }
   }
 
   private[this] def waitForTimeout: Receive = {
@@ -427,16 +414,15 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
     val nextExpectedCommandSequenceNumber = nextExpectedCommandSequenceNumbers(sender().path)
-    if (sequenceNumber <= nextExpectedCommandSequenceNumber) {
+    if (sequenceNumber <= nextExpectedCommandSequenceNumber)
       sender() ! CommandReceivedConfirmation(zoneId, deliveryId)
-    }
     if (sequenceNumber == nextExpectedCommandSequenceNumber) {
       nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers + (sender().path -> (sequenceNumber + 1))
       body
     }
   }
 
-  private[this] def handleZoneCommand(publicKey: PublicKey, command: Command, correlationId: CorrelationId): Unit = {
+  private[this] def handleZoneCommand(publicKey: PublicKey, command: Command, correlationId: CorrelationId): Unit =
     command match {
       case createZoneCommand: CreateZoneCommand =>
         val sequenceNumber = messageSequenceNumbers(sender().path)
@@ -446,7 +432,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId)
         }
       case JoinZoneCommand(_) =>
-        if (state.clientConnections.contains(sender().path)) {
+        if (state.clientConnections.contains(sender().path))
           deliverErrorResponse(
             JsonRpcResponseErrorMessage.applicationError(
               code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
@@ -455,7 +441,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           )
-        } else {
+        else
           handleJoin(sender(), publicKey) { state =>
             deliverSuccessResponse(
               JoinZoneResponse(
@@ -466,9 +452,8 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             )
             self ! PublishStatus
           }
-        }
       case QuitZoneCommand(_) =>
-        if (!state.clientConnections.contains(sender().path)) {
+        if (!state.clientConnections.contains(sender().path))
           deliverErrorResponse(
             JsonRpcResponseErrorMessage.applicationError(
               code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
@@ -477,7 +462,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           )
-        } else {
+        else
           handleQuit(sender()) {
             deliverSuccessResponse(
               QuitZoneResponse,
@@ -485,7 +470,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             )
             self ! PublishStatus
           }
-        }
       case ChangeZoneNameCommand(_, name) =>
         checkTagAndMetadata(name, None) match {
           case Some(error) =>
@@ -684,22 +668,19 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             }
         }
     }
-  }
 
   private[this] def handleJoin(clientConnection: ActorRef, publicKey: PublicKey)(onStateUpdate: State => Unit): Unit =
     persist(
       ZoneJoinedEvent(System.currentTimeMillis, clientConnection.path, publicKey)
     ) { zoneJoinedEvent =>
-      if (state.clientConnections.isEmpty) {
+      if (state.clientConnections.isEmpty)
         passivationCountdownActor ! Stop
-      }
       context.watch(clientConnection)
       val wasAlreadyPresent = state.clientConnections.values.exists(_ == zoneJoinedEvent.publicKey)
       updateState(zoneJoinedEvent)
       onStateUpdate(state)
-      if (!wasAlreadyPresent) {
+      if (!wasAlreadyPresent)
         deliverNotification(ClientJoinedZoneNotification(zoneId, zoneJoinedEvent.publicKey))
-      }
     }
 
   private[this] def handleQuit(clientConnection: ActorRef)(onStateUpdate: => Unit): Unit =
@@ -710,13 +691,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       updateState(zoneQuitEvent)
       onStateUpdate
       val isStillPresent = state.clientConnections.values.exists(_ == publicKey)
-      if (!isStillPresent) {
+      if (!isStillPresent)
         deliverNotification(ClientQuitZoneNotification(zoneId, publicKey))
-      }
       context.unwatch(clientConnection)
-      if (state.clientConnections.isEmpty) {
+      if (state.clientConnections.isEmpty)
         passivationCountdownActor ! Start
-      }
     }
 
   private[this] def deliverErrorResponse(response: JsonRpcResponseErrorMessage): Unit =

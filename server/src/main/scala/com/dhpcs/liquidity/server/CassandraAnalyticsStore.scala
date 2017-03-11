@@ -415,7 +415,7 @@ object CassandraAnalyticsStore {
 
     def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[ZoneStore] =
       for {
-        _                <- execute(s"""
+        _                 <- execute(s"""
                                        |CREATE TABLE IF NOT EXISTS $keyspace.zone_name_changes_by_id (
                                        |  id uuid,
                                        |  changed timestamp,
@@ -423,7 +423,7 @@ object CassandraAnalyticsStore {
                                        |  PRIMARY KEY ((id), changed)
                                        |);
       """.stripMargin)
-        _                <- execute(s"""
+        _                 <- execute(s"""
                                        |CREATE TABLE IF NOT EXISTS $keyspace.zones_by_id(
                                        |  id uuid,
                                        |  bucket int,
@@ -437,16 +437,16 @@ object CassandraAnalyticsStore {
                                        |  PRIMARY KEY ((id), bucket)
                                        |);
       """.stripMargin)
-        _                <- execute(s"""
+        _                 <- execute(s"""
                                        |CREATE MATERIALIZED VIEW IF NOT EXISTS $keyspace.zones_by_modified AS
                                        |  SELECT * FROM $keyspace.zones_by_id
                                        |  WHERE bucket IS NOT NULL AND modified IS NOT NULL
                                        |  PRIMARY KEY ((bucket), modified, id);
       """.stripMargin)
-        membersView      <- MemberStore(keyspace)
-        accountsView     <- AccountStore(keyspace)
-        transactionsView <- TransactionStore(keyspace)
-      } yield new ZoneStore(keyspace, membersView, accountsView, transactionsView)
+        membersStore      <- MemberStore(keyspace)
+        accountsStore     <- AccountStore(keyspace)
+        transactionsStore <- TransactionStore(keyspace)
+      } yield new ZoneStore(keyspace, membersStore, accountsStore, transactionsStore)
 
   }
 
@@ -458,7 +458,7 @@ object CassandraAnalyticsStore {
     private[this] val retrieveStatement = prepareStatement(s"""
                        |SELECT equity_account_id, created, expires, name, metadata
                        |  FROM $keyspace.zones_by_id
-                       |  WHERE bucket = ? and id = ?
+                       |  WHERE bucket = ? AND id = ?
         """.stripMargin)
 
     def retrieve(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Zone] =

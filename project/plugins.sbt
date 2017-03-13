@@ -1,0 +1,6 @@
+addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.8.2")
+addSbtPlugin("com.timushev.sbt" % "sbt-updates"          % "0.3.0")
+addSbtPlugin("com.geirsson"     % "sbt-scalafmt"         % "0.6.1")
+addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm"        % "0.3.11")
+addSbtPlugin("org.scoverage"    % "sbt-scoverage"        % "1.5.0")
+addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager"  % "1.1.5")

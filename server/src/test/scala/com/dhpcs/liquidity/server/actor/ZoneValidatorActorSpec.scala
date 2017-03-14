@@ -5,13 +5,11 @@ import java.security.KeyPairGenerator
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NumericCorrelationId}
-import com.dhpcs.jsonrpc.JsonRpcResponseError
-import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.ws.protocol._
-import org.scalatest.EitherValues._
 import org.scalatest.{Inside, Matchers, WordSpec}
 
 class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures with Inside with Matchers {
@@ -81,7 +79,12 @@ class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures 
         )
       )
       expectErrorResponse(clientConnectionTestProbe, correlationId, sequenceNumber) shouldBe
-        ErrorResponse(JsonRpcResponseError.ReservedErrorCodeFloor - 1, "Zone does not exist")
+        JsonRpcResponseErrorMessage.applicationError(
+          code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
+          message = "Zone does not exist",
+          data = None,
+          correlationId
+        )
     }
   }
 
@@ -115,18 +118,21 @@ class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures 
 
   private[this] def expectErrorResponse(clientConnectionTestProbe: TestProbe,
                                         correlationId: CorrelationId,
-                                        sequenceNumber: Long): ErrorResponse =
-    expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber).left.value
+                                        sequenceNumber: Long): JsonRpcResponseErrorMessage = {
+    val responseWithIds = clientConnectionTestProbe.expectMsgType[ErrorResponseWithIds]
+    responseWithIds.response.id shouldBe correlationId
+    responseWithIds.sequenceNumber shouldBe sequenceNumber
+    clientConnectionTestProbe.send(
+      clientConnectionTestProbe.lastSender,
+      MessageReceivedConfirmation(responseWithIds.deliveryId)
+    )
+    responseWithIds.response
+  }
 
   private[this] def expectResultResponse(clientConnectionTestProbe: TestProbe,
                                          correlationId: CorrelationId,
-                                         sequenceNumber: Long): ResultResponse =
-    expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber).right.value
-
-  private[this] def expectResponse[A](clientConnectionTestProbe: TestProbe,
-                                      correlationId: CorrelationId,
-                                      sequenceNumber: Long): Either[ErrorResponse, ResultResponse] = {
-    val responseWithIds = clientConnectionTestProbe.expectMsgType[ResponseWithIds]
+                                         sequenceNumber: Long): Response = {
+    val responseWithIds = clientConnectionTestProbe.expectMsgType[SuccessResponseWithIds]
     responseWithIds.correlationId shouldBe correlationId
     responseWithIds.sequenceNumber shouldBe sequenceNumber
     clientConnectionTestProbe.send(

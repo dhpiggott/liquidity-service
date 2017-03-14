@@ -12,7 +12,7 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
-import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
@@ -159,15 +159,16 @@ class LiquidityHealthcheck(hostname: Option[String])
     hostname
   )
 
-  private[this] def send(command: Command): Future[Either[ErrorResponse, ResultResponse]] = {
-    val promise = Promise[Either[ErrorResponse, ResultResponse]]
+  private[this] def send(command: Command): Future[Either[JsonRpcResponseErrorMessage, Response]] = {
+    val promise = Promise[Either[JsonRpcResponseErrorMessage, Response]]
     MainHandlerWrapper.post(
-      serverConnection.sendCommand(
-        command,
-        new ResponseCallback {
-          override def onErrorReceived(errorResponse: ErrorResponse): Unit    = promise.success(Left(errorResponse))
-          override def onResultReceived(resultResponse: ResultResponse): Unit = promise.success(Right(resultResponse))
-        }
+      () =>
+        serverConnection.sendCommand(
+          command,
+          new ResponseCallback {
+            override def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit = promise.success(Left(error))
+            override def onResultReceived(result: Response): Unit                  = promise.success(Right(result))
+          }
       ))
     promise.future
   }
@@ -212,18 +213,18 @@ class LiquidityHealthcheck(hostname: Option[String])
     "accept connections" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
-      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
     s"admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
@@ -235,7 +236,7 @@ class LiquidityHealthcheck(hostname: Option[String])
           zone shouldBe SentinelZone
           connectedClients shouldBe Set(serverConnection.clientKey)
       }
-      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }

@@ -1,10 +1,9 @@
 package com.dhpcs.liquidity.actor.protocol
 
-import com.dhpcs.jsonrpc.JsonRpcMessage
 import com.dhpcs.jsonrpc.JsonRpcMessage.CorrelationId
-import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.ws.protocol.{Command, CreateZoneCommand, Notification, ResultResponse}
+import com.dhpcs.liquidity.ws.protocol._
 import play.api.libs.json._
 
 sealed abstract class ZoneValidatorMessage extends Serializable
@@ -30,10 +29,13 @@ final case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
 
 final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
-final case class ResponseWithIds(response: Either[ErrorResponse, ResultResponse],
-                                 correlationId: CorrelationId,
-                                 sequenceNumber: Long,
-                                 deliveryId: Long)
+final case class ErrorResponseWithIds(response: JsonRpcResponseErrorMessage, sequenceNumber: Long, deliveryId: Long)
+    extends ZoneValidatorMessage
+
+final case class SuccessResponseWithIds(response: Response,
+                                        correlationId: CorrelationId,
+                                        sequenceNumber: Long,
+                                        deliveryId: Long)
     extends ZoneValidatorMessage
 
 final case class NotificationWithIds(notification: Notification, sequenceNumber: Long, deliveryId: Long)
@@ -63,17 +65,10 @@ object ZoneValidatorMessage {
     Json.format[ZoneAlreadyExists]
   }
 
-  implicit final val ZoneRestartedFormat: Format[ZoneRestarted] = Json.format[ZoneRestarted]
-
-  implicit final val ResponseWithIdsFormat: Format[ResponseWithIds] = {
-    implicit val errorOrResultResponseFormat = {
-      implicit val errorResponseFormat: Format[ErrorResponse] = Json.format[ErrorResponse]
-      JsonRpcMessage.eitherObjectFormat[ErrorResponse, ResultResponse]("error", "result")
-    }
-    Json.format[ResponseWithIds]
-  }
-
-  implicit final val NotificationWithIdsFormat: Format[NotificationWithIds] = Json.format[NotificationWithIds]
-  implicit final val ActiveZoneSummaryFormat: Format[ActiveZoneSummary]     = Json.format[ActiveZoneSummary]
+  implicit final val ZoneRestartedFormat: Format[ZoneRestarted]                   = Json.format[ZoneRestarted]
+  implicit final val ErrorResponseWithIdsFormat: Format[ErrorResponseWithIds]     = Json.format[ErrorResponseWithIds]
+  implicit final val SuccessResponseWithIdsFormat: Format[SuccessResponseWithIds] = Json.format[SuccessResponseWithIds]
+  implicit final val NotificationWithIdsFormat: Format[NotificationWithIds]       = Json.format[NotificationWithIds]
+  implicit final val ActiveZoneSummaryFormat: Format[ActiveZoneSummary]           = Json.format[ActiveZoneSummary]
 
 }

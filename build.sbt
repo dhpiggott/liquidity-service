@@ -1,5 +1,5 @@
 lazy val commonSettings = Seq(
-  scalaVersion := "2.11.8",
+  scalaVersion := "2.12.1",
   scalacOptions in Compile ++= Seq(
     "-target:jvm-1.8",
     "-encoding",
@@ -32,7 +32,7 @@ lazy val noopPublishSettings = Seq(
   publishM2 := {}
 )
 
-lazy val playJson = "com.typesafe.play" %% "play-json" % "2.5.13"
+lazy val playJson = "com.typesafe.play" %% "play-json" % "2.6.0-M5"
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.1"
 
@@ -51,7 +51,7 @@ lazy val liquidityModel = project
   .settings(
     libraryDependencies ++= Seq(
       scalaTest   % Test,
-      "com.dhpcs" %% "play-json-testkit" % "1.5.0" % Test
+      "com.dhpcs" %% "play-json-testkit" % "2.0-M1" % Test
     ))
 
 lazy val liquiditySerialization = project
@@ -88,13 +88,13 @@ lazy val liquidityWsProtocol = project
     name := "liquidity-ws-protocol"
   )
   .settings(libraryDependencies ++= Seq(
-    "com.dhpcs" %% "play-json-rpc" % "1.5.0"
+    "com.dhpcs" %% "play-json-rpc" % "2.0-M1"
   ))
   .dependsOn(liquidityModel)
   .settings(
     libraryDependencies ++= Seq(
       scalaTest   % Test,
-      "com.dhpcs" %% "play-json-testkit" % "1.5.0" % Test
+      "com.dhpcs" %% "play-json-testkit" % "2.0-M1" % Test
     ))
 
 lazy val liquidityActorProtocol = project

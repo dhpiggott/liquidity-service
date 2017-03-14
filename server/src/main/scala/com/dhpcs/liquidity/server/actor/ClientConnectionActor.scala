@@ -3,20 +3,7 @@ package com.dhpcs.liquidity.server.actor
 import java.util.UUID
 
 import akka.NotUsed
-import akka.actor.{
-  Actor,
-  ActorLogging,
-  ActorRef,
-  ActorRefFactory,
-  Deploy,
-  NoSerializationVerificationNeeded,
-  PoisonPill,
-  Props,
-  ReceiveTimeout,
-  Status,
-  SupervisorStrategy,
-  Terminated
-}
+import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.RemoteAddress
@@ -25,8 +12,7 @@ import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import com.dhpcs.jsonrpc.JsonRpcMessage.CorrelationId
-import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
-import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseError, JsonRpcResponseMessage}
+import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseErrorMessage}
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.persistence.RichPublicKey
@@ -151,19 +137,6 @@ object ClientConnectionActor {
       Source.fromPublisher(publisher)
     )
   }
-
-  private def readCommand(
-      jsonRpcRequestMessage: JsonRpcRequestMessage): (CorrelationId, Either[JsonRpcResponseError, Command]) =
-    jsonRpcRequestMessage.id -> (Command.read(jsonRpcRequestMessage) match {
-      case JsError(errors) =>
-        Left(
-          JsonRpcResponseError.invalidRequest(errors)
-        )
-      case JsSuccess(command, _) =>
-        Right(
-          command
-        )
-    })
 }
 
 class ClientConnectionActor(ip: RemoteAddress,
@@ -215,18 +188,14 @@ class ClientConnectionActor(ip: RemoteAddress,
       case WrappedJsonRpcMessage(jsonRpcRequestMessage: JsonRpcRequestMessage) =>
         sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
-        readCommand(jsonRpcRequestMessage) match {
-          case (correlationId, Left(jsonRpcResponseError)) =>
-            log.warning(s"Receive error: $jsonRpcResponseError")
-            send(
-              JsonRpcResponseMessage(
-                Left(jsonRpcResponseError),
-                correlationId
-              ))
-          case (correlationId, Right(command)) =>
+        Command.read(jsonRpcRequestMessage) match {
+          case error: JsError =>
+            log.warning(s"Receive error: $error")
+            send(JsonRpcResponseErrorMessage.invalidRequest(error, jsonRpcRequestMessage.id))
+          case JsSuccess(command, _) =>
             command match {
               case createZoneCommand: CreateZoneCommand =>
-                createZone(createZoneCommand, correlationId)
+                createZone(createZoneCommand, jsonRpcRequestMessage.id)
               case zoneCommand: ZoneCommand =>
                 val zoneId         = zoneCommand.zoneId
                 val sequenceNumber = commandSequenceNumbers(zoneId)
@@ -236,7 +205,7 @@ class ClientConnectionActor(ip: RemoteAddress,
                   AuthenticatedCommandWithIds(
                     publicKey,
                     zoneCommand,
-                    correlationId,
+                    jsonRpcRequestMessage.id,
                     sequenceNumber,
                     deliveryId
                   )
@@ -247,9 +216,17 @@ class ClientConnectionActor(ip: RemoteAddress,
         exactlyOnce(sequenceNumber, deliveryId)(
           createZone(createZoneCommand, correlationId)
         )
-      case ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
+      case ErrorResponseWithIds(response, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
-          send(response, correlationId)
+          send(response)
+        )
+      case SuccessResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
+        exactlyOnce(sequenceNumber, deliveryId)(
+          send(
+            Response.write(
+              response,
+              correlationId
+            ))
         )
       case NotificationWithIds(notification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
@@ -318,18 +295,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  private[this] def send(response: Either[ErrorResponse, ResultResponse], correlationId: CorrelationId): Unit =
-    send(
-      Response.write(
-        response,
-        correlationId
-      ))
-
-  private[this] def send(notification: Notification): Unit =
-    send(
-      Notification.write(
-        notification
-      ))
+  private[this] def send(notification: Notification): Unit = send(Notification.write(notification))
 
   private[this] def send(jsonRpcMessage: JsonRpcMessage): Unit = {
     upstream ! WrappedJsonRpcMessage(jsonRpcMessage)

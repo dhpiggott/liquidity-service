@@ -13,7 +13,8 @@ class ZoneValidatorMessageSerializer extends PlayJsonSerializer {
     manifestToFormat[CommandReceivedConfirmation],
     manifestToFormat[ZoneAlreadyExists],
     manifestToFormat[ZoneRestarted],
-    manifestToFormat[ResponseWithIds],
+    manifestToFormat[ErrorResponseWithIds],
+    manifestToFormat[SuccessResponseWithIds],
     manifestToFormat[NotificationWithIds],
     manifestToFormat[ActiveZoneSummary]
   )

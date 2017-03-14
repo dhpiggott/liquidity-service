@@ -15,13 +15,13 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
-import com.dhpcs.jsonrpc.ResponseCompanion.ErrorResponse
+import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model.{Member, MemberId}
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActor
-import com.dhpcs.liquidity.ws.protocol.{Command, CreateZoneCommand, CreateZoneResponse, ResultResponse}
+import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.apache.cassandra.io.util.FileUtils
 import org.scalatest._
@@ -191,15 +191,16 @@ class ServerConnectionSpec
     port = Some(akkaHttpPort)
   )
 
-  private[this] def send(command: Command): Future[Either[ErrorResponse, ResultResponse]] = {
-    val promise = Promise[Either[ErrorResponse, ResultResponse]]
+  private[this] def send(command: Command): Future[Either[JsonRpcResponseErrorMessage, Response]] = {
+    val promise = Promise[Either[JsonRpcResponseErrorMessage, Response]]
     MainHandlerWrapper.post(
-      serverConnection.sendCommand(
-        command,
-        new ResponseCallback {
-          override def onErrorReceived(errorResponse: ErrorResponse): Unit    = promise.success(Left(errorResponse))
-          override def onResultReceived(resultResponse: ResultResponse): Unit = promise.success(Right(resultResponse))
-        }
+      () =>
+        serverConnection.sendCommand(
+          command,
+          new ResponseCallback {
+            override def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit = promise.success(Left(error))
+            override def onResultReceived(result: Response): Unit                  = promise.success(Right(result))
+          }
       ))
     promise.future
   }
@@ -250,18 +251,18 @@ class ServerConnectionSpec
     "connect to the server and update the connection state as it does so" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
-      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
     "complete with a CreateZoneResponse when forwarding a CreateZoneCommand" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
@@ -280,7 +281,7 @@ class ServerConnectionSpec
           zone.members(MemberId(0)) shouldBe Member(MemberId(0), serverConnection.clientKey, name = Some("Dave"))
           zone.name shouldBe Some("Dave's Game")
       }
-      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }

@@ -28,7 +28,6 @@ import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import okio.ByteString
 import org.apache.cassandra.io.util.FileUtils
-import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest._
 
@@ -60,7 +59,7 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
           |    enable-additional-serialization-bindings = on
           |    allow-java-serialization = on
           |    serialize-messages = on
-          |    serialize-creators = on
+          |    serialize-creators = off
           |  }
           |  cluster {
           |    metrics.enabled = off
@@ -337,12 +336,12 @@ sealed abstract class LiquidityServerSpec
     }
   }
 
-  private[this] def expectResponse(sub: TestSubscriber.Probe[JsonRpcMessage], method: String): ResultResponse = {
+  private[this] def expectResponse(sub: TestSubscriber.Probe[JsonRpcMessage], method: String): Response = {
     sub.request(1)
     sub.expectNextPF {
-      case jsonRpcResponseMessage: JsonRpcResponseMessage =>
-        val response = Response.read(jsonRpcResponseMessage, method)
-        response.asOpt.value.right.value
+      case jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage =>
+        val response = Response.read(jsonRpcResponseSuccessMessage, method)
+        response.asOpt.value
     }
   }
 }

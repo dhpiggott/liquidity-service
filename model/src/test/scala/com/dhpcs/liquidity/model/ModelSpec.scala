@@ -7,8 +7,7 @@ import com.dhpcs.json.FormatBehaviors
 import com.dhpcs.liquidity.model.ValueFormatSpec.TestValue
 import okio.ByteString
 import org.scalatest.{FunSpec, Matchers}
-import play.api.data.validation.ValidationError
-import play.api.libs.json.{Format, JsError, Json, __}
+import play.api.libs.json._
 
 object ValueFormatSpec {
 
@@ -28,7 +27,7 @@ class ValueFormatSpec extends FunSpec with FormatBehaviors[TestValue] with Match
         """
           |0""".stripMargin
       ),
-      JsError(List((__, List(ValidationError("error.expected.jsstring")))))
+      JsError(__, "error.expected.jsstring")
     )
   )
 
@@ -49,7 +48,7 @@ class PublicKeySpec extends FunSpec with FormatBehaviors[PublicKey] with Matcher
     it should behave like readError(
       Json.parse("""
                    |0""".stripMargin),
-      JsError(List((__, List(ValidationError("error.expected.jsstring")))))
+      JsError(__, "error.expected.jsstring")
     )
   )
 
@@ -73,11 +72,7 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
         """
           |0""".stripMargin
       ),
-      JsError(
-        List(
-          (__ \ "id", List(ValidationError("error.path.missing"))),
-          (__ \ "ownerPublicKey", List(ValidationError("error.path.missing")))
-        ))
+      JsError(__, "error.expected.jsobject")
     )
   )
 
@@ -129,11 +124,7 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
         """
           |0""".stripMargin
       ),
-      JsError(
-        List(
-          (__ \ "id", List(ValidationError("error.path.missing"))),
-          (__ \ "ownerMemberIds", List(ValidationError("error.path.missing")))
-        ))
+      JsError(__, "error.expected.jsobject")
     )
   )
 
@@ -188,13 +179,13 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
           |0""".stripMargin
       ),
       JsError(
-        List(
-          (__ \ "id", List(ValidationError("error.path.missing"))),
-          (__ \ "from", List(ValidationError("error.path.missing"))),
-          (__ \ "to", List(ValidationError("error.path.missing"))),
-          (__ \ "value", List(ValidationError("error.path.missing"))),
-          (__ \ "creator", List(ValidationError("error.path.missing"))),
-          (__ \ "created", List(ValidationError("error.path.missing")))
+        Seq(
+          (__ \ "id", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "from", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "to", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "value", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "creator", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "created", Seq(JsonValidationError("error.path.missing")))
         ))
     )
   )
@@ -266,14 +257,14 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
           |0""".stripMargin
       ),
       JsError(
-        List(
-          (__ \ "id", List(ValidationError("error.path.missing"))),
-          (__ \ "equityAccountId", List(ValidationError("error.path.missing"))),
-          (__ \ "members", List(ValidationError("error.path.missing"))),
-          (__ \ "accounts", List(ValidationError("error.path.missing"))),
-          (__ \ "transactions", List(ValidationError("error.path.missing"))),
-          (__ \ "created", List(ValidationError("error.path.missing"))),
-          (__ \ "expires", List(ValidationError("error.path.missing")))
+        Seq(
+          (__ \ "id", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "equityAccountId", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "members", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "accounts", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "transactions", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "created", Seq(JsonValidationError("error.path.missing"))),
+          (__ \ "expires", Seq(JsonValidationError("error.path.missing")))
         ))
     )
   )

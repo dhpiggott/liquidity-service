@@ -120,18 +120,18 @@ object Command extends CommandCompanion[Command] {
 }
 
 sealed abstract class Response                                                  extends Message
-sealed abstract class ResultResponse                                            extends Response
-final case class CreateZoneResponse(zone: Zone)                                 extends ResultResponse
-final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends ResultResponse
-case object QuitZoneResponse                                                    extends ResultResponse
-case object ChangeZoneNameResponse                                              extends ResultResponse
-final case class CreateMemberResponse(member: Member)                           extends ResultResponse
-case object UpdateMemberResponse                                                extends ResultResponse
-final case class CreateAccountResponse(account: Account)                        extends ResultResponse
-case object UpdateAccountResponse                                               extends ResultResponse
-final case class AddTransactionResponse(transaction: Transaction)               extends ResultResponse
+final case class CreateZoneResponse(zone: Zone)                                 extends Response
+final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends Response
+case object QuitZoneResponse                                                    extends Response
+case object ChangeZoneNameResponse                                              extends Response
+final case class CreateMemberResponse(member: Member)                           extends Response
+case object UpdateMemberResponse                                                extends Response
+final case class CreateAccountResponse(account: Account)                        extends Response
+case object UpdateAccountResponse                                               extends Response
+final case class AddTransactionResponse(transaction: Transaction)               extends Response
 
-object Response extends ResponseCompanion[ResultResponse] {
+object Response extends ResponseCompanion[Response] {
+
   override final val ResponseFormats = MessageFormats(
     "createZone"     -> Json.format[CreateZoneResponse],
     "joinZone"       -> Json.format[JoinZoneResponse],
@@ -144,7 +144,7 @@ object Response extends ResponseCompanion[ResultResponse] {
     "addTransaction" -> Json.format[AddTransactionResponse]
   )
 
-  implicit final val ResultResponseFormat: Format[ResultResponse] = Format[ResultResponse](
+  implicit final val ResponseFormat: Format[Response] = Format[Response](
     Reads(json => {
       val (methodReads, _) = ResponseFormats
       for {
@@ -157,14 +157,14 @@ object Response extends ResponseCompanion[ResultResponse] {
         }
       } yield result
     }),
-    Writes(resultResponse => {
+    Writes(response => {
       val (_, classWrites) = ResponseFormats
-      classWrites.get(resultResponse.getClass) match {
-        case None => sys.error(s"No format found for ${resultResponse.getClass}")
+      classWrites.get(response.getClass) match {
+        case None => sys.error(s"No format found for ${response.getClass}")
         case Some((method, writes)) =>
           Json.obj(
             "method" -> method,
-            "value"  -> writes.asInstanceOf[Format[ResultResponse]].writes(resultResponse)
+            "value"  -> writes.asInstanceOf[Format[Response]].writes(response)
           )
       }
     })
@@ -189,6 +189,7 @@ final case class AccountUpdatedNotification(zoneId: ZoneId, account: Account)   
 final case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
 
 object Notification extends NotificationCompanion[Notification] {
+
   override final val NotificationFormats = MessageFormats(
     "supportedVersions" -> Json.format[SupportedVersionsNotification],
     "keepAlive"         -> objectFormat(KeepAliveNotification),

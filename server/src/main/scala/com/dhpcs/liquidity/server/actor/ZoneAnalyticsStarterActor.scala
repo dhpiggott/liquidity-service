@@ -55,10 +55,7 @@ class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistence
       .toMat(Sink.ignore)(Keep.both)
       .run()
 
-    done.onFailure {
-      case t =>
-        streamFailureHandler.applyOrElse(t, throw _: Throwable)
-    }
+    done.failed.foreach(t => streamFailureHandler.applyOrElse(t, throw _: Throwable))
 
     killSwitch
   }

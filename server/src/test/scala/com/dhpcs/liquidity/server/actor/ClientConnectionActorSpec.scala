@@ -7,17 +7,16 @@ import akka.actor.{ActorRef, Deploy}
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NumericCorrelationId}
-import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseMessage}
+import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseSuccessMessage}
 import com.dhpcs.liquidity.actor.protocol.{
   AuthenticatedCommandWithIds,
   EnvelopedAuthenticatedCommandWithIds,
-  ResponseWithIds
+  SuccessResponseWithIds
 }
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor.WrappedJsonRpcMessage
 import com.dhpcs.liquidity.ws.protocol._
-import org.scalatest.EitherValues._
 import org.scalatest.OptionValues._
 import org.scalatest.{Inside, Matchers, Outcome, fixture}
 
@@ -82,7 +81,7 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
             AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber = 1L, deliveryId = 1L)
           envelopedMessage.zoneId
       }
-      val resultResponse = CreateZoneResponse({
+      val result = CreateZoneResponse({
         val created = System.currentTimeMillis
         Zone(
           id = zoneId,
@@ -98,9 +97,9 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        ResponseWithIds(Right(resultResponse), correlationId, sequenceNumber = 1L, deliveryId = 1L)
+        SuccessResponseWithIds(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
       )
-      expectResponse(upstreamTestProbe, "createZone") shouldBe resultResponse
+      expectResponse(upstreamTestProbe, "createZone") shouldBe result
     }
   }
 
@@ -121,11 +120,11 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
     notification.asOpt.value
   }
 
-  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): ResultResponse = {
+  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): Response = {
     val response = upstreamTestProbe.expectMsgPF() {
-      case WrappedJsonRpcMessage(jsonRpcResponseMessage: JsonRpcResponseMessage) =>
-        Response.read(jsonRpcResponseMessage, method)
+      case WrappedJsonRpcMessage(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
+        Response.read(jsonRpcResponseSuccessMessage, method)
     }
-    response.asOpt.value.right.value
+    response.asOpt.value
   }
 }

@@ -91,10 +91,7 @@ class ZoneAnalyticsActor(
         .toMat(Sink.ignore)(Keep.right)
         .run()
 
-      done.onFailure {
-        case t =>
-          streamFailureHandler.applyOrElse(t, throw _: Throwable)
-      }
+      done.failed.foreach(t => streamFailureHandler.applyOrElse(t, throw _: Throwable))
   }
 
   private[this] def updateStoreAndApplyEvent(analyticsStore: CassandraAnalyticsStore)(

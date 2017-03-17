@@ -147,13 +147,13 @@ lazy val liquidityServer = project
     "io.netty"                 % "netty-transport-native-epoll"         % "4.1.9.Final" classifier "linux-x86_64",
     "com.google.code.findbugs" % "jsr305"                               % "3.0.1" % Compile,
     "com.datastax.cassandra"   % "cassandra-driver-core"                % "3.1.4",
-    "com.typesafe.akka"        %% "akka-http"                           % "10.0.4",
+    "com.typesafe.akka"        %% "akka-http"                           % "10.0.5",
     playJson
   ))
   .dependsOn(liquidityCertgen % Test)
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.4" % Test
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.5" % Test
   ))
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)

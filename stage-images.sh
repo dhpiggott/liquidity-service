@@ -18,7 +18,7 @@ trap finish EXIT
 mkdir $DIR/image-stage
 
 (cd $DIR && sbt validate)
-(cd $DIR && sbt liquidityServer/docker:stage)
+(cd $DIR && sbt server/docker:stage)
 
 cp --recursive $DIR/akka-cluster $DIR/image-stage/akka-cluster
 cp --recursive $DIR/server/target/docker/stage $DIR/image-stage/server

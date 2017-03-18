@@ -36,7 +36,7 @@ lazy val playJson = "com.typesafe.play" %% "play-json" % "2.6.0-M5"
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.1"
 
-lazy val liquidityModel = project
+lazy val model = project
   .in(file("model"))
   .settings(commonSettings)
   .settings(publishSettings)
@@ -54,7 +54,7 @@ lazy val liquidityModel = project
       "com.dhpcs" %% "play-json-testkit" % "2.0-M1" % Test
     ))
 
-lazy val liquiditySerialization = project
+lazy val serialization = project
   .in(file("serialization"))
   .settings(commonSettings)
   .settings(publishSettings)
@@ -67,7 +67,7 @@ lazy val liquiditySerialization = project
       playJson
     ))
 
-lazy val liquidityPersistence = project
+lazy val persistence = project
   .in(file("persistence"))
   .settings(commonSettings)
   .settings(publishSettings)
@@ -77,10 +77,10 @@ lazy val liquidityPersistence = project
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-actor" % "2.4.17"
   ))
-  .dependsOn(liquidityModel)
-  .dependsOn(liquiditySerialization)
+  .dependsOn(model)
+  .dependsOn(serialization)
 
-lazy val liquidityWsProtocol = project
+lazy val wsProtocol = project
   .in(file("ws-protocol"))
   .settings(commonSettings)
   .settings(publishSettings)
@@ -90,25 +90,25 @@ lazy val liquidityWsProtocol = project
   .settings(libraryDependencies ++= Seq(
     "com.dhpcs" %% "play-json-rpc" % "2.0-M1"
   ))
-  .dependsOn(liquidityModel)
+  .dependsOn(model)
   .settings(
     libraryDependencies ++= Seq(
       scalaTest   % Test,
       "com.dhpcs" %% "play-json-testkit" % "2.0-M1" % Test
     ))
 
-lazy val liquidityActorProtocol = project
+lazy val actorProtocol = project
   .in(file("actor-protocol"))
   .settings(commonSettings)
   .settings(publishSettings)
   .settings(
     name := "liquidity-actor-protocol"
   )
-  .dependsOn(liquidityModel)
-  .dependsOn(liquidityWsProtocol)
-  .dependsOn(liquiditySerialization)
+  .dependsOn(model)
+  .dependsOn(wsProtocol)
+  .dependsOn(serialization)
 
-lazy val liquidityCertgen = project
+lazy val certgen = project
   .in(file("certgen"))
   .settings(commonSettings)
   .settings(noopPublishSettings)
@@ -122,17 +122,17 @@ lazy val liquidityCertgen = project
     scalaTest % Test
   ))
 
-lazy val liquidityServer = project
+lazy val server = project
   .in(file("server"))
   .settings(commonSettings)
   .settings(noopPublishSettings)
   .settings(
     name := "liquidity-server"
   )
-  .dependsOn(liquidityModel)
-  .dependsOn(liquidityPersistence)
-  .dependsOn(liquidityWsProtocol)
-  .dependsOn(liquidityActorProtocol)
+  .dependsOn(model)
+  .dependsOn(persistence)
+  .dependsOn(wsProtocol)
+  .dependsOn(actorProtocol)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.17",
     "ch.qos.logback"           % "logback-classic"                      % "1.2.2",
@@ -150,14 +150,14 @@ lazy val liquidityServer = project
     "com.typesafe.akka"        %% "akka-http"                           % "10.0.5",
     playJson
   ))
-  .dependsOn(liquidityCertgen % Test)
+  .dependsOn(certgen % Test)
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.5" % Test
   ))
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)
-  .dependsOn(liquidityCertgen % "multi-jvm")
+  .dependsOn(certgen % "multi-jvm")
   .settings(libraryDependencies ++= Seq(
     scalaTest              % MultiJvm,
     "com.typesafe.akka"    %% "akka-multi-node-testkit" % "2.4.17" % MultiJvm,
@@ -173,40 +173,40 @@ lazy val liquidityServer = project
     )
   )
 
-lazy val liquidityClient = project
+lazy val client = project
   .in(file("client"))
   .settings(commonSettings)
   .settings(publishSettings)
   .settings(
     name := "liquidity-client"
   )
-  .dependsOn(liquidityModel)
-  .dependsOn(liquidityWsProtocol)
+  .dependsOn(model)
+  .dependsOn(wsProtocol)
   .settings(libraryDependencies ++= Seq(
     "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
     "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
   ))
-  .dependsOn(liquidityCertgen % "test")
+  .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
     scalaTest              % Test,
     "org.apache.cassandra" % "cassandra-all" % "3.7" % IntegrationTest exclude ("io.netty", "netty-all")
   ))
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
-  .dependsOn(liquidityServer % "it->test")
+  .dependsOn(server % "it->test")
   .settings(fork in IntegrationTest := true)
   .settings(libraryDependencies ++= Seq(
     scalaTest % IntegrationTest
   ))
 
-lazy val liquidityHealthcheck = project
+lazy val healthcheck = project
   .in(file("healthcheck"))
   .settings(commonSettings)
   .settings(noopPublishSettings)
   .settings(
     name := "liquidity-healthcheck"
   )
-  .dependsOn(liquidityClient)
+  .dependsOn(client)
   .settings(
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.17",
@@ -214,14 +214,14 @@ lazy val liquidityHealthcheck = project
     ))
   .enablePlugins(JavaAppPackaging, UniversalPlugin)
 
-lazy val liquidityBoardgame = project
+lazy val boardgame = project
   .in(file("boardgame"))
   .settings(commonSettings)
   .settings(publishSettings)
   .settings(
     name := "liquidity-boardgame"
   )
-  .dependsOn(liquidityClient)
+  .dependsOn(client)
 
 lazy val root = project
   .in(file("."))
@@ -231,14 +231,14 @@ lazy val root = project
     name := "liquidity"
   )
   .aggregate(
-    liquidityModel,
-    liquiditySerialization,
-    liquidityPersistence,
-    liquidityWsProtocol,
-    liquidityActorProtocol,
-    liquidityCertgen,
-    liquidityServer,
-    liquidityClient,
-    liquidityHealthcheck,
-    liquidityBoardgame
+    model,
+    serialization,
+    persistence,
+    wsProtocol,
+    actorProtocol,
+    certgen,
+    server,
+    client,
+    healthcheck,
+    boardgame
   )

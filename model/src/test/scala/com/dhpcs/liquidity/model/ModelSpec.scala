@@ -3,10 +3,9 @@ package com.dhpcs.liquidity.model
 import java.security.KeyPairGenerator
 import java.util.UUID
 
-import com.dhpcs.json.FormatBehaviors
 import com.dhpcs.liquidity.model.ValueFormatSpec.TestValue
 import okio.ByteString
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.{FreeSpec, Matchers}
 import play.api.libs.json._
 
 object ValueFormatSpec {
@@ -14,84 +13,92 @@ object ValueFormatSpec {
   final case class TestValue(value: String)
 
   object TestValue {
-    implicit final val TestFormat: Format[TestValue] = ValueFormat[TestValue, String](TestValue(_), _.value)
+    implicit final val TestFormat: Format[TestValue] = ValueFormat(TestValue(_), _.value)
   }
 
 }
 
-class ValueFormatSpec extends FunSpec with FormatBehaviors[TestValue] with Matchers {
+class ValueFormatSpec extends FreeSpec with Matchers {
 
-  describe("A JsValue of the wrong type")(
-    it should behave like readError(
-      Json.parse(
-        """
-          |0""".stripMargin
-      ),
-      JsError(__, "error.expected.jsstring")
+  "A JsValue of the wrong type" - {
+    val json    = Json.parse("0")
+    val jsError = JsError(__, "error.expected.jsstring")
+    s"should fail to decode with error $jsError" in (
+      Json.fromJson[TestValue](json) shouldBe jsError
     )
-  )
+  }
 
-  describe("A TestValue") {
-    implicit val testValue = TestValue("test")
-    implicit val testValueJson = Json.parse(
+  "A TestValue" - {
+    val testValue = TestValue("test")
+    val testValueJson = Json.parse(
       """
         |"test"""".stripMargin
     )
-    it should behave like read
-    it should behave like write
+    s"should decode to $testValue" in (
+      Json.fromJson[TestValue](testValueJson) shouldBe JsSuccess(testValue)
+    )
+    s"should encode to $testValueJson" in (
+      Json.toJson(testValue) shouldBe testValueJson
+    )
   }
 }
 
-class PublicKeySpec extends FunSpec with FormatBehaviors[PublicKey] with Matchers {
+class PublicKeySpec extends FreeSpec with Matchers {
 
-  describe("A JsValue of the wrong type")(
-    it should behave like readError(
-      Json.parse("""
-                   |0""".stripMargin),
-      JsError(__, "error.expected.jsstring")
+  "A JsValue of the wrong type" - {
+    val json    = Json.parse("0")
+    val jsError = JsError(__, "error.expected.jsstring")
+    s"should fail to decode with error $jsError" in (
+      Json.fromJson[PublicKey](json) shouldBe jsError
     )
-  )
+  }
 
-  describe("A PublicKey") {
-    val publicKeyBytes     = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    implicit val publicKey = PublicKey(publicKeyBytes)
-    implicit val publicKeyJson = Json.parse(
+  "A PublicKey" - {
+    val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
+    val publicKey      = PublicKey(publicKeyBytes)
+    val publicKeyJson = Json.parse(
       s"""
          |"${ByteString.of(publicKeyBytes: _*).base64}"""".stripMargin
     )
-    it should behave like read
-    it should behave like write
+    s"should decode to $publicKey" in (
+      Json.fromJson[PublicKey](publicKeyJson) shouldBe JsSuccess(publicKey)
+    )
+    s"should encode to $publicKeyJson" in (
+      Json.toJson(publicKey) shouldBe publicKeyJson
+    )
   }
 }
 
-class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
+class MemberSpec extends FreeSpec with Matchers {
 
-  describe("A JsValue of the wrong type")(
-    it should behave like readError(
-      Json.parse(
-        """
-          |0""".stripMargin
-      ),
-      JsError(__, "error.expected.jsobject")
+  "A JsValue of the wrong type" - {
+    val json    = Json.parse("0")
+    val jsError = JsError(__, "error.expected.jsobject")
+    s"should fail to decode with error $jsError" in (
+      Json.fromJson[Member](json) shouldBe jsError
     )
-  )
+  }
 
-  describe("A Member") {
+  "A Member" - {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    describe("without a name or metadata") {
-      implicit val member = Member(MemberId(0), PublicKey(publicKeyBytes))
-      implicit val memberJson = Json.parse(
+    "without a name or metadata" - {
+      val member = Member(MemberId(0), PublicKey(publicKeyBytes))
+      val memberJson = Json.parse(
         s"""
            |{
            |  "id":0,
            |  "ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}"
            |}""".stripMargin
       )
-      it should behave like read
-      it should behave like write
+      s"should decode to $member" in (
+        Json.fromJson[Member](memberJson) shouldBe JsSuccess(member)
+      )
+      s"should encode to $memberJson" in (
+        Json.toJson(member) shouldBe memberJson
+      )
     }
-    describe("with a name and metadata") {
-      implicit val member = Member(
+    "with a name and metadata" - {
+      val member = Member(
         MemberId(0),
         PublicKey(publicKeyBytes),
         Some("Dave"),
@@ -101,7 +108,7 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
           )
         )
       )
-      implicit val memberJson = Json.parse(
+      val memberJson = Json.parse(
         s"""
            |{
            |  "id":0,
@@ -110,42 +117,48 @@ class MemberSpec extends FunSpec with FormatBehaviors[Member] with Matchers {
            |  "metadata":{"color":"0x0000FF"}
            |}""".stripMargin
       )
-      it should behave like read
-      it should behave like write
+      s"should decode to $member" in (
+        Json.fromJson[Member](memberJson) shouldBe JsSuccess(member)
+      )
+      s"should encode to $memberJson" in (
+        Json.toJson(member) shouldBe memberJson
+      )
     }
   }
 }
 
-class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
+class AccountSpec extends FreeSpec with Matchers {
 
-  describe("A JsValue of the wrong type")(
-    it should behave like readError(
-      Json.parse(
-        """
-          |0""".stripMargin
-      ),
-      JsError(__, "error.expected.jsobject")
+  "A JsValue of the wrong type" - {
+    val json    = Json.parse("0")
+    val jsError = JsError(__, "error.expected.jsobject")
+    s"should fail to decode with error $jsError" in (
+      Json.fromJson[Account](json) shouldBe jsError
     )
-  )
+  }
 
-  describe("An Account") {
-    describe("without a name or metadata") {
-      implicit val account = Account(
+  "An Account" - {
+    "without a name or metadata" - {
+      val account = Account(
         AccountId(0),
         Set(MemberId(0))
       )
-      implicit val accountJson = Json.parse(
+      val accountJson = Json.parse(
         """
           |{
           |  "id":0,
           |  "ownerMemberIds":[0]
           |}""".stripMargin
       )
-      it should behave like read
-      it should behave like write
+      s"should decode to $account" in (
+        Json.fromJson[Account](accountJson) shouldBe JsSuccess(account)
+      )
+      s"should encode to $accountJson" in (
+        Json.toJson(account) shouldBe accountJson
+      )
     }
-    describe("with a name and metadata") {
-      implicit val account = Account(
+    "with a name and metadata" - {
+      val account = Account(
         AccountId(0),
         Set(MemberId(0)),
         Some("Dave's account"),
@@ -155,7 +168,7 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
           )
         )
       )
-      implicit val accountJson = Json.parse(
+      val accountJson = Json.parse(
         """
           |{
           |  "id":0,
@@ -164,35 +177,37 @@ class AccountSpec extends FunSpec with FormatBehaviors[Account] with Matchers {
           |  "metadata":{"hidden":true}
           |}""".stripMargin
       )
-      it should behave like read
-      it should behave like write
+      s"should decode to $account" in (
+        Json.fromJson[Account](accountJson) shouldBe JsSuccess(account)
+      )
+      s"should encode to $accountJson" in (
+        Json.toJson(account) shouldBe accountJson
+      )
     }
   }
 }
 
-class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Matchers {
+class TransactionSpec extends FreeSpec with Matchers {
 
-  describe("A JsValue of the wrong type")(
-    it should behave like readError(
-      Json.parse(
-        """
-          |0""".stripMargin
-      ),
-      JsError(
-        Seq(
-          (__ \ "id", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "from", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "to", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "value", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "creator", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "created", Seq(JsonValidationError("error.path.missing")))
-        ))
+  "A JsValue of the wrong type" - {
+    val json = Json.parse("0")
+    val jsError = JsError(
+      Seq(
+        (__ \ "value", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "from", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "id", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "created", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "creator", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "to", Seq(JsonValidationError("error.path.missing")))
+      ))
+    s"should fail to decode with error $jsError" in (
+      Json.fromJson[Transaction](json) shouldBe jsError
     )
-  )
+  }
 
-  describe("A Transaction") {
-    describe("without a description or metadata") {
-      implicit val transaction = Transaction(
+  "A Transaction" - {
+    "without a description or metadata" - {
+      val transaction = Transaction(
         TransactionId(0),
         AccountId(0),
         AccountId(1),
@@ -200,7 +215,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
         MemberId(2),
         1434115187612L
       )
-      implicit val transactionJson = Json.parse(
+      val transactionJson = Json.parse(
         """
           |{
           |  "id":0,
@@ -211,11 +226,15 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
           |  "created":1434115187612
           |}""".stripMargin
       )
-      it should behave like read
-      it should behave like write
+      s"should decode to $transaction" in (
+        Json.fromJson[Transaction](transactionJson) shouldBe JsSuccess(transaction)
+      )
+      s"should encode to $transactionJson" in (
+        Json.toJson(transaction) shouldBe transactionJson
+      )
     }
-    describe("with a description and metadata") {
-      implicit val transaction = Transaction(
+    "with a description and metadata" - {
+      val transaction = Transaction(
         TransactionId(0),
         AccountId(0),
         AccountId(1),
@@ -229,7 +248,7 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
           )
         )
       )
-      implicit val transactionJson = Json.parse(
+      val transactionJson = Json.parse(
         """
           |{
           |  "id":0,
@@ -242,37 +261,39 @@ class TransactionSpec extends FunSpec with FormatBehaviors[Transaction] with Mat
           |  "metadata":{"property":"The TARDIS"}
           |}""".stripMargin
       )
-      it should behave like read
-      it should behave like write
+      s"should decode to $transaction" in (
+        Json.fromJson[Transaction](transactionJson) shouldBe JsSuccess(transaction)
+      )
+      s"should encode to $transactionJson" in (
+        Json.toJson(transaction) shouldBe transactionJson
+      )
     }
   }
 }
 
-class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
+class ZoneSpec extends FreeSpec with Matchers {
 
-  describe("A JsValue of the wrong type")(
-    it should behave like readError(
-      Json.parse(
-        """
-          |0""".stripMargin
-      ),
-      JsError(
-        Seq(
-          (__ \ "id", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "equityAccountId", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "members", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "accounts", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "transactions", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "created", Seq(JsonValidationError("error.path.missing"))),
-          (__ \ "expires", Seq(JsonValidationError("error.path.missing")))
-        ))
+  "A JsValue of the wrong type" - {
+    val json = Json.parse("0")
+    val jsError = JsError(
+      Seq(
+        (__ \ "expires", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "equityAccountId", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "id", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "created", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "transactions", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "accounts", Seq(JsonValidationError("error.path.missing"))),
+        (__ \ "members", Seq(JsonValidationError("error.path.missing")))
+      ))
+    s"should fail to decode with error $jsError" in (
+      Json.fromJson[Zone](json) shouldBe jsError
     )
-  )
+  }
 
-  describe("A Zone") {
+  "A Zone" - {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    describe("without a name or metadata") {
-      implicit val zone = Zone(
+    "without a name or metadata" - {
+      val zone = Zone(
         ZoneId(
           UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")
         ),
@@ -304,7 +325,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
         1433611420487L,
         1433611420487L
       )
-      implicit val zoneJson = Json.parse(
+      val zoneJson = Json.parse(
         s"""
            |{
            |  "id":"b0c608d4-22f5-460e-8872-15a10d79daf2",
@@ -332,11 +353,15 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
            |  "expires":1433611420487
            |}""".stripMargin
       )
-      it should behave like read
-      it should behave like write
+      s"should decode to $zone" in (
+        Json.fromJson[Zone](zoneJson) shouldBe JsSuccess(zone)
+      )
+      s"should encode to $zoneJson" in (
+        Json.toJson(zone) shouldBe zoneJson
+      )
     }
-    describe("with a name and metadata") {
-      implicit val zone = Zone(
+    "with a name and metadata" - {
+      val zone = Zone(
         ZoneId(
           UUID.fromString("b0c608d4-22f5-460e-8872-15a10d79daf2")
         ),
@@ -374,7 +399,7 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
           )
         )
       )
-      implicit val zoneJson = Json.parse(
+      val zoneJson = Json.parse(
         s"""
            |{
            |  "id":"b0c608d4-22f5-460e-8872-15a10d79daf2",
@@ -404,8 +429,12 @@ class ZoneSpec extends FunSpec with FormatBehaviors[Zone] with Matchers {
            |  "metadata":{"currency":"GBP"}
            |}""".stripMargin
       )
-      it should behave like read
-      it should behave like write
+      s"should decode to $zone" in (
+        Json.fromJson[Zone](zoneJson) shouldBe JsSuccess(zone)
+      )
+      s"should encode to $zoneJson" in (
+        Json.toJson(zone) shouldBe zoneJson
+      )
     }
   }
 }

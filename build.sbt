@@ -48,11 +48,9 @@ lazy val model = project
       playJson,
       "com.squareup.okio" % "okio" % "1.11.0"
     ))
-  .settings(
-    libraryDependencies ++= Seq(
-      scalaTest   % Test,
-      "com.dhpcs" %% "play-json-testkit" % "2.0-M1" % Test
-    ))
+  .settings(libraryDependencies ++= Seq(
+    scalaTest % Test
+  ))
 
 lazy val serialization = project
   .in(file("serialization"))
@@ -74,9 +72,8 @@ lazy val persistence = project
   .settings(
     name := "liquidity-persistence"
   )
-  .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-actor" % "2.4.17"
-  ))
+  .settings(libraryDependencies +=
+    "com.typesafe.akka" %% "akka-actor" % "2.4.17")
   .dependsOn(model)
   .dependsOn(serialization)
 
@@ -87,15 +84,12 @@ lazy val wsProtocol = project
   .settings(
     name := "liquidity-ws-protocol"
   )
-  .settings(libraryDependencies ++= Seq(
-    "com.dhpcs" %% "play-json-rpc" % "2.0-M1"
-  ))
+  .settings(libraryDependencies +=
+    "com.dhpcs" %% "play-json-rpc" % "2.0-M1")
   .dependsOn(model)
-  .settings(
-    libraryDependencies ++= Seq(
-      scalaTest   % Test,
-      "com.dhpcs" %% "play-json-testkit" % "2.0-M1" % Test
-    ))
+  .settings(libraryDependencies ++= Seq(
+    scalaTest % Test
+  ))
 
 lazy val actorProtocol = project
   .in(file("actor-protocol"))
@@ -115,9 +109,8 @@ lazy val certgen = project
   .settings(
     name := "liquidity-certgen"
   )
-  .settings(libraryDependencies ++= Seq(
-    "org.bouncycastle" % "bcpkix-jdk15on" % "1.56"
-  ))
+  .settings(libraryDependencies +=
+    "org.bouncycastle" % "bcpkix-jdk15on" % "1.56")
   .settings(libraryDependencies ++= Seq(
     scalaTest % Test
   ))
@@ -195,9 +188,8 @@ lazy val client = project
   .settings(Defaults.itSettings)
   .dependsOn(server % "it->test")
   .settings(fork in IntegrationTest := true)
-  .settings(libraryDependencies ++= Seq(
-    scalaTest % IntegrationTest
-  ))
+  .settings(libraryDependencies +=
+    scalaTest % IntegrationTest)
 
 lazy val healthcheck = project
   .in(file("healthcheck"))

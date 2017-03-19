@@ -4,24 +4,24 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.security.KeyPair
 import java.security.interfaces.RSAPrivateKey
 
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
+import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers}
 
-class CertGenSpec extends WordSpec with Matchers with BeforeAndAfterAll {
+class CertGenSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
-  "CertGen.generateCertKey" should {
-    "create 2048 bit RSA private keys" in {
+  "CertGen.generateCertKey" - {
+    "should create 2048 bit RSA private keys" in {
       val (_, privateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
       privateKey shouldBe a[RSAPrivateKey]
       privateKey.asInstanceOf[RSAPrivateKey].getModulus.bitLength shouldBe 2048
     }
-    "create certificates from existing keypairs" in {
+    "should create certificates from existing keypairs" in {
       val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
       val keyPair                   = new KeyPair(certificate.getPublicKey, privateKey)
       val expectedPublicKey         = certificate.getPublicKey
       val publicKey                 = CertGen.generateCert(keyPair, subjectAlternativeName = None).getPublicKey
       publicKey shouldBe expectedPublicKey
     }
-    "round-trip certificates and private keys" in {
+    "should round-trip certificates and private keys" in {
       val (expectedCertificate, expectedPrivateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
       val to                                        = new ByteArrayOutputStream
       CertGen.saveCertKey(to, "PKCS12", expectedCertificate, expectedPrivateKey)
@@ -30,7 +30,7 @@ class CertGenSpec extends WordSpec with Matchers with BeforeAndAfterAll {
       certificate shouldBe expectedCertificate
       privateKey shouldBe expectedPrivateKey
     }
-    "round-trip certificates" in {
+    "should round-trip certificates" in {
       val (expectedCertificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
       val to                       = new ByteArrayOutputStream
       CertGen.saveCert(to, "PKCS12", expectedCertificate)

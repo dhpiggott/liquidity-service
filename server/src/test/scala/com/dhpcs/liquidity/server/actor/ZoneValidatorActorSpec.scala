@@ -10,9 +10,9 @@ import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.ws.protocol._
-import org.scalatest.{Inside, Matchers, WordSpec}
+import org.scalatest.{Inside, Matchers, FreeSpec}
 
-class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures with Inside with Matchers {
+class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures with Inside with Matchers {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardTypeName,
@@ -27,8 +27,8 @@ class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures 
     PublicKey(publicKeyBytes)
   }
 
-  "A ZoneValidatorActor" should {
-    "reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
+  "A ZoneValidatorActor" - {
+    "should reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = NumericCorrelationId(0)
       val sequenceNumber                      = 1L
@@ -63,7 +63,7 @@ class ZoneValidatorActorSpec extends WordSpec with InMemPersistenceTestFixtures 
           zone.metadata shouldBe None
       }
     }
-    "reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {
+    "should reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = NumericCorrelationId(0)
       val sequenceNumber                      = 1L

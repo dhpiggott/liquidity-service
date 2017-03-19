@@ -99,7 +99,7 @@ object LiquidityHealthcheck {
 }
 
 class LiquidityHealthcheck(hostname: Option[String])
-    extends fixture.WordSpec
+    extends fixture.FreeSpec
     with Matchers
     with ScalaFutures
     with Inside
@@ -209,8 +209,8 @@ class LiquidityHealthcheck(hostname: Option[String])
     }
   }
 
-  "The server" should {
-    "accept connections" in { sub =>
+  "The server" - {
+    "should accept connections" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
@@ -221,7 +221,7 @@ class LiquidityHealthcheck(hostname: Option[String])
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
-    s"admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in { sub =>
+    s"should admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))

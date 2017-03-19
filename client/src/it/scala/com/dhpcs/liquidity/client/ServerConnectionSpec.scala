@@ -33,7 +33,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
 class ServerConnectionSpec
-    extends fixture.WordSpec
+    extends fixture.FreeSpec
     with BeforeAndAfterAll
     with ScalaFutures
     with Inside
@@ -247,8 +247,8 @@ class ServerConnectionSpec
     }
   }
 
-  "ServerConnection" should {
-    "connect to the server and update the connection state as it does so" in { sub =>
+  "ServerConnection" - {
+    "should connect to the server and update the connection state as it does so" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
@@ -259,7 +259,7 @@ class ServerConnectionSpec
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
-    "complete with a CreateZoneResponse when forwarding a CreateZoneCommand" in { sub =>
+    "should complete with a CreateZoneResponse when forwarding a CreateZoneCommand" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))

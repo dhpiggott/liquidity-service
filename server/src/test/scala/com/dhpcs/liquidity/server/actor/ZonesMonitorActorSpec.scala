@@ -4,14 +4,14 @@ import akka.actor.Deploy
 import akka.testkit.TestProbe
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.{GetZoneCount, ZoneCount}
-import org.scalatest.WordSpec
+import org.scalatest.FreeSpec
 
 import scala.concurrent.Future
 
-class ZonesMonitorActorSpec extends WordSpec with InMemPersistenceTestFixtures {
+class ZonesMonitorActorSpec extends FreeSpec with InMemPersistenceTestFixtures {
 
-  "A ZonesMonitorActor" should {
-    "provide a count of the number of zones" in {
+  "A ZonesMonitorActor" - {
+    "should provide a count of the number of zones" in {
       val testProbe = TestProbe()
       val zonesMonitor =
         system.actorOf(ZonesMonitorActor.props(Future.successful(0)).withDeploy(Deploy.local), "zones-monitor")

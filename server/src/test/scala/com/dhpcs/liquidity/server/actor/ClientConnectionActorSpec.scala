@@ -22,7 +22,7 @@ import org.scalatest.{Inside, Matchers, Outcome, fixture}
 
 import scala.concurrent.duration._
 
-class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTestFixtures with Inside with Matchers {
+class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures with Inside with Matchers {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {
@@ -50,19 +50,19 @@ class ClientConnectionActorSpec extends fixture.WordSpec with InMemPersistenceTe
     finally system.stop(clientConnection)
   }
 
-  "A ClientConnectionActor" should {
-    "send a SupportedVersionsNotification when connected" in { fixture =>
+  "A ClientConnectionActor" - {
+    "should send a SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
       expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
     }
-    "send a KeepAliveNotification when left idle" in { fixture =>
+    "should send a KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
       expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       upstreamTestProbe.within(3.5.seconds)(
         expectNotification(upstreamTestProbe) shouldBe KeepAliveNotification
       )
     }
-    "reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
+    "should reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
       expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       val command = CreateZoneCommand(

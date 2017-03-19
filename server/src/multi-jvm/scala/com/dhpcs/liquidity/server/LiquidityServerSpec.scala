@@ -104,7 +104,7 @@ class LiquidityServerSpecMultiJvmNode3 extends LiquidityServerSpec
 sealed abstract class LiquidityServerSpec
     extends MultiNodeSpec(LiquidityServerSpecConfig, config => ActorSystem("liquidity", config))
     with MultiNodeSpecCallbacks
-    with WordSpecLike
+    with FreeSpecLike
     with BeforeAndAfterAll
     with Inside
     with Matchers {
@@ -200,12 +200,12 @@ sealed abstract class LiquidityServerSpec
 
   override def initialParticipants: Int = roles.size
 
-  "Each test process" should (
-    "wait for the others to be ready to start" in enterBarrier("start")
+  "Each test process" - (
+    "should wait for the others to be ready to start" in enterBarrier("start")
   )
 
-  "The test nodes" should (
-    "form a cluster" in {
+  "The test nodes" - (
+    "should form a cluster" in {
       val cluster            = Cluster(system)
       val zoneHostAddress    = node(zoneHostNode).address
       val clientRelayAddress = node(clientRelayNode).address
@@ -226,17 +226,17 @@ sealed abstract class LiquidityServerSpec
   )
 
   runOn(clientRelayNode)(
-    "The LiquidityServer WebSocket API" should {
-      "send a SupportedVersionsNotification when connected" in withWsTestProbes { (sub, _) =>
+    "The LiquidityServer WebSocket API" - {
+      "should send a SupportedVersionsNotification when connected" in withWsTestProbes { (sub, _) =>
         expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
       }
-      "send a KeepAliveNotification when left idle" in withWsTestProbes { (sub, _) =>
+      "should send a KeepAliveNotification when left idle" in withWsTestProbes { (sub, _) =>
         expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
         sub.within(3.5.seconds)(
           expectNotification(sub) shouldBe KeepAliveNotification
         )
       }
-      "reply with a CreateZoneResponse when sending a CreateZoneCommand" in withWsTestProbes {
+      "should reply with a CreateZoneResponse when sending a CreateZoneCommand" in withWsTestProbes {
         (sub, pub) =>
           expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
           send(pub)(
@@ -261,7 +261,7 @@ sealed abstract class LiquidityServerSpec
               zone.metadata shouldBe None
           }
       }
-      "reply with a JoinZoneResponse when sending a JoinZoneCommand" in withWsTestProbes {
+      "should reply with a JoinZoneResponse when sending a JoinZoneCommand" in withWsTestProbes {
         (sub, pub) =>
           expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
           send(pub)(
@@ -299,8 +299,8 @@ sealed abstract class LiquidityServerSpec
     }
   )
 
-  "Each test process" should (
-    "wait for the others to be ready to stop" in enterBarrier("stop")
+  "Each test process" - (
+    "should wait for the others to be ready to stop" in enterBarrier("stop")
   )
 
   private[this] def withWsTestProbes(

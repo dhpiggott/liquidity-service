@@ -15,17 +15,17 @@ import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.{FreeSpec, Matchers}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Future
 
-class HttpControllerSpec extends WordSpec with Matchers with ScalatestRouteTest with HttpController {
+class HttpControllerSpec extends FreeSpec with Matchers with ScalatestRouteTest with HttpController {
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
-  "A LiquidityController" should {
-    "provide status information" in {
+  "A LiquidityController" - {
+    "should provide status information" in {
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> route(enableClientRelay = true) ~> check {
         status shouldBe StatusCodes.OK
@@ -33,7 +33,7 @@ class HttpControllerSpec extends WordSpec with Matchers with ScalatestRouteTest 
         Json.parse(entityAs[String]) shouldBe Json.obj()
       }
     }
-    "accept WebSocket connections" in {
+    "should accept WebSocket connections" in {
       val wsProbe = WSProbe()
       WS("/ws", wsProbe.flow).addHeader(
         `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))

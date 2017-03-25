@@ -15,30 +15,30 @@ import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.scalatest.{FreeSpec, Matchers}
+import org.scalatest.FreeSpec
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Future
 
-class HttpControllerSpec extends FreeSpec with Matchers with ScalatestRouteTest with HttpController {
+class HttpControllerSpec extends FreeSpec with ScalatestRouteTest with HttpController {
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
   "A LiquidityController" - {
-    "should provide status information" in {
+    "will provide status information" in {
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> route(enableClientRelay = true) ~> check {
-        status shouldBe StatusCodes.OK
-        contentType shouldBe ContentType(`application/json`)
-        Json.parse(entityAs[String]) shouldBe Json.obj()
+        status === StatusCodes.OK
+        contentType === ContentType(`application/json`)
+        Json.parse(entityAs[String]) === Json.obj()
       }
     }
-    "should accept WebSocket connections" in {
+    "will accept WebSocket connections" in {
       val wsProbe = WSProbe()
       WS("/ws", wsProbe.flow).addHeader(
         `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
       ) ~> route(enableClientRelay = true) ~> check {
-        isWebSocketUpgrade shouldBe true
+        isWebSocketUpgrade === true
         val message = "Hello"
         wsProbe.sendMessage(message)
         wsProbe.expectMessage(message)

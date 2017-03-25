@@ -1,6 +1,8 @@
 package com.dhpcs.liquidity.server
 
 import java.security.cert.{CertificateException, X509Certificate}
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import javax.net.ssl.{SSLContext, X509TrustManager}
 
 import akka.actor.ActorSystem
@@ -28,6 +30,7 @@ import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import okio.ByteString
 import org.apache.cassandra.io.util.FileUtils
+import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.OptionValues._
 import org.scalatest._
 
@@ -106,8 +109,7 @@ sealed abstract class LiquidityServerSpec
     with MultiNodeSpecCallbacks
     with FreeSpecLike
     with BeforeAndAfterAll
-    with Inside
-    with Matchers {
+    with Inside {
 
   import com.dhpcs.liquidity.server.LiquidityServerSpecConfig._
 
@@ -201,11 +203,11 @@ sealed abstract class LiquidityServerSpec
   override def initialParticipants: Int = roles.size
 
   "Each test process" - (
-    "should wait for the others to be ready to start" in enterBarrier("start")
+    "will wait for the others to be ready to start" in enterBarrier("start")
   )
 
   "The test nodes" - (
-    "should form a cluster" in {
+    "will form a cluster" in {
       val cluster            = Cluster(system)
       val zoneHostAddress    = node(zoneHostNode).address
       val clientRelayAddress = node(clientRelayNode).address
@@ -227,18 +229,18 @@ sealed abstract class LiquidityServerSpec
 
   runOn(clientRelayNode)(
     "The LiquidityServer WebSocket API" - {
-      "should send a SupportedVersionsNotification when connected" in withWsTestProbes { (sub, _) =>
-        expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      "will send a SupportedVersionsNotification when connected" in withWsTestProbes { (sub, _) =>
+        expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers)
       }
-      "should send a KeepAliveNotification when left idle" in withWsTestProbes { (sub, _) =>
-        expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      "will send a KeepAliveNotification when left idle" in withWsTestProbes { (sub, _) =>
+        expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers)
         sub.within(3.5.seconds)(
-          expectNotification(sub) shouldBe KeepAliveNotification
+          expectNotification(sub) === KeepAliveNotification
         )
       }
-      "should reply with a CreateZoneResponse when sending a CreateZoneCommand" in withWsTestProbes {
+      "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withWsTestProbes {
         (sub, pub) =>
-          expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
+          expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers)
           send(pub)(
             CreateZoneCommand(
               equityOwnerPublicKey = clientPublicKey,
@@ -251,19 +253,19 @@ sealed abstract class LiquidityServerSpec
           )
           inside(expectResponse(sub, "createZone")) {
             case CreateZoneResponse(zone) =>
-              zone.equityAccountId shouldBe AccountId(0)
-              zone.members(MemberId(0)) shouldBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
-              zone.accounts(AccountId(0)) shouldBe Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
-              zone.created should be > 0L
-              zone.expires should be > zone.created
-              zone.transactions shouldBe Map.empty
-              zone.name shouldBe Some("Dave's Game")
-              zone.metadata shouldBe None
+              zone.equityAccountId === AccountId(0)
+              zone.members(MemberId(0)) === Member(MemberId(0), clientPublicKey, name = Some("Dave"))
+              zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
+              zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 100L)
+              zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 100L)
+              zone.transactions === Map.empty
+              zone.name === Some("Dave's Game")
+              zone.metadata === None
           }
       }
-      "should reply with a JoinZoneResponse when sending a JoinZoneCommand" in withWsTestProbes {
+      "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withWsTestProbes {
         (sub, pub) =>
-          expectNotification(sub) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
+          expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers)
           send(pub)(
             CreateZoneCommand(
               equityOwnerPublicKey = clientPublicKey,
@@ -277,14 +279,14 @@ sealed abstract class LiquidityServerSpec
           val zone = inside(expectResponse(sub, "createZone")) {
             case createZoneResponse: CreateZoneResponse =>
               val zone = createZoneResponse.zone
-              zone.equityAccountId shouldBe AccountId(0)
-              zone.members(MemberId(0)) shouldBe Member(MemberId(0), clientPublicKey, name = Some("Dave"))
-              zone.accounts(AccountId(0)) shouldBe Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
-              zone.created should be > 0L
-              zone.expires should be > zone.created
-              zone.transactions shouldBe Map.empty
-              zone.name shouldBe Some("Dave's Game")
-              zone.metadata shouldBe None
+              zone.equityAccountId === AccountId(0)
+              zone.members(MemberId(0)) === Member(MemberId(0), clientPublicKey, name = Some("Dave"))
+              zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
+              zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 100L)
+              zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 100L)
+              zone.transactions === Map.empty
+              zone.name === Some("Dave's Game")
+              zone.metadata === None
               zone
           }
           send(pub)(
@@ -292,15 +294,15 @@ sealed abstract class LiquidityServerSpec
           )
           inside(expectResponse(sub, "joinZone")) {
             case joinZoneResponse: JoinZoneResponse =>
-              joinZoneResponse.zone shouldBe zone
-              joinZoneResponse.connectedClients shouldBe Set(clientPublicKey)
+              joinZoneResponse.zone === zone
+              joinZoneResponse.connectedClients === Set(clientPublicKey)
           }
       }
     }
   )
 
   "Each test process" - (
-    "should wait for the others to be ready to stop" in enterBarrier("stop")
+    "will wait for the others to be ready to stop" in enterBarrier("stop")
   )
 
   private[this] def withWsTestProbes(

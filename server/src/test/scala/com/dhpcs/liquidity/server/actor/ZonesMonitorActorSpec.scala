@@ -11,7 +11,7 @@ import scala.concurrent.Future
 class ZonesMonitorActorSpec extends FreeSpec with InMemPersistenceTestFixtures {
 
   "A ZonesMonitorActor" - {
-    "should provide a count of the number of zones" in {
+    "will provide a count of the number of zones" in {
       val testProbe = TestProbe()
       val zonesMonitor =
         system.actorOf(ZonesMonitorActor.props(Future.successful(0)).withDeploy(Deploy.local), "zones-monitor")

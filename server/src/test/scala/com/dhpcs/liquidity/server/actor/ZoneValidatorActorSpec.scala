@@ -1,6 +1,8 @@
 package com.dhpcs.liquidity.server.actor
 
 import java.security.KeyPairGenerator
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
@@ -10,9 +12,10 @@ import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.ws.protocol._
-import org.scalatest.{Inside, Matchers, FreeSpec}
+import org.scalactic.TripleEqualsSupport.Spread
+import org.scalatest.{FreeSpec, Inside}
 
-class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures with Inside with Matchers {
+class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures with Inside {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardTypeName,
@@ -28,7 +31,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
   }
 
   "A ZoneValidatorActor" - {
-    "should reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
+    "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = NumericCorrelationId(0)
       val sequenceNumber                      = 1L
@@ -53,17 +56,17 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       )
       inside(expectResultResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
         case CreateZoneResponse(zone) =>
-          zone.equityAccountId shouldBe AccountId(0)
-          zone.members(MemberId(0)) shouldBe Member(MemberId(0), publicKey, name = Some("Dave"))
-          zone.accounts(AccountId(0)) shouldBe Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
-          zone.created should be > 0L
-          zone.expires should be > zone.created
-          zone.transactions shouldBe Map.empty
-          zone.name shouldBe Some("Dave's Game")
-          zone.metadata shouldBe None
+          zone.equityAccountId === AccountId(0)
+          zone.members(MemberId(0)) === Member(MemberId(0), publicKey, name = Some("Dave"))
+          zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
+          zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 100L)
+          zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 100L)
+          zone.transactions === Map.empty
+          zone.name === Some("Dave's Game")
+          zone.metadata === None
       }
     }
-    "should reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {
+    "will reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = NumericCorrelationId(0)
       val sequenceNumber                      = 1L
@@ -78,7 +81,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
           deliveryId = 1L
         )
       )
-      expectErrorResponse(clientConnectionTestProbe, correlationId, sequenceNumber) shouldBe
+      expectErrorResponse(clientConnectionTestProbe, correlationId, sequenceNumber) ===
         JsonRpcResponseErrorMessage.applicationError(
           code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
           message = "Zone does not exist",
@@ -113,15 +116,15 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       message
     )
     val commandReceivedConfirmation = clientConnectionTestProbe.expectMsgType[CommandReceivedConfirmation]
-    commandReceivedConfirmation shouldBe CommandReceivedConfirmation(zoneId, deliveryId)
+    commandReceivedConfirmation === CommandReceivedConfirmation(zoneId, deliveryId)
   }
 
   private[this] def expectErrorResponse(clientConnectionTestProbe: TestProbe,
                                         correlationId: CorrelationId,
                                         sequenceNumber: Long): JsonRpcResponseErrorMessage = {
     val responseWithIds = clientConnectionTestProbe.expectMsgType[ErrorResponseWithIds]
-    responseWithIds.response.id shouldBe correlationId
-    responseWithIds.sequenceNumber shouldBe sequenceNumber
+    responseWithIds.response.id === correlationId
+    responseWithIds.sequenceNumber === sequenceNumber
     clientConnectionTestProbe.send(
       clientConnectionTestProbe.lastSender,
       MessageReceivedConfirmation(responseWithIds.deliveryId)
@@ -133,8 +136,8 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
                                          correlationId: CorrelationId,
                                          sequenceNumber: Long): Response = {
     val responseWithIds = clientConnectionTestProbe.expectMsgType[SuccessResponseWithIds]
-    responseWithIds.correlationId shouldBe correlationId
-    responseWithIds.sequenceNumber shouldBe sequenceNumber
+    responseWithIds.correlationId === correlationId
+    responseWithIds.sequenceNumber === sequenceNumber
     clientConnectionTestProbe.send(
       clientConnectionTestProbe.lastSender,
       MessageReceivedConfirmation(responseWithIds.deliveryId)

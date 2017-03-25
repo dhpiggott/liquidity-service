@@ -4,10 +4,10 @@ import java.nio.file.Files
 import java.security.Security
 import javax.net.ssl.X509KeyManager
 
-import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 import org.spongycastle.jce.provider.BouncyCastleProvider
 
-class ClientKeySpec extends FreeSpec with Matchers with BeforeAndAfterAll {
+class ClientKeySpec extends FreeSpec with BeforeAndAfterAll {
 
   private[this] val clientKeyDirectory = {
     val clientKeyDirectory = Files.createTempDirectory("liquidity-client-key").toFile
@@ -26,17 +26,17 @@ class ClientKeySpec extends FreeSpec with Matchers with BeforeAndAfterAll {
   }
 
   "ClientKey" - {
-    "should provide a single key manager" in {
-      ClientKey.getKeyManagers(clientKeyDirectory).length shouldBe 1
+    "will provide a single key manager" in {
+      ClientKey.getKeyManagers(clientKeyDirectory).length === 1
     }
-    "should expose the key manager's public key" in {
+    "will expose the key manager's public key" in {
       val expectedPublicKey = ClientKey
         .getKeyManagers(clientKeyDirectory)(0)
         .asInstanceOf[X509KeyManager]
         .getCertificateChain("identity")(0)
         .getPublicKey
         .getEncoded
-      ClientKey.getPublicKey(clientKeyDirectory).value.toByteArray shouldBe expectedPublicKey
+      ClientKey.getPublicKey(clientKeyDirectory).value.toByteArray === expectedPublicKey
     }
   }
 }

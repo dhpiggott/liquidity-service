@@ -32,12 +32,7 @@ import org.spongycastle.jce.provider.BouncyCastleProvider
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
-class ServerConnectionSpec
-    extends fixture.FreeSpec
-    with BeforeAndAfterAll
-    with ScalaFutures
-    with Inside
-    with Matchers {
+class ServerConnectionSpec extends fixture.FreeSpec with BeforeAndAfterAll with ScalaFutures with Inside {
 
   private[this] val cassandraDirectory = FileUtils.createTempFile("liquidity-cassandra-data", null)
   private[this] val akkaRemotingPort   = freePort()
@@ -248,7 +243,7 @@ class ServerConnectionSpec
   }
 
   "ServerConnection" - {
-    "should connect to the server and update the connection state as it does so" in { sub =>
+    "will connect to the server and update the connection state as it does so" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
@@ -259,7 +254,7 @@ class ServerConnectionSpec
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
-    "should complete with a CreateZoneResponse when forwarding a CreateZoneCommand" in { sub =>
+    "will complete with a CreateZoneResponse when forwarding a CreateZoneCommand" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
@@ -278,8 +273,8 @@ class ServerConnectionSpec
       ).futureValue
       inside(result) {
         case Right(CreateZoneResponse(zone)) =>
-          zone.members(MemberId(0)) shouldBe Member(MemberId(0), serverConnection.clientKey, name = Some("Dave"))
-          zone.name shouldBe Some("Dave's Game")
+          zone.members(MemberId(0)) === Member(MemberId(0), serverConnection.clientKey, name = Some("Dave"))
+          zone.name === Some("Dave's Game")
       }
       MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)

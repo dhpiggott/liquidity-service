@@ -100,7 +100,6 @@ object LiquidityHealthcheck {
 
 class LiquidityHealthcheck(hostname: Option[String])
     extends fixture.FreeSpec
-    with Matchers
     with ScalaFutures
     with Inside
     with BeforeAndAfterAll {
@@ -210,7 +209,7 @@ class LiquidityHealthcheck(hostname: Option[String])
   }
 
   "The server" - {
-    "should accept connections" in { sub =>
+    "will accept connections" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
@@ -221,7 +220,7 @@ class LiquidityHealthcheck(hostname: Option[String])
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
-    s"should admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in { sub =>
+    s"will admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
@@ -233,8 +232,8 @@ class LiquidityHealthcheck(hostname: Option[String])
       ).futureValue
       inside(result) {
         case Right(JoinZoneResponse(zone, connectedClients)) =>
-          zone shouldBe SentinelZone
-          connectedClients shouldBe Set(serverConnection.clientKey)
+          zone === SentinelZone
+          connectedClients === Set(serverConnection.clientKey)
       }
       MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)

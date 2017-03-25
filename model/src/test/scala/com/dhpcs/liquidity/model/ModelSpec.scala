@@ -5,7 +5,7 @@ import java.util.UUID
 
 import com.dhpcs.liquidity.model.ValueFormatSpec.TestValue
 import okio.ByteString
-import org.scalatest.{FreeSpec, Matchers}
+import org.scalatest.FreeSpec
 import play.api.libs.json._
 
 object ValueFormatSpec {
@@ -18,13 +18,13 @@ object ValueFormatSpec {
 
 }
 
-class ValueFormatSpec extends FreeSpec with Matchers {
+class ValueFormatSpec extends FreeSpec {
 
   "A JsValue of the wrong type" - {
     val json    = Json.parse("0")
     val jsError = JsError(__, "error.expected.jsstring")
-    s"should fail to decode with error $jsError" in (
-      Json.fromJson[TestValue](json) shouldBe jsError
+    s"will fail to decode with error $jsError" in (
+      Json.fromJson[TestValue](json) === jsError
     )
   }
 
@@ -34,22 +34,22 @@ class ValueFormatSpec extends FreeSpec with Matchers {
       """
         |"test"""".stripMargin
     )
-    s"should decode to $testValue" in (
-      Json.fromJson[TestValue](testValueJson) shouldBe JsSuccess(testValue)
+    s"will decode to $testValue" in (
+      Json.fromJson[TestValue](testValueJson) === JsSuccess(testValue)
     )
-    s"should encode to $testValueJson" in (
-      Json.toJson(testValue) shouldBe testValueJson
+    s"will encode to $testValueJson" in (
+      Json.toJson(testValue) === testValueJson
     )
   }
 }
 
-class PublicKeySpec extends FreeSpec with Matchers {
+class PublicKeySpec extends FreeSpec {
 
   "A JsValue of the wrong type" - {
     val json    = Json.parse("0")
     val jsError = JsError(__, "error.expected.jsstring")
-    s"should fail to decode with error $jsError" in (
-      Json.fromJson[PublicKey](json) shouldBe jsError
+    s"will fail to decode with error $jsError" in (
+      Json.fromJson[PublicKey](json) === jsError
     )
   }
 
@@ -60,22 +60,22 @@ class PublicKeySpec extends FreeSpec with Matchers {
       s"""
          |"${ByteString.of(publicKeyBytes: _*).base64}"""".stripMargin
     )
-    s"should decode to $publicKey" in (
-      Json.fromJson[PublicKey](publicKeyJson) shouldBe JsSuccess(publicKey)
+    s"will decode to $publicKey" in (
+      Json.fromJson[PublicKey](publicKeyJson) === JsSuccess(publicKey)
     )
-    s"should encode to $publicKeyJson" in (
-      Json.toJson(publicKey) shouldBe publicKeyJson
+    s"will encode to $publicKeyJson" in (
+      Json.toJson(publicKey) === publicKeyJson
     )
   }
 }
 
-class MemberSpec extends FreeSpec with Matchers {
+class MemberSpec extends FreeSpec {
 
   "A JsValue of the wrong type" - {
     val json    = Json.parse("0")
     val jsError = JsError(__, "error.expected.jsobject")
-    s"should fail to decode with error $jsError" in (
-      Json.fromJson[Member](json) shouldBe jsError
+    s"will fail to decode with error $jsError" in (
+      Json.fromJson[Member](json) === jsError
     )
   }
 
@@ -90,11 +90,11 @@ class MemberSpec extends FreeSpec with Matchers {
            |  "ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}"
            |}""".stripMargin
       )
-      s"should decode to $member" in (
-        Json.fromJson[Member](memberJson) shouldBe JsSuccess(member)
+      s"will decode to $member" in (
+        Json.fromJson[Member](memberJson) === JsSuccess(member)
       )
-      s"should encode to $memberJson" in (
-        Json.toJson(member) shouldBe memberJson
+      s"will encode to $memberJson" in (
+        Json.toJson(member) === memberJson
       )
     }
     "with a name and metadata" - {
@@ -117,23 +117,23 @@ class MemberSpec extends FreeSpec with Matchers {
            |  "metadata":{"color":"0x0000FF"}
            |}""".stripMargin
       )
-      s"should decode to $member" in (
-        Json.fromJson[Member](memberJson) shouldBe JsSuccess(member)
+      s"will decode to $member" in (
+        Json.fromJson[Member](memberJson) === JsSuccess(member)
       )
-      s"should encode to $memberJson" in (
-        Json.toJson(member) shouldBe memberJson
+      s"will encode to $memberJson" in (
+        Json.toJson(member) === memberJson
       )
     }
   }
 }
 
-class AccountSpec extends FreeSpec with Matchers {
+class AccountSpec extends FreeSpec {
 
   "A JsValue of the wrong type" - {
     val json    = Json.parse("0")
     val jsError = JsError(__, "error.expected.jsobject")
-    s"should fail to decode with error $jsError" in (
-      Json.fromJson[Account](json) shouldBe jsError
+    s"will fail to decode with error $jsError" in (
+      Json.fromJson[Account](json) === jsError
     )
   }
 
@@ -150,11 +150,11 @@ class AccountSpec extends FreeSpec with Matchers {
           |  "ownerMemberIds":[0]
           |}""".stripMargin
       )
-      s"should decode to $account" in (
-        Json.fromJson[Account](accountJson) shouldBe JsSuccess(account)
+      s"will decode to $account" in (
+        Json.fromJson[Account](accountJson) === JsSuccess(account)
       )
-      s"should encode to $accountJson" in (
-        Json.toJson(account) shouldBe accountJson
+      s"will encode to $accountJson" in (
+        Json.toJson(account) === accountJson
       )
     }
     "with a name and metadata" - {
@@ -177,17 +177,17 @@ class AccountSpec extends FreeSpec with Matchers {
           |  "metadata":{"hidden":true}
           |}""".stripMargin
       )
-      s"should decode to $account" in (
-        Json.fromJson[Account](accountJson) shouldBe JsSuccess(account)
+      s"will decode to $account" in (
+        Json.fromJson[Account](accountJson) === JsSuccess(account)
       )
-      s"should encode to $accountJson" in (
-        Json.toJson(account) shouldBe accountJson
+      s"will encode to $accountJson" in (
+        Json.toJson(account) === accountJson
       )
     }
   }
 }
 
-class TransactionSpec extends FreeSpec with Matchers {
+class TransactionSpec extends FreeSpec {
 
   "A JsValue of the wrong type" - {
     val json = Json.parse("0")
@@ -200,8 +200,8 @@ class TransactionSpec extends FreeSpec with Matchers {
         (__ \ "creator", Seq(JsonValidationError("error.path.missing"))),
         (__ \ "to", Seq(JsonValidationError("error.path.missing")))
       ))
-    s"should fail to decode with error $jsError" in (
-      Json.fromJson[Transaction](json) shouldBe jsError
+    s"will fail to decode with error $jsError" in (
+      Json.fromJson[Transaction](json) === jsError
     )
   }
 
@@ -226,11 +226,11 @@ class TransactionSpec extends FreeSpec with Matchers {
           |  "created":1434115187612
           |}""".stripMargin
       )
-      s"should decode to $transaction" in (
-        Json.fromJson[Transaction](transactionJson) shouldBe JsSuccess(transaction)
+      s"will decode to $transaction" in (
+        Json.fromJson[Transaction](transactionJson) === JsSuccess(transaction)
       )
-      s"should encode to $transactionJson" in (
-        Json.toJson(transaction) shouldBe transactionJson
+      s"will encode to $transactionJson" in (
+        Json.toJson(transaction) === transactionJson
       )
     }
     "with a description and metadata" - {
@@ -261,17 +261,17 @@ class TransactionSpec extends FreeSpec with Matchers {
           |  "metadata":{"property":"The TARDIS"}
           |}""".stripMargin
       )
-      s"should decode to $transaction" in (
-        Json.fromJson[Transaction](transactionJson) shouldBe JsSuccess(transaction)
+      s"will decode to $transaction" in (
+        Json.fromJson[Transaction](transactionJson) === JsSuccess(transaction)
       )
-      s"should encode to $transactionJson" in (
-        Json.toJson(transaction) shouldBe transactionJson
+      s"will encode to $transactionJson" in (
+        Json.toJson(transaction) === transactionJson
       )
     }
   }
 }
 
-class ZoneSpec extends FreeSpec with Matchers {
+class ZoneSpec extends FreeSpec {
 
   "A JsValue of the wrong type" - {
     val json = Json.parse("0")
@@ -285,8 +285,8 @@ class ZoneSpec extends FreeSpec with Matchers {
         (__ \ "accounts", Seq(JsonValidationError("error.path.missing"))),
         (__ \ "members", Seq(JsonValidationError("error.path.missing")))
       ))
-    s"should fail to decode with error $jsError" in (
-      Json.fromJson[Zone](json) shouldBe jsError
+    s"will fail to decode with error $jsError" in (
+      Json.fromJson[Zone](json) === jsError
     )
   }
 
@@ -353,11 +353,11 @@ class ZoneSpec extends FreeSpec with Matchers {
            |  "expires":1433611420487
            |}""".stripMargin
       )
-      s"should decode to $zone" in (
-        Json.fromJson[Zone](zoneJson) shouldBe JsSuccess(zone)
+      s"will decode to $zone" in (
+        Json.fromJson[Zone](zoneJson) === JsSuccess(zone)
       )
-      s"should encode to $zoneJson" in (
-        Json.toJson(zone) shouldBe zoneJson
+      s"will encode to $zoneJson" in (
+        Json.toJson(zone) === zoneJson
       )
     }
     "with a name and metadata" - {
@@ -429,11 +429,11 @@ class ZoneSpec extends FreeSpec with Matchers {
            |  "metadata":{"currency":"GBP"}
            |}""".stripMargin
       )
-      s"should decode to $zone" in (
-        Json.fromJson[Zone](zoneJson) shouldBe JsSuccess(zone)
+      s"will decode to $zone" in (
+        Json.fromJson[Zone](zoneJson) === JsSuccess(zone)
       )
-      s"should encode to $zoneJson" in (
-        Json.toJson(zone) shouldBe zoneJson
+      s"will encode to $zoneJson" in (
+        Json.toJson(zone) === zoneJson
       )
     }
   }

@@ -18,11 +18,11 @@ import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor.WrappedJsonRpcMessage
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.OptionValues._
-import org.scalatest.{Inside, Matchers, Outcome, fixture}
+import org.scalatest.{Inside, Outcome, fixture}
 
 import scala.concurrent.duration._
 
-class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures with Inside with Matchers {
+class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures with Inside {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {
@@ -51,20 +51,20 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
   }
 
   "A ClientConnectionActor" - {
-    "should send a SupportedVersionsNotification when connected" in { fixture =>
+    "will send a SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers)
     }
-    "should send a KeepAliveNotification when left idle" in { fixture =>
+    "will send a KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers)
       upstreamTestProbe.within(3.5.seconds)(
-        expectNotification(upstreamTestProbe) shouldBe KeepAliveNotification
+        expectNotification(upstreamTestProbe) === KeepAliveNotification
       )
     }
-    "should reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
+    "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
-      expectNotification(upstreamTestProbe) shouldBe SupportedVersionsNotification(CompatibleVersionNumbers)
+      expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers)
       val command = CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
         equityOwnerName = Some("Dave"),
@@ -77,7 +77,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       send(sinkTestProbe, clientConnection)(command, correlationId)
       val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedAuthenticatedCommandWithIds]) {
         case envelopedMessage @ EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
-          authenticatedCommandWithIds shouldBe
+          authenticatedCommandWithIds ===
             AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber = 1L, deliveryId = 1L)
           envelopedMessage.zoneId
       }
@@ -99,7 +99,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
         clientConnection,
         SuccessResponseWithIds(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
       )
-      expectResponse(upstreamTestProbe, "createZone") shouldBe result
+      expectResponse(upstreamTestProbe, "createZone") === result
     }
   }
 

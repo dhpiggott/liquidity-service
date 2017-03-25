@@ -9,7 +9,7 @@ import org.scalatest.FreeSpec
 class ClientsMonitorActorSpec extends FreeSpec with InMemPersistenceTestFixtures {
 
   "A ClientsMonitorActor" - {
-    "should provide a summary of the active clients" in {
+    "will provide a summary of the active clients" in {
       val testProbe      = TestProbe()
       val clientsMonitor = system.actorOf(ClientsMonitorActor.props.withDeploy(Deploy.local), "clients-monitor")
       try {

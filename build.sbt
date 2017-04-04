@@ -128,7 +128,7 @@ lazy val server = project
   .dependsOn(actorProtocol)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.17",
-    "ch.qos.logback"           % "logback-classic"                      % "1.2.2",
+    "ch.qos.logback"           % "logback-classic"                      % "1.2.3",
     "com.typesafe.akka"        %% "akka-actor"                          % "2.4.17",
     "com.typesafe.akka"        %% "akka-cluster"                        % "2.4.17",
     "com.typesafe.akka"        %% "akka-cluster-sharding"               % "2.4.17",

@@ -232,8 +232,8 @@ class LiquidityHealthcheck(hostname: Option[String])
       ).futureValue
       inside(result) {
         case Right(JoinZoneResponse(zone, connectedClients)) =>
-          zone === SentinelZone
-          connectedClients === Set(serverConnection.clientKey)
+          assert(zone === SentinelZone)
+          assert(connectedClients === Set(serverConnection.clientKey))
       }
       MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)

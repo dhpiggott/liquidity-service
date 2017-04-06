@@ -24,7 +24,7 @@ class WsProtocolSpec extends FreeSpec {
         NumericCorrelationId(1)
       )
       val jsError = JsError("unknown method invalidMethod")
-      s"will fail to decode with error $jsError" in (
+      s"will fail to decode with error $jsError" in assert(
         Command.read(jsonRpcRequestMessage) === jsError
       )
     }
@@ -38,7 +38,7 @@ class WsProtocolSpec extends FreeSpec {
           NumericCorrelationId(1)
         )
         val jsError = JsError(__, "command parameters must be named")
-        s"will fail to decode with error $jsError" in (
+        s"will fail to decode with error $jsError" in assert(
           Command.read(jsonRpcRequestMessage) === jsError
         )
       }
@@ -51,7 +51,7 @@ class WsProtocolSpec extends FreeSpec {
           NumericCorrelationId(1)
         )
         val jsError = JsError(__ \ "equityOwnerPublicKey", "error.path.missing")
-        s"will fail to decode with error $jsError" in (
+        s"will fail to decode with error $jsError" in assert(
           Command.read(jsonRpcRequestMessage) === jsError
         )
       }
@@ -85,10 +85,10 @@ class WsProtocolSpec extends FreeSpec {
         ),
         NumericCorrelationId(1)
       )
-      s"will decode to $createZoneCommand" in (
+      s"will decode to $createZoneCommand" in assert(
         Command.read(jsonRpcRequestMessage) === JsSuccess(createZoneCommand)
       )
-      s"will encode to $jsonRpcRequestMessage" in (
+      s"will encode to $jsonRpcRequestMessage" in assert(
         Command.write(createZoneCommand, id) === jsonRpcRequestMessage
       )
     }
@@ -108,7 +108,7 @@ class WsProtocolSpec extends FreeSpec {
           NumericCorrelationId(1)
         )
         val jsError = JsError(__ \ "value", JsonValidationError("error.min", 0))
-        s"will fail to decode with error $jsError" in (
+        s"will fail to decode with error $jsError" in assert(
           Command.read(jsonRpcRequestMessage) === jsError
         )
       }
@@ -124,7 +124,7 @@ class WsProtocolSpec extends FreeSpec {
         )
         val method  = "createZone"
         val jsError = JsError(__ \ "zone", "error.path.missing")
-        s"will fail to decode with error $jsError" in (
+        s"will fail to decode with error $jsError" in assert(
           Response.read(jsonRpcResponseSuccessMessage, method) === jsError
         )
       }
@@ -172,10 +172,10 @@ class WsProtocolSpec extends FreeSpec {
       NumericCorrelationId(1)
     )
     val method = "createZone"
-    s"will decode to $createZoneResponse" in (
+    s"will decode to $createZoneResponse" in assert(
       Response.read(jsonRpcResponseSuccessMessage, method) === JsSuccess(createZoneResponse)
     )
-    s"will encode to $jsonRpcResponseSuccessMessage" in (
+    s"will encode to $jsonRpcResponseSuccessMessage" in assert(
       Response.write(createZoneResponse, id) === jsonRpcResponseSuccessMessage
     )
   }
@@ -189,7 +189,7 @@ class WsProtocolSpec extends FreeSpec {
         )
       )
       val jsError = JsError("unknown method invalidMethod")
-      s"will fail to decode with error $jsError" in (
+      s"will fail to decode with error $jsError" in assert(
         Notification.read(jsonRpcNotificationMessage) === jsError
       )
     }
@@ -202,7 +202,7 @@ class WsProtocolSpec extends FreeSpec {
           )
         )
         val jsError = JsError(__, "notification parameters must be named")
-        s"will fail to decode with error $jsError" in (
+        s"will fail to decode with error $jsError" in assert(
           Notification.read(jsonRpcNotificationMessage) === jsError
         )
       }
@@ -219,7 +219,7 @@ class WsProtocolSpec extends FreeSpec {
             (__ \ "zoneId", Seq(JsonValidationError("error.path.missing")))
           )
         )
-        s"will fail to decode with error $jsError" in (
+        s"will fail to decode with error $jsError" in assert(
           Notification.read(jsonRpcNotificationMessage) === jsError
         )
       }
@@ -237,10 +237,10 @@ class WsProtocolSpec extends FreeSpec {
           )
         )
       )
-      s"will decode to $clientJoinedZoneNotification" in (
+      s"will decode to $clientJoinedZoneNotification" in assert(
         Notification.read(jsonRpcNotificationMessage) === JsSuccess(clientJoinedZoneNotification)
       )
-      s"will encode to $jsonRpcNotificationMessage" in (
+      s"will encode to $jsonRpcNotificationMessage" in assert(
         Notification.write(clientJoinedZoneNotification) === jsonRpcNotificationMessage
       )
     }

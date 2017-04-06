@@ -273,8 +273,8 @@ class ServerConnectionSpec extends fixture.FreeSpec with BeforeAndAfterAll with 
       ).futureValue
       inside(result) {
         case Right(CreateZoneResponse(zone)) =>
-          zone.members(MemberId(0)) === Member(MemberId(0), serverConnection.clientKey, name = Some("Dave"))
-          zone.name === Some("Dave's Game")
+          assert(zone.members(MemberId(0)) === Member(MemberId(0), serverConnection.clientKey, name = Some("Dave")))
+          assert(zone.name === Some("Dave's Game"))
       }
       MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)

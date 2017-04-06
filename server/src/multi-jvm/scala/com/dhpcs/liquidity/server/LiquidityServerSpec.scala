@@ -230,17 +230,17 @@ sealed abstract class LiquidityServerSpec
   runOn(clientRelayNode)(
     "The LiquidityServer WebSocket API" - {
       "will send a SupportedVersionsNotification when connected" in withWsTestProbes { (sub, _) =>
-        expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers)
+        assert(expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
       }
       "will send a KeepAliveNotification when left idle" in withWsTestProbes { (sub, _) =>
-        expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers)
+        assert(expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
         sub.within(3.5.seconds)(
-          expectNotification(sub) === KeepAliveNotification
+          assert(expectNotification(sub) === KeepAliveNotification)
         )
       }
       "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withWsTestProbes {
         (sub, pub) =>
-          expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers)
+          assert(expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
           send(pub)(
             CreateZoneCommand(
               equityOwnerPublicKey = clientPublicKey,
@@ -253,19 +253,20 @@ sealed abstract class LiquidityServerSpec
           )
           inside(expectResponse(sub, "createZone")) {
             case CreateZoneResponse(zone) =>
-              zone.equityAccountId === AccountId(0)
-              zone.members(MemberId(0)) === Member(MemberId(0), clientPublicKey, name = Some("Dave"))
-              zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
-              zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 100L)
-              zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 100L)
-              zone.transactions === Map.empty
-              zone.name === Some("Dave's Game")
-              zone.metadata === None
+              assert(zone.equityAccountId === AccountId(0))
+              assert(zone.members(MemberId(0)) === Member(MemberId(0), clientPublicKey, name = Some("Dave")))
+              assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 250L))
+              assert(
+                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 250L))
+              assert(zone.transactions === Map.empty)
+              assert(zone.name === Some("Dave's Game"))
+              assert(zone.metadata === None)
           }
       }
       "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withWsTestProbes {
         (sub, pub) =>
-          expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers)
+          assert(expectNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
           send(pub)(
             CreateZoneCommand(
               equityOwnerPublicKey = clientPublicKey,
@@ -279,14 +280,15 @@ sealed abstract class LiquidityServerSpec
           val zone = inside(expectResponse(sub, "createZone")) {
             case createZoneResponse: CreateZoneResponse =>
               val zone = createZoneResponse.zone
-              zone.equityAccountId === AccountId(0)
-              zone.members(MemberId(0)) === Member(MemberId(0), clientPublicKey, name = Some("Dave"))
-              zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
-              zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 100L)
-              zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 100L)
-              zone.transactions === Map.empty
-              zone.name === Some("Dave's Game")
-              zone.metadata === None
+              assert(zone.equityAccountId === AccountId(0))
+              assert(zone.members(MemberId(0)) === Member(MemberId(0), clientPublicKey, name = Some("Dave")))
+              assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 250L))
+              assert(
+                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 250L))
+              assert(zone.transactions === Map.empty)
+              assert(zone.name === Some("Dave's Game"))
+              assert(zone.metadata === None)
               zone
           }
           send(pub)(
@@ -294,8 +296,8 @@ sealed abstract class LiquidityServerSpec
           )
           inside(expectResponse(sub, "joinZone")) {
             case joinZoneResponse: JoinZoneResponse =>
-              joinZoneResponse.zone === zone
-              joinZoneResponse.connectedClients === Set(clientPublicKey)
+              assert(joinZoneResponse.zone === zone)
+              assert(joinZoneResponse.connectedClients === Set(clientPublicKey))
           }
       }
     }

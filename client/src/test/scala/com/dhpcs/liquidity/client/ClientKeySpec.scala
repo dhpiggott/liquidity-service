@@ -26,9 +26,9 @@ class ClientKeySpec extends FreeSpec with BeforeAndAfterAll {
   }
 
   "ClientKey" - {
-    "will provide a single key manager" in {
+    "will provide a single key manager" in assert(
       ClientKey.getKeyManagers(clientKeyDirectory).length === 1
-    }
+    )
     "will expose the key manager's public key" in {
       val expectedPublicKey = ClientKey
         .getKeyManagers(clientKeyDirectory)(0)
@@ -36,7 +36,7 @@ class ClientKeySpec extends FreeSpec with BeforeAndAfterAll {
         .getCertificateChain("identity")(0)
         .getPublicKey
         .getEncoded
-      ClientKey.getPublicKey(clientKeyDirectory).value.toByteArray === expectedPublicKey
+      assert(ClientKey.getPublicKey(clientKeyDirectory).value.toByteArray === expectedPublicKey)
     }
   }
 }

@@ -23,7 +23,7 @@ class ValueFormatSpec extends FreeSpec {
   "A JsValue of the wrong type" - {
     val json    = Json.parse("0")
     val jsError = JsError(__, "error.expected.jsstring")
-    s"will fail to decode with error $jsError" in (
+    s"will fail to decode with error $jsError" in assert(
       Json.fromJson[TestValue](json) === jsError
     )
   }
@@ -34,10 +34,10 @@ class ValueFormatSpec extends FreeSpec {
       """
         |"test"""".stripMargin
     )
-    s"will decode to $testValue" in (
+    s"will decode to $testValue" in assert(
       Json.fromJson[TestValue](testValueJson) === JsSuccess(testValue)
     )
-    s"will encode to $testValueJson" in (
+    s"will encode to $testValueJson" in assert(
       Json.toJson(testValue) === testValueJson
     )
   }
@@ -48,7 +48,7 @@ class PublicKeySpec extends FreeSpec {
   "A JsValue of the wrong type" - {
     val json    = Json.parse("0")
     val jsError = JsError(__, "error.expected.jsstring")
-    s"will fail to decode with error $jsError" in (
+    s"will fail to decode with error $jsError" in assert(
       Json.fromJson[PublicKey](json) === jsError
     )
   }
@@ -60,10 +60,10 @@ class PublicKeySpec extends FreeSpec {
       s"""
          |"${ByteString.of(publicKeyBytes: _*).base64}"""".stripMargin
     )
-    s"will decode to $publicKey" in (
+    s"will decode to $publicKey" in assert(
       Json.fromJson[PublicKey](publicKeyJson) === JsSuccess(publicKey)
     )
-    s"will encode to $publicKeyJson" in (
+    s"will encode to $publicKeyJson" in assert(
       Json.toJson(publicKey) === publicKeyJson
     )
   }
@@ -74,7 +74,7 @@ class MemberSpec extends FreeSpec {
   "A JsValue of the wrong type" - {
     val json    = Json.parse("0")
     val jsError = JsError(__, "error.expected.jsobject")
-    s"will fail to decode with error $jsError" in (
+    s"will fail to decode with error $jsError" in assert(
       Json.fromJson[Member](json) === jsError
     )
   }
@@ -90,10 +90,10 @@ class MemberSpec extends FreeSpec {
            |  "ownerPublicKey":"${ByteString.of(publicKeyBytes: _*).base64}"
            |}""".stripMargin
       )
-      s"will decode to $member" in (
+      s"will decode to $member" in assert(
         Json.fromJson[Member](memberJson) === JsSuccess(member)
       )
-      s"will encode to $memberJson" in (
+      s"will encode to $memberJson" in assert(
         Json.toJson(member) === memberJson
       )
     }
@@ -117,10 +117,10 @@ class MemberSpec extends FreeSpec {
            |  "metadata":{"color":"0x0000FF"}
            |}""".stripMargin
       )
-      s"will decode to $member" in (
+      s"will decode to $member" in assert(
         Json.fromJson[Member](memberJson) === JsSuccess(member)
       )
-      s"will encode to $memberJson" in (
+      s"will encode to $memberJson" in assert(
         Json.toJson(member) === memberJson
       )
     }
@@ -132,7 +132,7 @@ class AccountSpec extends FreeSpec {
   "A JsValue of the wrong type" - {
     val json    = Json.parse("0")
     val jsError = JsError(__, "error.expected.jsobject")
-    s"will fail to decode with error $jsError" in (
+    s"will fail to decode with error $jsError" in assert(
       Json.fromJson[Account](json) === jsError
     )
   }
@@ -150,10 +150,10 @@ class AccountSpec extends FreeSpec {
           |  "ownerMemberIds":[0]
           |}""".stripMargin
       )
-      s"will decode to $account" in (
+      s"will decode to $account" in assert(
         Json.fromJson[Account](accountJson) === JsSuccess(account)
       )
-      s"will encode to $accountJson" in (
+      s"will encode to $accountJson" in assert(
         Json.toJson(account) === accountJson
       )
     }
@@ -177,10 +177,10 @@ class AccountSpec extends FreeSpec {
           |  "metadata":{"hidden":true}
           |}""".stripMargin
       )
-      s"will decode to $account" in (
+      s"will decode to $account" in assert(
         Json.fromJson[Account](accountJson) === JsSuccess(account)
       )
-      s"will encode to $accountJson" in (
+      s"will encode to $accountJson" in assert(
         Json.toJson(account) === accountJson
       )
     }
@@ -200,7 +200,7 @@ class TransactionSpec extends FreeSpec {
         (__ \ "creator", Seq(JsonValidationError("error.path.missing"))),
         (__ \ "to", Seq(JsonValidationError("error.path.missing")))
       ))
-    s"will fail to decode with error $jsError" in (
+    s"will fail to decode with error $jsError" in assert(
       Json.fromJson[Transaction](json) === jsError
     )
   }
@@ -226,10 +226,10 @@ class TransactionSpec extends FreeSpec {
           |  "created":1434115187612
           |}""".stripMargin
       )
-      s"will decode to $transaction" in (
+      s"will decode to $transaction" in assert(
         Json.fromJson[Transaction](transactionJson) === JsSuccess(transaction)
       )
-      s"will encode to $transactionJson" in (
+      s"will encode to $transactionJson" in assert(
         Json.toJson(transaction) === transactionJson
       )
     }
@@ -261,10 +261,10 @@ class TransactionSpec extends FreeSpec {
           |  "metadata":{"property":"The TARDIS"}
           |}""".stripMargin
       )
-      s"will decode to $transaction" in (
+      s"will decode to $transaction" in assert(
         Json.fromJson[Transaction](transactionJson) === JsSuccess(transaction)
       )
-      s"will encode to $transactionJson" in (
+      s"will encode to $transactionJson" in assert(
         Json.toJson(transaction) === transactionJson
       )
     }
@@ -285,7 +285,7 @@ class ZoneSpec extends FreeSpec {
         (__ \ "accounts", Seq(JsonValidationError("error.path.missing"))),
         (__ \ "members", Seq(JsonValidationError("error.path.missing")))
       ))
-    s"will fail to decode with error $jsError" in (
+    s"will fail to decode with error $jsError" in assert(
       Json.fromJson[Zone](json) === jsError
     )
   }
@@ -353,10 +353,10 @@ class ZoneSpec extends FreeSpec {
            |  "expires":1433611420487
            |}""".stripMargin
       )
-      s"will decode to $zone" in (
+      s"will decode to $zone" in assert(
         Json.fromJson[Zone](zoneJson) === JsSuccess(zone)
       )
-      s"will encode to $zoneJson" in (
+      s"will encode to $zoneJson" in assert(
         Json.toJson(zone) === zoneJson
       )
     }
@@ -429,10 +429,10 @@ class ZoneSpec extends FreeSpec {
            |  "metadata":{"currency":"GBP"}
            |}""".stripMargin
       )
-      s"will decode to $zone" in (
+      s"will decode to $zone" in assert(
         Json.fromJson[Zone](zoneJson) === JsSuccess(zone)
       )
-      s"will encode to $zoneJson" in (
+      s"will encode to $zoneJson" in assert(
         Json.toJson(zone) === zoneJson
       )
     }

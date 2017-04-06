@@ -53,18 +53,18 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
   "A ClientConnectionActor" - {
     "will send a SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers)
+      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
     }
     "will send a KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers)
+      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
       upstreamTestProbe.within(3.5.seconds)(
-        expectNotification(upstreamTestProbe) === KeepAliveNotification
+        assert(expectNotification(upstreamTestProbe) === KeepAliveNotification)
       )
     }
     "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
-      expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers)
+      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
       val command = CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
         equityOwnerName = Some("Dave"),
@@ -77,8 +77,9 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       send(sinkTestProbe, clientConnection)(command, correlationId)
       val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedAuthenticatedCommandWithIds]) {
         case envelopedMessage @ EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
-          authenticatedCommandWithIds ===
-            AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber = 1L, deliveryId = 1L)
+          assert(
+            authenticatedCommandWithIds ===
+              AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber = 1L, deliveryId = 1L))
           envelopedMessage.zoneId
       }
       val result = CreateZoneResponse({
@@ -99,7 +100,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
         clientConnection,
         SuccessResponseWithIds(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
       )
-      expectResponse(upstreamTestProbe, "createZone") === result
+      assert(expectResponse(upstreamTestProbe, "createZone") === result)
     }
   }
 

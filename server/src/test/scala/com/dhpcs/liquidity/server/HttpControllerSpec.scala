@@ -28,9 +28,9 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest with HttpContr
     "will provide status information" in {
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> route(enableClientRelay = true) ~> check {
-        status === StatusCodes.OK
-        contentType === ContentType(`application/json`)
-        Json.parse(entityAs[String]) === Json.obj()
+        assert(status === StatusCodes.OK)
+        assert(contentType === ContentType(`application/json`))
+        assert(Json.parse(entityAs[String]) === Json.obj())
       }
     }
     "will accept WebSocket connections" in {
@@ -38,7 +38,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest with HttpContr
       WS("/ws", wsProbe.flow).addHeader(
         `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
       ) ~> route(enableClientRelay = true) ~> check {
-        isWebSocketUpgrade === true
+        assert(isWebSocketUpgrade === true)
         val message = "Hello"
         wsProbe.sendMessage(message)
         wsProbe.expectMessage(message)

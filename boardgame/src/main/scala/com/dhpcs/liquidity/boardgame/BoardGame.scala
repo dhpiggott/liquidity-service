@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.boardgame
 
 import java.util.Currency
 
-import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.boardgame.BoardGame._
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
@@ -345,11 +344,11 @@ class BoardGame private (serverConnection: ServerConnection,
         Some(name)
       ),
       new ResponseCallback {
-        override def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit =
+        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onCreateIdentityMemberError(Some(name)))
 
-        override def onResultReceived(result: Response): Unit = {
-          val createMemberResponse = result.asInstanceOf[CreateMemberResponse]
+        override def onSuccessResponse(successResponse: SuccessResponse): Unit = {
+          val createMemberResponse = successResponse.asInstanceOf[CreateMemberResponse]
           createAccount(createMemberResponse.member)
         }
       }
@@ -496,10 +495,10 @@ class BoardGame private (serverConnection: ServerConnection,
             zoneId.get
           ),
           new ResponseCallback {
-            override def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit =
+            override def onErrorResponse(errorResponse: ErrorResponse): Unit =
               gameActionListeners.foreach(_.onQuitGameError())
 
-            override def onResultReceived(result: Response): Unit =
+            override def onSuccessResponse(successResponse: SuccessResponse): Unit =
               if (joinRequestTokens.nonEmpty) {
                 state = null
                 _joinState = BoardGame.JOINING
@@ -877,12 +876,12 @@ class BoardGame private (serverConnection: ServerConnection,
         )
       ),
       new ResponseCallback {
-        override def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit =
+        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onCreateGameError(Some(name)))
 
-        override def onResultReceived(result: Response): Unit =
+        override def onSuccessResponse(successResponse: SuccessResponse): Unit =
           if (_joinState == BoardGame.CREATING) {
-            val createZoneResponse = result.asInstanceOf[CreateZoneResponse]
+            val createZoneResponse = successResponse.asInstanceOf[CreateZoneResponse]
             instances = instances + (createZoneResponse.zone.id -> BoardGame.this)
             zoneId = Some(createZoneResponse.zone.id)
             state = null
@@ -899,12 +898,12 @@ class BoardGame private (serverConnection: ServerConnection,
         zoneId
       ),
       new ResponseCallback {
-        override def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit =
+        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
           gameActionListeners.foreach(_.onJoinGameError())
 
-        override def onResultReceived(result: Response): Unit =
+        override def onSuccessResponse(successResponse: SuccessResponse): Unit =
           if (_joinState == BoardGame.JOINING) {
-            val joinZoneResponse = result.asInstanceOf[JoinZoneResponse]
+            val joinZoneResponse = successResponse.asInstanceOf[JoinZoneResponse]
             var balances         = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
             for (transaction <- joinZoneResponse.zone.transactions.values) {
               balances = balances +

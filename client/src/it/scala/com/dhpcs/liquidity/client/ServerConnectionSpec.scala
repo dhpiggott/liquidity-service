@@ -15,7 +15,6 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
-import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model.{Member, MemberId}
@@ -186,15 +185,15 @@ class ServerConnectionSpec extends fixture.FreeSpec with BeforeAndAfterAll with 
     port = Some(akkaHttpPort)
   )
 
-  private[this] def send(command: Command): Future[Either[JsonRpcResponseErrorMessage, Response]] = {
-    val promise = Promise[Either[JsonRpcResponseErrorMessage, Response]]
+  private[this] def send(command: Command): Future[Response] = {
+    val promise = Promise[Response]
     MainHandlerWrapper.post(
       () =>
         serverConnection.sendCommand(
           command,
           new ResponseCallback {
-            override def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit = promise.success(Left(error))
-            override def onResultReceived(result: Response): Unit                  = promise.success(Right(result))
+            override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
+            override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
           }
       ))
     promise.future
@@ -272,7 +271,7 @@ class ServerConnectionSpec extends fixture.FreeSpec with BeforeAndAfterAll with 
         )
       ).futureValue
       inside(result) {
-        case Right(CreateZoneResponse(zone)) =>
+        case CreateZoneResponse(zone) =>
           assert(zone.members(MemberId(0)) === Member(MemberId(0), serverConnection.clientKey, name = Some("Dave")))
           assert(zone.name === Some("Dave's Game"))
       }

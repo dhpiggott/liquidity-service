@@ -12,7 +12,6 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
-import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
@@ -158,15 +157,15 @@ class LiquidityHealthcheck(hostname: Option[String])
     hostname
   )
 
-  private[this] def send(command: Command): Future[Either[JsonRpcResponseErrorMessage, Response]] = {
-    val promise = Promise[Either[JsonRpcResponseErrorMessage, Response]]
+  private[this] def send(command: Command): Future[Response] = {
+    val promise = Promise[Response]
     MainHandlerWrapper.post(
       () =>
         serverConnection.sendCommand(
           command,
           new ResponseCallback {
-            override def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit = promise.success(Left(error))
-            override def onResultReceived(result: Response): Unit                  = promise.success(Right(result))
+            override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
+            override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
           }
       ))
     promise.future
@@ -231,7 +230,7 @@ class LiquidityHealthcheck(hostname: Option[String])
         JoinZoneCommand(SentinelZone.id)
       ).futureValue
       inside(result) {
-        case Right(JoinZoneResponse(zone, connectedClients)) =>
+        case JoinZoneResponse(zone, connectedClients) =>
           assert(zone === SentinelZone)
           assert(connectedClients === Set(serverConnection.clientKey))
       }

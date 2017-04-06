@@ -10,8 +10,6 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
-import com.dhpcs.jsonrpc.JsonRpcMessage.CorrelationId
-import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
@@ -298,14 +296,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                 .orElse(checkTagAndMetadata(equityAccountName, equityAccountMetadata))
                 .orElse(checkTagAndMetadata(name, metadata)) match {
                 case Some(error) =>
-                  deliverErrorResponse(
-                    JsonRpcResponseErrorMessage.applicationError(
-                      code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-                      message = error,
-                      data = None,
-                      correlationId
-                    )
-                  )
+                  deliverResponse(ErrorResponse(error), correlationId)
                 case None =>
                   val equityOwner = Member(
                     MemberId(0),
@@ -338,7 +329,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   )
                   persist(ZoneCreatedEvent(created, zone)) { zoneCreatedEvent =>
                     updateState(zoneCreatedEvent)
-                    deliverSuccessResponse(
+                    deliverResponse(
                       CreateZoneResponse(
                         zoneCreatedEvent.zone
                       ),
@@ -348,14 +339,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   }
               }
             case _ =>
-              deliverErrorResponse(
-                JsonRpcResponseErrorMessage.applicationError(
-                  code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-                  message = "Zone does not exist",
-                  data = None,
-                  correlationId
-                )
-              )
+              deliverResponse(ErrorResponse("Zone does not exist"), correlationId)
           }
         }
     }
@@ -422,7 +406,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     }
   }
 
-  private[this] def handleZoneCommand(publicKey: PublicKey, command: Command, correlationId: CorrelationId): Unit =
+  private[this] def handleZoneCommand(publicKey: PublicKey, command: Command, correlationId: Long): Unit =
     command match {
       case createZoneCommand: CreateZoneCommand =>
         val sequenceNumber = messageSequenceNumbers(sender().path)
@@ -433,17 +417,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         }
       case JoinZoneCommand(_) =>
         if (state.clientConnections.contains(sender().path))
-          deliverErrorResponse(
-            JsonRpcResponseErrorMessage.applicationError(
-              code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-              message = "Zone already joined",
-              data = None,
-              correlationId
-            )
-          )
+          deliverResponse(ErrorResponse("Zone already joined"), correlationId)
         else
           handleJoin(sender(), publicKey) { state =>
-            deliverSuccessResponse(
+            deliverResponse(
               JoinZoneResponse(
                 state.zone,
                 state.clientConnections.values.toSet
@@ -454,17 +431,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           }
       case QuitZoneCommand(_) =>
         if (!state.clientConnections.contains(sender().path))
-          deliverErrorResponse(
-            JsonRpcResponseErrorMessage.applicationError(
-              code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-              message = "Zone not joined",
-              data = None,
-              correlationId
-            )
-          )
+          deliverResponse(ErrorResponse("Zone not joined"), correlationId)
         else
           handleQuit(sender()) {
-            deliverSuccessResponse(
+            deliverResponse(
               QuitZoneResponse,
               correlationId
             )
@@ -473,18 +443,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       case ChangeZoneNameCommand(_, name) =>
         checkTagAndMetadata(name, None) match {
           case Some(error) =>
-            deliverErrorResponse(
-              JsonRpcResponseErrorMessage.applicationError(
-                code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-                message = error,
-                data = None,
-                correlationId
-              )
-            )
+            deliverResponse(ErrorResponse(error), correlationId)
           case None =>
             persist(ZoneNameChangedEvent(System.currentTimeMillis, name)) { zoneNameChangedEvent =>
               updateState(zoneNameChangedEvent)
-              deliverSuccessResponse(
+              deliverResponse(
                 ChangeZoneNameResponse,
                 correlationId
               )
@@ -500,24 +463,17 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       case CreateMemberCommand(_, ownerPublicKey, name, metadata) =>
         checkOwnerPublicKey(ownerPublicKey).orElse(checkTagAndMetadata(name, metadata)) match {
           case Some(error) =>
-            deliverErrorResponse(
-              JsonRpcResponseErrorMessage.applicationError(
-                code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-                message = error,
-                data = None,
-                correlationId
-              )
-            )
+            deliverResponse(ErrorResponse(error), correlationId)
           case None =>
             val member = Member(
-              MemberId(state.zone.members.size),
+              MemberId(state.zone.members.size.toLong),
               ownerPublicKey,
               name,
               metadata
             )
             persist(MemberCreatedEvent(System.currentTimeMillis, member)) { memberCreatedEvent =>
               updateState(memberCreatedEvent)
-              deliverSuccessResponse(
+              deliverResponse(
                 CreateMemberResponse(
                   memberCreatedEvent.member
                 ),
@@ -537,18 +493,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           .orElse(checkOwnerPublicKey(member.ownerPublicKey))
           .orElse(checkTagAndMetadata(member.name, member.metadata)) match {
           case Some(error) =>
-            deliverErrorResponse(
-              JsonRpcResponseErrorMessage.applicationError(
-                code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-                message = error,
-                data = None,
-                correlationId
-              )
-            )
+            deliverResponse(ErrorResponse(error), correlationId)
           case None =>
             persist(MemberUpdatedEvent(System.currentTimeMillis, member)) { memberUpdatedEvent =>
               updateState(memberUpdatedEvent)
-              deliverSuccessResponse(
+              deliverResponse(
                 UpdateMemberResponse,
                 correlationId
               )
@@ -564,24 +513,17 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       case CreateAccountCommand(_, owners, name, metadata) =>
         checkAccountOwners(state.zone, owners).orElse(checkTagAndMetadata(name, metadata)) match {
           case Some(error) =>
-            deliverErrorResponse(
-              JsonRpcResponseErrorMessage.applicationError(
-                code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-                message = error,
-                data = None,
-                correlationId
-              )
-            )
+            deliverResponse(ErrorResponse(error), correlationId)
           case None =>
             val account = Account(
-              AccountId(state.zone.accounts.size),
+              AccountId(state.zone.accounts.size.toLong),
               owners,
               name,
               metadata
             )
             persist(AccountCreatedEvent(System.currentTimeMillis, account)) { accountCreatedEvent =>
               updateState(accountCreatedEvent)
-              deliverSuccessResponse(
+              deliverResponse(
                 CreateAccountResponse(
                   accountCreatedEvent.account
                 ),
@@ -601,18 +543,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           checkAccountOwners(state.zone, account.ownerMemberIds)
             .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
           case Some(error) =>
-            deliverErrorResponse(
-              JsonRpcResponseErrorMessage.applicationError(
-                code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-                message = error,
-                data = None,
-                correlationId
-              )
-            )
+            deliverResponse(ErrorResponse(error), correlationId)
           case None =>
             persist(AccountUpdatedEvent(System.currentTimeMillis, account)) { accountUpdatedEvent =>
               updateState(accountUpdatedEvent)
-              deliverSuccessResponse(
+              deliverResponse(
                 UpdateAccountResponse,
                 correlationId
               )
@@ -630,18 +565,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           checkTransaction(from, to, value, state.zone, state.balances)
             .orElse(checkTagAndMetadata(description, metadata))) match {
           case Some(error) =>
-            deliverErrorResponse(
-              JsonRpcResponseErrorMessage.applicationError(
-                code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-                message = error,
-                data = None,
-                correlationId
-              )
-            )
+            deliverResponse(ErrorResponse(error), correlationId)
           case None =>
             val created = System.currentTimeMillis
             val transaction = Transaction(
-              TransactionId(state.zone.transactions.size),
+              TransactionId(state.zone.transactions.size.toLong),
               from,
               to,
               value,
@@ -652,7 +580,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             )
             persist(TransactionAddedEvent(created, transaction)) { transactionAddedEvent =>
               updateState(transactionAddedEvent)
-              deliverSuccessResponse(
+              deliverResponse(
                 AddTransactionResponse(
                   transactionAddedEvent.transaction
                 ),
@@ -698,20 +626,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         passivationCountdownActor ! Start
     }
 
-  private[this] def deliverErrorResponse(response: JsonRpcResponseErrorMessage): Unit =
+  private[this] def deliverResponse(response: Response, correlationId: Long): Unit =
     deliverResponse {
       case (sequenceNumber, deliveryId) =>
-        ErrorResponseWithIds(
-          response,
-          sequenceNumber,
-          deliveryId
-        )
-    }
-
-  private[this] def deliverSuccessResponse(response: Response, correlationId: CorrelationId): Unit =
-    deliverResponse {
-      case (sequenceNumber, deliveryId) =>
-        SuccessResponseWithIds(
+        ResponseWithIds(
           response,
           correlationId,
           sequenceNumber,

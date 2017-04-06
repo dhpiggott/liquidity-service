@@ -6,16 +6,16 @@ import java.security.KeyPairGenerator
 import akka.actor.{ActorRef, Deploy}
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
-import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NumericCorrelationId}
+import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseSuccessMessage}
 import com.dhpcs.liquidity.actor.protocol.{
   AuthenticatedCommandWithIds,
   EnvelopedAuthenticatedCommandWithIds,
-  SuccessResponseWithIds
+  ResponseWithIds
 }
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
-import com.dhpcs.liquidity.server.actor.ClientConnectionActor.WrappedJsonRpcMessage
+import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.OptionValues._
 import org.scalatest.{Inside, Outcome, fixture}
@@ -51,20 +51,20 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
   }
 
   "A ClientConnectionActor" - {
-    "will send a SupportedVersionsNotification when connected" in { fixture =>
+    "will send a JSON-RPC SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
+      assert(expectJsonRpcNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
     }
-    "will send a KeepAliveNotification when left idle" in { fixture =>
+    "will send a JSON-RPC KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
+      assert(expectJsonRpcNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
       upstreamTestProbe.within(3.5.seconds)(
-        assert(expectNotification(upstreamTestProbe) === KeepAliveNotification)
+        assert(expectJsonRpcNotification(upstreamTestProbe) === KeepAliveNotification)
       )
     }
-    "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
+    "will reply with a JSON-RPC CreateZoneResponse when forwarding a JSON-RPC CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
-      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
+      assert(expectJsonRpcNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
       val command = CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
         equityOwnerName = Some("Dave"),
@@ -73,8 +73,8 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
         equityAccountMetadata = None,
         name = Some("Dave's Game")
       )
-      val correlationId = NumericCorrelationId(0)
-      send(sinkTestProbe, clientConnection)(command, correlationId)
+      val correlationId = 0L
+      sendJsonRpc(sinkTestProbe, clientConnection)(command, correlationId)
       val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedAuthenticatedCommandWithIds]) {
         case envelopedMessage @ EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
           assert(
@@ -98,33 +98,33 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        SuccessResponseWithIds(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
+        ResponseWithIds(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
       )
-      assert(expectResponse(upstreamTestProbe, "createZone") === result)
+      assert(expectJsonRpcResponse(upstreamTestProbe, "createZone") === result)
     }
   }
 
-  private[this] def send(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
-                                                                               correlationId: CorrelationId): Unit = {
-    sinkTestProbe.send(
-      clientConnection,
-      WrappedJsonRpcMessage(Command.write(command, id = correlationId))
-    )
-    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
-  }
-
-  private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification = {
+  private[this] def expectJsonRpcNotification(upstreamTestProbe: TestProbe): Notification = {
     val notification = upstreamTestProbe.expectMsgPF() {
-      case WrappedJsonRpcMessage(jsonRpcNotificationMessage: JsonRpcNotificationMessage) =>
+      case WrappedJsonRpcNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage) =>
         Notification.read(jsonRpcNotificationMessage)
     }
     notification.asOpt.value
   }
 
-  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): Response = {
+  private[this] def sendJsonRpc(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
+                                                                                      correlationId: Long): Unit = {
+    sinkTestProbe.send(
+      clientConnection,
+      WrappedJsonRpcRequest(Command.write(command, id = NumericCorrelationId(correlationId)))
+    )
+    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
+  }
+
+  private[this] def expectJsonRpcResponse(upstreamTestProbe: TestProbe, method: String): Response = {
     val response = upstreamTestProbe.expectMsgPF() {
-      case WrappedJsonRpcMessage(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
-        Response.read(jsonRpcResponseSuccessMessage, method)
+      case WrappedJsonRpcResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
+        SuccessResponse.read(jsonRpcResponseSuccessMessage, method)
     }
     response.asOpt.value
   }

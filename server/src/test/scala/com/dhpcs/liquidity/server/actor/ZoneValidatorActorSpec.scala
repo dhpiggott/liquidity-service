@@ -6,8 +6,6 @@ import java.time.temporal.ChronoUnit
 
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
-import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NumericCorrelationId}
-import com.dhpcs.jsonrpc.JsonRpcResponseErrorMessage
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
@@ -33,7 +31,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
   "A ZoneValidatorActor" - {
     "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
       val (clientConnectionTestProbe, zoneId) = setup()
-      val correlationId                       = NumericCorrelationId(0)
+      val correlationId                       = 0L
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe)(
         EnvelopedAuthenticatedCommandWithIds(
@@ -54,7 +52,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
           )
         )
       )
-      inside(expectResultResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
+      inside(expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
         case CreateZoneResponse(zone) =>
           assert(zone.equityAccountId === AccountId(0))
           assert(zone.members(MemberId(0)) === Member(MemberId(0), publicKey, name = Some("Dave")))
@@ -69,7 +67,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
     }
     "will reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
-      val correlationId                       = NumericCorrelationId(0)
+      val correlationId                       = 0L
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe, zoneId)(
         AuthenticatedCommandWithIds(
@@ -83,13 +81,9 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
         )
       )
       assert(
-        expectErrorResponse(clientConnectionTestProbe, correlationId, sequenceNumber) ===
-          JsonRpcResponseErrorMessage.applicationError(
-            code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-            message = "Zone does not exist",
-            data = None,
-            correlationId
-          ))
+        expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber) === ErrorResponse(
+          "Zone does not exist")
+      )
     }
   }
 
@@ -121,23 +115,10 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
     assert(commandReceivedConfirmation === CommandReceivedConfirmation(zoneId, deliveryId))
   }
 
-  private[this] def expectErrorResponse(clientConnectionTestProbe: TestProbe,
-                                        correlationId: CorrelationId,
-                                        sequenceNumber: Long): JsonRpcResponseErrorMessage = {
-    val responseWithIds = clientConnectionTestProbe.expectMsgType[ErrorResponseWithIds]
-    assert(responseWithIds.response.id === correlationId)
-    assert(responseWithIds.sequenceNumber === sequenceNumber)
-    clientConnectionTestProbe.send(
-      clientConnectionTestProbe.lastSender,
-      MessageReceivedConfirmation(responseWithIds.deliveryId)
-    )
-    responseWithIds.response
-  }
-
-  private[this] def expectResultResponse(clientConnectionTestProbe: TestProbe,
-                                         correlationId: CorrelationId,
-                                         sequenceNumber: Long): Response = {
-    val responseWithIds = clientConnectionTestProbe.expectMsgType[SuccessResponseWithIds]
+  private[this] def expectResponse(clientConnectionTestProbe: TestProbe,
+                                   correlationId: Long,
+                                   sequenceNumber: Long): Response = {
+    val responseWithIds = clientConnectionTestProbe.expectMsgType[ResponseWithIds]
     assert(responseWithIds.correlationId === correlationId)
     assert(responseWithIds.sequenceNumber === sequenceNumber)
     clientConnectionTestProbe.send(

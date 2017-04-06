@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.ws.protocol
 
 import com.dhpcs.jsonrpc.Message.{MessageFormats, objectFormat}
-import com.dhpcs.jsonrpc.{CommandCompanion, NotificationCompanion, ResponseCompanion}
+import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.model._
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads.min
@@ -50,7 +50,7 @@ final case class AddTransactionCommand(zoneId: ZoneId,
 
 object Command extends CommandCompanion[Command] {
 
-  private val addTransactionCommandFormat: Format[AddTransactionCommand] = (
+  private final val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
     (JsPath \ "zoneId").format[ZoneId] and
       (JsPath \ "actingAs").format[MemberId] and
       (JsPath \ "from").format[AccountId] and
@@ -88,7 +88,7 @@ object Command extends CommandCompanion[Command] {
     "updateMember"   -> Json.format[UpdateMemberCommand],
     "createAccount"  -> Json.format[CreateAccountCommand],
     "updateAccount"  -> Json.format[UpdateAccountCommand],
-    "addTransaction" -> addTransactionCommandFormat
+    "addTransaction" -> AddTransactionCommandFormat
   )
 
   implicit final val CommandFormat: Format[Command] = Format[Command](
@@ -120,17 +120,37 @@ object Command extends CommandCompanion[Command] {
 }
 
 sealed abstract class Response                                                  extends Message
-final case class CreateZoneResponse(zone: Zone)                                 extends Response
-final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends Response
-case object QuitZoneResponse                                                    extends Response
-case object ChangeZoneNameResponse                                              extends Response
-final case class CreateMemberResponse(member: Member)                           extends Response
-case object UpdateMemberResponse                                                extends Response
-final case class CreateAccountResponse(account: Account)                        extends Response
-case object UpdateAccountResponse                                               extends Response
-final case class AddTransactionResponse(transaction: Transaction)               extends Response
+final case class ErrorResponse(error: String)                                   extends Response
+sealed abstract class SuccessResponse                                           extends Response
+final case class CreateZoneResponse(zone: Zone)                                 extends SuccessResponse
+final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends SuccessResponse
+case object QuitZoneResponse                                                    extends SuccessResponse
+case object ChangeZoneNameResponse                                              extends SuccessResponse
+final case class CreateMemberResponse(member: Member)                           extends SuccessResponse
+case object UpdateMemberResponse                                                extends SuccessResponse
+final case class CreateAccountResponse(account: Account)                        extends SuccessResponse
+case object UpdateAccountResponse                                               extends SuccessResponse
+final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
 
-object Response extends ResponseCompanion[Response] {
+object Response {
+  implicit final val ResponseFormat: Format[Response] = Format(
+    __.read(ErrorResponse.ErrorResponseFormat).map(m => m: Response) orElse
+      __.read(SuccessResponse.SuccessResponseFormat).map(m => m: Response) orElse
+      Reads(_ => JsError("not a valid error or success response")),
+    Writes {
+      case errorResponse: ErrorResponse =>
+        Json.toJson(errorResponse)(ErrorResponse.ErrorResponseFormat)
+      case successResponse: SuccessResponse =>
+        Json.toJson(successResponse)(SuccessResponse.SuccessResponseFormat)
+    }
+  )
+}
+
+object ErrorResponse {
+  implicit final val ErrorResponseFormat: Format[ErrorResponse] = Json.format[ErrorResponse]
+}
+
+object SuccessResponse extends ResponseCompanion[SuccessResponse] {
 
   override final val ResponseFormats = MessageFormats(
     "createZone"     -> Json.format[CreateZoneResponse],
@@ -144,7 +164,7 @@ object Response extends ResponseCompanion[Response] {
     "addTransaction" -> Json.format[AddTransactionResponse]
   )
 
-  implicit final val ResponseFormat: Format[Response] = Format[Response](
+  implicit final val SuccessResponseFormat: Format[SuccessResponse] = Format[SuccessResponse](
     Reads(json => {
       val (methodReads, _) = ResponseFormats
       for {
@@ -172,7 +192,11 @@ object Response extends ResponseCompanion[Response] {
 
 }
 
-sealed abstract class Notification extends Message
+sealed trait ResponseWithCorrelationIdOrNotification
+final case class ResponseWithCorrelationId(response: Response, correlationId: Long)
+    extends ResponseWithCorrelationIdOrNotification
+
+sealed abstract class Notification extends Message with ResponseWithCorrelationIdOrNotification
 sealed abstract class ZoneNotification extends Notification {
   val zoneId: ZoneId
 }

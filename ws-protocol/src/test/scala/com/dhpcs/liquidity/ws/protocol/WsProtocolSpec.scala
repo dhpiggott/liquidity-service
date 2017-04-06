@@ -125,7 +125,7 @@ class WsProtocolSpec extends FreeSpec {
         val method  = "createZone"
         val jsError = JsError(__ \ "zone", "error.path.missing")
         s"will fail to decode with error $jsError" in assert(
-          Response.read(jsonRpcResponseSuccessMessage, method) === jsError
+          SuccessResponse.read(jsonRpcResponseSuccessMessage, method) === jsError
         )
       }
     )
@@ -173,10 +173,10 @@ class WsProtocolSpec extends FreeSpec {
     )
     val method = "createZone"
     s"will decode to $createZoneResponse" in assert(
-      Response.read(jsonRpcResponseSuccessMessage, method) === JsSuccess(createZoneResponse)
+      SuccessResponse.read(jsonRpcResponseSuccessMessage, method) === JsSuccess(createZoneResponse)
     )
     s"will encode to $jsonRpcResponseSuccessMessage" in assert(
-      Response.write(createZoneResponse, id) === jsonRpcResponseSuccessMessage
+      SuccessResponse.write(createZoneResponse, id) === jsonRpcResponseSuccessMessage
     )
   }
 

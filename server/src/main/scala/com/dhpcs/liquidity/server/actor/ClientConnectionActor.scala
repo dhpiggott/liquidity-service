@@ -11,8 +11,8 @@ import akka.http.scaladsl.model.ws.{TextMessage, Message => WsMessage}
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
-import com.dhpcs.jsonrpc.JsonRpcMessage.CorrelationId
-import com.dhpcs.jsonrpc.{JsonRpcMessage, JsonRpcRequestMessage, JsonRpcResponseErrorMessage}
+import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, NumericCorrelationId, StringCorrelationId}
+import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.persistence.RichPublicKey
@@ -43,36 +43,42 @@ object ClientConnectionActor {
                     zoneValidatorShardRegion: ActorRef,
                     keepAliveInterval: FiniteDuration)(implicit factory: ActorRefFactory,
                                                        mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
-    WsMessageToWrappedJsonRpcMessageFlow
+    InFlow
       .via(
-        actorFlow[WrappedJsonRpcMessage, WrappedJsonRpcMessage](
+        actorFlow[WrappedJsonRpcOrProtobufCommand, WrappedJsonRpcOrProtobufResponseOrNotification](
           props = props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
           name = publicKey.fingerprint
         )
       )
-      .via(
-        WrappedJsonRpcMessageToWsMessageFlow
-      )
+      .via(OutFlow)
 
-  final val WsMessageToWrappedJsonRpcMessageFlow: Flow[WsMessage, WrappedJsonRpcMessage, NotUsed] =
+  final val InFlow: Flow[WsMessage, WrappedJsonRpcOrProtobufCommand, NotUsed] =
     Flow[WsMessage]
-      .flatMapConcat(_.asTextMessage match {
-        case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
-        case TextMessage.Strict(text)         => Source.single(text)
-      })
-      .map(jsonString => WrappedJsonRpcMessage(Json.parse(jsonString).as[JsonRpcMessage]))
+      .flatMapConcat(wsMessage =>
+        for (jsonString <- wsMessage.asTextMessage match {
+               case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
+               case TextMessage.Strict(text)         => Source.single(text)
+             }) yield WrappedJsonRpcRequest(Json.parse(jsonString).as[JsonRpcRequestMessage]))
 
-  final val WrappedJsonRpcMessageToWsMessageFlow: Flow[WrappedJsonRpcMessage, WsMessage, NotUsed] =
-    Flow[WrappedJsonRpcMessage].map {
-      case WrappedJsonRpcMessage(jsonRpcMessage) =>
-        TextMessage.Strict(
-          Json.stringify(Json.toJson(jsonRpcMessage))
-        )
+  final val OutFlow: Flow[WrappedJsonRpcOrProtobufResponseOrNotification, WsMessage, NotUsed] =
+    Flow[WrappedJsonRpcOrProtobufResponseOrNotification].map {
+      case WrappedJsonRpcResponse(jsonRpcResponseMessage) =>
+        TextMessage(Json.stringify(Json.toJson(jsonRpcResponseMessage)))
+      case WrappedJsonRpcNotification(jsonRpcNotificationMessage) =>
+        TextMessage(Json.stringify(Json.toJson(jsonRpcNotificationMessage)))
     }
 
   final val Topic = "Client"
 
-  final case class WrappedJsonRpcMessage(jsonRpcMessage: JsonRpcMessage) extends NoSerializationVerificationNeeded
+  sealed abstract class WrappedJsonRpcOrProtobufCommand extends NoSerializationVerificationNeeded
+  final case class WrappedJsonRpcRequest(jsonRpcRequestMessage: JsonRpcRequestMessage)
+      extends WrappedJsonRpcOrProtobufCommand
+
+  sealed abstract class WrappedJsonRpcOrProtobufResponseOrNotification extends NoSerializationVerificationNeeded
+  final case class WrappedJsonRpcResponse(jsonRpcResponseMessage: JsonRpcResponseMessage)
+      extends WrappedJsonRpcOrProtobufResponseOrNotification
+  final case class WrappedJsonRpcNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
+      extends WrappedJsonRpcOrProtobufResponseOrNotification
 
   case object ActorSinkInit
   case object ActorSinkAck
@@ -158,7 +164,7 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   override def preStart(): Unit = {
     super.preStart()
-    send(SupportedVersionsNotification(CompatibleVersionNumbers))
+    sendJsonRpcNotification(SupportedVersionsNotification(CompatibleVersionNumbers))
     log.info(s"Started for ${ip.toOption.getOrElse("unknown IP")}")
   }
 
@@ -171,60 +177,59 @@ class ClientConnectionActor(ip: RemoteAddress,
   override def receiveCommand: Receive = waitingForActorSinkInit
 
   private[this] def waitingForActorSinkInit: Receive =
-    publishStatus orElse sendKeepAlive orElse {
+    publishStatus orElse sendKeepAlive(sendNotification = sendJsonRpcNotification) orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
-        context.become(receiveActorSinkMessages)
+        context.become(receiveActorSinkMessages())
     }
 
-  private[this] def receiveActorSinkMessages: Receive =
-    publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
-      case WrappedJsonRpcMessage(jsonRpcRequestMessage: JsonRpcRequestMessage) =>
+  private[this] def receiveActorSinkMessages(
+      sendResponse: (Response, Long) => Unit = sendJsonRpcResponse,
+      sendNotification: Notification => Unit = sendJsonRpcNotification): Receive =
+    publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive(sendNotification) orElse {
+      case WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
         sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
         Command.read(jsonRpcRequestMessage) match {
           case error: JsError =>
             log.warning(s"Receive error: $error")
-            send(JsonRpcResponseErrorMessage.invalidRequest(error, jsonRpcRequestMessage.id))
+            send(
+              WrappedJsonRpcResponse(
+                JsonRpcResponseErrorMessage.invalidRequest(error, jsonRpcRequestMessage.id)
+              )
+            )
           case JsSuccess(command, _) =>
-            command match {
-              case createZoneCommand: CreateZoneCommand =>
-                createZone(createZoneCommand, jsonRpcRequestMessage.id)
-              case zoneCommand: ZoneCommand =>
-                val zoneId         = zoneCommand.zoneId
-                val sequenceNumber = commandSequenceNumbers(zoneId)
-                commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-                deliver(zoneValidatorShardRegion.path) { deliveryId =>
-                  pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-                  AuthenticatedCommandWithIds(
-                    publicKey,
-                    zoneCommand,
-                    jsonRpcRequestMessage.id,
-                    sequenceNumber,
-                    deliveryId
-                  )
-                }
+            jsonRpcRequestMessage.id match {
+              case NoCorrelationId =>
+                sendJsonRpcErrorResponse(
+                  error = "Correlation ID must be set",
+                  correlationId = jsonRpcRequestMessage.id
+                )
+              case StringCorrelationId(_) =>
+                sendJsonRpcErrorResponse(
+                  error = "String correlation IDs are not supported",
+                  correlationId = jsonRpcRequestMessage.id
+                )
+              case NumericCorrelationId(value) if !value.isValidLong =>
+                sendJsonRpcErrorResponse(
+                  error = "Floating point correlation IDs are not supported",
+                  correlationId = jsonRpcRequestMessage.id
+                )
+              case NumericCorrelationId(value) =>
+                handleCommand(command, value.toLongExact)
             }
         }
       case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           createZone(createZoneCommand, correlationId)
         )
-      case ErrorResponseWithIds(response, sequenceNumber, deliveryId) =>
+      case ResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
-          send(response)
-        )
-      case SuccessResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
-        exactlyOnce(sequenceNumber, deliveryId)(
-          send(
-            Response.write(
-              response,
-              correlationId
-            ))
+          sendResponse(response, correlationId)
         )
       case NotificationWithIds(notification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
-          send(notification)
+          sendNotification(notification)
         )
       case ZoneRestarted(zoneId) =>
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
@@ -232,7 +237,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         commandSequenceNumbers = commandSequenceNumbers - zoneId
         pendingDeliveries(zoneId).foreach(confirmDelivery)
         pendingDeliveries = pendingDeliveries - zoneId
-        send(ZoneTerminatedNotification(zoneId))
+        sendNotification(ZoneTerminatedNotification(zoneId))
     }
 
   override def receiveRecover: Receive = Actor.emptyBehavior
@@ -254,9 +259,30 @@ class ClientConnectionActor(ip: RemoteAddress,
       }
   }
 
-  private[this] def sendKeepAlive: Receive = {
+  private[this] def sendKeepAlive(sendNotification: Notification => Unit): Receive = {
     case SendKeepAlive =>
-      send(KeepAliveNotification)
+      sendNotification(KeepAliveNotification)
+  }
+
+  private[this] def handleCommand(command: Command, correlationId: Long) = {
+    command match {
+      case createZoneCommand: CreateZoneCommand =>
+        createZone(createZoneCommand, correlationId)
+      case zoneCommand: ZoneCommand =>
+        val zoneId         = zoneCommand.zoneId
+        val sequenceNumber = commandSequenceNumbers(zoneId)
+        commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+        deliver(zoneValidatorShardRegion.path) { deliveryId =>
+          pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+          AuthenticatedCommandWithIds(
+            publicKey,
+            zoneCommand,
+            correlationId,
+            sequenceNumber,
+            deliveryId
+          )
+        }
+    }
   }
 
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
@@ -270,7 +296,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  private[this] def createZone(createZoneCommand: CreateZoneCommand, correlationId: CorrelationId): Unit = {
+  private[this] def createZone(createZoneCommand: CreateZoneCommand, correlationId: Long): Unit = {
     val zoneId         = ZoneId.generate
     val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
@@ -289,10 +315,34 @@ class ClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  private[this] def send(notification: Notification): Unit = send(Notification.write(notification))
+  private[this] def sendJsonRpcNotification(notification: Notification): Unit =
+    send(WrappedJsonRpcNotification(Notification.write(notification)))
 
-  private[this] def send(jsonRpcMessage: JsonRpcMessage): Unit = {
-    upstream ! WrappedJsonRpcMessage(jsonRpcMessage)
+  private[this] def sendJsonRpcResponse(response: Response, correlationId: Long): Unit =
+    response match {
+      case ErrorResponse(error) =>
+        sendJsonRpcErrorResponse(error, NumericCorrelationId(correlationId))
+      case successResponse: SuccessResponse =>
+        sendJsonRpcSuccessResponse(successResponse, correlationId)
+    }
+
+  private[this] def sendJsonRpcErrorResponse(error: String, correlationId: CorrelationId): Unit =
+    send(
+      WrappedJsonRpcResponse(
+        JsonRpcResponseErrorMessage.applicationError(
+          code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
+          message = error,
+          data = None,
+          correlationId
+        )
+      ))
+
+  private[this] def sendJsonRpcSuccessResponse(response: SuccessResponse, correlationId: Long): Unit =
+    send(WrappedJsonRpcResponse(SuccessResponse.write(response, NumericCorrelationId(correlationId))))
+
+  private[this] def send(
+      wrappedJsonRpcOrProtobufResponseOrNotification: WrappedJsonRpcOrProtobufResponseOrNotification): Unit = {
+    upstream ! wrappedJsonRpcOrProtobufResponseOrNotification
     keepAliveGeneratorActor ! FrameSentEvent
   }
 }

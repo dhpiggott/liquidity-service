@@ -73,8 +73,8 @@ object ServerConnection {
 
   trait ResponseCallback {
 
-    def onErrorReceived(error: JsonRpcResponseErrorMessage): Unit
-    def onResultReceived(result: Response): Unit = ()
+    def onErrorResponse(error: ErrorResponse): Unit
+    def onSuccessResponse(success: SuccessResponse): Unit = ()
 
   }
 
@@ -180,7 +180,7 @@ class ServerConnection private (filesDir: File,
   private[this] val mainHandlerWrapper         = handlerWrapperFactory.main()
 
   private[this] var pendingRequests    = Map.empty[BigDecimal, PendingRequest]
-  private[this] var commandIdentifier  = BigDecimal(0)
+  private[this] var nextCorrelationId  = 0L
   private[this] var state: State       = UnavailableIdleState
   private[this] var hasFailed: Boolean = _
 
@@ -232,9 +232,9 @@ class ServerConnection private (filesDir: File,
           case _: WaitingForVersionCheckSubState =>
             sys.error("Waiting for version check")
           case onlineSubState: OnlineSubState =>
-            val correlationId         = NumericCorrelationId(commandIdentifier)
+            val correlationId = NumericCorrelationId(nextCorrelationId)
+            nextCorrelationId = nextCorrelationId + 1
             val jsonRpcRequestMessage = Command.write(command, correlationId)
-            commandIdentifier = commandIdentifier + 1
             try {
               onlineSubState.webSocket.sendMessage(
                 RequestBody.create(
@@ -448,15 +448,18 @@ class ServerConnection private (filesDir: File,
                               pendingRequests = pendingRequests - value
                               jsonRpcResponseMessage match {
                                 case jsonRpcResponseErrorMessage: JsonRpcResponseErrorMessage =>
-                                  mainHandlerWrapper.post(() =>
-                                    pendingRequest.callback.onErrorReceived(jsonRpcResponseErrorMessage))
+                                  mainHandlerWrapper.post(
+                                    () =>
+                                      pendingRequest.callback.onErrorResponse(
+                                        ErrorResponse(jsonRpcResponseErrorMessage.message)))
                                 case jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage =>
-                                  Response
+                                  SuccessResponse
                                     .read(jsonRpcResponseSuccessMessage, pendingRequest.requestMessage.method) match {
                                     case JsError(errors) =>
                                       sys.error(s"Invalid Response: $errors")
                                     case JsSuccess(response, _) =>
-                                      mainHandlerWrapper.post(() => pendingRequest.callback.onResultReceived(response))
+                                      mainHandlerWrapper.post(() =>
+                                        pendingRequest.callback.onSuccessResponse(response))
                                   }
                               }
                         })
@@ -543,7 +546,7 @@ class ServerConnection private (filesDir: File,
 
   private[this] def doClose(handlerWrapper: HandlerWrapper, closeCause: CloseCause, reconnect: Boolean = false): Unit = {
     handlerWrapper.quit()
-    commandIdentifier = 0
+    nextCorrelationId = 0
     pendingRequests = Map.empty
     mainHandlerWrapper.post { () =>
       closeCause match {

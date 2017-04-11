@@ -85,7 +85,7 @@ lazy val wsProtocol = project
     name := "liquidity-ws-protocol"
   )
   .settings(libraryDependencies +=
-    "com.dhpcs" %% "play-json-rpc" % "2.0-M1")
+    "com.dhpcs" %% "scala-json-rpc" % "2.0-M2")
   .dependsOn(model)
   .settings(libraryDependencies ++= Seq(
     scalaTest % Test

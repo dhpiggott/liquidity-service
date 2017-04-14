@@ -46,7 +46,7 @@ lazy val model = project
   .settings(
     libraryDependencies ++= Seq(
       playJson,
-      "com.squareup.okio" % "okio" % "1.11.0"
+      "com.squareup.okio" % "okio" % "1.12.0"
     ))
   .settings(libraryDependencies ++= Seq(
     scalaTest % Test

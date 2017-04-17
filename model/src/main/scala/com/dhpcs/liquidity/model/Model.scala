@@ -32,10 +32,10 @@ object PublicKey {
 
 }
 
-final case class MemberId(id: Int)
+final case class MemberId(id: Long)
 
 object MemberId {
-  implicit final val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Int](MemberId(_), _.id)
+  implicit final val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Long](MemberId(_), _.id)
 }
 
 final case class Member(id: MemberId,
@@ -47,10 +47,10 @@ object Member {
   implicit final val MemberFormat: Format[Member] = Json.format[Member]
 }
 
-final case class AccountId(id: Int)
+final case class AccountId(id: Long)
 
 object AccountId {
-  implicit final val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Int](AccountId(_), _.id)
+  implicit final val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Long](AccountId(_), _.id)
 }
 
 final case class Account(id: AccountId,
@@ -62,11 +62,11 @@ object Account {
   implicit final val AccountFormat: Format[Account] = Json.format[Account]
 }
 
-final case class TransactionId(id: Int)
+final case class TransactionId(id: Long)
 
 object TransactionId {
   implicit final val TransactionIdFormat: Format[TransactionId] =
-    ValueFormat[TransactionId, Int](TransactionId(_), _.id)
+    ValueFormat[TransactionId, Long](TransactionId(_), _.id)
 }
 
 final case class Transaction(id: TransactionId,

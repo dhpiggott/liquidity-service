@@ -87,7 +87,7 @@ object CassandraAnalyticsStore {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.member_updates_by_id (
                           |  zone_id uuid,
-                          |  id int,
+                          |  id bigint,
                           |  updated timestamp,
                           |  owner_fingerprint text,
                           |  created timestamp,
@@ -100,7 +100,7 @@ object CassandraAnalyticsStore {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
                           |  zone_id uuid,
-                          |  id int,
+                          |  id bigint,
                           |  owner_public_key blob,
                           |  owner_fingerprint text,
                           |  created timestamp,
@@ -127,7 +127,7 @@ object CassandraAnalyticsStore {
           yield
             (for {
               row <- resultSet.iterator.asScala
-              memberId       = MemberId(row.getInt("id"))
+              memberId       = MemberId(row.getLong("id"))
               ownerPublicKey = PublicKey(ByteString.of(row.getBytes("owner_public_key")))
               name           = Option(row.getString("name"))
               metadata       = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
@@ -143,7 +143,7 @@ object CassandraAnalyticsStore {
           _ <- addUpdate(zoneId, updated = created, member)
           _ <- createStatement.execute(
             zoneId.id,
-            member.id.id: java.lang.Integer,
+            member.id.id: java.lang.Long,
             member.ownerPublicKey.value.asByteBuffer,
             member.ownerPublicKey.fingerprint,
             new Date(created),
@@ -170,7 +170,7 @@ object CassandraAnalyticsStore {
             member.metadata.map(Json.stringify).orNull,
             member.metadata.read[Boolean]("hidden").map(hidden => hidden: java.lang.Boolean).orNull,
             zoneId.id,
-            member.id.id: java.lang.Integer
+            member.id.id: java.lang.Long
           )
         } yield ()
 
@@ -183,7 +183,7 @@ object CassandraAnalyticsStore {
           implicit ec: ExecutionContext): Future[Unit] =
         for (_ <- addUpdateStatement.execute(
                zoneId.id,
-               member.id.id: java.lang.Integer,
+               member.id.id: java.lang.Long,
                new Date(updated),
                member.ownerPublicKey.fingerprint,
                member.name.orNull,
@@ -199,9 +199,9 @@ object CassandraAnalyticsStore {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.account_updates_by_id (
                           |  zone_id uuid,
-                          |  id int,
+                          |  id bigint,
                           |  updated timestamp,
-                          |  owner_member_ids set<int>,
+                          |  owner_member_ids set<bigint>,
                           |  owner_names list<text>,
                           |  created timestamp,
                           |  modified timestamp,
@@ -213,8 +213,8 @@ object CassandraAnalyticsStore {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.accounts_by_zone (
                           |  zone_id uuid,
-                          |  id int,
-                          |  owner_member_ids set<int>,
+                          |  id bigint,
+                          |  owner_member_ids set<bigint>,
                           |  owner_names list<text>,
                           |  created timestamp,
                           |  modified timestamp,
@@ -239,9 +239,9 @@ object CassandraAnalyticsStore {
           yield
             (for {
               row <- resultSet.iterator.asScala
-              accountId = AccountId(row.getInt("id"))
+              accountId = AccountId(row.getLong("id"))
               ownerMemberIds = row
-                .getSet("owner_member_ids", classOf[java.lang.Integer])
+                .getSet("owner_member_ids", classOf[java.lang.Long])
                 .asScala
                 .map(MemberId(_))
                 .toSet
@@ -259,7 +259,7 @@ object CassandraAnalyticsStore {
           _ <- addUpdate(zone, updated = created, account)
           _ <- createStatement.execute(
             zone.id.id,
-            account.id.id: java.lang.Integer,
+            account.id.id: java.lang.Long,
             account.ownerMemberIds.map(_.id).asJava,
             ownerNames(zone.members, account),
             new Date(zone.created),
@@ -280,7 +280,7 @@ object CassandraAnalyticsStore {
                  updatesStatement.execute(
                    ownerNames(zone.members, account),
                    zone.id.id,
-                   account.id.id: java.lang.Integer
+                   account.id.id: java.lang.Long
                )
              )) yield ()
 
@@ -300,7 +300,7 @@ object CassandraAnalyticsStore {
             account.name.orNull,
             account.metadata.map(Json.stringify).orNull,
             zone.id.id,
-            account.id.id: java.lang.Integer
+            account.id.id: java.lang.Long
           )
         } yield ()
 
@@ -313,7 +313,7 @@ object CassandraAnalyticsStore {
           implicit ec: ExecutionContext): Future[Unit] =
         for (_ <- addUpdateStatement.execute(
                zone.id.id,
-               account.id.id: java.lang.Integer,
+               account.id.id: java.lang.Long,
                new Date(updated),
                account.ownerMemberIds.map(_.id).asJava,
                ownerNames(zone.members, account),
@@ -329,13 +329,13 @@ object CassandraAnalyticsStore {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.transactions_by_zone (
                           |  zone_id uuid,
-                          |  id int,
-                          |  "from" int,
+                          |  id bigint,
+                          |  "from" bigint,
                           |  from_owner_names list<text>,
-                          |  "to" int,
+                          |  "to" bigint,
                           |  to_owner_names list<text>,
                           |  value decimal,
-                          |  creator int,
+                          |  creator bigint,
                           |  created timestamp,
                           |  description text,
                           |  metadata text,
@@ -358,11 +358,11 @@ object CassandraAnalyticsStore {
           yield
             (for {
               row <- resultSet.iterator.asScala
-              transactionId = TransactionId(row.getInt("id"))
-              from          = AccountId(row.getInt("from"))
-              to            = AccountId(row.getInt("to"))
+              transactionId = TransactionId(row.getLong("id"))
+              from          = AccountId(row.getLong("from"))
+              to            = AccountId(row.getLong("to"))
               value         = BigDecimal(row.getDecimal("value"))
-              creator       = MemberId(row.getInt("creator"))
+              creator       = MemberId(row.getLong("creator"))
               created       = row.getTimestamp("created").getTime
               description   = Option(row.getString("description"))
               metadata      = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
@@ -378,17 +378,17 @@ object CassandraAnalyticsStore {
       def update(zone: Zone, transactions: Iterable[Transaction])(implicit ec: ExecutionContext): Future[Unit] =
         for (_ <- Future.traverse(transactions)(transaction =>
                updatesStatement.execute(
-                 transaction.from.id: java.lang.Integer,
+                 transaction.from.id: java.lang.Long,
                  ownerNames(zone.members, zone.accounts(transaction.from)),
-                 transaction.to.id: java.lang.Integer,
+                 transaction.to.id: java.lang.Long,
                  ownerNames(zone.members, zone.accounts(transaction.to)),
                  transaction.value.underlying,
-                 transaction.creator.id: java.lang.Integer,
+                 transaction.creator.id: java.lang.Long,
                  new Date(transaction.created),
                  transaction.description.orNull,
                  transaction.metadata.map(Json.stringify).orNull,
                  zone.id.id,
-                 transaction.id.id: java.lang.Integer
+                 transaction.id.id: java.lang.Long
              ))) yield ()
 
       private[this] val addStatement = prepareStatement(s"""
@@ -399,13 +399,13 @@ object CassandraAnalyticsStore {
       def add(zone: Zone)(transaction: Transaction)(implicit ec: ExecutionContext): Future[Unit] =
         for (_ <- addStatement.execute(
                zone.id.id,
-               transaction.id.id: java.lang.Integer,
-               transaction.from.id: java.lang.Integer,
+               transaction.id.id: java.lang.Long,
+               transaction.from.id: java.lang.Long,
                ownerNames(zone.members, zone.accounts(transaction.from)),
-               transaction.to.id: java.lang.Integer,
+               transaction.to.id: java.lang.Long,
                ownerNames(zone.members, zone.accounts(transaction.to)),
                transaction.value.underlying,
-               transaction.creator.id: java.lang.Integer,
+               transaction.creator.id: java.lang.Long,
                new Date(transaction.created),
                transaction.description.orNull,
                transaction.metadata.map(Json.stringify).orNull
@@ -426,8 +426,8 @@ object CassandraAnalyticsStore {
         _                 <- execute(s"""
                                        |CREATE TABLE IF NOT EXISTS $keyspace.zones_by_id(
                                        |  id uuid,
-                                       |  bucket int,
-                                       |  equity_account_id int,
+                                       |  bucket bigint,
+                                       |  equity_account_id bigint,
                                        |  created timestamp,
                                        |  modified timestamp,
                                        |  expires timestamp,
@@ -463,13 +463,13 @@ object CassandraAnalyticsStore {
 
     def retrieve(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Zone] =
       for {
-        resultSet <- retrieveStatement.execute(1: java.lang.Integer, zoneId.id)
+        resultSet <- retrieveStatement.execute(1L: java.lang.Long, zoneId.id)
         zone      <- toZone(zoneId)(resultSet.one)
       } yield zone
 
     def retrieveOpt(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Option[Zone]] = {
       (for {
-        resultSet <- retrieveStatement.execute(1: java.lang.Integer, zoneId.id)
+        resultSet <- retrieveStatement.execute(1L: java.lang.Long, zoneId.id)
         zoneOpt = Option(resultSet.one).map(toZone(zoneId))
       } yield zoneOpt).flatMap {
         case None             => Future.successful(None)
@@ -482,7 +482,7 @@ object CassandraAnalyticsStore {
         members      <- memberStore.retrieve(zoneId)
         accounts     <- accountStore.retrieve(zoneId)
         transactions <- transactionStore.retrieve(zoneId)
-        equityAccountId = AccountId(row.getInt("equity_account_id"))
+        equityAccountId = AccountId(row.getLong("equity_account_id"))
         created         = row.getTimestamp("created").getTime
         expires         = row.getTimestamp("expires").getTime
         name            = Option(row.getString("name"))
@@ -500,8 +500,8 @@ object CassandraAnalyticsStore {
         _ <- addNameChange(zone.id, zone.created, zone.name)
         _ <- createStatement.execute(
           zone.id.id,
-          1: java.lang.Integer,
-          zone.equityAccountId.id: java.lang.Integer,
+          1L: java.lang.Long,
+          zone.equityAccountId.id: java.lang.Long,
           new Date(zone.created),
           new Date(zone.expires),
           zone.name.orNull,
@@ -526,7 +526,7 @@ object CassandraAnalyticsStore {
           new Date(modified),
           name.orNull,
           zoneId.id,
-          1: java.lang.Integer
+          1L: java.lang.Long
         )
       } yield ()
 
@@ -553,7 +553,7 @@ object CassandraAnalyticsStore {
       for (_ <- updateModifiedStatement.execute(
              new Date(modified),
              zoneId.id,
-             1: java.lang.Integer
+             1L: java.lang.Long
            )) yield ()
 
   }
@@ -564,7 +564,7 @@ object CassandraAnalyticsStore {
         _ <- execute(s"""
                         |CREATE TABLE IF NOT EXISTS $keyspace.balances_by_zone (
                         |  zone_id uuid,
-                        |  account_id int,
+                        |  account_id bigint,
                         |  owner_names list<text>,
                         |  balance decimal,
                         |  PRIMARY KEY ((zone_id), account_id)
@@ -586,7 +586,7 @@ object CassandraAnalyticsStore {
         yield
           (for {
             row <- resultSet.iterator.asScala
-            accountId = AccountId(row.getInt("account_id"))
+            accountId = AccountId(row.getLong("account_id"))
             value     = BigDecimal(row.getDecimal("balance"))
           } yield accountId -> value).toMap
 
@@ -602,7 +602,7 @@ object CassandraAnalyticsStore {
     def create(zone: Zone, balance: BigDecimal)(account: Account)(implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- createStatement.execute(
              zone.id.id,
-             account.id.id: java.lang.Integer,
+             account.id.id: java.lang.Long,
              ownerNames(zone.members, account),
              balance.underlying
            )) yield ()
@@ -624,7 +624,7 @@ object CassandraAnalyticsStore {
              ownerNames(zone.members, account),
              balance.underlying,
              zone.id.id,
-             account.id.id: java.lang.Integer
+             account.id.id: java.lang.Long
            )) yield ()
     }
   }

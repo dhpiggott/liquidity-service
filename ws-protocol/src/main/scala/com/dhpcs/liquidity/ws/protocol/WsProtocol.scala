@@ -176,7 +176,7 @@ sealed abstract class Notification extends Message
 sealed abstract class ZoneNotification extends Notification {
   val zoneId: ZoneId
 }
-final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Int])      extends Notification
+final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Long])     extends Notification
 case object KeepAliveNotification                                                       extends Notification
 final case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey)     extends ZoneNotification
 final case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey)       extends ZoneNotification

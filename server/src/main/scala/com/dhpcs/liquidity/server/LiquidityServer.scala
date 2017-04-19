@@ -285,7 +285,7 @@ class LiquidityServer(config: Config,
   }
 
   override protected[this] def extractClientPublicKey(ip: RemoteAddress)(route: PublicKey => Route): Route =
-    headerValueByType[`Tls-Session-Info`]()(
+    headerValueByType[`Tls-Session-Info`](())(
       sessionInfo =>
         sessionInfo.peerCertificates.headOption
           .map(_.getPublicKey)

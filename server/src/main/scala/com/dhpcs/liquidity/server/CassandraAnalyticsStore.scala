@@ -776,8 +776,7 @@ object CassandraAnalyticsStore {
     def read[A: Reads](key: String): Option[A] = metadata.flatMap(metadata => (metadata \ key).asOpt[A])
   }
 
-  private[this] def ownerNames(members: Map[MemberId, Member], account: Account)(
-      implicit ec: ExecutionContext): java.util.List[String] =
+  private[this] def ownerNames(members: Map[MemberId, Member], account: Account): java.util.List[String] =
     account.ownerMemberIds
       .map(members)
       .toSeq

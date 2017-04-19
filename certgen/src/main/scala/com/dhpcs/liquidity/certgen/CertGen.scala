@@ -107,7 +107,7 @@ object CertGen {
       Array.emptyCharArray,
       Array[Certificate](certificate)
     )
-    saveKeyStore(to, keyStoreType, keyStore)
+    saveKeyStore(to, keyStore)
   }
 
   def saveCert(to: OutputStream, keyStoreType: String, certificate: X509Certificate): Unit = {
@@ -116,7 +116,7 @@ object CertGen {
       CertStoreEntryAlias,
       certificate
     )
-    saveKeyStore(to, keyStoreType, keyStore)
+    saveKeyStore(to, keyStore)
   }
 
   private def createKeyStore(keyStoreType: String): KeyStore = {
@@ -125,7 +125,7 @@ object CertGen {
     keyStore
   }
 
-  private def saveKeyStore(to: OutputStream, keyStoreType: String, keyStore: KeyStore): Unit = {
+  private def saveKeyStore(to: OutputStream, keyStore: KeyStore): Unit = {
     try keyStore.store(to, Array.emptyCharArray)
     finally to.close()
   }

@@ -544,7 +544,7 @@ class ServerConnection private (filesDir: File,
       })
   }
 
-  private[this] def doClose(handlerWrapper: HandlerWrapper, closeCause: CloseCause, reconnect: Boolean = false): Unit = {
+  private[this] def doClose(handlerWrapper: HandlerWrapper, closeCause: CloseCause): Unit = {
     handlerWrapper.quit()
     nextCorrelationId = 0
     pendingRequests = Map.empty

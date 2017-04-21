@@ -1,14 +1,17 @@
 package com.dhpcs.liquidity.actor.protocol
 
-import com.dhpcs.liquidity.actor.protocol.PlayJsonSerializer._
+import akka.actor.ExtendedActorSystem
+import com.dhpcs.liquidity.actor.protocol.ProtoConverterSerializer._
+import com.dhpcs.liquidity.proto
 
-class ClientConnectionMessageSerializer extends PlayJsonSerializer {
+import scala.collection.immutable.Seq
 
-  override def identifier: Int = 1909424086
-
-  override protected val formats: Map[String, Format[_ <: AnyRef]] = Map(
-    manifestToFormat[MessageReceivedConfirmation],
-    manifestToFormat[ActiveClientSummary]
-  )
-
-}
+class ClientConnectionMessageSerializer(system: ExtendedActorSystem)
+    extends ProtoConverterSerializer(
+      system,
+      protoConverters = Seq(
+        AnyRefProtoConverter[MessageReceivedConfirmation, proto.actor.protocol.MessageReceivedConfirmation],
+        AnyRefProtoConverter[ActiveClientSummary, proto.actor.protocol.ActiveClientSummary]
+      ),
+      identifier = 1909424086
+    )

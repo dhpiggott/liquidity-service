@@ -96,11 +96,12 @@ lazy val `actor-protocol` = project
   .in(file("actor-protocol"))
   .settings(commonSettings)
   .settings(noopPublishSettings)
+  .settings(protobufSettings)
   .settings(
     name := "liquidity-actor-protocol"
   )
-  .settings(libraryDependencies +=
-    "com.typesafe.akka" %% "akka-actor" % "2.4.18")
+  .settings(libraryDependencies ++= Seq("com.typesafe.akka" %% "akka-actor"  % "2.4.18",
+                                        "com.typesafe.akka" %% "akka-remote" % "2.4.18"))
   .dependsOn(model)
   .dependsOn(`ws-protocol`)
 

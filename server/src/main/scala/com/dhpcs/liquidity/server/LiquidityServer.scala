@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.server
 
 import java.security.KeyStore
 import java.security.cert.{CertificateException, X509Certificate}
-import java.security.interfaces.RSAPublicKey
 import javax.net.ssl._
 
 import akka.NotUsed
@@ -11,11 +10,7 @@ import akka.cluster.Cluster
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
 import akka.http.scaladsl.model.RemoteAddress
-import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.headers.`Tls-Session-Info`
 import akka.http.scaladsl.model.ws.Message
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.pattern.{ask, gracefulStop}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
@@ -65,7 +60,6 @@ object LiquidityServer {
     // For Android 4.1 (see https://www.ssllabs.com/ssltest/viewClient.html?name=Android&version=4.1.1)
     "TLSv1"
   )
-  private final val RequiredClientKeyLength = 2048
 
   def main(args: Array[String]): Unit = {
     val config               = ConfigFactory.load
@@ -283,32 +277,6 @@ class LiquidityServer(config: Config,
         "clusterSharding" -> clusterShardingStatus(clusterShardingStats)
       )
   }
-
-  override protected[this] def extractClientPublicKey(ip: RemoteAddress)(route: PublicKey => Route): Route =
-    headerValueByType[`Tls-Session-Info`](())(
-      sessionInfo =>
-        sessionInfo.peerCertificates.headOption
-          .map(_.getPublicKey)
-          .fold[Route](
-            ifEmpty = complete(
-              (BadRequest, s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
-            )
-          ) {
-            case rsaPublicKey: RSAPublicKey =>
-              if (rsaPublicKey.getModulus.bitLength != RequiredClientKeyLength) {
-                complete(
-                  (BadRequest, s"Invalid client public key length from ${ip.toOption.getOrElse("unknown")}")
-                )
-              } else {
-                route(
-                  PublicKey(rsaPublicKey.getEncoded)
-                )
-              }
-            case _ =>
-              complete(
-                (BadRequest, s"Invalid client public key type from ${ip.toOption.getOrElse("unknown")}")
-              )
-        })
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)

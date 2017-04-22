@@ -16,10 +16,6 @@ import play.api.libs.json.{JsError, JsSuccess, Json}
 
 object ServerConnection {
 
-  trait PRNGFixesApplicator {
-    def apply(): Unit
-  }
-
   trait KeyStoreInputStreamProvider {
     def get(): InputStream
   }
@@ -106,42 +102,6 @@ object ServerConnection {
   private case object ServerDisconnect   extends CloseCause
   private case object ClientDisconnect   extends CloseCause
 
-  private var instance: ServerConnection = _
-
-  def getInstance(prngFixesApplicator: PRNGFixesApplicator,
-                  filesDir: File,
-                  keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
-                  connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                  handlerWrapperFactory: HandlerWrapperFactory): ServerConnection =
-    getInstance(
-      prngFixesApplicator,
-      filesDir,
-      keyStoreInputStreamProvider,
-      connectivityStatePublisherBuilder,
-      handlerWrapperFactory
-    )
-
-  def getInstance(prngFixesApplicator: PRNGFixesApplicator,
-                  filesDir: File,
-                  keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
-                  connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                  handlerWrapperFactory: HandlerWrapperFactory,
-                  hostname: Option[String] = None,
-                  port: Option[Int] = None): ServerConnection = {
-    if (instance == null) {
-      prngFixesApplicator.apply()
-      instance = new ServerConnection(
-        filesDir,
-        keyStoreInputStreamProvider,
-        connectivityStatePublisherBuilder,
-        handlerWrapperFactory,
-        hostname.getOrElse("liquidity.dhpcs.com"),
-        port.getOrElse(443)
-      )
-    }
-    instance
-  }
-
   private def createSslSocketFactory(keyManagers: Array[KeyManager],
                                      trustManagers: Array[TrustManager]): SSLSocketFactory = {
     val sslContext = SSLContext.getInstance("TLS")
@@ -154,26 +114,41 @@ object ServerConnection {
   }
 }
 
-class ServerConnection private (filesDir: File,
-                                keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
-                                connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                                handlerWrapperFactory: HandlerWrapperFactory,
-                                hostname: String,
-                                port: Int)
+class ServerConnection(filesDir: File,
+                       keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
+                       connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
+                       handlerWrapperFactory: HandlerWrapperFactory,
+                       hostname: String,
+                       port: Int)
     extends WebSocketListener {
 
-  private[this] lazy val client = {
-    val trustManager = ServerTrust.getTrustManager(keyStoreInputStreamProvider.get())
-    new OkHttpClient.Builder()
+  def this(filesDir: File,
+           keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
+           connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
+           handlerWrapperFactory: HandlerWrapperFactory) =
+    this(
+      filesDir,
+      keyStoreInputStreamProvider,
+      connectivityStatePublisherBuilder,
+      handlerWrapperFactory,
+      hostname = "liquidity.dhpcs.com",
+      port = 443
+    )
+
+  private[this] lazy val (clientKeyStore, okHttpClient) = {
+    val clientKeyStore     = ClientKeyStore(filesDir)
+    val serverTrustManager = ServerTrustManager(keyStoreInputStreamProvider.get())
+    val okHttpClient = new OkHttpClient.Builder()
       .sslSocketFactory(createSslSocketFactory(
-                          ClientKey.getKeyManagers(filesDir),
-                          Array(trustManager)
+                          clientKeyStore.keyManagers,
+                          Array(serverTrustManager)
                         ),
-                        trustManager)
+                        serverTrustManager)
       .hostnameVerifier((_: String, _: SSLSession) => true)
       .readTimeout(0, TimeUnit.SECONDS)
       .writeTimeout(0, TimeUnit.SECONDS)
       .build()
+    (clientKeyStore, okHttpClient)
   }
 
   private[this] val connectivityStatePublisher = connectivityStatePublisherBuilder.build(this)
@@ -192,7 +167,7 @@ class ServerConnection private (filesDir: File,
 
   handleConnectivityStateChange()
 
-  def clientKey: PublicKey = ClientKey.getPublicKey(filesDir)
+  def clientKey: PublicKey = clientKeyStore.publicKey
 
   def connectionState: ConnectionState = _connectionState
 
@@ -300,20 +275,11 @@ class ServerConnection private (filesDir: File,
               case _: ConnectingSubState =>
                 sys.error("Not connected or disconnecting")
               case _: WaitingForVersionCheckSubState =>
-                doClose(
-                  activeState.handlerWrapper,
-                  UnsupportedVersion
-                )
+                doClose(activeState.handlerWrapper, UnsupportedVersion)
               case _: OnlineSubState =>
-                doClose(
-                  activeState.handlerWrapper,
-                  ServerDisconnect
-                )
+                doClose(activeState.handlerWrapper, ServerDisconnect)
               case DisconnectingSubState =>
-                doClose(
-                  activeState.handlerWrapper,
-                  ClientDisconnect
-                )
+                doClose(activeState.handlerWrapper, ClientDisconnect)
           })
     })
 
@@ -326,35 +292,20 @@ class ServerConnection private (filesDir: File,
           activeState.handlerWrapper.post(() =>
             activeState.subState match {
               case DisconnectingSubState =>
-                doClose(
-                  activeState.handlerWrapper,
-                  ClientDisconnect
-                )
+                doClose(activeState.handlerWrapper, ClientDisconnect)
               case _ =>
                 if (response == null)
                   e match {
                     case _: SSLException =>
                       // Client rejected server certificate.
-                      doClose(
-                        activeState.handlerWrapper,
-                        TlsError
-                      )
+                      doClose(activeState.handlerWrapper, TlsError)
                     case _ =>
-                      doClose(
-                        activeState.handlerWrapper,
-                        GeneralFailure
-                      )
+                      doClose(activeState.handlerWrapper, GeneralFailure)
                   } else if (response.code == 400)
                   // Server rejected client certificate.
-                  doClose(
-                    activeState.handlerWrapper,
-                    TlsError
-                  )
+                  doClose(activeState.handlerWrapper, TlsError)
                 else
-                  doClose(
-                    activeState.handlerWrapper,
-                    GeneralFailure
-                  )
+                  doClose(activeState.handlerWrapper, GeneralFailure)
           })
     })
 
@@ -588,7 +539,7 @@ class ServerConnection private (filesDir: File,
     state = activeState
     activeState.handlerWrapper.post { () =>
       val webSocketCall = WebSocketCall.create(
-        client,
+        okHttpClient,
         new okhttp3.Request.Builder().url(s"https://$hostname:$port/ws").build
       )
       webSocketCall.enqueue(this)

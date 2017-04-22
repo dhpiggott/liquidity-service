@@ -9,49 +9,44 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
   private[this] val akkaRemotingPort = freePort()
 
-  private[this] val config =
-    ConfigFactory
-      .parseString(
-        s"""
-         |akka {
-         |  loglevel = "ERROR"
-         |  actor {
-         |    provider = "akka.cluster.ClusterActorRefProvider"
-         |    serializers {
-         |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
-         |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
-         |      persistence-event = "com.dhpcs.liquidity.persistence.EventSerializer"
-         |    }
-         |    serialization-bindings {
-         |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
-         |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
-         |      "com.dhpcs.liquidity.persistence.Event" = persistence-event
-         |    }
-         |    enable-additional-serialization-bindings = on
-         |    allow-java-serialization = on
-         |    serialize-messages = on
-         |    serialize-creators = on
-         |  }
-         |  remote.netty.tcp {
-         |    hostname = "localhost"
-         |    port = $akkaRemotingPort
-         |  }
-         |  cluster {
-         |    metrics.enabled = off
-         |    roles = ["zone-host", "client-relay"]
-         |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
-         |    sharding.state-store-mode = ddata
-         |  }
-         |  extensions += "akka.cluster.ddata.DistributedData"
-         |  extensions += "akka.persistence.Persistence"
-         |  persistence.journal {
-         |    auto-start-journals = ["akka.persistence.journal.inmem"]
-         |    plugin = "akka.persistence.journal.inmem"
-         |  }
-         |}
-    """.stripMargin
-      )
-      .resolve()
+  private[this] val config = ConfigFactory.parseString(s"""
+       |akka {
+       |  loglevel = "ERROR"
+       |  actor {
+       |    provider = "akka.cluster.ClusterActorRefProvider"
+       |    serializers {
+       |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
+       |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
+       |      persistence-event = "com.dhpcs.liquidity.persistence.EventSerializer"
+       |    }
+       |    serialization-bindings {
+       |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
+       |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
+       |      "com.dhpcs.liquidity.persistence.Event" = persistence-event
+       |    }
+       |    enable-additional-serialization-bindings = on
+       |    allow-java-serialization = on
+       |    serialize-messages = on
+       |    serialize-creators = on
+       |  }
+       |  remote.netty.tcp {
+       |    hostname = "localhost"
+       |    port = $akkaRemotingPort
+       |  }
+       |  cluster {
+       |    metrics.enabled = off
+       |    roles = ["zone-host", "client-relay"]
+       |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
+       |    sharding.state-store-mode = ddata
+       |  }
+       |  extensions += "akka.cluster.ddata.DistributedData"
+       |  extensions += "akka.persistence.Persistence"
+       |  persistence.journal {
+       |    auto-start-journals = ["akka.persistence.journal.inmem"]
+       |    plugin = "akka.persistence.journal.inmem"
+       |  }
+       |}
+     """.stripMargin).resolve()
 
   protected[this] implicit val system = ActorSystem("liquidity", config)
 

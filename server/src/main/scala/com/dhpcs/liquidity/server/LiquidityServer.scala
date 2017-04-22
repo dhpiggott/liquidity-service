@@ -41,12 +41,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
 object LiquidityServer {
 
-  private final val ZoneHostRole    = "zone-host"
-  private final val ClientRelayRole = "client-relay"
-  private final val AnalyticsRole   = "analytics"
-
-  private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore.p12"
-  private final val EnabledCipherSuites = Seq(
+  final val EnabledCipherSuites = Seq(
     // Recommended by https://typesafehub.github.io/ssl-config/CipherSuites.html#id4
     "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
     "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
@@ -54,12 +49,19 @@ object LiquidityServer {
     "TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
     "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
   )
-  private final val EnabledProtocols = Seq(
+
+  final val EnabledProtocols = Seq(
     "TLSv1.2",
     "TLSv1.1",
     // For Android 4.1 (see https://www.ssllabs.com/ssltest/viewClient.html?name=Android&version=4.1.1)
     "TLSv1"
   )
+
+  private final val KeyStoreFilename = "liquidity.dhpcs.com.keystore.p12"
+
+  private final val ZoneHostRole    = "zone-host"
+  private final val ClientRelayRole = "client-relay"
+  private final val AnalyticsRole   = "analytics"
 
   def main(args: Array[String]): Unit = {
     val config               = ConfigFactory.load
@@ -279,7 +281,10 @@ class LiquidityServer(config: Config,
   }
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
-    ClientConnectionActor.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)
+    ClientConnectionActor.webSocketFlow(
+      props = ClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
+      name = publicKey.fingerprint
+    )
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
     futureAnalyticsStore.flatMap(_.zoneStore.retrieveOpt(zoneId))

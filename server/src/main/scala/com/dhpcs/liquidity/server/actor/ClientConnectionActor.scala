@@ -38,21 +38,13 @@ object ClientConnectionActor {
       )
     )
 
-  def webSocketFlow(ip: RemoteAddress,
-                    publicKey: PublicKey,
-                    zoneValidatorShardRegion: ActorRef,
-                    keepAliveInterval: FiniteDuration)(implicit factory: ActorRefFactory,
-                                                       mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
+  def webSocketFlow(props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
+                                                            mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
-      .via(
-        actorFlow[WrappedJsonRpcOrProtobufCommand, WrappedJsonRpcOrProtobufResponseOrNotification](
-          props = props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
-          name = publicKey.fingerprint
-        )
-      )
+      .via(actorFlow[WrappedJsonRpcOrProtobufCommand, WrappedJsonRpcOrProtobufResponseOrNotification](props, name))
       .via(OutFlow)
 
-  final val InFlow: Flow[WsMessage, WrappedJsonRpcOrProtobufCommand, NotUsed] =
+  private final val InFlow: Flow[WsMessage, WrappedJsonRpcOrProtobufCommand, NotUsed] =
     Flow[WsMessage]
       .flatMapConcat(wsMessage =>
         for (jsonString <- wsMessage.asTextMessage match {
@@ -60,13 +52,44 @@ object ClientConnectionActor {
                case TextMessage.Strict(text)         => Source.single(text)
              }) yield WrappedJsonRpcRequest(Json.parse(jsonString).as[JsonRpcRequestMessage]))
 
-  final val OutFlow: Flow[WrappedJsonRpcOrProtobufResponseOrNotification, WsMessage, NotUsed] =
+  private final val OutFlow: Flow[WrappedJsonRpcOrProtobufResponseOrNotification, WsMessage, NotUsed] =
     Flow[WrappedJsonRpcOrProtobufResponseOrNotification].map {
       case WrappedJsonRpcResponse(jsonRpcResponseMessage) =>
         TextMessage(Json.stringify(Json.toJson(jsonRpcResponseMessage)))
       case WrappedJsonRpcNotification(jsonRpcNotificationMessage) =>
         TextMessage(Json.stringify(Json.toJson(jsonRpcNotificationMessage)))
     }
+
+  private def actorFlow[In, Out](props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
+                                                                         mat: Materializer): Flow[In, Out, NotUsed] = {
+    val (outActor, publisher) = Source
+      .actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
+      .toMat(Sink.asPublisher(false))(Keep.both)
+      .run()
+    Flow.fromSinkAndSource(
+      Sink.actorRefWithAck(
+        factory.actorOf(
+          Props(new Actor {
+            val flowActor: ActorRef                             = context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
+            override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
+            override def receive: Receive = {
+              case _: Status.Success | _: Status.Failure =>
+                flowActor ! PoisonPill
+              case _: Terminated =>
+                context.stop(self)
+                outActor ! Status.Success(())
+              case other =>
+                flowActor.forward(other)
+            }
+          }).withDeploy(Deploy.local)
+        ),
+        onInitMessage = ActorSinkInit,
+        ackMessage = ActorSinkAck,
+        onCompleteMessage = Status.Success(())
+      ),
+      Source.fromPublisher(publisher)
+    )
+  }
 
   final val Topic = "Client"
 
@@ -106,37 +129,6 @@ object ClientConnectionActor {
       case FrameReceivedEvent | FrameSentEvent => ()
     }
   }
-
-  private def actorFlow[In, Out](props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
-                                                                         mat: Materializer): Flow[In, Out, NotUsed] = {
-    val (outActor, publisher) = Source
-      .actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
-      .toMat(Sink.asPublisher(false))(Keep.both)
-      .run()
-    Flow.fromSinkAndSource(
-      Sink.actorRefWithAck(
-        factory.actorOf(
-          Props(new Actor {
-            val flowActor: ActorRef                             = context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
-            override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
-            override def receive: Receive = {
-              case _: Status.Success | _: Status.Failure =>
-                flowActor ! PoisonPill
-              case _: Terminated =>
-                context.stop(self)
-                outActor ! Status.Success(())
-              case other =>
-                flowActor.forward(other)
-            }
-          }).withDeploy(Deploy.local)
-        ),
-        onInitMessage = ActorSinkInit,
-        ackMessage = ActorSinkAck,
-        onCompleteMessage = Status.Success(())
-      ),
-      Source.fromPublisher(publisher)
-    )
-  }
 }
 
 class ClientConnectionActor(ip: RemoteAddress,
@@ -164,7 +156,6 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   override def preStart(): Unit = {
     super.preStart()
-    sendJsonRpcNotification(SupportedVersionsNotification(CompatibleVersionNumbers))
     log.info(s"Started for ${ip.toOption.getOrElse("unknown IP")}")
   }
 
@@ -180,6 +171,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     publishStatus orElse sendKeepAlive(sendNotification = sendJsonRpcNotification) orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
+        sendJsonRpcNotification(SupportedVersionsNotification(CompatibleVersionNumbers))
         context.become(receiveActorSinkMessages())
     }
 

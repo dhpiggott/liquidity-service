@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.server
 
+import java.nio.file.Files
 import java.security.cert.{CertificateException, X509Certificate}
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -29,7 +30,6 @@ import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActor
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
-import org.apache.cassandra.io.util.FileUtils
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.OptionValues._
 import org.scalatest._
@@ -44,48 +44,46 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
   val zoneHostNode: RoleName    = role("zone-host")
   val clientRelayNode: RoleName = role("client-relay")
 
-  commonConfig(
-    ConfigFactory
-      .parseString(s"""
-          |akka {
-          |  actor {
-          |    provider = "akka.cluster.ClusterActorRefProvider"
-          |    serializers {
-          |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
-          |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
-          |      persistence-event = "com.dhpcs.liquidity.persistence.EventSerializer"
-          |    }
-          |    serialization-bindings {
-          |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
-          |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
-          |      "com.dhpcs.liquidity.persistence.Event" = persistence-event
-          |    }
-          |    enable-additional-serialization-bindings = on
-          |    allow-java-serialization = on
-          |    serialize-messages = on
-          |    serialize-creators = off
-          |  }
-          |  cluster {
-          |    metrics.enabled = off
-          |    sharding.state-store-mode = ddata
-          |  }
-          |  extensions += "akka.cluster.ddata.DistributedData"
-          |  extensions += "akka.persistence.Persistence"
-          |  persistence.journal {
-          |    auto-start-journals = ["cassandra-journal"]
-          |    plugin = "cassandra-journal"
-          |  }
-          |  http.server {
-          |    remote-address-header = on
-          |    parsing.tls-session-info-header = on
-          |  }
-          |}
-          |cassandra-journal.contact-points = ["localhost"]
-          |liquidity.server.http {
-          |  keep-alive-interval = 3s
-          |  interface = "0.0.0.0"
-          |}
-        """.stripMargin))
+  commonConfig(ConfigFactory.parseString(s"""
+       |akka {
+       |  actor {
+       |    provider = "akka.cluster.ClusterActorRefProvider"
+       |    serializers {
+       |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
+       |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
+       |      persistence-event = "com.dhpcs.liquidity.persistence.EventSerializer"
+       |    }
+       |    serialization-bindings {
+       |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
+       |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
+       |      "com.dhpcs.liquidity.persistence.Event" = persistence-event
+       |    }
+       |    enable-additional-serialization-bindings = on
+       |    allow-java-serialization = on
+       |    serialize-messages = on
+       |    serialize-creators = off
+       |  }
+       |  cluster {
+       |    metrics.enabled = off
+       |    sharding.state-store-mode = ddata
+       |  }
+       |  extensions += "akka.cluster.ddata.DistributedData"
+       |  extensions += "akka.persistence.Persistence"
+       |  persistence.journal {
+       |    auto-start-journals = ["cassandra-journal"]
+       |    plugin = "cassandra-journal"
+       |  }
+       |  http.server {
+       |    remote-address-header = on
+       |    parsing.tls-session-info-header = on
+       |  }
+       |}
+       |cassandra-journal.contact-points = ["localhost"]
+       |liquidity.server.http {
+       |  keep-alive-interval = 3s
+       |  interface = "0.0.0.0"
+       |}
+     """.stripMargin))
 
   nodeConfig(zoneHostNode)(
     ConfigFactory
@@ -116,7 +114,7 @@ sealed abstract class LiquidityServerSpec
 
   private[this] implicit val mat = ActorMaterializer()
 
-  private[this] val cassandraDirectory = FileUtils.createTempFile("liquidity-cassandra-data", null)
+  private[this] lazy val cassandraDirectory = Files.createTempDirectory("liquidity-server-spec-cassandra-data")
 
   private[this] val readJournal =
     PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
@@ -181,7 +179,7 @@ sealed abstract class LiquidityServerSpec
     super.beforeAll()
     runOn(cassandraNode)(
       CassandraLauncher.start(
-        cassandraDirectory = cassandraDirectory,
+        cassandraDirectory = cassandraDirectory.toFile,
         configResource = CassandraLauncher.DefaultTestConfigResource,
         clean = true,
         port = 9042
@@ -193,10 +191,10 @@ sealed abstract class LiquidityServerSpec
   override protected def afterAll(): Unit = {
     Await.result(server.shutdown(), Duration.Inf)
     multiNodeSpecAfterAll()
-    runOn(cassandraNode)(
+    runOn(cassandraNode) {
       CassandraLauncher.stop()
-    )
-    FileUtils.deleteRecursive(cassandraDirectory)
+      delete(cassandraDirectory)
+    }
     super.afterAll()
   }
 

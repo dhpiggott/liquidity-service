@@ -21,7 +21,7 @@ lazy val commonSettings = Seq(
   ),
   resolvers += Resolver.bintrayRepo("dhpcs", "maven")
 ) ++
-  addCommandAlias("validate", ";scalafmtTest; coverage; test; multi-jvm:test; it:test; coverageReport") ++
+  addCommandAlias("validate", ";scalafmtTest; coverage; test; multi-jvm:test; coverageReport") ++
   addCommandAlias("validateAggregate", ";coverageAggregate")
 
 lazy val publishSettings = Seq(
@@ -48,9 +48,7 @@ lazy val model = project
       playJson,
       "com.squareup.okio" % "okio" % "1.12.0"
     ))
-  .settings(libraryDependencies ++= Seq(
-    scalaTest % Test
-  ))
+  .settings(libraryDependencies += scalaTest % Test)
 
 lazy val serialization = project
   .in(file("serialization"))
@@ -87,9 +85,7 @@ lazy val wsProtocol = project
   .settings(libraryDependencies +=
     "com.dhpcs" %% "scala-json-rpc" % "2.0-M2")
   .dependsOn(model)
-  .settings(libraryDependencies ++= Seq(
-    scalaTest % Test
-  ))
+  .settings(libraryDependencies += scalaTest % Test)
 
 lazy val actorProtocol = project
   .in(file("actor-protocol"))
@@ -111,9 +107,7 @@ lazy val certgen = project
   )
   .settings(libraryDependencies +=
     "org.bouncycastle" % "bcpkix-jdk15on" % "1.56")
-  .settings(libraryDependencies ++= Seq(
-    scalaTest % Test
-  ))
+  .settings(libraryDependencies += scalaTest % Test)
 
 lazy val server = project
   .in(file("server"))
@@ -143,14 +137,14 @@ lazy val server = project
     "com.typesafe.akka"        %% "akka-http"                           % "10.0.5",
     playJson
   ))
-  .dependsOn(certgen % Test)
+  .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.5" % Test
   ))
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)
-  .dependsOn(certgen % "multi-jvm")
+  .dependsOn(certgen % MultiJvm)
   .settings(libraryDependencies ++= Seq(
     scalaTest              % MultiJvm,
     "com.typesafe.akka"    %% "akka-multi-node-testkit" % "2.4.17" % MultiJvm,
@@ -180,15 +174,8 @@ lazy val client = project
     "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
   ))
   .dependsOn(certgen % "test")
-  .settings(libraryDependencies ++= Seq(
-    scalaTest              % Test,
-    "org.apache.cassandra" % "cassandra-all" % "3.10" % IntegrationTest exclude ("io.netty", "netty-all")
-  ))
-  .configs(IntegrationTest)
-  .settings(Defaults.itSettings)
-  .dependsOn(server % "it->test")
-  .settings(libraryDependencies +=
-    scalaTest % IntegrationTest)
+  .dependsOn(server % "test->test")
+  .settings(libraryDependencies += scalaTest % Test)
 
 lazy val healthcheck = project
   .in(file("healthcheck"))
@@ -198,6 +185,7 @@ lazy val healthcheck = project
     name := "liquidity-healthcheck"
   )
   .dependsOn(client)
+  .dependsOn(server % "compile->test")
   .settings(
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.17",

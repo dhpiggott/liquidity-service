@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.healthcheck
 
 import java.io.InputStream
 import java.nio.file.Files
-import java.security.Security
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -16,12 +15,12 @@ import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.ws.protocol._
 import okio.ByteString
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
-import org.spongycastle.jce.provider.BouncyCastleProvider
 import play.api.libs.json.Json
 
 import scala.concurrent.{Future, Promise}
@@ -89,29 +88,13 @@ object LiquidityHealthcheck {
     metadata = Some(Json.obj("currency" -> "GBP"))
   )
 
-  def main(args: Array[String]): Unit =
-    new LiquidityHealthcheck(hostname = args.headOption).execute(
-      durations = true,
-      stats = true
-    )
+  def main(args: Array[String]): Unit = new LiquidityHealthcheck().execute(durations = true, stats = true)
 
 }
 
-class LiquidityHealthcheck(hostname: Option[String])
-    extends fixture.FreeSpec
-    with ScalaFutures
-    with Inside
-    with BeforeAndAfterAll {
+class LiquidityHealthcheck extends fixture.FreeSpec with ScalaFutures with Inside with BeforeAndAfterAll {
 
-  private[this] val prngFixesApplicator = new PRNGFixesApplicator {
-    override def apply(): Unit = ()
-  }
-
-  private[this] val filesDirDirectory = {
-    val filesDirDirectory = Files.createTempDirectory("liquidity-files-dir").toFile
-    filesDirDirectory.deleteOnExit()
-    filesDirDirectory
-  }
+  private[this] val filesDir = Files.createTempDirectory("liquidity-healthcheck-files-dir")
 
   private[this] val keyStoreInputStreamProvider = new KeyStoreInputStreamProvider {
     override def get(): InputStream = getClass.getClassLoader.getResourceAsStream(TrustStoreFilename)
@@ -148,13 +131,11 @@ class LiquidityHealthcheck(hostname: Option[String])
     override def main(): HandlerWrapper = MainHandlerWrapper
   }
 
-  private[this] val serverConnection = ServerConnection.getInstance(
-    prngFixesApplicator,
-    filesDirDirectory,
+  private[this] val serverConnection = new ServerConnection(
+    filesDir.toFile,
     keyStoreInputStreamProvider,
     connectivityStatePublisherBuilder,
-    handlerWrapperFactory,
-    hostname
+    handlerWrapperFactory
   )
 
   private[this] def send(command: Command): Future[Response] = {
@@ -176,15 +157,10 @@ class LiquidityHealthcheck(hostname: Option[String])
 
   override protected type FixtureParam = TestSubscriber.Probe[ConnectionState]
 
-  override protected def beforeAll(): Unit = {
-    super.beforeAll()
-    Security.addProvider(new BouncyCastleProvider)
-  }
-
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     handlerWrapperFactory.synchronized(handlerWrappers.foreach(_.quit()))
-    Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
+    delete(filesDir)
     super.afterAll()
   }
 

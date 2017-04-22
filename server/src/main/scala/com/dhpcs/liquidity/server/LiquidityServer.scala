@@ -281,13 +281,13 @@ class LiquidityServer(config: Config,
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval)
 
-  override protected[this] def zoneOpt(zoneId: ZoneId): Future[Option[Zone]] =
+  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
     futureAnalyticsStore.flatMap(_.zoneStore.retrieveOpt(zoneId))
 
-  override protected[this] def balances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
+  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     futureAnalyticsStore.flatMap(_.balanceStore.retrieve(zoneId))
 
-  override protected[this] def clients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
+  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
     futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId))
 
 }

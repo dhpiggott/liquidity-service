@@ -101,10 +101,10 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
         "shardRegions"    -> Json.obj(),
         "clusterSharding" -> Json.obj()
       ))
-  override protected[this] def zoneOpt(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
-  override protected[this] def balances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
+  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
+  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(Map.empty)
-  override protected[this] def clients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
+  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
     Future.successful(Map.empty)
 
 }

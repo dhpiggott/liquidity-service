@@ -69,19 +69,19 @@ trait HttpController {
     )
 
   private[this] def zone(id: UUID)(implicit ec: ExecutionContext): Route =
-    get(complete(zoneOpt(ZoneId(id)).map {
+    get(complete(getZone(ZoneId(id)).map {
       case None       => HttpResponse(status = StatusCodes.NotFound)
       case Some(zone) => toJsonResponse(Json.toJson(zone))
     }))
 
   private[this] def balances(id: UUID)(implicit ec: ExecutionContext): Route =
-    get(complete(balances(ZoneId(id)).map(balances =>
+    get(complete(getBalances(ZoneId(id)).map(balances =>
       toJsonResponse(Json.toJson(balances.map {
         case (accountId, balance) => accountId.id.toString -> balance
       })))))
 
   private[this] def clients(id: UUID)(implicit ec: ExecutionContext): Route =
-    get(complete(clients(ZoneId(id)).map(clients =>
+    get(complete(getClients(ZoneId(id)).map(clients =>
       toJsonResponse(Json.toJson(clients.map {
         case (actorPath, (lastJoined, publicKey)) =>
           actorPath.toSerializationFormat -> Json.obj(
@@ -91,9 +91,9 @@ trait HttpController {
 
   protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
   protected[this] def getStatus: Future[JsValue]
-  protected[this] def zoneOpt(zoneId: ZoneId): Future[Option[Zone]]
-  protected[this] def balances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
-  protected[this] def clients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]]
+  protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
+  protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
+  protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]]
 
   private[this] def toJsonResponse(body: JsValue): HttpResponse =
     HttpResponse(

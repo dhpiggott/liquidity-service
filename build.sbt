@@ -32,7 +32,7 @@ lazy val noopPublishSettings = Seq(
   publishM2 := {}
 )
 
-lazy val playJson = "com.typesafe.play" %% "play-json" % "2.6.0-M6"
+lazy val playJson = "com.typesafe.play" %% "play-json" % "2.6.0-M7"
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.2"
 
@@ -83,7 +83,7 @@ lazy val wsProtocol = project
     name := "liquidity-ws-protocol"
   )
   .settings(libraryDependencies +=
-    "com.dhpcs" %% "scala-json-rpc" % "2.0-M2")
+    "com.dhpcs" %% "scala-json-rpc" % "2.0-M3")
   .dependsOn(model)
   .settings(libraryDependencies += scalaTest % Test)
 

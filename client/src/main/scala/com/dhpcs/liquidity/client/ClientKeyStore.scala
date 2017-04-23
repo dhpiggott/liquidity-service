@@ -18,16 +18,17 @@ import org.spongycastle.operator.jcajce.JcaContentSignerBuilder
 
 object ClientKeyStore {
 
-  private final val KeystoreFilename = "client.keystore"
-  private final val EntryAlias       = "identity"
-  private final val CommonName       = "com.dhpcs.liquidity"
-  private final val KeyLength        = 2048
+  private final val Pkcs12KeystoreFilename = "client.keystore"
+  private final val BksKeystoreFilename    = "client.keystore"
+  private final val EntryAlias             = "identity"
+  private final val CommonName             = "com.dhpcs.liquidity"
+  private final val KeyLength              = 2048
 
   def apply(filesDir: File): ClientKeyStore = {
-    val keyStore     = KeyStore.getInstance("BKS")
-    val keyStoreFile = new File(filesDir, KeystoreFilename)
+    val keyStore     = KeyStore.getInstance("PKCS12")
+    val keyStoreFile = new File(filesDir, Pkcs12KeystoreFilename)
     if (!keyStoreFile.exists) {
-      val (certificate, privateKey) = generateCertKey()
+      val (certificate, privateKey) = loadFromLegacyBksKeyStore(filesDir).getOrElse(generateCertKey())
       keyStore.load(null, null)
       keyStore.setKeyEntry(
         EntryAlias,
@@ -38,12 +39,20 @@ object ClientKeyStore {
       val keyStoreFileOutputStream = new FileOutputStream(keyStoreFile)
       try keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
       finally keyStoreFileOutputStream.close()
-    } else {
-      val keyStoreFileInputStream = new FileInputStream(keyStoreFile)
-      try keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
-      finally keyStoreFileInputStream.close()
-    }
+    } else loadIntoKeyStore(keyStoreFile, keyStore)
     new ClientKeyStore(keyStore)
+  }
+
+  private def loadFromLegacyBksKeyStore(filesDir: File): Option[(X509Certificate, PrivateKey)] = {
+    val keyStoreFile = new File(filesDir, BksKeystoreFilename)
+    if (!keyStoreFile.exists) None
+    else {
+      val keyStore = KeyStore.getInstance("BKS")
+      loadIntoKeyStore(keyStoreFile, keyStore)
+      val certificate = keyStore.getCertificate(EntryAlias).asInstanceOf[X509Certificate]
+      val privateKey  = keyStore.getKey(EntryAlias, Array.emptyCharArray).asInstanceOf[PrivateKey]
+      Some((certificate, privateKey))
+    }
   }
 
   private def generateCertKey(): (X509Certificate, PrivateKey) = {
@@ -69,6 +78,12 @@ object ClientKeyStore {
         )
     )
     (certificate, keyPair.getPrivate)
+  }
+
+  private def loadIntoKeyStore(keyStoreFile: File, keyStore: KeyStore) = {
+    val keyStoreFileInputStream = new FileInputStream(keyStoreFile)
+    try keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
+    finally keyStoreFileInputStream.close()
   }
 }
 

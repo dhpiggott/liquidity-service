@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.client
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
 import java.nio.file.Files
-import java.security.Security
 import java.security.cert.{CertificateException, X509Certificate}
 import java.util.concurrent.Executors
 import javax.net.ssl.{SSLContext, X509TrustManager}
@@ -31,7 +30,6 @@ import org.scalatest.OptionValues._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
-import org.spongycastle.jce.provider.BouncyCastleProvider
 import play.api.libs.json.{JsValue, Json}
 
 import scala.collection.immutable.Seq
@@ -64,8 +62,6 @@ class ServerConnectionSpec
     with BeforeAndAfterAll
     with ScalaFutures
     with Inside {
-
-  Security.addProvider(new BouncyCastleProvider)
 
   private[this] val akkaHttpPort = freePort()
 

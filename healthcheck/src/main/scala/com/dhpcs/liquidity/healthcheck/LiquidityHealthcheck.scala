@@ -141,13 +141,12 @@ class LiquidityHealthcheck extends fixture.FreeSpec with ScalaFutures with Insid
   private[this] def send(command: Command): Future[Response] = {
     val promise = Promise[Response]
     MainHandlerWrapper.post(
-      () =>
-        serverConnection.sendCommand(
-          command,
-          new ResponseCallback {
-            override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
-            override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
-          }
+      serverConnection.sendCommand(
+        command,
+        new ResponseCallback {
+          override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
+          override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
+        }
       ))
     promise.future
   }
@@ -187,18 +186,18 @@ class LiquidityHealthcheck extends fixture.FreeSpec with ScalaFutures with Insid
     "will accept connections" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
-      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
     s"will admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
@@ -210,7 +209,7 @@ class LiquidityHealthcheck extends fixture.FreeSpec with ScalaFutures with Insid
           assert(zone === SentinelZone)
           assert(connectedClients === Set(serverConnection.clientKey))
       }
-      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }

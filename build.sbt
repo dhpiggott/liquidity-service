@@ -1,5 +1,6 @@
 lazy val commonSettings = Seq(
   scalaVersion := "2.12.2",
+  crossScalaVersions := Seq("2.11.11", "2.12.2"),
   scalacOptions in Compile ++= Seq(
     "-target:jvm-1.8",
     "-encoding",
@@ -83,7 +84,7 @@ lazy val wsProtocol = project
     name := "liquidity-ws-protocol"
   )
   .settings(libraryDependencies +=
-    "com.dhpcs" %% "scala-json-rpc" % "2.0-M3")
+    "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
   .dependsOn(model)
   .settings(libraryDependencies += scalaTest % Test)
 

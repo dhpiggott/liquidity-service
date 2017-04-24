@@ -13,7 +13,7 @@ object ValueFormatSpec {
   final case class TestValue(value: String)
 
   object TestValue {
-    implicit final val TestFormat: Format[TestValue] = ValueFormat(TestValue(_), _.value)
+    implicit final val TestFormat: Format[TestValue] = ValueFormat[TestValue, String](TestValue(_), _.value)
   }
 
 }

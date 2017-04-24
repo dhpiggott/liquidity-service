@@ -41,6 +41,11 @@ object ServerConnection {
 
   abstract class HandlerWrapper {
 
+    def post(body: => Unit): Unit =
+      post(new Runnable {
+        override def run(): Unit = body
+      })
+
     def post(runnable: Runnable): Unit
     def quit(): Unit
 
@@ -66,6 +71,12 @@ object ServerConnection {
   }
 
   class ConnectionRequestToken
+
+  object ResponseCallback {
+    def apply(onError: => Unit): ResponseCallback = new ResponseCallback {
+      override def onErrorResponse(error: ErrorResponse): Unit = onError
+    }
+  }
 
   trait ResponseCallback {
 
@@ -144,7 +155,9 @@ class ServerConnection(filesDir: File,
                           Array(serverTrustManager)
                         ),
                         serverTrustManager)
-      .hostnameVerifier((_: String, _: SSLSession) => true)
+      .hostnameVerifier(new HostnameVerifier {
+        override def verify(s: String, sslSession: SSLSession): Boolean = true
+      })
       .readTimeout(0, TimeUnit.SECONDS)
       .writeTimeout(0, TimeUnit.SECONDS)
       .build()
@@ -200,29 +213,28 @@ class ServerConnection(filesDir: File,
     case _: IdleState =>
       sys.error("Not connected")
     case activeState: ActiveState =>
-      activeState.handlerWrapper.post(() =>
-        activeState.subState match {
-          case _: ConnectingSubState | DisconnectingSubState =>
-            sys.error(s"Not connected")
-          case _: WaitingForVersionCheckSubState =>
-            sys.error("Waiting for version check")
-          case onlineSubState: OnlineSubState =>
-            val correlationId = NumericCorrelationId(nextCorrelationId)
-            nextCorrelationId = nextCorrelationId + 1
-            val jsonRpcRequestMessage = Command.write(command, correlationId)
-            try {
-              onlineSubState.webSocket.sendMessage(
-                RequestBody.create(
-                  WebSocket.TEXT,
-                  Json.stringify(Json.toJson(jsonRpcRequestMessage))
-                )
+      activeState.handlerWrapper.post(activeState.subState match {
+        case _: ConnectingSubState | DisconnectingSubState =>
+          sys.error(s"Not connected")
+        case _: WaitingForVersionCheckSubState =>
+          sys.error("Waiting for version check")
+        case onlineSubState: OnlineSubState =>
+          val correlationId = NumericCorrelationId(nextCorrelationId)
+          nextCorrelationId = nextCorrelationId + 1
+          val jsonRpcRequestMessage = Command.write(command, correlationId)
+          try {
+            onlineSubState.webSocket.sendMessage(
+              RequestBody.create(
+                WebSocket.TEXT,
+                Json.stringify(Json.toJson(jsonRpcRequestMessage))
               )
-              pendingRequests = pendingRequests +
-                (correlationId.value -> PendingRequest(jsonRpcRequestMessage, responseCallback))
-            } catch {
-              // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
-              case _: IOException =>
-            }
+            )
+            pendingRequests = pendingRequests +
+              (correlationId.value -> PendingRequest(jsonRpcRequestMessage, responseCallback))
+          } catch {
+            // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
+            case _: IOException =>
+          }
       })
   }
 
@@ -265,48 +277,44 @@ class ServerConnection(filesDir: File,
       }
 
   override def onClose(code: Int, reason: String): Unit =
-    mainHandlerWrapper.post(() =>
-      state match {
-        case _: IdleState =>
-          sys.error("Already disconnected")
-        case activeState: ActiveState =>
-          activeState.handlerWrapper.post(() =>
-            activeState.subState match {
-              case _: ConnectingSubState =>
-                sys.error("Not connected or disconnecting")
-              case _: WaitingForVersionCheckSubState =>
-                doClose(activeState.handlerWrapper, UnsupportedVersion)
-              case _: OnlineSubState =>
-                doClose(activeState.handlerWrapper, ServerDisconnect)
-              case DisconnectingSubState =>
-                doClose(activeState.handlerWrapper, ClientDisconnect)
-          })
+    mainHandlerWrapper.post(state match {
+      case _: IdleState =>
+        sys.error("Already disconnected")
+      case activeState: ActiveState =>
+        activeState.handlerWrapper.post(activeState.subState match {
+          case _: ConnectingSubState =>
+            sys.error("Not connected or disconnecting")
+          case _: WaitingForVersionCheckSubState =>
+            doClose(activeState.handlerWrapper, UnsupportedVersion)
+          case _: OnlineSubState =>
+            doClose(activeState.handlerWrapper, ServerDisconnect)
+          case DisconnectingSubState =>
+            doClose(activeState.handlerWrapper, ClientDisconnect)
+        })
     })
 
   override def onFailure(e: IOException, response: okhttp3.Response): Unit =
-    mainHandlerWrapper.post(() =>
-      state match {
-        case _: IdleState =>
-          sys.error("Already disconnected")
-        case activeState: ActiveState =>
-          activeState.handlerWrapper.post(() =>
-            activeState.subState match {
-              case DisconnectingSubState =>
-                doClose(activeState.handlerWrapper, ClientDisconnect)
-              case _ =>
-                if (response == null)
-                  e match {
-                    case _: SSLException =>
-                      // Client rejected server certificate.
-                      doClose(activeState.handlerWrapper, TlsError)
-                    case _ =>
-                      doClose(activeState.handlerWrapper, GeneralFailure)
-                  } else if (response.code == 400)
-                  // Server rejected client certificate.
+    mainHandlerWrapper.post(state match {
+      case _: IdleState =>
+        sys.error("Already disconnected")
+      case activeState: ActiveState =>
+        activeState.handlerWrapper.post(activeState.subState match {
+          case DisconnectingSubState =>
+            doClose(activeState.handlerWrapper, ClientDisconnect)
+          case _ =>
+            if (response == null)
+              e match {
+                case _: SSLException =>
+                  // Client rejected server certificate.
                   doClose(activeState.handlerWrapper, TlsError)
-                else
+                case _ =>
                   doClose(activeState.handlerWrapper, GeneralFailure)
-          })
+              } else if (response.code == 400)
+              // Server rejected client certificate.
+              doClose(activeState.handlerWrapper, TlsError)
+            else
+              doClose(activeState.handlerWrapper, GeneralFailure)
+        })
     })
 
   override def onMessage(message: ResponseBody): Unit = {
@@ -314,141 +322,131 @@ class ServerConnection(filesDir: File,
       case WebSocket.BINARY => sys.error("Received binary frame")
       case WebSocket.TEXT   => Json.parse(message.string).as[JsonRpcMessage]
     }
-    mainHandlerWrapper.post(() =>
-      state match {
-        case _: IdleState =>
-          sys.error("Not connected")
-        case activeState: ActiveState =>
-          jsonRpcMessage match {
-            case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
-              activeState.handlerWrapper.post {
-                () =>
-                  Notification.read(jsonRpcNotificationMessage) match {
-                    case JsError(errors) =>
-                      sys.error(s"Invalid Notification: $errors")
-                    case JsSuccess(value, _) =>
-                      value match {
-                        case SupportedVersionsNotification(compatibleVersionNumbers) =>
-                          activeState.subState match {
-                            case _: ConnectingSubState =>
-                              sys.error("Not connected")
-                            case _: OnlineSubState =>
-                              sys.error("Already online")
-                            case WaitingForVersionCheckSubState(webSocket) =>
-                              if (!compatibleVersionNumbers.contains(VersionNumber))
-                                mainHandlerWrapper.post(() => disconnect(1001))
-                              else
-                                activeState.handlerWrapper.post { () =>
-                                  activeState.subState = OnlineSubState(webSocket)
-                                  mainHandlerWrapper.post { () =>
-                                    _connectionState = ONLINE
-                                    connectionStateListeners.foreach(
-                                      _.onConnectionStateChanged(_connectionState)
-                                    )
-                                  }
-                                }
-                            case DisconnectingSubState =>
-                          }
-                        case KeepAliveNotification =>
-                          activeState.subState match {
-                            case _: ConnectingSubState =>
-                              sys.error("Not connected")
-                            case _: WaitingForVersionCheckSubState =>
-                              sys.error("Waiting for version check")
-                            case _: OnlineSubState     =>
-                            case DisconnectingSubState =>
-                          }
-                        case zoneNotification: ZoneNotification =>
-                          activeState.subState match {
-                            case _: ConnectingSubState =>
-                              sys.error("Not connected")
-                            case _: WaitingForVersionCheckSubState =>
-                              sys.error("Waiting for version check")
-                            case _: OnlineSubState =>
-                              activeState.handlerWrapper.post(
-                                () =>
-                                  mainHandlerWrapper.post(
-                                    () =>
-                                      notificationReceiptListeners.foreach(
-                                        _.onZoneNotificationReceived(zoneNotification)
-                                    )))
-                            case DisconnectingSubState =>
-                          }
+    mainHandlerWrapper.post(state match {
+      case _: IdleState =>
+        sys.error("Not connected")
+      case activeState: ActiveState =>
+        jsonRpcMessage match {
+          case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
+            activeState.handlerWrapper.post {
+
+              Notification.read(jsonRpcNotificationMessage) match {
+                case JsError(errors) =>
+                  sys.error(s"Invalid Notification: $errors")
+                case JsSuccess(value, _) =>
+                  value match {
+                    case SupportedVersionsNotification(compatibleVersionNumbers) =>
+                      activeState.subState match {
+                        case _: ConnectingSubState =>
+                          sys.error("Not connected")
+                        case _: OnlineSubState =>
+                          sys.error("Already online")
+                        case WaitingForVersionCheckSubState(webSocket) =>
+                          if (!compatibleVersionNumbers.contains(VersionNumber))
+                            mainHandlerWrapper.post(disconnect(1001))
+                          else
+                            activeState.handlerWrapper.post {
+                              activeState.subState = OnlineSubState(webSocket)
+                              mainHandlerWrapper.post {
+                                _connectionState = ONLINE
+                                connectionStateListeners.foreach(
+                                  _.onConnectionStateChanged(_connectionState)
+                                )
+                              }
+                            }
+                        case DisconnectingSubState =>
+                      }
+                    case KeepAliveNotification =>
+                      activeState.subState match {
+                        case _: ConnectingSubState =>
+                          sys.error("Not connected")
+                        case _: WaitingForVersionCheckSubState =>
+                          sys.error("Waiting for version check")
+                        case _: OnlineSubState     =>
+                        case DisconnectingSubState =>
+                      }
+                    case zoneNotification: ZoneNotification =>
+                      activeState.subState match {
+                        case _: ConnectingSubState =>
+                          sys.error("Not connected")
+                        case _: WaitingForVersionCheckSubState =>
+                          sys.error("Waiting for version check")
+                        case _: OnlineSubState =>
+                          activeState.handlerWrapper.post(
+                            mainHandlerWrapper.post(
+                              notificationReceiptListeners.foreach(
+                                _.onZoneNotificationReceived(zoneNotification)
+                              )))
+                        case DisconnectingSubState =>
                       }
                   }
               }
-            case jsonRpcResponseMessage: JsonRpcResponseMessage =>
-              activeState.handlerWrapper.post(() =>
-                activeState.subState match {
-                  case _: ConnectingSubState =>
-                    sys.error("Not connected")
-                  case _: WaitingForVersionCheckSubState =>
-                    sys.error("Waiting for version check")
-                  case _: OnlineSubState =>
-                    jsonRpcResponseMessage.id match {
-                      case NoCorrelationId =>
-                        sys.error(s"JSON-RPC message ID missing, jsonRpcResponseMessage=$jsonRpcResponseMessage")
-                      case StringCorrelationId(value) =>
-                        sys.error(s"JSON-RPC message ID was not a number, id=$value")
-                      case NumericCorrelationId(value) =>
-                        activeState.handlerWrapper.post(() =>
-                          pendingRequests.get(value) match {
-                            case None =>
-                              sys.error(s"No pending request exists with commandIdentifier=$value")
-                            case Some(pendingRequest) =>
-                              pendingRequests = pendingRequests - value
-                              jsonRpcResponseMessage match {
-                                case jsonRpcResponseErrorMessage: JsonRpcResponseErrorMessage =>
-                                  mainHandlerWrapper.post(
-                                    () =>
-                                      pendingRequest.callback.onErrorResponse(
-                                        ErrorResponse(jsonRpcResponseErrorMessage.message)))
-                                case jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage =>
-                                  SuccessResponse
-                                    .read(jsonRpcResponseSuccessMessage, pendingRequest.requestMessage.method) match {
-                                    case JsError(errors) =>
-                                      sys.error(s"Invalid Response: $errors")
-                                    case JsSuccess(response, _) =>
-                                      mainHandlerWrapper.post(() =>
-                                        pendingRequest.callback.onSuccessResponse(response))
-                                  }
-                              }
-                        })
-                    }
-                  case DisconnectingSubState =>
-              })
-            case jsonRpc_Message =>
-              activeState.handlerWrapper.post(() =>
-                activeState.subState match {
-                  case _: ConnectingSubState =>
-                    sys.error("Not connected")
-                  case _: WaitingForVersionCheckSubState =>
-                    sys.error("Waiting for version check")
-                  case _: OnlineSubState =>
-                    sys.error(s"Received $jsonRpc_Message")
-                  case DisconnectingSubState =>
-              })
-          }
+            }
+          case jsonRpcResponseMessage: JsonRpcResponseMessage =>
+            activeState.handlerWrapper.post(activeState.subState match {
+              case _: ConnectingSubState =>
+                sys.error("Not connected")
+              case _: WaitingForVersionCheckSubState =>
+                sys.error("Waiting for version check")
+              case _: OnlineSubState =>
+                jsonRpcResponseMessage.id match {
+                  case NoCorrelationId =>
+                    sys.error(s"JSON-RPC message ID missing, jsonRpcResponseMessage=$jsonRpcResponseMessage")
+                  case StringCorrelationId(value) =>
+                    sys.error(s"JSON-RPC message ID was not a number, id=$value")
+                  case NumericCorrelationId(value) =>
+                    activeState.handlerWrapper.post(pendingRequests.get(value) match {
+                      case None =>
+                        sys.error(s"No pending request exists with commandIdentifier=$value")
+                      case Some(pendingRequest) =>
+                        pendingRequests = pendingRequests - value
+                        jsonRpcResponseMessage match {
+                          case jsonRpcResponseErrorMessage: JsonRpcResponseErrorMessage =>
+                            mainHandlerWrapper.post(
+                              pendingRequest.callback.onErrorResponse(
+                                ErrorResponse(jsonRpcResponseErrorMessage.message)))
+                          case jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage =>
+                            SuccessResponse
+                              .read(jsonRpcResponseSuccessMessage, pendingRequest.requestMessage.method) match {
+                              case JsError(errors) =>
+                                sys.error(s"Invalid Response: $errors")
+                              case JsSuccess(response, _) =>
+                                mainHandlerWrapper.post(pendingRequest.callback.onSuccessResponse(response))
+                            }
+                        }
+                    })
+                }
+              case DisconnectingSubState =>
+            })
+          case jsonRpc_Message =>
+            activeState.handlerWrapper.post(activeState.subState match {
+              case _: ConnectingSubState =>
+                sys.error("Not connected")
+              case _: WaitingForVersionCheckSubState =>
+                sys.error("Waiting for version check")
+              case _: OnlineSubState =>
+                sys.error(s"Received $jsonRpc_Message")
+              case DisconnectingSubState =>
+            })
+        }
     })
   }
 
   override def onOpen(webSocket: WebSocket, response: okhttp3.Response): Unit =
-    mainHandlerWrapper.post(() =>
-      state match {
-        case _: IdleState =>
-          sys.error("Not connecting")
-        case activeState: ActiveState =>
-          activeState.handlerWrapper.post(() =>
-            activeState.subState match {
-              case _: ConnectedSubState | DisconnectingSubState =>
-                sys.error("Not connecting")
-              case _: ConnectingSubState =>
-                activeState.subState = WaitingForVersionCheckSubState(webSocket)
-                mainHandlerWrapper.post { () =>
-                  _connectionState = WAITING_FOR_VERSION_CHECK
-                  connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
-                }
-          })
+    mainHandlerWrapper.post(state match {
+      case _: IdleState =>
+        sys.error("Not connecting")
+      case activeState: ActiveState =>
+        activeState.handlerWrapper.post(activeState.subState match {
+          case _: ConnectedSubState | DisconnectingSubState =>
+            sys.error("Not connecting")
+          case _: ConnectingSubState =>
+            activeState.subState = WaitingForVersionCheckSubState(webSocket)
+            mainHandlerWrapper.post {
+              _connectionState = WAITING_FOR_VERSION_CHECK
+              connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
+            }
+        })
     })
 
   override def onPong(payload: Buffer): Unit = ()
@@ -466,32 +464,31 @@ class ServerConnection(filesDir: File,
     case _: IdleState =>
       sys.error("Already disconnected")
     case activeState: ActiveState =>
-      activeState.handlerWrapper.post(() =>
-        activeState.subState match {
-          case DisconnectingSubState =>
-            sys.error("Already disconnecting")
-          case ConnectingSubState(webSocketCall) =>
-            activeState.subState = DisconnectingSubState
-            mainHandlerWrapper.post { () =>
-              _connectionState = DISCONNECTING
-              connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
-            }
-            webSocketCall.cancel()
-          case WaitingForVersionCheckSubState(webSocket) =>
-            try webSocket.close(code, null)
-            catch {
-              case _: IOException =>
-            }
-          case OnlineSubState(webSocket) =>
-            activeState.subState = DisconnectingSubState
-            mainHandlerWrapper.post { () =>
-              _connectionState = DISCONNECTING
-              connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
-            }
-            try webSocket.close(code, null)
-            catch {
-              case _: IOException =>
-            }
+      activeState.handlerWrapper.post(activeState.subState match {
+        case DisconnectingSubState =>
+          sys.error("Already disconnecting")
+        case ConnectingSubState(webSocketCall) =>
+          activeState.subState = DisconnectingSubState
+          mainHandlerWrapper.post {
+            _connectionState = DISCONNECTING
+            connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
+          }
+          webSocketCall.cancel()
+        case WaitingForVersionCheckSubState(webSocket) =>
+          try webSocket.close(code, null)
+          catch {
+            case _: IOException =>
+          }
+        case OnlineSubState(webSocket) =>
+          activeState.subState = DisconnectingSubState
+          mainHandlerWrapper.post {
+            _connectionState = DISCONNECTING
+            connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
+          }
+          try webSocket.close(code, null)
+          catch {
+            case _: IOException =>
+          }
       })
   }
 
@@ -499,7 +496,7 @@ class ServerConnection(filesDir: File,
     handlerWrapper.quit()
     nextCorrelationId = 0
     pendingRequests = Map.empty
-    mainHandlerWrapper.post { () =>
+    mainHandlerWrapper.post {
       closeCause match {
         case GeneralFailure =>
           hasFailed = true
@@ -537,7 +534,7 @@ class ServerConnection(filesDir: File,
   private[this] def doOpen(): Unit = {
     val activeState = ActiveState(handlerWrapperFactory.create("ServerConnection"))
     state = activeState
-    activeState.handlerWrapper.post { () =>
+    activeState.handlerWrapper.post {
       val webSocketCall = WebSocketCall.create(
         okHttpClient,
         new okhttp3.Request.Builder().url(s"https://$hostname:$port/ws").build

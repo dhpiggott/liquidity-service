@@ -333,7 +333,7 @@ class BoardGame private (serverConnection: ServerConnection,
         zoneId.get,
         Some(name)
       ),
-      responseCallback = _ => gameActionListeners.foreach(_.onChangeGameNameError(Some(name)))
+      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onChangeGameNameError(Some(name))))
     )
 
   def createIdentity(name: String): Unit =
@@ -360,7 +360,7 @@ class BoardGame private (serverConnection: ServerConnection,
         zoneId.get,
         state.identities(identity.member.id).member.copy(name = Some(name))
       ),
-      responseCallback = _ => gameActionListeners.foreach(_.onChangeIdentityNameError(Some(name)))
+      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onChangeIdentityNameError(Some(name))))
     )
 
   def transferIdentity(identity: Identity, toPublicKey: PublicKey): Unit =
@@ -369,7 +369,7 @@ class BoardGame private (serverConnection: ServerConnection,
         zoneId.get,
         state.identities(identity.member.id).member.copy(ownerPublicKey = toPublicKey)
       ),
-      responseCallback = _ => gameActionListeners.foreach(_.onTransferIdentityError(identity.member.name))
+      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onTransferIdentityError(identity.member.name)))
     )
 
   def deleteIdentity(identity: Identity): Unit = {
@@ -383,7 +383,7 @@ class BoardGame private (serverConnection: ServerConnection,
           )
         )
       ),
-      responseCallback = _ => gameActionListeners.foreach(_.onDeleteIdentityError(member.name))
+      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onDeleteIdentityError(member.name)))
     )
   }
 
@@ -396,7 +396,7 @@ class BoardGame private (serverConnection: ServerConnection,
           metadata = member.metadata.map(_ - HiddenFlagKey)
         )
       ),
-      responseCallback = _ => gameActionListeners.foreach(_.onRestoreIdentityError(member.name))
+      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onRestoreIdentityError(member.name)))
     )
   }
 
@@ -411,7 +411,7 @@ class BoardGame private (serverConnection: ServerConnection,
             to.account.id,
             value
           ),
-          responseCallback = _ => gameActionListeners.foreach(_.onTransferToPlayerError(to.member.name))
+          responseCallback = ResponseCallback(gameActionListeners.foreach(_.onTransferToPlayerError(to.member.name)))
       ))
 
   def registerListener(listener: JoinStateListener): Unit =
@@ -1025,7 +1025,8 @@ class BoardGame private (serverConnection: ServerConnection,
         zoneId.get,
         Set(ownerMember.id)
       ),
-      responseCallback = _ => gameActionListeners.foreach(_.onCreateIdentityAccountError(ownerMember.name))
+      responseCallback =
+        ResponseCallback(gameActionListeners.foreach(_.onCreateIdentityAccountError(ownerMember.name)))
     )
 
 }

@@ -214,13 +214,12 @@ class ServerConnectionSpec
   private[this] def send(command: Command): Future[Response] = {
     val promise = Promise[Response]
     MainHandlerWrapper.post(
-      () =>
-        serverConnection.sendCommand(
-          command,
-          new ResponseCallback {
-            override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
-            override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
-          }
+      serverConnection.sendCommand(
+        command,
+        new ResponseCallback {
+          override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
+          override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
+        }
       ))
     promise.future
   }
@@ -256,22 +255,23 @@ class ServerConnectionSpec
 
   "ServerConnection" - {
     "will connect to the server and update the connection state as it does so" in { sub =>
-      clientConnectionActorTestProbe.setAutoPilot((sender: ActorRef, msg: Any) =>
-        msg match {
+      clientConnectionActorTestProbe.setAutoPilot(new TestActor.AutoPilot {
+        override def run(sender: ActorRef, msg: Any): TestActor.AutoPilot = msg match {
           case ActorSinkInit =>
             sender.tell(
               WrappedJsonRpcNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
               sender = clientConnectionActorTestProbe.ref
             )
             TestActor.NoAutoPilot
+        }
       })
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
-      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
@@ -299,35 +299,40 @@ class ServerConnectionSpec
           name = Some("Dave's Game")
         )
       )
-      clientConnectionActorTestProbe.setAutoPilot((sender: ActorRef, msg: Any) =>
-        msg match {
+      clientConnectionActorTestProbe.setAutoPilot(new TestActor.AutoPilot {
+        override def run(sender: ActorRef, msg: Any): TestActor.AutoPilot = msg match {
           case ActorSinkInit =>
             sender.tell(
               WrappedJsonRpcNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
               sender = clientConnectionActorTestProbe.ref
             )
-            (sender: ActorRef, msg: Any) =>
-              msg match {
-                case WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
-                  assert(jsonRpcRequestMessage.id === NumericCorrelationId(0))
-                  assert(Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
-                  sender.tell(
-                    WrappedJsonRpcResponse(
-                      SuccessResponse.write(createZoneResponse, jsonRpcRequestMessage.id)
-                    ),
-                    sender = clientConnectionActorTestProbe.ref
-                  )
+            new TestActor.AutoPilot {
+              override def run(sender: ActorRef, msg: Any): TestActor.AutoPilot = {
+                msg match {
+                  case WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
+                    assert(jsonRpcRequestMessage.id === NumericCorrelationId(0))
+                    assert(Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
+                    sender.tell(
+                      WrappedJsonRpcResponse(
+                        SuccessResponse.write(createZoneResponse, jsonRpcRequestMessage.id)
+                      ),
+                      sender = clientConnectionActorTestProbe.ref
+                    )
+                }
+
+                TestActor.NoAutoPilot
               }
-              TestActor.NoAutoPilot
+            }
+        }
       })
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
       assert(send(createZoneCommand).futureValue === createZoneResponse)
-      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }

@@ -15,7 +15,6 @@ import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.ws.protocol._
 import okio.ByteString
 import org.scalatest._
@@ -159,7 +158,6 @@ class LiquidityHealthcheck extends fixture.FreeSpec with ScalaFutures with Insid
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     handlerWrapperFactory.synchronized(handlerWrappers.foreach(_.quit()))
-    delete(filesDir)
     super.afterAll()
   }
 

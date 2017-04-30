@@ -186,7 +186,6 @@ lazy val healthcheck = project
     name := "liquidity-healthcheck"
   )
   .dependsOn(client)
-  .dependsOn(server % "compile->test")
   .settings(
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.17",

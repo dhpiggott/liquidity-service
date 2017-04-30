@@ -216,8 +216,8 @@ class ZoneAnalyticsActor(
           Future.successful(())
         case _: ZoneNameChangedEvent =>
           Future.successful(())
-        case event: Event =>
-          analyticsStore.zoneStore.updateModified(zoneId, event.timestamp)
+        case zoneEvent: ZoneEvent =>
+          analyticsStore.zoneStore.updateModified(zoneId, zoneEvent.timestamp)
       }
       _ <- analyticsStore.journalSequenceNumberStore.update(zoneId, envelope.sequenceNr)
     } yield (envelope.sequenceNr, updatedZone, updatedBalances, updatedClients)

@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package dhpcs.liquidity.model;
+
+option java_package = "com.dhpcs.liquidity.proto.model";
+
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
+
+message BigDecimal {
+    int32 scale = 1;
+    bytes value = 2;
+}
+
+message Member {
+    int64 id = 1;
+    bytes owner_public_key = 2;
+    google.protobuf.StringValue name = 3;
+    google.protobuf.Struct metadata = 4;
+}
+
+message Account {
+    int64 id = 1;
+    repeated int64 owner_member_ids = 2;
+    google.protobuf.StringValue name = 3;
+    google.protobuf.Struct metadata = 4;
+}
+
+message Transaction {
+    int64 id = 1;
+    int64 from = 2;
+    int64 to = 3;
+    BigDecimal value = 4;
+    int64 creator = 5;
+    int64 created = 6;
+    google.protobuf.StringValue description = 7;
+    google.protobuf.Struct metadata = 8;
+}
+
+message Zone {
+    string id = 1;
+    int64 equity_account_id = 2;
+    repeated Member members = 3;
+    repeated Account accounts = 4;
+    repeated Transaction transactions = 5;
+    int64 created = 6;
+    int64 expires = 7;
+    google.protobuf.StringValue name = 8;
+    google.protobuf.Struct metadata = 9;
+}

@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package dhpcs.liquidity.persistence;
+
+option java_package = "com.dhpcs.liquidity.proto.persistence";
+
+import "google/protobuf/wrappers.proto";
+import "dhpcs/liquidity/model.proto";
+
+message ZoneCreatedEvent {
+    dhpcs.liquidity.model.Zone zone = 1;
+}
+
+message ZoneJoinedEvent {
+    string client_connection_actor_path = 1;
+    bytes public_key = 2;
+}
+
+message ZoneQuitEvent {
+    string client_connection_actor_path = 1;
+}
+
+message ZoneNameChangedEvent {
+    google.protobuf.StringValue name = 1;
+}
+
+message MemberCreatedEvent {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message MemberUpdatedEvent {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message AccountCreatedEvent {
+    dhpcs.liquidity.model.Account account = 1;
+}
+
+message AccountUpdatedEvent {
+    dhpcs.liquidity.model.Account account = 1;
+}
+
+message TransactionAddedEvent {
+    dhpcs.liquidity.model.Transaction transaction = 1;
+}
+
+message ZoneEvent {
+    int64 timestamp = 1;
+    oneof event {
+        ZoneCreatedEvent zone_created_event = 2;
+        ZoneJoinedEvent zone_joined_event = 3;
+        ZoneQuitEvent zone_quit_event = 4;
+        ZoneNameChangedEvent zone_name_changed_event = 5;
+        MemberCreatedEvent member_created_event = 6;
+        MemberUpdatedEvent member_updated_event = 7;
+        AccountCreatedEvent account_created_event = 8;
+        AccountUpdatedEvent account_updated_event = 9;
+        TransactionAddedEvent transaction_added_event = 10;
+    }
+}

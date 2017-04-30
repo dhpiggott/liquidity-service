@@ -25,6 +25,13 @@ lazy val commonSettings = Seq(
   addCommandAlias("validate", ";scalafmtTest; coverage; test; multi-jvm:test; coverageReport") ++
   addCommandAlias("validateAggregate", ";coverageAggregate")
 
+lazy val protobufSettings = Seq(
+  PB.targets in Compile := Seq(
+    scalapb.gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value
+  ),
+  libraryDependencies += "com.trueaccord.scalapb" %% "scalapb-runtime" % com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
+)
+
 lazy val publishSettings = Seq(
   organization := "com.dhpcs"
 )
@@ -41,6 +48,7 @@ lazy val model = project
   .in(file("model"))
   .settings(commonSettings)
   .settings(publishSettings)
+  .settings(protobufSettings)
   .settings(
     name := "liquidity-model"
   )
@@ -68,11 +76,18 @@ lazy val persistence = project
   .in(file("persistence"))
   .settings(commonSettings)
   .settings(noopPublishSettings)
+  .settings(protobufSettings)
   .settings(
     name := "liquidity-persistence"
   )
-  .settings(libraryDependencies +=
-    "com.typesafe.akka" %% "akka-actor" % "2.4.17")
+  .settings(
+    PB.includePaths in Compile += file("model/src/main/protobuf")
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-actor"       % "2.4.17",
+      "com.typesafe.akka" %% "akka-persistence" % "2.4.17"
+    ))
   .dependsOn(model)
   .dependsOn(serialization)
 
@@ -153,12 +168,13 @@ lazy val server = project
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(
-    dockerBaseImage := "openjdk:8-jre",
-    daemonUser in Docker := "root",
+    mainClass in Compile := Some("com.dhpcs.liquidity.server.LiquidityServer"),
     bashScriptExtraDefines ++= Seq(
       "addJava -Djdk.tls.ephemeralDHKeySize=2048",
       "addJava -Djdk.tls.rejectClientInitiatedRenegotiation=true"
-    )
+    ),
+    dockerBaseImage := "openjdk:8-jre",
+    daemonUser in Docker := "root"
   )
 
 lazy val client = project

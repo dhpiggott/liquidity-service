@@ -51,7 +51,7 @@ object ZoneValidatorActor {
                                  balances: Map[AccountId, BigDecimal] = Map.empty.withDefaultValue(BigDecimal(0)),
                                  clientConnections: Map[ActorPath, PublicKey] = Map.empty[ActorPath, PublicKey]) {
 
-    def updated(event: Event): State = event match {
+    def updated(zoneEvent: ZoneEvent): State = zoneEvent match {
       case zoneCreatedEvent: ZoneCreatedEvent =>
         copy(
           zone = zoneCreatedEvent.zone
@@ -267,8 +267,8 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   override def receiveCommand: Receive = waitForZone
 
   override def receiveRecover: Receive = {
-    case event: Event =>
-      updateState(event)
+    case zoneEvent: ZoneEvent =>
+      updateState(zoneEvent)
     case RecoveryCompleted =>
       state.clientConnections.keys.foreach(clientConnection =>
         context.actorSelection(clientConnection) ! ZoneRestarted(zoneId))
@@ -361,9 +361,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         pendingDeliveries = pendingDeliveries - clientConnection.path
     }
 
-  private[this] def updateState(event: Event): Unit = {
-    state = state.updated(event)
-    if (event.isInstanceOf[ZoneCreatedEvent])
+  private[this] def updateState(zoneEvent: ZoneEvent): Unit = {
+    state = state.updated(zoneEvent)
+    if (zoneEvent.isInstanceOf[ZoneCreatedEvent])
       context.become(withZone)
   }
 

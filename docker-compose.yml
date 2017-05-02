@@ -7,11 +7,6 @@ services:
     - cassandra-data:/var/lib/cassandra
   akka-cluster:
     build: akka-cluster
-  journal-migration:
-    build: server
-    command: ["-main", "com.dhpcs.liquidity.server.JournalMigration"]
-    links:
-      - cassandra
   zone-host-seed:
     build: server
     restart: always

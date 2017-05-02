@@ -59,19 +59,6 @@ lazy val model = project
     ))
   .settings(libraryDependencies += scalaTest % Test)
 
-lazy val serialization = project
-  .in(file("serialization"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
-  .settings(
-    name := "liquidity-serialization"
-  )
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor" % "2.4.17",
-      playJson
-    ))
-
 lazy val persistence = project
   .in(file("persistence"))
   .settings(commonSettings)
@@ -89,7 +76,6 @@ lazy val persistence = project
       "com.typesafe.akka" %% "akka-persistence" % "2.4.17"
     ))
   .dependsOn(model)
-  .dependsOn(serialization)
 
 lazy val wsProtocol = project
   .in(file("ws-protocol"))
@@ -110,9 +96,10 @@ lazy val actorProtocol = project
   .settings(
     name := "liquidity-actor-protocol"
   )
+  .settings(libraryDependencies +=
+    "com.typesafe.akka" %% "akka-actor" % "2.4.17")
   .dependsOn(model)
   .dependsOn(wsProtocol)
-  .dependsOn(serialization)
 
 lazy val certgen = project
   .in(file("certgen"))
@@ -226,7 +213,6 @@ lazy val root = project
   )
   .aggregate(
     model,
-    serialization,
     persistence,
     wsProtocol,
     actorProtocol,

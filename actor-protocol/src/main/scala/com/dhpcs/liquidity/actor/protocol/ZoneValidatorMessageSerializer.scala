@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.actor.protocol
 
-import com.dhpcs.liquidity.serialization.PlayJsonSerializer
-import com.dhpcs.liquidity.serialization.PlayJsonSerializer._
+import com.dhpcs.liquidity.actor.protocol.PlayJsonSerializer._
 
 class ZoneValidatorMessageSerializer extends PlayJsonSerializer {
 

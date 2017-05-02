@@ -1,9 +1,9 @@
-package com.dhpcs.liquidity.serialization
+package com.dhpcs.liquidity.actor.protocol
 
 import java.nio.charset.StandardCharsets
 
 import akka.serialization.SerializerWithStringManifest
-import com.dhpcs.liquidity.serialization.PlayJsonSerializer._
+import com.dhpcs.liquidity.actor.protocol.PlayJsonSerializer._
 import play.api.libs.json.{Format => JFormat, _}
 
 import scala.reflect.ClassTag

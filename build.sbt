@@ -77,7 +77,7 @@ lazy val persistence = project
     ))
   .dependsOn(model)
 
-lazy val wsProtocol = project
+lazy val `ws-protocol` = project
   .in(file("ws-protocol"))
   .settings(commonSettings)
   .settings(publishSettings)
@@ -89,7 +89,7 @@ lazy val wsProtocol = project
   .dependsOn(model)
   .settings(libraryDependencies += scalaTest % Test)
 
-lazy val actorProtocol = project
+lazy val `actor-protocol` = project
   .in(file("actor-protocol"))
   .settings(commonSettings)
   .settings(noopPublishSettings)
@@ -99,7 +99,7 @@ lazy val actorProtocol = project
   .settings(libraryDependencies +=
     "com.typesafe.akka" %% "akka-actor" % "2.4.17")
   .dependsOn(model)
-  .dependsOn(wsProtocol)
+  .dependsOn(`ws-protocol`)
 
 lazy val certgen = project
   .in(file("certgen"))
@@ -121,8 +121,8 @@ lazy val server = project
   )
   .dependsOn(model)
   .dependsOn(persistence)
-  .dependsOn(wsProtocol)
-  .dependsOn(actorProtocol)
+  .dependsOn(`ws-protocol`)
+  .dependsOn(`actor-protocol`)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.17",
     "ch.qos.logback"           % "logback-classic"                      % "1.2.3",
@@ -171,7 +171,7 @@ lazy val client = project
     name := "liquidity-client"
   )
   .dependsOn(model)
-  .dependsOn(wsProtocol)
+  .dependsOn(`ws-protocol`)
   .settings(libraryDependencies ++= Seq(
     "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
     "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
@@ -214,8 +214,8 @@ lazy val root = project
   .aggregate(
     model,
     persistence,
-    wsProtocol,
-    actorProtocol,
+    `ws-protocol`,
+    `actor-protocol`,
     certgen,
     server,
     client,

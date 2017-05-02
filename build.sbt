@@ -72,8 +72,8 @@ lazy val persistence = project
   )
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor"       % "2.4.17",
-      "com.typesafe.akka" %% "akka-persistence" % "2.4.17"
+      "com.typesafe.akka" %% "akka-actor"       % "2.4.18",
+      "com.typesafe.akka" %% "akka-persistence" % "2.4.18"
     ))
   .dependsOn(model)
 
@@ -97,7 +97,7 @@ lazy val `actor-protocol` = project
     name := "liquidity-actor-protocol"
   )
   .settings(libraryDependencies +=
-    "com.typesafe.akka" %% "akka-actor" % "2.4.17")
+    "com.typesafe.akka" %% "akka-actor" % "2.4.18")
   .dependsOn(model)
   .dependsOn(`ws-protocol`)
 
@@ -124,15 +124,15 @@ lazy val server = project
   .dependsOn(`ws-protocol`)
   .dependsOn(`actor-protocol`)
   .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.17",
+    "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.18",
     "ch.qos.logback"           % "logback-classic"                      % "1.2.3",
-    "com.typesafe.akka"        %% "akka-actor"                          % "2.4.17",
-    "com.typesafe.akka"        %% "akka-cluster"                        % "2.4.17",
-    "com.typesafe.akka"        %% "akka-cluster-sharding"               % "2.4.17",
-    "com.typesafe.akka"        %% "akka-cluster-tools"                  % "2.4.17",
-    "com.typesafe.akka"        %% "akka-distributed-data-experimental"  % "2.4.17",
-    "com.typesafe.akka"        %% "akka-persistence"                    % "2.4.17",
-    "com.typesafe.akka"        %% "akka-persistence-query-experimental" % "2.4.17",
+    "com.typesafe.akka"        %% "akka-actor"                          % "2.4.18",
+    "com.typesafe.akka"        %% "akka-cluster"                        % "2.4.18",
+    "com.typesafe.akka"        %% "akka-cluster-sharding"               % "2.4.18",
+    "com.typesafe.akka"        %% "akka-cluster-tools"                  % "2.4.18",
+    "com.typesafe.akka"        %% "akka-distributed-data-experimental"  % "2.4.18",
+    "com.typesafe.akka"        %% "akka-persistence"                    % "2.4.18",
+    "com.typesafe.akka"        %% "akka-persistence-query-experimental" % "2.4.18",
     "com.typesafe.akka"        %% "akka-persistence-cassandra"          % "0.26",
     "io.netty"                 % "netty-transport-native-epoll"         % "4.1.9.Final" classifier "linux-x86_64",
     "com.google.code.findbugs" % "jsr305"                               % "3.0.2" % Compile,
@@ -150,7 +150,7 @@ lazy val server = project
   .dependsOn(certgen % MultiJvm)
   .settings(libraryDependencies ++= Seq(
     scalaTest              % MultiJvm,
-    "com.typesafe.akka"    %% "akka-multi-node-testkit" % "2.4.17" % MultiJvm,
+    "com.typesafe.akka"    %% "akka-multi-node-testkit" % "2.4.18" % MultiJvm,
     "org.apache.cassandra" % "cassandra-all" % "3.10" % MultiJvm exclude ("io.netty", "netty-all")
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
@@ -190,7 +190,7 @@ lazy val healthcheck = project
   .dependsOn(client)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.17",
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.18",
       scalaTest
     ))
   .enablePlugins(JavaAppPackaging, UniversalPlugin)

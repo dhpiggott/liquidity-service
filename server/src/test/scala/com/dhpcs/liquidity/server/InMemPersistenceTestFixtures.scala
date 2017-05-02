@@ -45,8 +45,8 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |    plugin = "akka.persistence.journal.inmem"
        |    inmem {
        |      event-adapters {
-       |        zone-event-write-adapter = "com.dhpcs.liquidity.persistence.ZoneWriteEventAdapter"
-       |        zone-event-read-adapter = "com.dhpcs.liquidity.persistence.ZoneReadEventAdapter"
+       |        zone-event-write-adapter = "com.dhpcs.liquidity.persistence.ZoneEventAdapter"
+       |        zone-event-read-adapter = "com.dhpcs.liquidity.persistence.ZoneEventAdapter"
        |      }
        |      event-adapter-bindings {
        |        "com.dhpcs.liquidity.persistence.ZoneEvent" = [zone-event-write-adapter]

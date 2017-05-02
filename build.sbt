@@ -54,8 +54,9 @@ lazy val model = project
   )
   .settings(
     libraryDependencies ++= Seq(
-      playJson,
-      "com.squareup.okio" % "okio" % "1.12.0"
+      "com.squareup.okio" % "okio"       % "1.12.0",
+      "com.chuusai"       %% "shapeless" % "2.3.2",
+      playJson
     ))
   .settings(libraryDependencies += scalaTest % Test)
 
@@ -70,12 +71,13 @@ lazy val persistence = project
   .settings(
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-actor"       % "2.4.18",
-      "com.typesafe.akka" %% "akka-persistence" % "2.4.18"
-    ))
+  .settings(libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-actor"       % "2.4.18",
+    "com.typesafe.akka" %% "akka-persistence" % "2.4.18"
+  ))
   .dependsOn(model)
+  .settings(libraryDependencies += scalaTest % Test)
+  .dependsOn(model % "test->test")
 
 lazy val `ws-protocol` = project
   .in(file("ws-protocol"))

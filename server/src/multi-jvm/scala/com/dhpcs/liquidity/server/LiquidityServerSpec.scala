@@ -81,8 +81,8 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |  contact-points = ["localhost"]
        |  keyspace = "liquidity_server_v2"
        |  event-adapters {
-       |    zone-event-write-adapter = "com.dhpcs.liquidity.persistence.ZoneWriteEventAdapter"
-       |    zone-event-read-adapter = "com.dhpcs.liquidity.persistence.ZoneReadEventAdapter"
+       |    zone-event-write-adapter = "com.dhpcs.liquidity.persistence.ZoneEventAdapter"
+       |    zone-event-read-adapter = "com.dhpcs.liquidity.persistence.ZoneEventAdapter"
        |  }
        |  event-adapter-bindings {
        |    "com.dhpcs.liquidity.persistence.ZoneEvent" = [zone-event-write-adapter]

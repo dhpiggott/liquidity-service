@@ -230,17 +230,23 @@ sealed abstract class LiquidityServerSpec
   runOn(clientRelayNode)(
     "The LiquidityServer WebSocket API" - {
       "will send a JSON-RPC SupportedVersionsNotification when connected" in withWsTestProbes { (sub, _) =>
-        assert(expectJsonRpcNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
+        sub.within(5.seconds)(
+          assert(expectJsonRpcNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
+        )
       }
       "will send a JSON-RPC KeepAliveNotification when left idle" in withWsTestProbes { (sub, _) =>
-        assert(expectJsonRpcNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
+        sub.within(5.seconds)(
+          assert(expectJsonRpcNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
+        )
         sub.within(3.5.seconds)(
           assert(expectJsonRpcNotification(sub) === KeepAliveNotification)
         )
       }
       "will reply with a JSON-RPC CreateZoneResponse when sending a JSON-RPC CreateZoneCommand" in withWsTestProbes {
         (sub, pub) =>
-          assert(expectJsonRpcNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
+          sub.within(5.seconds)(
+            assert(expectJsonRpcNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
+          )
           val correlationId = 0L
           sendJsonRpc(pub)(
             CreateZoneCommand(
@@ -258,9 +264,9 @@ sealed abstract class LiquidityServerSpec
               assert(zone.equityAccountId === AccountId(0))
               assert(zone.members(MemberId(0)) === Member(MemberId(0), clientPublicKey, name = Some("Dave")))
               assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
-              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 250L))
+              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
               assert(
-                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 250L))
+                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 500L))
               assert(zone.transactions === Map.empty)
               assert(zone.name === Some("Dave's Game"))
               assert(zone.metadata === None)
@@ -268,7 +274,9 @@ sealed abstract class LiquidityServerSpec
       }
       "will reply with a JSON-RPC JoinZoneResponse when sending a JSON-RPC JoinZoneCommand" in withWsTestProbes {
         (sub, pub) =>
-          assert(expectJsonRpcNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
+          sub.within(5.seconds)(
+            assert(expectJsonRpcNotification(sub) === SupportedVersionsNotification(CompatibleVersionNumbers))
+          )
           val correlationId = 0L
           sendJsonRpc(pub)(
             CreateZoneCommand(
@@ -287,9 +295,9 @@ sealed abstract class LiquidityServerSpec
               assert(zone.equityAccountId === AccountId(0))
               assert(zone.members(MemberId(0)) === Member(MemberId(0), clientPublicKey, name = Some("Dave")))
               assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
-              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 250L))
+              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
               assert(
-                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 250L))
+                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 500L))
               assert(zone.transactions === Map.empty)
               assert(zone.name === Some("Dave's Game"))
               assert(zone.metadata === None)

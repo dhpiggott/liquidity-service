@@ -136,14 +136,29 @@ class ServerConnection(filesDir: File,
   def this(filesDir: File,
            keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
            connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
+           handlerWrapperFactory: HandlerWrapperFactory,
+           hostname: Option[String],
+           port: Option[Int]) =
+    this(
+      filesDir,
+      keyStoreInputStreamProvider,
+      connectivityStatePublisherBuilder,
+      handlerWrapperFactory,
+      hostname.getOrElse("liquidity.dhpcs.com"),
+      port.getOrElse(443)
+    )
+
+  def this(filesDir: File,
+           keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
+           connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
            handlerWrapperFactory: HandlerWrapperFactory) =
     this(
       filesDir,
       keyStoreInputStreamProvider,
       connectivityStatePublisherBuilder,
       handlerWrapperFactory,
-      hostname = "liquidity.dhpcs.com",
-      port = 443
+      hostname = None,
+      port = None
     )
 
   private[this] lazy val (clientKeyStore, okHttpClient) = {

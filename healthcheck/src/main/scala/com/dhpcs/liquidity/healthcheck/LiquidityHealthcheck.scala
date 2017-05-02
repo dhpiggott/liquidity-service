@@ -87,11 +87,22 @@ object LiquidityHealthcheck {
     metadata = Some(Json.obj("currency" -> "GBP"))
   )
 
-  def main(args: Array[String]): Unit = new LiquidityHealthcheck().execute(durations = true, stats = true)
+  def main(args: Array[String]): Unit =
+    new LiquidityHealthcheck(
+      hostname = args.lift(0),
+      port = args.lift(1).map(_.toInt)
+    ).execute(
+      durations = true,
+      stats = true
+    )
 
 }
 
-class LiquidityHealthcheck extends fixture.FreeSpec with ScalaFutures with Inside with BeforeAndAfterAll {
+class LiquidityHealthcheck(hostname: Option[String], port: Option[Int])
+    extends fixture.FreeSpec
+    with ScalaFutures
+    with Inside
+    with BeforeAndAfterAll {
 
   private[this] val filesDir = Files.createTempDirectory("liquidity-healthcheck-files-dir")
 
@@ -134,7 +145,9 @@ class LiquidityHealthcheck extends fixture.FreeSpec with ScalaFutures with Insid
     filesDir.toFile,
     keyStoreInputStreamProvider,
     connectivityStatePublisherBuilder,
-    handlerWrapperFactory
+    handlerWrapperFactory,
+    hostname,
+    port
   )
 
   private[this] def send(command: Command): Future[Response] = {

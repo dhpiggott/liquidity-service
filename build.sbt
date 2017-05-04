@@ -139,13 +139,13 @@ lazy val server = project
     "io.netty"                 % "netty-transport-native-epoll"         % "4.1.10.Final" classifier "linux-x86_64",
     "com.google.code.findbugs" % "jsr305"                               % "3.0.2" % Compile,
     "com.datastax.cassandra"   % "cassandra-driver-core"                % "3.2.0",
-    "com.typesafe.akka"        %% "akka-http"                           % "10.0.5",
+    "com.typesafe.akka"        %% "akka-http"                           % "10.0.6",
     playJson
   ))
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
     scalaTest           % Test,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.5" % Test
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.6" % Test
   ))
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)

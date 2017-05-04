@@ -20,9 +20,10 @@ lazy val commonSettings = Seq(
     "-Ywarn-unused",
     "-Ywarn-unused-import"
   ),
-  resolvers += Resolver.bintrayRepo("dhpcs", "maven")
+  resolvers += Resolver.bintrayRepo("dhpcs", "maven"),
+  coverageExcludedFiles := ".*/target/.*"
 ) ++
-  addCommandAlias("validate", ";scalafmtTest; coverage; test; multi-jvm:test; coverageReport") ++
+  addCommandAlias("validate", ";clean; scalafmtTest; coverage; test; multi-jvm:test; coverageReport") ++
   addCommandAlias("validateAggregate", ";coverageAggregate")
 
 lazy val protobufSettings = Seq(

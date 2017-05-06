@@ -2,7 +2,9 @@ package com.dhpcs.liquidity
 
 import akka.actor.ActorPath
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.serialization.ProtoConverter
 
+import scala.reflect.ClassTag
 import scala.util.matching.Regex
 
 package object persistence {
@@ -21,124 +23,28 @@ package object persistence {
   implicit final val ActorPathProtoConverter: ProtoConverter[ActorPath, String] =
     ProtoConverter.instance(_.toSerializationFormat, ActorPath.fromString)
 
-  implicit final val ZoneEventProtoConverter: ProtoConverter[ZoneEvent, proto.persistence.ZoneEvent] =
+  def optionProtoConverter[S, P](
+      implicit protoConverter: ProtoConverter[S, P],
+      protoClassTag: ClassTag[P]
+  ): ProtoConverter[S, Option[P]] =
     ProtoConverter.instance(
-      zoneEvent =>
-        proto.persistence.ZoneEvent(
-          timestamp = zoneEvent.timestamp,
-          event = zoneEvent match {
-            case ZoneCreatedEvent(_, zone) =>
-              proto.persistence.ZoneEvent.Event.ZoneCreatedEvent(
-                proto.persistence.ZoneCreatedEvent(
-                  zone = Some(
-                    ProtoConverter[Zone, proto.model.Zone].asProto(zone)
-                  )
-                ))
-            case ZoneJoinedEvent(_, clientConnectionActorPath, publicKey) =>
-              proto.persistence.ZoneEvent.Event.ZoneJoinedEvent(proto.persistence.ZoneJoinedEvent(
-                clientConnectionActorPath = ProtoConverter[ActorPath, String].asProto(clientConnectionActorPath),
-                publicKey = ProtoConverter[PublicKey, com.google.protobuf.ByteString].asProto(publicKey)
-              ))
-            case ZoneQuitEvent(_, clientConnectionActorPath) =>
-              proto.persistence.ZoneEvent.Event.ZoneQuitEvent(
-                proto.persistence.ZoneQuitEvent(
-                  clientConnectionActorPath = ProtoConverter[ActorPath, String].asProto(clientConnectionActorPath)
-                ))
-            case ZoneNameChangedEvent(_, name) =>
-              proto.persistence.ZoneEvent.Event.ZoneNameChangedEvent(proto.persistence.ZoneNameChangedEvent(name))
-            case MemberCreatedEvent(_, member) =>
-              proto.persistence.ZoneEvent.Event.MemberCreatedEvent(
-                proto.persistence.MemberCreatedEvent(
-                  member = Some(
-                    ProtoConverter[Member, proto.model.Member].asProto(member)
-                  )
-                ))
-            case MemberUpdatedEvent(_, member) =>
-              proto.persistence.ZoneEvent.Event.MemberUpdatedEvent(
-                proto.persistence.MemberUpdatedEvent(
-                  member = Some(
-                    ProtoConverter[Member, proto.model.Member].asProto(member)
-                  )
-                ))
-            case AccountCreatedEvent(_, account) =>
-              proto.persistence.ZoneEvent.Event.AccountCreatedEvent(
-                proto.persistence.AccountCreatedEvent(
-                  account = Some(
-                    ProtoConverter[Account, proto.model.Account].asProto(account)
-                  )
-                ))
-            case AccountUpdatedEvent(_, account) =>
-              proto.persistence.ZoneEvent.Event.AccountUpdatedEvent(
-                proto.persistence.AccountUpdatedEvent(
-                  account = Some(
-                    ProtoConverter[Account, proto.model.Account].asProto(account)
-                  )
-                ))
-            case TransactionAddedEvent(_, transaction) =>
-              proto.persistence.ZoneEvent.Event.TransactionAddedEvent(
-                proto.persistence.TransactionAddedEvent(
-                  transaction = Some(
-                    ProtoConverter[Transaction, proto.model.Transaction].asProto(transaction)
-                  )
-                ))
-          }
-      ),
-      zoneEvent =>
-        zoneEvent.event match {
-          case proto.persistence.ZoneEvent.Event.Empty =>
-            throw new IllegalArgumentException("Empty Event")
-          case proto.persistence.ZoneEvent.Event.ZoneCreatedEvent(value) =>
-            ZoneCreatedEvent(
-              zoneEvent.timestamp,
-              ProtoConverter[Zone, proto.model.Zone]
-                .asScala(value.zone.getOrElse(throw new IllegalArgumentException("Empty Zone")))
-            )
-          case proto.persistence.ZoneEvent.Event.ZoneJoinedEvent(value) =>
-            ZoneJoinedEvent(
-              zoneEvent.timestamp,
-              ActorPathProtoConverter.asScala(value.clientConnectionActorPath),
-              PublicKeyProtoConverter.asScala(value.publicKey)
-            )
-          case proto.persistence.ZoneEvent.Event.ZoneQuitEvent(value) =>
-            ZoneQuitEvent(
-              zoneEvent.timestamp,
-              ActorPathProtoConverter.asScala(value.clientConnectionActorPath)
-            )
-          case proto.persistence.ZoneEvent.Event.ZoneNameChangedEvent(value) =>
-            ZoneNameChangedEvent(
-              zoneEvent.timestamp,
-              value.name
-            )
-          case proto.persistence.ZoneEvent.Event.MemberCreatedEvent(value) =>
-            MemberCreatedEvent(
-              zoneEvent.timestamp,
-              ProtoConverter[Member, proto.model.Member]
-                .asScala(value.member.getOrElse(throw new IllegalArgumentException("Empty Member")))
-            )
-          case proto.persistence.ZoneEvent.Event.MemberUpdatedEvent(value) =>
-            MemberUpdatedEvent(
-              zoneEvent.timestamp,
-              ProtoConverter[Member, proto.model.Member]
-                .asScala(value.member.getOrElse(throw new IllegalArgumentException("Empty Member")))
-            )
-          case proto.persistence.ZoneEvent.Event.AccountCreatedEvent(value) =>
-            AccountCreatedEvent(
-              zoneEvent.timestamp,
-              ProtoConverter[Account, proto.model.Account]
-                .asScala(value.account.getOrElse(throw new IllegalArgumentException("Empty Account")))
-            )
-          case proto.persistence.ZoneEvent.Event.AccountUpdatedEvent(value) =>
-            AccountUpdatedEvent(
-              zoneEvent.timestamp,
-              ProtoConverter[Account, proto.model.Account]
-                .asScala(value.account.getOrElse(throw new IllegalArgumentException("Empty Account")))
-            )
-          case proto.persistence.ZoneEvent.Event.TransactionAddedEvent(value) =>
-            TransactionAddedEvent(
-              zoneEvent.timestamp,
-              ProtoConverter[Transaction, proto.model.Transaction]
-                .asScala(value.transaction.getOrElse(throw new IllegalArgumentException("Empty Transaction")))
-            )
-      }
+      s => Some(protoConverter.asProto(s)),
+      p =>
+        protoConverter.asScala(
+          p.getOrElse(throw new IllegalArgumentException(s"Empty ${protoClassTag.runtimeClass.getSimpleName}"))
+      )
     )
+
+  implicit final val ZoneOptionProtoConverter: ProtoConverter[Zone, Option[proto.model.Zone]] =
+    optionProtoConverter[Zone, proto.model.Zone]
+
+  implicit final val MemberOptionProtoConverter: ProtoConverter[Member, Option[proto.model.Member]] =
+    optionProtoConverter[Member, proto.model.Member]
+
+  implicit final val AccountOptionProtoConverter: ProtoConverter[Account, Option[proto.model.Account]] =
+    optionProtoConverter[Account, proto.model.Account]
+
+  implicit final val TransactionOptionProtoConverter: ProtoConverter[Transaction, Option[proto.model.Transaction]] =
+    optionProtoConverter[Transaction, proto.model.Transaction]
+
 }

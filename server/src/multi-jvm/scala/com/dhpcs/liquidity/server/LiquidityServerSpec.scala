@@ -49,11 +49,12 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |  actor {
        |    provider = "akka.cluster.ClusterActorRefProvider"
        |    serializers {
+       |      zone-event = "com.dhpcs.liquidity.persistence.ZoneEventSerializer"
        |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
        |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
        |    }
        |    serialization-bindings {
-       |      "com.trueaccord.scalapb.GeneratedMessage" = proto
+       |      "com.dhpcs.liquidity.persistence.ZoneEvent" = zone-event
        |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
        |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
        |    }
@@ -79,22 +80,14 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |}
        |cassandra-journal {
        |  contact-points = ["localhost"]
-       |  keyspace = "liquidity_server_v2"
-       |  event-adapters {
-       |    zone-event-write-adapter = "com.dhpcs.liquidity.persistence.ZoneEventAdapter"
-       |    zone-event-read-adapter = "com.dhpcs.liquidity.persistence.ZoneEventAdapter"
-       |  }
-       |  event-adapter-bindings {
-       |    "com.dhpcs.liquidity.persistence.ZoneEvent" = [zone-event-write-adapter]
-       |    "com.dhpcs.liquidity.proto.persistence.ZoneEvent" = [zone-event-read-adapter]
-       |  }
+       |  keyspace = "liquidity_server_v3"
        |}
        |liquidity {
        |  server.http {
        |    keep-alive-interval = 3s
        |    interface = "0.0.0.0"
        |  }
-       |  analytics.cassandra.keyspace = "liquidity_analytics_v2"
+       |  analytics.cassandra.keyspace = "liquidity_analytics_v3"
        |}
      """.stripMargin))
 

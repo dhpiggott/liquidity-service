@@ -2,6 +2,7 @@ package com.dhpcs.liquidity
 
 import java.util.UUID
 
+import com.dhpcs.liquidity.serialization.ProtoConverter
 import play.api.libs.json._
 
 package object model {

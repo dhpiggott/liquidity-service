@@ -6,6 +6,7 @@ import java.util.UUID
 import com.dhpcs.liquidity.model.ModelSpec._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.model
+import com.dhpcs.liquidity.serialization.ProtoConverter
 import org.scalatest.FreeSpec
 import play.api.libs.json.Json
 

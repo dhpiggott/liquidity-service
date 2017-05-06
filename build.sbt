@@ -45,6 +45,22 @@ lazy val playJson = "com.typesafe.play" %% "play-json" % "2.6.0-M7"
 
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.3"
 
+lazy val serialization = project
+  .in(file("serialization"))
+  .settings(commonSettings)
+  .settings(noopPublishSettings)
+  .settings(protobufSettings)
+  .settings(
+    name := "liquidity-serialization"
+  )
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.chuusai"       %% "shapeless"   % "2.3.2",
+      "com.typesafe.akka" %% "akka-actor"  % "2.4.18",
+      "com.typesafe.akka" %% "akka-remote" % "2.4.18",
+      playJson
+    ))
+
 lazy val model = project
   .in(file("model"))
   .settings(commonSettings)
@@ -53,12 +69,8 @@ lazy val model = project
   .settings(
     name := "liquidity-model"
   )
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.squareup.okio" % "okio"       % "1.12.0",
-      "com.chuusai"       %% "shapeless" % "2.3.2",
-      playJson
-    ))
+  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.12.0")
+  .dependsOn(serialization)
   .settings(libraryDependencies += scalaTest % Test)
 
 lazy val persistence = project
@@ -72,11 +84,8 @@ lazy val persistence = project
   .settings(
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
-  .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-actor"       % "2.4.18",
-    "com.typesafe.akka" %% "akka-persistence" % "2.4.18"
-  ))
   .dependsOn(model)
+  .dependsOn(serialization)
   .settings(libraryDependencies += scalaTest % Test)
   .dependsOn(model % "test->test")
 
@@ -87,8 +96,7 @@ lazy val `ws-protocol` = project
   .settings(
     name := "liquidity-ws-protocol"
   )
-  .settings(libraryDependencies +=
-    "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
+  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
   .dependsOn(model)
   .settings(libraryDependencies += scalaTest % Test)
 
@@ -100,10 +108,9 @@ lazy val `actor-protocol` = project
   .settings(
     name := "liquidity-actor-protocol"
   )
-  .settings(libraryDependencies ++= Seq("com.typesafe.akka" %% "akka-actor"  % "2.4.18",
-                                        "com.typesafe.akka" %% "akka-remote" % "2.4.18"))
   .dependsOn(model)
   .dependsOn(`ws-protocol`)
+  .dependsOn(serialization)
 
 lazy val certgen = project
   .in(file("certgen"))
@@ -112,8 +119,7 @@ lazy val certgen = project
   .settings(
     name := "liquidity-certgen"
   )
-  .settings(libraryDependencies +=
-    "org.bouncycastle" % "bcpkix-jdk15on" % "1.56")
+  .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.56")
   .settings(libraryDependencies += scalaTest % Test)
 
 lazy val server = project
@@ -159,6 +165,7 @@ lazy val server = project
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(
+    mainClass in Compile := Some("com.dhpcs.liquidity.server.LiquidityServer"),
     bashScriptExtraDefines ++= Seq(
       "addJava -Djdk.tls.ephemeralDHKeySize=2048",
       "addJava -Djdk.tls.rejectClientInitiatedRenegotiation=true"
@@ -216,6 +223,7 @@ lazy val root = project
     name := "liquidity"
   )
   .aggregate(
+    serialization,
     model,
     persistence,
     `ws-protocol`,

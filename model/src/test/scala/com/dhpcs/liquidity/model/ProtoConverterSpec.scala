@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.model
 
+import com.dhpcs.liquidity.serialization.ProtoConverter
 import org.scalatest.FreeSpec
 import play.api.libs.json.{JsObject, Json}
 

@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.actor.protocol
+package com.dhpcs.liquidity.serialization
 
 import java.io.NotSerializableException
 import java.util.concurrent.atomic.AtomicReference
@@ -6,8 +6,7 @@ import java.util.concurrent.atomic.AtomicReference
 import akka.actor.ExtendedActorSystem
 import akka.remote.serialization.ProtobufSerializer
 import akka.serialization.SerializerWithStringManifest
-import com.dhpcs.liquidity.actor.protocol.ProtoConverterSerializer._
-import com.dhpcs.liquidity.model.ProtoConverter
+import com.dhpcs.liquidity.serialization.ProtoConverterSerializer.AnyRefProtoConverter
 
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq

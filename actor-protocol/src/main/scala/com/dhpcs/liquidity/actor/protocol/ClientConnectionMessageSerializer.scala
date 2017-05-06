@@ -1,8 +1,9 @@
 package com.dhpcs.liquidity.actor.protocol
 
 import akka.actor.ExtendedActorSystem
-import com.dhpcs.liquidity.actor.protocol.ProtoConverterSerializer._
 import com.dhpcs.liquidity.proto
+import com.dhpcs.liquidity.serialization.ProtoConverterSerializer
+import com.dhpcs.liquidity.serialization.ProtoConverterSerializer._
 
 import scala.collection.immutable.Seq
 

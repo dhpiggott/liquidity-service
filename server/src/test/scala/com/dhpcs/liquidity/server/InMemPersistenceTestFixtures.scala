@@ -15,11 +15,12 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |  actor {
        |    provider = "akka.cluster.ClusterActorRefProvider"
        |    serializers {
+       |      zone-event = "com.dhpcs.liquidity.persistence.ZoneEventSerializer"
        |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
        |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
        |    }
        |    serialization-bindings {
-       |      "com.trueaccord.scalapb.GeneratedMessage" = proto
+       |      "com.dhpcs.liquidity.persistence.ZoneEvent" = zone-event
        |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
        |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
        |    }
@@ -43,16 +44,6 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |  persistence.journal {
        |    auto-start-journals = ["akka.persistence.journal.inmem"]
        |    plugin = "akka.persistence.journal.inmem"
-       |    inmem {
-       |      event-adapters {
-       |        zone-event-write-adapter = "com.dhpcs.liquidity.persistence.ZoneEventAdapter"
-       |        zone-event-read-adapter = "com.dhpcs.liquidity.persistence.ZoneEventAdapter"
-       |      }
-       |      event-adapter-bindings {
-       |        "com.dhpcs.liquidity.persistence.ZoneEvent" = [zone-event-write-adapter]
-       |        "com.dhpcs.liquidity.proto.persistence.ZoneEvent" = [zone-event-read-adapter]
-       |      }
-       |    }
        |  }
        |}
      """.stripMargin).resolve()

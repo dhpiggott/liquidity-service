@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.model
+package com.dhpcs.liquidity.serialization
 
 import play.api.libs.json._
 import shapeless.{:+:, ::, Coproduct, Generic, HList, Inl, Inr, Lazy}

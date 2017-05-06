@@ -212,10 +212,6 @@ class ZoneAnalyticsActor(
           } yield ()
       }
       _ <- envelope.event match {
-        case _: ZoneCreatedEvent =>
-          Future.successful(())
-        case _: ZoneNameChangedEvent =>
-          Future.successful(())
         case zoneEvent: ZoneEvent =>
           analyticsStore.zoneStore.updateModified(zoneId, zoneEvent.timestamp)
       }

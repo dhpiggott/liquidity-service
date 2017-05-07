@@ -165,7 +165,6 @@ lazy val server = project
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(
-    mainClass in Compile := Some("com.dhpcs.liquidity.server.LiquidityServer"),
     bashScriptExtraDefines ++= Seq(
       "addJava -Djdk.tls.ephemeralDHKeySize=2048",
       "addJava -Djdk.tls.rejectClientInitiatedRenegotiation=true"

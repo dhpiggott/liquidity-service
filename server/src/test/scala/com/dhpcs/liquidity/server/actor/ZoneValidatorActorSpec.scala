@@ -6,10 +6,10 @@ import java.time.temporal.ChronoUnit
 
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
+import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
-import com.dhpcs.liquidity.ws.protocol._
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{FreeSpec, Inside}
 
@@ -33,23 +33,21 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = 0L
       val sequenceNumber                      = 1L
-      send(clientConnectionTestProbe)(
-        EnvelopedAuthenticatedCommandWithIds(
-          zoneId,
-          AuthenticatedCommandWithIds(
-            publicKey,
-            CreateZoneCommand(
-              equityOwnerPublicKey = publicKey,
-              equityOwnerName = Some("Dave"),
-              equityOwnerMetadata = None,
-              equityAccountName = None,
-              equityAccountMetadata = None,
-              name = Some("Dave's Game")
-            ),
-            correlationId,
-            sequenceNumber,
-            deliveryId = 1L
-          )
+      send(clientConnectionTestProbe, zoneId)(
+        AuthenticatedZoneCommandWithIds(
+          publicKey,
+          CreateZoneCommand(
+            zoneId,
+            equityOwnerPublicKey = publicKey,
+            equityOwnerName = Some("Dave"),
+            equityOwnerMetadata = None,
+            equityAccountName = None,
+            equityAccountMetadata = None,
+            name = Some("Dave's Game")
+          ),
+          correlationId,
+          sequenceNumber,
+          deliveryId = 1L
         )
       )
       inside(expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
@@ -70,7 +68,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       val correlationId                       = 0L
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe, zoneId)(
-        AuthenticatedCommandWithIds(
+        AuthenticatedZoneCommandWithIds(
           publicKey,
           JoinZoneCommand(
             zoneId
@@ -93,15 +91,8 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
     (clientConnectionTestProbe, zoneId)
   }
 
-  private[this] def send(clientConnectionTestProbe: TestProbe)(
-      envelopedAuthenticatedCommandWithIds: EnvelopedAuthenticatedCommandWithIds): Unit = {
-    val zoneId     = envelopedAuthenticatedCommandWithIds.zoneId
-    val deliveryId = envelopedAuthenticatedCommandWithIds.authenticatedCommandWithIds.deliveryId
-    send(clientConnectionTestProbe, message = envelopedAuthenticatedCommandWithIds, zoneId, deliveryId)
-  }
-
   private[this] def send(clientConnectionTestProbe: TestProbe, zoneId: ZoneId)(
-      authenticatedCommandWithIds: AuthenticatedCommandWithIds): Unit = {
+      authenticatedCommandWithIds: AuthenticatedZoneCommandWithIds): Unit = {
     val deliveryId = authenticatedCommandWithIds.deliveryId
     send(clientConnectionTestProbe, message = authenticatedCommandWithIds, zoneId, deliveryId)
   }
@@ -111,14 +102,13 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       zoneValidatorShardRegion,
       message
     )
-    val commandReceivedConfirmation = clientConnectionTestProbe.expectMsgType[CommandReceivedConfirmation]
-    assert(commandReceivedConfirmation === CommandReceivedConfirmation(zoneId, deliveryId))
+    clientConnectionTestProbe.expectMsg(ZoneCommandReceivedConfirmation(zoneId, deliveryId))
   }
 
   private[this] def expectResponse(clientConnectionTestProbe: TestProbe,
                                    correlationId: Long,
-                                   sequenceNumber: Long): Response = {
-    val responseWithIds = clientConnectionTestProbe.expectMsgType[ResponseWithIds]
+                                   sequenceNumber: Long): ZoneResponse = {
+    val responseWithIds = clientConnectionTestProbe.expectMsgType[ZoneResponseWithIds]
     assert(responseWithIds.correlationId === correlationId)
     assert(responseWithIds.sequenceNumber === sequenceNumber)
     clientConnectionTestProbe.send(

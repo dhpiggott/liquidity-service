@@ -10,11 +10,11 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
+import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActor._
-import com.dhpcs.liquidity.ws.protocol._
 import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.duration._
@@ -26,19 +26,15 @@ object ZoneValidatorActor {
   final val ShardTypeName = "zone-validator"
 
   val extractEntityId: ShardRegion.ExtractEntityId = {
-    case EnvelopedAuthenticatedCommandWithIds(zoneId, message) =>
-      (zoneId.id.toString, message)
-    case authenticatedCommandWithIds @ AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
-      (zoneCommand.zoneId.id.toString, authenticatedCommandWithIds)
+    case authenticatedCommandWithIds @ AuthenticatedZoneCommandWithIds(_, command: ZoneCommand, _, _, _) =>
+      (command.zoneId.id.toString, authenticatedCommandWithIds)
   }
 
   private val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
-    case EnvelopedAuthenticatedCommandWithIds(zoneId, _) =>
-      (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
-    case AuthenticatedCommandWithIds(_, zoneCommand: ZoneCommand, _, _, _) =>
-      (math.abs(zoneCommand.zoneId.id.hashCode) % NumberOfShards).toString
+    case AuthenticatedZoneCommandWithIds(_, command: ZoneCommand, _, _, _) =>
+      (math.abs(command.zoneId.id.hashCode) % NumberOfShards).toString
   }
 
   final val Topic = "Zone"
@@ -279,11 +275,12 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def waitForZone: Receive =
     publishStatus orElse messageReceivedConfirmation orElse waitForTimeout orElse {
-      case AuthenticatedCommandWithIds(_, command, correlationId, sequenceNumber, deliveryId) =>
+      case AuthenticatedZoneCommandWithIds(_, command, correlationId, sequenceNumber, deliveryId) =>
         passivationCountdownActor ! CommandReceivedEvent
         exactlyOnce(sequenceNumber, deliveryId) {
           command match {
             case CreateZoneCommand(
+                _,
                 equityOwnerPublicKey,
                 equityOwnerName,
                 equityOwnerMetadata,
@@ -346,10 +343,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def withZone: Receive =
     publishStatus orElse messageReceivedConfirmation orElse waitForTimeout orElse {
-      case AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber, deliveryId) =>
+      case AuthenticatedZoneCommandWithIds(publicKey, command, correlationId, sequenceNumber, deliveryId) =>
         passivationCountdownActor ! CommandReceivedEvent
         exactlyOnce(sequenceNumber, deliveryId)(
-          handleZoneCommand(publicKey, command, correlationId)
+          handleCommand(publicKey, command, correlationId)
         )
       case Terminated(clientConnection) =>
         handleQuit(clientConnection) {
@@ -399,15 +396,17 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
     val nextExpectedCommandSequenceNumber = nextExpectedCommandSequenceNumbers(sender().path)
     if (sequenceNumber <= nextExpectedCommandSequenceNumber)
-      sender() ! CommandReceivedConfirmation(zoneId, deliveryId)
+      sender() ! ZoneCommandReceivedConfirmation(zoneId, deliveryId)
     if (sequenceNumber == nextExpectedCommandSequenceNumber) {
       nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers + (sender().path -> (sequenceNumber + 1))
       body
     }
   }
 
-  private[this] def handleZoneCommand(publicKey: PublicKey, command: Command, correlationId: Long): Unit =
+  private[this] def handleCommand(publicKey: PublicKey, command: ZoneCommand, correlationId: Long): Unit =
     command match {
+      case EmptyZoneCommand =>
+        sys.error("EmptyZoneCommand")
       case createZoneCommand: CreateZoneCommand =>
         val sequenceNumber = messageSequenceNumbers(sender().path)
         messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))
@@ -626,10 +625,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         passivationCountdownActor ! Start
     }
 
-  private[this] def deliverResponse(response: Response, correlationId: Long): Unit =
+  private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit =
     deliverResponse {
       case (sequenceNumber, deliveryId) =>
-        ResponseWithIds(
+        ZoneResponseWithIds(
           response,
           correlationId,
           sequenceNumber,
@@ -646,13 +645,13 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     }
   }
 
-  private[this] def deliverNotification(notification: Notification): Unit = {
+  private[this] def deliverNotification(notification: ZoneNotification): Unit = {
     state.clientConnections.keys.foreach { clientConnection =>
       val sequenceNumber = messageSequenceNumbers(clientConnection)
       messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
       deliver(clientConnection) { deliveryId =>
         pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(clientConnection) + deliveryId))
-        NotificationWithIds(notification, sequenceNumber, deliveryId)
+        ZoneNotificationWithIds(notification, sequenceNumber, deliveryId)
       }
     }
   }

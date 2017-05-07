@@ -1,23 +1,98 @@
 package com.dhpcs.liquidity.actor.protocol
 
+import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.ws.protocol._
 import play.api.libs.json._
+
+object ZoneValidatorMessage {
+
+  sealed abstract class ZoneCommand {
+    def zoneId: ZoneId
+  }
+
+  case object EmptyZoneCommand extends ZoneCommand {
+    override def zoneId: ZoneId = sys.error("EmptyZoneCommand")
+  }
+  final case class CreateZoneCommand(zoneId: ZoneId,
+                                     equityOwnerPublicKey: PublicKey,
+                                     equityOwnerName: Option[String],
+                                     equityOwnerMetadata: Option[JsObject],
+                                     equityAccountName: Option[String],
+                                     equityAccountMetadata: Option[JsObject],
+                                     name: Option[String] = None,
+                                     metadata: Option[JsObject] = None)
+      extends ZoneCommand
+  final case class JoinZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
+  final case class QuitZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
+  final case class ChangeZoneNameCommand(zoneId: ZoneId, name: Option[String]) extends ZoneCommand
+  final case class CreateMemberCommand(zoneId: ZoneId,
+                                       ownerPublicKey: PublicKey,
+                                       name: Option[String] = None,
+                                       metadata: Option[JsObject] = None)
+      extends ZoneCommand
+  final case class UpdateMemberCommand(zoneId: ZoneId, member: Member) extends ZoneCommand
+  final case class CreateAccountCommand(zoneId: ZoneId,
+                                        ownerMemberIds: Set[MemberId],
+                                        name: Option[String] = None,
+                                        metadata: Option[JsObject] = None)
+      extends ZoneCommand
+  final case class UpdateAccountCommand(zoneId: ZoneId, account: Account) extends ZoneCommand
+  final case class AddTransactionCommand(zoneId: ZoneId,
+                                         actingAs: MemberId,
+                                         from: AccountId,
+                                         to: AccountId,
+                                         value: BigDecimal,
+                                         description: Option[String] = None,
+                                         metadata: Option[JsObject] = None)
+      extends ZoneCommand {
+    require(value >= 0)
+  }
+
+  sealed abstract class ZoneResponse
+
+  case object EmptyZoneResponse                 extends ZoneResponse
+  final case class ErrorResponse(error: String) extends ZoneResponse
+  sealed abstract class SuccessResponse         extends ZoneResponse
+
+  final case class CreateZoneResponse(zone: Zone)                                 extends SuccessResponse
+  final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends SuccessResponse
+  case object QuitZoneResponse                                                    extends SuccessResponse
+  case object ChangeZoneNameResponse                                              extends SuccessResponse
+  final case class CreateMemberResponse(member: Member)                           extends SuccessResponse
+  case object UpdateMemberResponse                                                extends SuccessResponse
+  final case class CreateAccountResponse(account: Account)                        extends SuccessResponse
+  case object UpdateAccountResponse                                               extends SuccessResponse
+  final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
+
+  sealed abstract class ZoneNotification {
+    def zoneId: ZoneId
+  }
+
+  case object EmptyZoneNotification extends ZoneNotification {
+    override def zoneId: ZoneId = sys.error("EmptyZoneNotification")
+  }
+  final case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey)     extends ZoneNotification
+  final case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey)       extends ZoneNotification
+  final case class ZoneTerminatedNotification(zoneId: ZoneId)                             extends ZoneNotification
+  final case class ZoneNameChangedNotification(zoneId: ZoneId, name: Option[String])      extends ZoneNotification
+  final case class MemberCreatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
+  final case class MemberUpdatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
+  final case class AccountCreatedNotification(zoneId: ZoneId, account: Account)           extends ZoneNotification
+  final case class AccountUpdatedNotification(zoneId: ZoneId, account: Account)           extends ZoneNotification
+  final case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
+
+}
 
 sealed abstract class ZoneValidatorMessage extends Serializable
 
-final case class AuthenticatedCommandWithIds(publicKey: PublicKey,
-                                             command: Command,
-                                             correlationId: Long,
-                                             sequenceNumber: Long,
-                                             deliveryId: Long)
+final case class AuthenticatedZoneCommandWithIds(publicKey: PublicKey,
+                                                 command: ZoneCommand,
+                                                 correlationId: Long,
+                                                 sequenceNumber: Long,
+                                                 deliveryId: Long)
     extends ZoneValidatorMessage
 
-final case class EnvelopedAuthenticatedCommandWithIds(zoneId: ZoneId,
-                                                      authenticatedCommandWithIds: AuthenticatedCommandWithIds)
-    extends ZoneValidatorMessage
-
-final case class CommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
+final case class ZoneCommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
 
 final case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
                                    correlationId: Long,
@@ -27,10 +102,13 @@ final case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
 
 final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
-final case class ResponseWithIds(response: Response, correlationId: Long, sequenceNumber: Long, deliveryId: Long)
+final case class ZoneResponseWithIds(response: ZoneResponse,
+                                     correlationId: Long,
+                                     sequenceNumber: Long,
+                                     deliveryId: Long)
     extends ZoneValidatorMessage
 
-final case class NotificationWithIds(notification: Notification, sequenceNumber: Long, deliveryId: Long)
+final case class ZoneNotificationWithIds(notification: ZoneNotification, sequenceNumber: Long, deliveryId: Long)
     extends ZoneValidatorMessage
 
 final case class ActiveZoneSummary(zoneId: ZoneId,
@@ -40,26 +118,3 @@ final case class ActiveZoneSummary(zoneId: ZoneId,
                                    transactions: Set[Transaction],
                                    clientConnections: Set[PublicKey])
     extends ZoneValidatorMessage
-
-object ZoneValidatorMessage {
-
-  implicit final val AuthenticatedCommandWithIdsFormat: Format[AuthenticatedCommandWithIds] =
-    Json.format[AuthenticatedCommandWithIds]
-
-  implicit final val EnvelopedAuthenticatedCommandWithIdsFormat: Format[EnvelopedAuthenticatedCommandWithIds] =
-    Json.format[EnvelopedAuthenticatedCommandWithIds]
-
-  implicit final val CommandReceivedConfirmationFormat: Format[CommandReceivedConfirmation] =
-    Json.format[CommandReceivedConfirmation]
-
-  implicit final val ZoneAlreadyExistsFormat: Format[ZoneAlreadyExists] = {
-    implicit val createZoneCommandFormat = Json.format[CreateZoneCommand]
-    Json.format[ZoneAlreadyExists]
-  }
-
-  implicit final val ZoneRestartedFormat: Format[ZoneRestarted]             = Json.format[ZoneRestarted]
-  implicit final val ResponseWithIdsFormat: Format[ResponseWithIds]         = Json.format[ResponseWithIds]
-  implicit final val NotificationWithIdsFormat: Format[NotificationWithIds] = Json.format[NotificationWithIds]
-  implicit final val ActiveZoneSummaryFormat: Format[ActiveZoneSummary]     = Json.format[ActiveZoneSummary]
-
-}

@@ -8,12 +8,9 @@ import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseSuccessMessage}
-import com.dhpcs.liquidity.actor.protocol.{
-  AuthenticatedCommandWithIds,
-  EnvelopedAuthenticatedCommandWithIds,
-  ResponseWithIds
-}
+import com.dhpcs.liquidity.actor.protocol.{AuthenticatedZoneCommandWithIds, ZoneResponseWithIds, ZoneValidatorMessage}
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol._
@@ -75,12 +72,9 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       )
       val correlationId = 0L
       sendJsonRpc(sinkTestProbe, clientConnection)(command, correlationId)
-      val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedAuthenticatedCommandWithIds]) {
-        case envelopedMessage @ EnvelopedAuthenticatedCommandWithIds(_, authenticatedCommandWithIds) =>
-          assert(
-            authenticatedCommandWithIds ===
-              AuthenticatedCommandWithIds(publicKey, command, correlationId, sequenceNumber = 1L, deliveryId = 1L))
-          envelopedMessage.zoneId
+      val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[AuthenticatedZoneCommandWithIds]) {
+        case AuthenticatedZoneCommandWithIds(`publicKey`, zoneCommand, `correlationId`, 1L, 1L) =>
+          zoneCommand.zoneId
       }
       val result = CreateZoneResponse({
         val created = System.currentTimeMillis
@@ -98,7 +92,11 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        ResponseWithIds(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
+        // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
+        ZoneResponseWithIds(ProtoConverter[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asProto(result),
+                            correlationId,
+                            sequenceNumber = 1L,
+                            deliveryId = 1L)
       )
       assert(expectJsonRpcResponse(upstreamTestProbe, "createZone") === result)
     }

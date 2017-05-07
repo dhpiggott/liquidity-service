@@ -60,6 +60,7 @@ lazy val serialization = project
       "com.typesafe.akka" %% "akka-remote" % "2.4.18",
       playJson
     ))
+  .settings(libraryDependencies += scalaTest % Test)
 
 lazy val model = project
   .in(file("model"))
@@ -84,10 +85,24 @@ lazy val persistence = project
   .settings(
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
-  .dependsOn(model)
   .dependsOn(serialization)
+  .dependsOn(model)
   .settings(libraryDependencies += scalaTest % Test)
   .dependsOn(model % "test->test")
+
+lazy val `actor-protocol` = project
+  .in(file("actor-protocol"))
+  .settings(commonSettings)
+  .settings(noopPublishSettings)
+  .settings(protobufSettings)
+  .settings(
+    name := "liquidity-actor-protocol"
+  )
+  .settings(
+    PB.includePaths in Compile += file("model/src/main/protobuf")
+  )
+  .dependsOn(serialization)
+  .dependsOn(model)
 
 lazy val `ws-protocol` = project
   .in(file("ws-protocol"))
@@ -98,19 +113,8 @@ lazy val `ws-protocol` = project
   )
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
   .dependsOn(model)
+  .dependsOn(`actor-protocol`)
   .settings(libraryDependencies += scalaTest % Test)
-
-lazy val `actor-protocol` = project
-  .in(file("actor-protocol"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
-  .settings(protobufSettings)
-  .settings(
-    name := "liquidity-actor-protocol"
-  )
-  .dependsOn(model)
-  .dependsOn(`ws-protocol`)
-  .dependsOn(serialization)
 
 lazy val certgen = project
   .in(file("certgen"))
@@ -225,8 +229,8 @@ lazy val root = project
     serialization,
     model,
     persistence,
-    `ws-protocol`,
     `actor-protocol`,
+    `ws-protocol`,
     certgen,
     server,
     client,

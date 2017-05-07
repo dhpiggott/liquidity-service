@@ -1,0 +1,210 @@
+syntax = "proto3";
+
+package dhpcs.liquidity.actor.protocol;
+
+option java_package = "com.dhpcs.liquidity.proto.actor.protocol";
+
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
+
+import "dhpcs/liquidity/model.proto";
+
+message ZoneCommand {
+    message CreateZoneCommand {
+        string zone_id = 1;
+        bytes equity_owner_public_key = 2;
+        google.protobuf.StringValue equity_owner_name = 3;
+        google.protobuf.Struct equity_owner_metadata = 4;
+        google.protobuf.StringValue equity_account_name = 5;
+        google.protobuf.Struct equity_account_metadata = 6;
+        google.protobuf.StringValue name = 7;
+        google.protobuf.Struct metadata = 8;
+    }
+    message JoinZoneCommand {
+        string zone_id = 1;
+    }
+    message QuitZoneCommand {
+        string zone_id = 1;
+    }
+    message ChangeZoneNameCommand {
+        string zone_id = 1;
+        google.protobuf.StringValue name = 2;
+    }
+    message CreateMemberCommand {
+        string zone_id = 1;
+        bytes owner_public_key = 2;
+        google.protobuf.StringValue name = 3;
+        google.protobuf.Struct metadata = 4;
+    }
+    message UpdateMemberCommand {
+        string zone_id = 1;
+        dhpcs.liquidity.model.Member member = 2;
+    }
+    message CreateAccountCommand {
+        string zone_id = 1;
+        repeated int64 owner_member_ids = 2;
+        google.protobuf.StringValue name = 3;
+        google.protobuf.Struct metadata = 4;
+    }
+    message UpdateAccountCommand {
+        string zone_id = 1;
+        dhpcs.liquidity.model.Account account = 2;
+    }
+    message AddTransactionCommand {
+        string zone_id = 1;
+        int64 acting_as = 2;
+        int64 from = 3;
+        int64 to = 4;
+        dhpcs.liquidity.model.BigDecimal value = 5;
+        google.protobuf.StringValue description = 6;
+        google.protobuf.Struct metadata = 7;
+    }
+    oneof zone_command {
+        CreateZoneCommand create_zone_command = 1;
+        JoinZoneCommand join_zone_command = 2;
+        QuitZoneCommand quit_zone_command = 3;
+        ChangeZoneNameCommand change_zone_name_command = 4;
+        CreateMemberCommand create_member_command = 5;
+        UpdateMemberCommand update_member_command = 6;
+        CreateAccountCommand create_account_command = 7;
+        UpdateAccountCommand update_account_command = 8;
+        AddTransactionCommand add_transaction_command = 9;
+    }
+}
+
+message ZoneResponse {
+    message ErrorResponse {
+        string error = 1;
+    }
+    message CreateZoneResponse {
+        dhpcs.liquidity.model.Zone zone = 1;
+    }
+    message JoinZoneResponse {
+        dhpcs.liquidity.model.Zone zone = 1;
+        repeated bytes connected_clients = 2;
+    }
+    message QuitZoneResponse {
+    }
+    message ChangeZoneNameResponse {
+    }
+    message CreateMemberResponse {
+        dhpcs.liquidity.model.Member member = 1;
+    }
+    message UpdateMemberResponse {
+    }
+    message CreateAccountResponse {
+        dhpcs.liquidity.model.Account account = 1;
+    }
+    message UpdateAccountResponse {
+    }
+    message AddTransactionResponse {
+        dhpcs.liquidity.model.Transaction transaction = 1;
+    }
+    oneof zone_response {
+        ErrorResponse error_response = 1;
+        CreateZoneResponse create_zone_response = 2;
+        JoinZoneResponse join_zone_response = 3;
+        QuitZoneResponse quit_zone_response = 4;
+        ChangeZoneNameResponse change_zone_name_response = 5;
+        CreateMemberResponse create_member_response = 6;
+        UpdateMemberResponse update_member_response = 7;
+        CreateAccountResponse create_account_response = 8;
+        UpdateAccountResponse update_account_response = 9;
+        AddTransactionResponse add_transaction_response = 10;
+    }
+}
+
+message ZoneNotification {
+    message ClientJoinedZoneNotification {
+        string zone_id = 1;
+        bytes public_key = 2;
+    }
+    message ClientQuitZoneNotification {
+        string zone_id = 1;
+        bytes public_key = 2;
+    }
+    message ZoneTerminatedNotification {
+        string zone_id = 1;
+    }
+    message ZoneNameChangedNotification {
+        string zone_id = 1;
+        google.protobuf.StringValue name = 2;
+    }
+    message MemberCreatedNotification {
+        string zone_id = 1;
+        dhpcs.liquidity.model.Member member = 2;
+    }
+    message MemberUpdatedNotification {
+        string zone_id = 1;
+        dhpcs.liquidity.model.Member member = 2;
+    }
+    message AccountCreatedNotification {
+        string zone_id = 1;
+        dhpcs.liquidity.model.Account account = 2;
+    }
+    message AccountUpdatedNotification {
+        string zone_id = 1;
+        dhpcs.liquidity.model.Account account = 2;
+    }
+    message TransactionAddedNotification {
+        string zone_id = 1;
+        dhpcs.liquidity.model.Transaction transaction = 2;
+    }
+    oneof zone_notification {
+        ClientJoinedZoneNotification client_joined_zone_notification = 1;
+        ClientQuitZoneNotification client_quit_zone_notification = 2;
+        ZoneTerminatedNotification zone_terminated_notification = 3;
+        ZoneNameChangedNotification zone_name_changed_notification = 4;
+        MemberCreatedNotification member_created_notification = 5;
+        MemberUpdatedNotification member_updated_notification = 6;
+        AccountCreatedNotification account_created_notification = 7;
+        AccountUpdatedNotification account_updated_notification = 8;
+        TransactionAddedNotification transaction_added_notification = 9;
+    }
+}
+
+message AuthenticatedZoneCommandWithIds {
+    bytes public_key = 1;
+    ZoneCommand command = 2;
+    int64 correlation_id = 3;
+    int64 sequence_number = 4;
+    int64 delivery_id = 5;
+}
+
+message ZoneCommandReceivedConfirmation {
+    string zone_id = 1;
+    int64 delivery_id = 2;
+}
+
+message ZoneAlreadyExists {
+    ZoneCommand.CreateZoneCommand create_zone_command = 1;
+    int64 correlation_id = 2;
+    int64 sequence_number = 3;
+    int64 delivery_id = 4;
+}
+
+message ZoneRestarted {
+    string zone_id = 1;
+}
+
+message ZoneResponseWithIds {
+    ZoneResponse response = 1;
+    int64 correlation_id = 2;
+    int64 sequence_number = 3;
+    int64 delivery_id = 4;
+}
+
+message ZoneNotificationWithIds {
+    ZoneNotification notification = 1;
+    int64 sequence_number = 2;
+    int64 delivery_id = 3;
+}
+
+message ActiveZoneSummary {
+    string zone_id = 1;
+    google.protobuf.Struct metadata = 2;
+    repeated dhpcs.liquidity.model.Member members = 3;
+    repeated dhpcs.liquidity.model.Account accounts = 4;
+    repeated dhpcs.liquidity.model.Transaction transactions = 5;
+    repeated bytes client_connections = 6;
+}

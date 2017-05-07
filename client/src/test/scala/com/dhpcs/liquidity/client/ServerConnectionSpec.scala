@@ -66,29 +66,9 @@ class ServerConnectionSpec
   private[this] val akkaHttpPort = freePort()
 
   private[this] val config = ConfigFactory
-    .parseString(
-      """
+    .parseString("""
       |akka {
       |  loglevel = "ERROR"
-      |  actor {
-      |    serializers {
-      |      client-connection-protocol = "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessageSerializer"
-      |      zone-validator-protocol = "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessageSerializer"
-      |    }
-      |    serialization-bindings {
-      |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
-      |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
-      |    }
-      |    enable-additional-serialization-bindings = on
-      |    allow-java-serialization = on
-      |    serialize-messages = on
-      |    serialize-creators = on
-      |  }
-      |  extensions += "akka.persistence.Persistence"
-      |  persistence.journal {
-      |    auto-start-journals = ["akka.persistence.journal.inmem"]
-      |    plugin = "akka.persistence.journal.inmem"
-      |  }
       |  http.server {
       |    remote-address-header = on
       |    parsing.tls-session-info-header = on

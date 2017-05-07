@@ -1,6 +1,9 @@
-package com.dhpcs.liquidity.persistence
+package com.dhpcs.liquidity.server.serialization
 
 import akka.actor.ExtendedActorSystem
+// TODO: Why doesn't IntellIj recognise that this is needed?
+import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverterSerializer
 import com.dhpcs.liquidity.serialization.ProtoConverterSerializer._

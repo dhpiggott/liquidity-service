@@ -2,11 +2,12 @@ package com.dhpcs.liquidity.boardgame
 
 import java.util.Currency
 
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.boardgame.BoardGame._
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.ws.protocol.{EmptyZoneNotification, _}
 import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -629,6 +630,8 @@ class BoardGame private (serverConnection: ServerConnection,
         }
       }
       zoneNotification match {
+        case EmptyZoneNotification =>
+          sys.error("EmptyZoneNotification")
         case ClientJoinedZoneNotification(_, publicKey) =>
           state.connectedClients = state.connectedClients + publicKey
           val (joinedPlayers, joinedHiddenPlayers) = playersFromMembersAccounts(

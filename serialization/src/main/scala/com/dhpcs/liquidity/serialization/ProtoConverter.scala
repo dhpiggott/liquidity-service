@@ -1,7 +1,9 @@
 package com.dhpcs.liquidity.serialization
 
 import play.api.libs.json._
-import shapeless.{:+:, ::, Coproduct, Generic, HList, Inl, Inr, Lazy}
+import shapeless.{:+:, ::, Coproduct, Generic, HList, HNil, Inl, Inr, Lazy}
+
+import scala.reflect.ClassTag
 
 object ProtoConverter extends LowPriorityImplicits {
 
@@ -50,37 +52,35 @@ trait ProtoConverter[S, P] {
   def asScala(p: P): S
 }
 
-trait LowPriorityImplicits {
+sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
 
   implicit def genericProtoConverter[S, P, SRepr, PRepr](
       implicit sGen: Generic.Aux[S, SRepr],
       pGen: Generic.Aux[P, PRepr],
-      hlistConverter: ProtoConverter[SRepr, PRepr]
+      genericConverter: Lazy[ProtoConverter[SRepr, PRepr]]
   ): ProtoConverter[S, P] = new ProtoConverter[S, P] {
     override def asProto(s: S): P = {
       val gen  = sGen.to(s)
-      val repr = hlistConverter.asProto(gen)
+      val repr = genericConverter.value.asProto(gen)
       pGen.from(repr)
     }
     override def asScala(p: P): S = {
       val gen  = pGen.to(p)
-      val repr = hlistConverter.asScala(gen)
+      val repr = genericConverter.value.asScala(gen)
       sGen.from(repr)
     }
   }
 
-  implicit def coproductProtoConverter[SL, PL, SRRepr <: Coproduct, PRRepr <: Coproduct](
-      implicit lConverter: Lazy[ProtoConverter[SL, PL]],
-      rConverter: Lazy[ProtoConverter[SRRepr, PRRepr]]
-  ): ProtoConverter[SL :+: SRRepr, PL :+: PRRepr] = new ProtoConverter[SL :+: SRRepr, PL :+: PRRepr] {
-    override def asProto(s: SL :+: SRRepr): PL :+: PRRepr = s match {
-      case Inl(head) => Inl(lConverter.value.asProto(head))
-      case Inr(tail) => Inr(rConverter.value.asProto(tail))
-    }
-    override def asScala(p: PL :+: PRRepr): SL :+: SRRepr = p match {
-      case Inl(head) => Inl(lConverter.value.asScala(head))
-      case Inr(tail) => Inr(rConverter.value.asScala(tail))
-    }
+  implicit def optionProtoConverter[S, P](
+      implicit protoConverter: ProtoConverter[S, P],
+      protoClassTag: ClassTag[P]
+  ): ProtoConverter[S, Option[P]] = new ProtoConverter[S, Option[P]] {
+    override def asProto(s: S): Option[P] =
+      Some(protoConverter.asProto(s))
+    override def asScala(maybeP: Option[P]): S =
+      protoConverter.asScala(
+        maybeP.getOrElse(throw new IllegalArgumentException(s"Empty ${protoClassTag.runtimeClass.getSimpleName}"))
+      )
   }
 
   implicit def hlistProtoConverter[SH, PH, STRepr <: HList, PTRepr <: HList](
@@ -98,4 +98,27 @@ trait LowPriorityImplicits {
       head :: tail
     }
   }
+
+  implicit def coproductProtoConverter[SL, PL, SRRepr <: Coproduct, PRRepr <: Coproduct](
+      implicit lConverter: Lazy[ProtoConverter[SL, PL]],
+      rConverter: Lazy[ProtoConverter[SRRepr, PRRepr]]
+  ): ProtoConverter[SL :+: SRRepr, PL :+: PRRepr] = new ProtoConverter[SL :+: SRRepr, PL :+: PRRepr] {
+    override def asProto(s: SL :+: SRRepr): PL :+: PRRepr = s match {
+      case Inl(head) => Inl(lConverter.value.asProto(head))
+      case Inr(tail) => Inr(rConverter.value.asProto(tail))
+    }
+    override def asScala(p: PL :+: PRRepr): SL :+: SRRepr = p match {
+      case Inl(head) => Inl(lConverter.value.asScala(head))
+      case Inr(tail) => Inr(rConverter.value.asScala(tail))
+    }
+  }
+}
+
+sealed abstract class LowerPriorityImplicits {
+  implicit def wrappedOneofProtoConverter[S, PV, PW](implicit pwGen: Lazy[Generic.Aux[PW, PV :: HNil]],
+                                                     vConverter: Lazy[ProtoConverter[S, PV]]): ProtoConverter[S, PW] =
+    new ProtoConverter[S, PW] {
+      override def asProto(s: S): PW = pwGen.value.from(vConverter.value.asProto(s) :: HNil)
+      override def asScala(p: PW): S = vConverter.value.asScala(pwGen.value.to(p).head)
+    }
 }

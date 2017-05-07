@@ -1,10 +1,19 @@
-package com.dhpcs.liquidity.model
+package com.dhpcs.liquidity.serialization
 
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.serialization.ProtoConverter._
+import com.dhpcs.liquidity.serialization.ProtoConverterSpec._
 import org.scalatest.FreeSpec
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsObject, JsValue, Json}
 
-class ProtoConverterSpec extends FreeSpec {
+object ProtoConverterSpec {
+
+  implicit final val JsObjectProtoConverter: ProtoConverter[JsObject, com.google.protobuf.struct.Struct] =
+    ProtoConverter.instance(
+      jsObject =>
+        com.google.protobuf.struct
+          .Struct(jsObject.value.mapValues(ProtoConverter[JsValue, com.google.protobuf.struct.Value].asProto).toMap),
+      struct => JsObject(struct.fields.mapValues(ProtoConverter[JsValue, com.google.protobuf.struct.Value].asScala))
+    )
 
   case class IdWrapper(id: Long)
 
@@ -14,6 +23,18 @@ class ProtoConverterSpec extends FreeSpec {
                           created: Long,
                           name: Option[String],
                           metadata: Option[com.google.protobuf.struct.Struct])
+
+  sealed trait ScalaCoproduct
+  case class ScalaCoproductInstance1(id: IdWrapper, created: Long) extends ScalaCoproduct
+  case class ScalaCoproductInstance2(id: IdWrapper, name: String)  extends ScalaCoproduct
+
+  sealed trait ProtoCoproduct
+  case class ProtoCoproductInstance1(id: Long, created: Long) extends ProtoCoproduct
+  case class ProtoCoproductInstance2(id: Long, name: String)  extends ProtoCoproduct
+
+}
+
+class ProtoConverterSpec extends FreeSpec {
 
   implicit final val IdWrapperProtoConverter: ProtoConverter[IdWrapper, Long] =
     ProtoConverter.instance(_.id, IdWrapper)
@@ -48,14 +69,6 @@ class ProtoConverterSpec extends FreeSpec {
       ProtoConverter[ScalaProduct, ProtoProduct].asScala(productProto) === product
     )
   }
-
-  sealed trait ScalaCoproduct
-  case class ScalaCoproductInstance1(id: IdWrapper, created: Long) extends ScalaCoproduct
-  case class ScalaCoproductInstance2(id: IdWrapper, name: String)  extends ScalaCoproduct
-
-  sealed trait ProtoCoproduct
-  case class ProtoCoproductInstance1(id: Long, created: Long) extends ProtoCoproduct
-  case class ProtoCoproductInstance2(id: Long, name: String)  extends ProtoCoproduct
 
   "A ScalaCoproductInstance1" - {
     val coproductInstance1: ScalaCoproduct      = ScalaCoproductInstance1(id = IdWrapper(0L), created = 1433611420487L)

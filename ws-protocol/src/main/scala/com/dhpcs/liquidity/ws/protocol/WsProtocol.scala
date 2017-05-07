@@ -9,11 +9,10 @@ import play.api.libs.json._
 
 sealed abstract class Message
 
-sealed abstract class Command extends Message
-sealed abstract class ZoneCommand extends Command {
-  val zoneId: ZoneId
-}
+sealed abstract class Command     extends Message
+sealed abstract class ZoneCommand extends Command
 
+case object EmptyZoneCommand extends ZoneCommand
 final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                    equityOwnerName: Option[String],
                                    equityOwnerMetadata: Option[JsObject],
@@ -21,7 +20,7 @@ final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                    equityAccountMetadata: Option[JsObject],
                                    name: Option[String] = None,
                                    metadata: Option[JsObject] = None)
-    extends Command
+    extends ZoneCommand
 final case class JoinZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
 final case class QuitZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
 final case class ChangeZoneNameCommand(zoneId: ZoneId, name: Option[String]) extends ZoneCommand
@@ -90,38 +89,13 @@ object Command extends CommandCompanion[Command] {
     "updateAccount"  -> Json.format[UpdateAccountCommand],
     "addTransaction" -> AddTransactionCommandFormat
   )
-
-  implicit final val CommandFormat: Format[Command] = Format[Command](
-    Reads(json => {
-      val (methodReads, _) = CommandFormats
-      for {
-        jsObject <- json.validate[JsObject]
-        method   <- (jsObject \ "method").validate[String]
-        value    <- (jsObject \ "value").validate[JsValue]
-        result <- methodReads.get(method) match {
-          case None        => JsError(s"unknown method $method")
-          case Some(reads) => reads.reads(value)
-        }
-      } yield result
-    }),
-    Writes(command => {
-      val (_, classWrites) = CommandFormats
-      classWrites.get(command.getClass) match {
-        case None => sys.error(s"No format found for ${command.getClass}")
-        case Some((method, writes)) =>
-          Json.obj(
-            "method" -> method,
-            "value"  -> writes.asInstanceOf[OFormat[Command]].writes(command)
-          )
-      }
-    })
-  )
-
 }
 
 sealed abstract class Response                                                  extends Message
-final case class ErrorResponse(error: String)                                   extends Response
-sealed abstract class SuccessResponse                                           extends Response
+sealed abstract class ZoneResponse                                              extends Response
+case object EmptyZoneResponse                                                   extends ZoneResponse
+final case class ErrorResponse(error: String)                                   extends ZoneResponse
+sealed abstract class SuccessResponse                                           extends ZoneResponse
 final case class CreateZoneResponse(zone: Zone)                                 extends SuccessResponse
 final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends SuccessResponse
 case object QuitZoneResponse                                                    extends SuccessResponse
@@ -132,26 +106,7 @@ final case class CreateAccountResponse(account: Account)                        
 case object UpdateAccountResponse                                               extends SuccessResponse
 final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
 
-object Response {
-  implicit final val ResponseFormat: Format[Response] = Format(
-    __.read(ErrorResponse.ErrorResponseFormat).map(m => m: Response) orElse
-      __.read(SuccessResponse.SuccessResponseFormat).map(m => m: Response) orElse
-      Reads(_ => JsError("not a valid error or success response")),
-    Writes {
-      case errorResponse: ErrorResponse =>
-        Json.toJson(errorResponse)(ErrorResponse.ErrorResponseFormat)
-      case successResponse: SuccessResponse =>
-        Json.toJson(successResponse)(SuccessResponse.SuccessResponseFormat)
-    }
-  )
-}
-
-object ErrorResponse {
-  implicit final val ErrorResponseFormat: Format[ErrorResponse] = Json.format[ErrorResponse]
-}
-
 object SuccessResponse extends ResponseCompanion[SuccessResponse] {
-
   override final val ResponseFormats = MessageFormats(
     "createZone"     -> Json.format[CreateZoneResponse],
     "joinZone"       -> Json.format[JoinZoneResponse],
@@ -163,33 +118,6 @@ object SuccessResponse extends ResponseCompanion[SuccessResponse] {
     "updateAccount"  -> objectFormat(UpdateAccountResponse),
     "addTransaction" -> Json.format[AddTransactionResponse]
   )
-
-  implicit final val SuccessResponseFormat: Format[SuccessResponse] = Format[SuccessResponse](
-    Reads(json => {
-      val (methodReads, _) = ResponseFormats
-      for {
-        jsObject <- json.validate[JsObject]
-        method   <- (jsObject \ "method").validate[String]
-        value    <- (jsObject \ "value").validate[JsValue]
-        result <- methodReads.get(method) match {
-          case None        => JsError(s"unknown method $method")
-          case Some(reads) => reads.reads(value)
-        }
-      } yield result
-    }),
-    Writes(response => {
-      val (_, classWrites) = ResponseFormats
-      classWrites.get(response.getClass) match {
-        case None => sys.error(s"No format found for ${response.getClass}")
-        case Some((method, writes)) =>
-          Json.obj(
-            "method" -> method,
-            "value"  -> writes.asInstanceOf[Format[Response]].writes(response)
-          )
-      }
-    })
-  )
-
 }
 
 sealed trait ResponseWithCorrelationIdOrNotification
@@ -198,10 +126,13 @@ final case class ResponseWithCorrelationId(response: Response, correlationId: Lo
 
 sealed abstract class Notification extends Message with ResponseWithCorrelationIdOrNotification
 sealed abstract class ZoneNotification extends Notification {
-  val zoneId: ZoneId
+  def zoneId: ZoneId
 }
-final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Long])     extends Notification
-case object KeepAliveNotification                                                       extends Notification
+final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Long]) extends Notification
+case object KeepAliveNotification                                                   extends Notification
+case object EmptyZoneNotification extends ZoneNotification {
+  override def zoneId: ZoneId = sys.error("EmptyZoneNotification")
+}
 final case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey)     extends ZoneNotification
 final case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey)       extends ZoneNotification
 final case class ZoneTerminatedNotification(zoneId: ZoneId)                             extends ZoneNotification
@@ -213,7 +144,6 @@ final case class AccountUpdatedNotification(zoneId: ZoneId, account: Account)   
 final case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
 
 object Notification extends NotificationCompanion[Notification] {
-
   override final val NotificationFormats = MessageFormats(
     "supportedVersions" -> Json.format[SupportedVersionsNotification],
     "keepAlive"         -> objectFormat(KeepAliveNotification),
@@ -227,31 +157,4 @@ object Notification extends NotificationCompanion[Notification] {
     "accountUpdated"    -> Json.format[AccountUpdatedNotification],
     "transactionAdded"  -> Json.format[TransactionAddedNotification]
   )
-
-  implicit final val NotificationFormat: Format[Notification] = Format[Notification](
-    Reads(json => {
-      val (methodReads, _) = NotificationFormats
-      for {
-        jsObject <- json.validate[JsObject]
-        method   <- (jsObject \ "method").validate[String]
-        value    <- (jsObject \ "value").validate[JsValue]
-        result <- methodReads.get(method) match {
-          case None        => JsError(s"unknown method $method")
-          case Some(reads) => reads.reads(value)
-        }
-      } yield result
-    }),
-    Writes(notification => {
-      val (_, classWrites) = NotificationFormats
-      classWrites.get(notification.getClass) match {
-        case None => sys.error(s"No format found for ${notification.getClass}")
-        case Some((method, writes)) =>
-          Json.obj(
-            "method" -> method,
-            "value"  -> writes.asInstanceOf[Writes[Notification]].writes(notification)
-          )
-      }
-    })
-  )
-
 }

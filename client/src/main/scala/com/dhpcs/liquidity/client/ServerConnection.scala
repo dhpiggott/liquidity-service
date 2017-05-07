@@ -67,7 +67,7 @@ object ServerConnection {
   }
 
   trait NotificationReceiptListener {
-    def onZoneNotificationReceived(zoneNotification: ZoneNotification): Unit
+    def onZoneNotificationReceived(notification: ZoneNotification): Unit
   }
 
   class ConnectionRequestToken

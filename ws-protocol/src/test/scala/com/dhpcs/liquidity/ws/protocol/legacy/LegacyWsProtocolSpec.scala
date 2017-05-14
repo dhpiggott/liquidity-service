@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.ws.protocol
+package com.dhpcs.liquidity.ws.protocol.legacy
 
 import java.security.KeyPairGenerator
 import java.util.UUID
@@ -12,7 +12,7 @@ import play.api.libs.json._
 
 import scala.collection.immutable.Seq
 
-class WsProtocolSpec extends FreeSpec {
+class LegacyWsProtocolSpec extends FreeSpec {
 
   "A Command" - {
     "with an invalid method" - {

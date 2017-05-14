@@ -6,22 +6,22 @@ import javax.net.ssl._
 
 import com.dhpcs.jsonrpc.JsonRpcMessage.{NoCorrelationId, NumericCorrelationId, StringCorrelationId}
 import com.dhpcs.jsonrpc._
-import com.dhpcs.liquidity.client.ServerConnection._
+import com.dhpcs.liquidity.client.LegacyServerConnection._
 import com.dhpcs.liquidity.model.PublicKey
-import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.ws.protocol.legacy._
 import okhttp3.ws.{WebSocket, WebSocketCall, WebSocketListener}
 import okhttp3.{OkHttpClient, RequestBody, ResponseBody}
 import okio.Buffer
 import play.api.libs.json.{JsError, JsSuccess, Json}
 
-object ServerConnection {
+object LegacyServerConnection {
 
   trait KeyStoreInputStreamProvider {
     def get(): InputStream
   }
 
   trait ConnectivityStatePublisherBuilder {
-    def build(serverConnection: ServerConnection): ConnectivityStatePublisher
+    def build(serverConnection: LegacyServerConnection): ConnectivityStatePublisher
   }
 
   trait ConnectivityStatePublisher {
@@ -125,12 +125,12 @@ object ServerConnection {
   }
 }
 
-class ServerConnection(filesDir: File,
-                       keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
-                       connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                       handlerWrapperFactory: HandlerWrapperFactory,
-                       hostname: String,
-                       port: Int)
+class LegacyServerConnection(filesDir: File,
+                             keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
+                             connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
+                             handlerWrapperFactory: HandlerWrapperFactory,
+                             hostname: String,
+                             port: Int)
     extends WebSocketListener {
 
   def this(filesDir: File,
@@ -216,10 +216,10 @@ class ServerConnection(filesDir: File,
   def requestConnection(token: ConnectionRequestToken, retry: Boolean): Unit = {
     if (!connectRequestTokens.contains(token))
       connectRequestTokens = connectRequestTokens + token
-    if ((_connectionState == ServerConnection.AVAILABLE
-        || _connectionState == ServerConnection.GENERAL_FAILURE
-        || _connectionState == ServerConnection.TLS_ERROR
-        || _connectionState == ServerConnection.UNSUPPORTED_VERSION)
+    if ((_connectionState == LegacyServerConnection.AVAILABLE
+        || _connectionState == LegacyServerConnection.GENERAL_FAILURE
+        || _connectionState == LegacyServerConnection.TLS_ERROR
+        || _connectionState == LegacyServerConnection.UNSUPPORTED_VERSION)
         && (!hasFailed || retry))
       connect()
   }
@@ -257,9 +257,9 @@ class ServerConnection(filesDir: File,
     if (connectRequestTokens.contains(token)) {
       connectRequestTokens = connectRequestTokens - token
       if (connectRequestTokens.isEmpty)
-        if (_connectionState == ServerConnection.CONNECTING
-            || _connectionState == ServerConnection.WAITING_FOR_VERSION_CHECK
-            || _connectionState == ServerConnection.ONLINE)
+        if (_connectionState == LegacyServerConnection.CONNECTING
+            || _connectionState == LegacyServerConnection.WAITING_FOR_VERSION_CHECK
+            || _connectionState == LegacyServerConnection.ONLINE)
           disconnect(1001)
     }
 

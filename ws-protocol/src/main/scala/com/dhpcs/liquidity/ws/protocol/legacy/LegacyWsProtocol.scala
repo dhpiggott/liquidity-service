@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.ws.protocol
+package com.dhpcs.liquidity.ws.protocol.legacy
 
 import com.dhpcs.jsonrpc.Message.{MessageFormats, objectFormat}
 import com.dhpcs.jsonrpc._

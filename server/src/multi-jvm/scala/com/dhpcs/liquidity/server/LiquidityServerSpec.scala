@@ -26,9 +26,9 @@ import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc.{JsonRpcMessage, _}
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
+import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActor
-import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.ws.protocol.legacy._
 import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.OptionValues._

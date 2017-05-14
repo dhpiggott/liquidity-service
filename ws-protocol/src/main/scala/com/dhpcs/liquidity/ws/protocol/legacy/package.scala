@@ -1,10 +1,10 @@
-package com.dhpcs.liquidity.ws
+package com.dhpcs.liquidity.ws.protocol
 
 import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
 import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.serialization.ProtoConverter
 
-package object protocol {
+package object legacy {
 
   final val VersionNumber            = 1L
   final val CompatibleVersionNumbers = Set(1L)

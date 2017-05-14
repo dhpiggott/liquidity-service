@@ -29,7 +29,7 @@ class ClientsMonitorActor extends Actor with ActorLogging {
   import context.dispatcher
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
-  mediator ! Subscribe(ClientConnectionActor.Topic, self)
+  mediator ! Subscribe(LegacyClientConnectionActor.Topic, self)
 
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 

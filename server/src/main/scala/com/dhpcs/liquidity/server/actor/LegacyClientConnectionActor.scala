@@ -17,20 +17,20 @@ import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.persistence.RichPublicKey
 import com.dhpcs.liquidity.serialization.ProtoConverter
-import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
-import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol.legacy._
 import play.api.libs.json.{JsError, JsSuccess, Json}
 
 import scala.concurrent.duration._
 
-object ClientConnectionActor {
+object LegacyClientConnectionActor {
 
   def props(ip: RemoteAddress,
             publicKey: PublicKey,
             zoneValidatorShardRegion: ActorRef,
             keepAliveInterval: FiniteDuration)(upstream: ActorRef): Props =
     Props(
-      new ClientConnectionActor(
+      new LegacyClientConnectionActor(
         ip,
         publicKey,
         zoneValidatorShardRegion,
@@ -121,7 +121,7 @@ object ClientConnectionActor {
 
   private class KeepAliveGeneratorActor(keepAliveInterval: FiniteDuration) extends Actor {
 
-    import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
+    import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor.KeepAliveGeneratorActor._
 
     context.setReceiveTimeout(keepAliveInterval)
 
@@ -132,16 +132,16 @@ object ClientConnectionActor {
   }
 }
 
-class ClientConnectionActor(ip: RemoteAddress,
-                            publicKey: PublicKey,
-                            zoneValidatorShardRegion: ActorRef,
-                            keepAliveInterval: FiniteDuration,
-                            upstream: ActorRef)
+class LegacyClientConnectionActor(ip: RemoteAddress,
+                                  publicKey: PublicKey,
+                                  zoneValidatorShardRegion: ActorRef,
+                                  keepAliveInterval: FiniteDuration,
+                                  upstream: ActorRef)
     extends PersistentActor
     with ActorLogging
     with AtLeastOnceDelivery {
 
-  import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
+  import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor.KeepAliveGeneratorActor._
   import context.dispatcher
 
   private[this] val mediator          = DistributedPubSub(context.system).mediator

@@ -12,14 +12,14 @@ import com.dhpcs.liquidity.actor.protocol.{AuthenticatedZoneCommandWithIds, Zone
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
-import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
-import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol.legacy._
 import org.scalatest.OptionValues._
 import org.scalatest.{Inside, Outcome, fixture}
 
 import scala.concurrent.duration._
 
-class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures with Inside {
+class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures with Inside {
 
   private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
   private[this] val publicKey = {
@@ -34,13 +34,13 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     val zoneValidatorShardRegionTestProbe = TestProbe()
     val upstreamTestProbe                 = TestProbe()
     val clientConnection = system.actorOf(
-      ClientConnectionActor
+      LegacyClientConnectionActor
         .props(ip, publicKey, zoneValidatorShardRegionTestProbe.ref, keepAliveInterval = 3.seconds)(
           upstreamTestProbe.ref)
         .withDeploy(Deploy.local)
     )
-    sinkTestProbe.send(clientConnection, ClientConnectionActor.ActorSinkInit)
-    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
+    sinkTestProbe.send(clientConnection, LegacyClientConnectionActor.ActorSinkInit)
+    sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck)
     try withFixture(
       test.toNoArgTest((sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection))
     )
@@ -116,7 +116,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       clientConnection,
       WrappedJsonRpcRequest(Command.write(command, id = NumericCorrelationId(correlationId)))
     )
-    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
+    sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck)
   }
 
   private[this] def expectJsonRpcResponse(upstreamTestProbe: TestProbe, method: String): Response = {

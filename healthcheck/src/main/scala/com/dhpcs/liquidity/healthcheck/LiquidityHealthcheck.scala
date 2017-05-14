@@ -11,11 +11,11 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
-import com.dhpcs.liquidity.client.ServerConnection
-import com.dhpcs.liquidity.client.ServerConnection._
+import com.dhpcs.liquidity.client.LegacyServerConnection
+import com.dhpcs.liquidity.client.LegacyServerConnection._
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.ws.protocol.legacy._
 import okio.ByteString
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -111,7 +111,7 @@ class LiquidityHealthcheck(hostname: Option[String], port: Option[Int])
   }
 
   private[this] val connectivityStatePublisherBuilder = new ConnectivityStatePublisherBuilder {
-    override def build(serverConnection: ServerConnection): ConnectivityStatePublisher =
+    override def build(serverConnection: LegacyServerConnection): ConnectivityStatePublisher =
       new ConnectivityStatePublisher {
         override def isConnectionAvailable: Boolean = true
         override def register(): Unit               = ()
@@ -141,7 +141,7 @@ class LiquidityHealthcheck(hostname: Option[String], port: Option[Int])
     override def main(): HandlerWrapper = MainHandlerWrapper
   }
 
-  private[this] val serverConnection = new ServerConnection(
+  private[this] val serverConnection = new LegacyServerConnection(
     filesDir.toFile,
     keyStoreInputStreamProvider,
     connectivityStatePublisherBuilder,

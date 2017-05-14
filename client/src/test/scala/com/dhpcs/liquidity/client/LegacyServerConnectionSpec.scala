@@ -17,14 +17,14 @@ import akka.stream.{ActorMaterializer, OverflowStrategy, TLSClientAuth}
 import akka.testkit.{TestActor, TestKit, TestProbe}
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.liquidity.certgen.CertGen
-import com.dhpcs.liquidity.client.ServerConnection._
-import com.dhpcs.liquidity.client.ServerConnectionSpec._
+import com.dhpcs.liquidity.client.LegacyServerConnection._
+import com.dhpcs.liquidity.client.LegacyServerConnectionSpec._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server._
-import com.dhpcs.liquidity.server.actor.ClientConnectionActor
-import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
-import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor
+import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol.legacy._
 import com.typesafe.config.ConfigFactory
 import org.scalatest.OptionValues._
 import org.scalatest._
@@ -37,7 +37,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future, Promise}
 
-object ServerConnectionSpec {
+object LegacyServerConnectionSpec {
 
   object ClientConnectionTestProbeForwarderActor {
     def props(clientConnectionActorTestProbe: ActorRef)(upstream: ActorRef): Props =
@@ -56,7 +56,7 @@ object ServerConnectionSpec {
   }
 }
 
-class ServerConnectionSpec
+class LegacyServerConnectionSpec
     extends fixture.FreeSpec
     with HttpController
     with BeforeAndAfterAll
@@ -113,7 +113,7 @@ class ServerConnectionSpec
 
   override protected[this] def webSocketApi(ip: RemoteAddress,
                                             publicKey: PublicKey): Flow[ws.Message, ws.Message, NotUsed] =
-    ClientConnectionActor.webSocketFlow(
+    LegacyClientConnectionActor.webSocketFlow(
       props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref),
       name = publicKey.fingerprint
     )
@@ -152,7 +152,7 @@ class ServerConnectionSpec
   }
 
   private[this] val connectivityStatePublisherBuilder = new ConnectivityStatePublisherBuilder {
-    override def build(serverConnection: ServerConnection): ConnectivityStatePublisher =
+    override def build(serverConnection: LegacyServerConnection): ConnectivityStatePublisher =
       new ConnectivityStatePublisher {
         override def isConnectionAvailable: Boolean = true
         override def register(): Unit               = ()
@@ -182,7 +182,7 @@ class ServerConnectionSpec
     override def main(): HandlerWrapper = MainHandlerWrapper
   }
 
-  private[this] val serverConnection = new ServerConnection(
+  private[this] val serverConnection = new LegacyServerConnection(
     filesDir.toFile,
     keyStoreInputStreamProvider,
     connectivityStatePublisherBuilder,
@@ -220,7 +220,7 @@ class ServerConnectionSpec
   override protected def withFixture(test: OneArgTest): Outcome = {
     val (queue, sub) = Source
       .queue[ConnectionState](bufferSize = 0, overflowStrategy = OverflowStrategy.backpressure)
-      .toMat(TestSink.probe[ServerConnection.ConnectionState])(Keep.both)
+      .toMat(TestSink.probe[LegacyServerConnection.ConnectionState])(Keep.both)
       .run()
     val connectionStateListener = new ConnectionStateListener {
       override def onConnectionStateChanged(connectionState: ConnectionState): Unit = queue.offer(connectionState)

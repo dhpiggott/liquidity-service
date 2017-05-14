@@ -281,8 +281,8 @@ class LiquidityServer(config: Config,
   }
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
-    ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
+    LegacyClientConnectionActor.webSocketFlow(
+      props = LegacyClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
       name = publicKey.fingerprint
     )
 

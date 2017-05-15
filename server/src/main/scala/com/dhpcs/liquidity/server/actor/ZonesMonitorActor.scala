@@ -8,7 +8,7 @@ import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import akka.pattern.pipe
 import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.Materializer
-import com.dhpcs.liquidity.actor.protocol.ActiveZoneSummary
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.persistence.ZoneIdStringPattern
 import com.dhpcs.liquidity.server.actor.ZonesMonitorActor._
@@ -45,7 +45,7 @@ class ZonesMonitorActor(zoneCount: => Future[Int]) extends Actor with ActorLoggi
   import context.dispatcher
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
-  mediator ! Subscribe(ZoneValidatorActor.Topic, self)
+  mediator ! Subscribe(ZoneStatusTopic, self)
 
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 

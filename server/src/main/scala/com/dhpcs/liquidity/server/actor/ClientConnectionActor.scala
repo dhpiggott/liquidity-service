@@ -7,30 +7,29 @@ import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.RemoteAddress
-import akka.http.scaladsl.model.ws.{TextMessage, Message => WsMessage}
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message => WsMessage}
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
-import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, NumericCorrelationId, StringCorrelationId}
-import com.dhpcs.jsonrpc._
+import akka.util.ByteString
 import com.dhpcs.liquidity.actor.protocol._
-import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.RichPublicKey
+import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
-import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
-import com.dhpcs.liquidity.ws.protocol.legacy._
-import play.api.libs.json.{JsError, JsSuccess, Json}
+import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol._
 
 import scala.concurrent.duration._
 
-object LegacyClientConnectionActor {
+object ClientConnectionActor {
 
   def props(ip: RemoteAddress,
             publicKey: PublicKey,
             zoneValidatorShardRegion: ActorRef,
             keepAliveInterval: FiniteDuration)(upstream: ActorRef): Props =
     Props(
-      new LegacyClientConnectionActor(
+      new ClientConnectionActor(
         ip,
         publicKey,
         zoneValidatorShardRegion,
@@ -42,23 +41,39 @@ object LegacyClientConnectionActor {
   def webSocketFlow(props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
                                                             mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
-      .via(actorFlow[WrappedJsonRpcCommand, WrappedJsonRpcResponseOrNotification](props, name))
+      .via(actorFlow[WrappedProtobufCommand, WrappedProtobufResponseOrNotification](props, name))
       .via(OutFlow)
 
-  private final val InFlow: Flow[WsMessage, WrappedJsonRpcCommand, NotUsed] =
+  private final val InFlow: Flow[WsMessage, WrappedProtobufCommand, NotUsed] =
     Flow[WsMessage]
       .flatMapConcat(wsMessage =>
-        for (jsonString <- wsMessage.asTextMessage match {
-               case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
-               case TextMessage.Strict(text)         => Source.single(text)
-             }) yield WrappedJsonRpcRequest(Json.parse(jsonString).as[JsonRpcRequestMessage]))
+        for (byteString <- wsMessage.asBinaryMessage match {
+               case BinaryMessage.Streamed(dataStream) => dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
+               case BinaryMessage.Strict(data)         => Source.single(data)
+             }) yield WrappedProtobufCommand(proto.ws.protocol.Command.parseFrom(byteString.toArray)))
 
-  private final val OutFlow: Flow[WrappedJsonRpcResponseOrNotification, WsMessage, NotUsed] =
-    Flow[WrappedJsonRpcResponseOrNotification].map {
-      case WrappedJsonRpcResponse(jsonRpcResponseMessage) =>
-        TextMessage(Json.stringify(Json.toJson(jsonRpcResponseMessage)))
-      case WrappedJsonRpcNotification(jsonRpcNotificationMessage) =>
-        TextMessage(Json.stringify(Json.toJson(jsonRpcNotificationMessage)))
+  private final val OutFlow: Flow[WrappedProtobufResponseOrNotification, WsMessage, NotUsed] =
+    Flow[WrappedProtobufResponseOrNotification].map {
+      case WrappedProtobufResponse(protobufResponse) =>
+        BinaryMessage(
+          ByteString(
+            proto.ws.protocol
+              .ResponseOrNotification(
+                proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Response(
+                  protobufResponse
+                )
+              )
+              .toByteArray))
+      case WrappedProtobufNotification(protobufNotification) =>
+        BinaryMessage(
+          ByteString(
+            proto.ws.protocol
+              .ResponseOrNotification(
+                proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Notification(
+                  protobufNotification
+                )
+              )
+              .toByteArray))
     }
 
   private def actorFlow[In, Out](props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
@@ -92,16 +107,15 @@ object LegacyClientConnectionActor {
     )
   }
 
-  final val Topic = "Client"
+  final case class WrappedProtobufCommand(protobufCommand: proto.ws.protocol.Command)
+      extends NoSerializationVerificationNeeded
 
-  sealed abstract class WrappedJsonRpcCommand                                          extends NoSerializationVerificationNeeded
-  final case class WrappedJsonRpcRequest(jsonRpcRequestMessage: JsonRpcRequestMessage) extends WrappedJsonRpcCommand
-
-  sealed abstract class WrappedJsonRpcResponseOrNotification extends NoSerializationVerificationNeeded
-  final case class WrappedJsonRpcResponse(jsonRpcResponseMessage: JsonRpcResponseMessage)
-      extends WrappedJsonRpcResponseOrNotification
-  final case class WrappedJsonRpcNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
-      extends WrappedJsonRpcResponseOrNotification
+  sealed abstract class WrappedProtobufResponseOrNotification extends NoSerializationVerificationNeeded
+  final case class WrappedProtobufResponse(protobufResponse: proto.ws.protocol.ResponseOrNotification.Response)
+      extends WrappedProtobufResponseOrNotification
+  final case class WrappedProtobufNotification(
+      protobufNotification: proto.ws.protocol.ResponseOrNotification.Notification)
+      extends WrappedProtobufResponseOrNotification
 
   case object ActorSinkInit
   case object ActorSinkAck
@@ -120,7 +134,7 @@ object LegacyClientConnectionActor {
 
   private class KeepAliveGeneratorActor(keepAliveInterval: FiniteDuration) extends Actor {
 
-    import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor.KeepAliveGeneratorActor._
+    import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
 
     context.setReceiveTimeout(keepAliveInterval)
 
@@ -131,16 +145,16 @@ object LegacyClientConnectionActor {
   }
 }
 
-class LegacyClientConnectionActor(ip: RemoteAddress,
-                                  publicKey: PublicKey,
-                                  zoneValidatorShardRegion: ActorRef,
-                                  keepAliveInterval: FiniteDuration,
-                                  upstream: ActorRef)
+class ClientConnectionActor(ip: RemoteAddress,
+                            publicKey: PublicKey,
+                            zoneValidatorShardRegion: ActorRef,
+                            keepAliveInterval: FiniteDuration,
+                            upstream: ActorRef)
     extends PersistentActor
     with ActorLogging
     with AtLeastOnceDelivery {
 
-  import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor.KeepAliveGeneratorActor._
+  import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
   import context.dispatcher
 
   private[this] val mediator          = DistributedPubSub(context.system).mediator
@@ -168,56 +182,41 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   override def receiveCommand: Receive = waitingForActorSinkInit
 
   private[this] def waitingForActorSinkInit: Receive =
-    publishStatus orElse sendKeepAlive(sendNotification = sendJsonRpcNotification) orElse {
+    publishStatus orElse sendKeepAlive(sendNotification = sendProtobufNotification) orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
-        sendJsonRpcNotification(SupportedVersionsNotification(CompatibleVersionNumbers))
         context.become(receiveActorSinkMessages())
     }
 
   private[this] def receiveActorSinkMessages(
-      sendResponse: (Response, Long) => Unit = sendJsonRpcResponse,
-      sendNotification: Notification => Unit = sendJsonRpcNotification): Receive =
+      sendResponse: (Response, Long) => Unit = sendProtobufResponse,
+      sendNotification: Notification => Unit = sendProtobufNotification): Receive =
     publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive(sendNotification) orElse {
-      case WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
+      case WrappedProtobufCommand(protobufCommand) =>
         sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
-        Command.read(jsonRpcRequestMessage) match {
-          case error: JsError =>
-            log.warning(s"Receive error: $error")
-            send(
-              WrappedJsonRpcResponse(
-                JsonRpcResponseErrorMessage.invalidRequest(error, jsonRpcRequestMessage.id)
-              )
-            )
-          case JsSuccess(command, _) =>
-            jsonRpcRequestMessage.id match {
-              case NoCorrelationId =>
-                sendJsonRpcErrorResponse(
-                  error = "Correlation ID must be set",
-                  correlationId = jsonRpcRequestMessage.id
-                )
-              case StringCorrelationId(_) =>
-                sendJsonRpcErrorResponse(
-                  error = "String correlation IDs are not supported",
-                  correlationId = jsonRpcRequestMessage.id
-                )
-              case NumericCorrelationId(value) if !value.isValidLong =>
-                sendJsonRpcErrorResponse(
-                  error = "Floating point correlation IDs are not supported",
-                  correlationId = jsonRpcRequestMessage.id
-                )
-              case NumericCorrelationId(value) =>
-                handleCommand(command, value.toLongExact)
-            }
+        // TODO: DRY
+        protobufCommand.command match {
+          case proto.ws.protocol.Command.Command.Empty =>
+            sys.error("Empty")
+          case proto.ws.protocol.Command.Command.ZoneCommand(protobufZoneCommand) =>
+            val zoneCommand = ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+              .asScala(protobufZoneCommand.zoneCommand)
+            handleZoneCommand(zoneCommand, protobufCommand.correlationId)
         }
+        context.become(
+          receiveActorSinkMessages(
+            sendResponse = sendProtobufResponse,
+            sendNotification = sendProtobufNotification
+          )
+        )
       case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
           // Converting it back to the WS type is what ensures we'll then end up generating a fresh ZoneId when we then
           // convert it back again _from_ the WS type.
-          handleCommand(ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
-                        correlationId)
+          handleZoneCommand(ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
+                            correlationId)
         )
       case ZoneResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
@@ -245,7 +244,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   private[this] def publishStatus: Receive = {
     case PublishStatus =>
       mediator ! Publish(
-        Topic,
+        ClientStatusTopic,
         ActiveClientSummary(publicKey)
       )
   }
@@ -264,24 +263,21 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
       sendNotification(KeepAliveNotification)
   }
 
-  private[this] def handleCommand(command: Command, correlationId: Long) = {
-    command match {
-      case zoneCommand: ZoneCommand =>
-        // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-        val protoZoneCommand = ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
-        val zoneId           = protoZoneCommand.zoneId
-        val sequenceNumber   = commandSequenceNumbers(zoneId)
-        commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-        deliver(zoneValidatorShardRegion.path) { deliveryId =>
-          pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-          AuthenticatedZoneCommandWithIds(
-            publicKey,
-            protoZoneCommand,
-            correlationId,
-            sequenceNumber,
-            deliveryId
-          )
-        }
+  private[this] def handleZoneCommand(zoneCommand: ZoneCommand, correlationId: Long) = {
+    // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
+    val protoZoneCommand = ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
+    val zoneId           = protoZoneCommand.zoneId
+    val sequenceNumber   = commandSequenceNumbers(zoneId)
+    commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+    deliver(zoneValidatorShardRegion.path) { deliveryId =>
+      pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+      AuthenticatedZoneCommandWithIds(
+        publicKey,
+        protoZoneCommand,
+        correlationId,
+        sequenceNumber,
+        deliveryId
+      )
     }
   }
 
@@ -296,35 +292,45 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  private[this] def sendJsonRpcNotification(notification: Notification): Unit =
-    send(WrappedJsonRpcNotification(Notification.write(notification)))
-
-  private[this] def sendJsonRpcResponse(response: Response, correlationId: Long): Unit =
-    response match {
-      case EmptyZoneResponse =>
-        sys.error("EmptyZoneResponse")
-      case ErrorResponse(error) =>
-        sendJsonRpcErrorResponse(error, NumericCorrelationId(correlationId))
-      case successResponse: SuccessResponse =>
-        sendJsonRpcSuccessResponse(successResponse, correlationId)
-    }
-
-  private[this] def sendJsonRpcErrorResponse(error: String, correlationId: CorrelationId): Unit =
+  // TODO: DRY
+  private[this] def sendProtobufNotification(notification: Notification): Unit =
     send(
-      WrappedJsonRpcResponse(
-        JsonRpcResponseErrorMessage.applicationError(
-          code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
-          message = error,
-          data = None,
-          correlationId
+      WrappedProtobufNotification(
+        proto.ws.protocol.ResponseOrNotification.Notification(notification match {
+          case KeepAliveNotification =>
+            proto.ws.protocol.ResponseOrNotification.Notification.Notification.KeepAliveNotification(
+              proto.ws.protocol.KeepAliveNotification()
+            )
+          case zoneNotification: ZoneNotification =>
+            proto.ws.protocol.ResponseOrNotification.Notification.Notification.ZoneNotification(
+              proto.ws.protocol.ZoneNotification(
+                ProtoConverter[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
+                  .asProto(zoneNotification))
+            )
+        })
+      )
+    )
+
+  // TODO: DRY
+  private[this] def sendProtobufResponse(response: Response, correlationId: Long): Unit =
+    send(
+      WrappedProtobufResponse(
+        proto.ws.protocol.ResponseOrNotification.Response(
+          correlationId,
+          response match {
+            case zoneResponse: ZoneResponse =>
+              proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(
+                proto.ws.protocol.ZoneResponse(
+                  ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                    .asProto(zoneResponse))
+              )
+          }
         )
-      ))
+      )
+    )
 
-  private[this] def sendJsonRpcSuccessResponse(response: SuccessResponse, correlationId: Long): Unit =
-    send(WrappedJsonRpcResponse(SuccessResponse.write(response, NumericCorrelationId(correlationId))))
-
-  private[this] def send(wrappedJsonRpcOrProtobufResponseOrNotification: WrappedJsonRpcResponseOrNotification): Unit = {
-    upstream ! wrappedJsonRpcOrProtobufResponseOrNotification
+  private[this] def send(wrappedProtobufResponseOrNotification: WrappedProtobufResponseOrNotification): Unit = {
+    upstream ! wrappedProtobufResponseOrNotification
     keepAliveGeneratorActor ! FrameSentEvent
   }
 }

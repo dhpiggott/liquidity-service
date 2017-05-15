@@ -36,7 +36,7 @@ trait HttpController {
         case Some(certificate) =>
           certificate.getPublicKey match {
             case rsaPublicKey: RSAPublicKey if rsaPublicKey.getModulus.bitLength == RequiredClientKeyLength =>
-              handleWebSocketMessages(webSocketApi(ip, PublicKey(rsaPublicKey.getEncoded)))
+              handleWebSocketMessages(legacyWebSocketApi(ip, PublicKey(rsaPublicKey.getEncoded)))
             case _ =>
               complete(
                 (BadRequest, s"Invalid client public key from ${ip.toOption.getOrElse("unknown")}")
@@ -46,7 +46,23 @@ trait HttpController {
           complete(
             (BadRequest, s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
           )
-      })))
+      }))) ~
+      path("bws")(extractClientIP(ip =>
+        headerValueByType[`Tls-Session-Info`](())(_.peerCertificates.headOption match {
+          case Some(certificate) =>
+            certificate.getPublicKey match {
+              case rsaPublicKey: RSAPublicKey if rsaPublicKey.getModulus.bitLength == RequiredClientKeyLength =>
+                handleWebSocketMessages(webSocketApi(ip, PublicKey(rsaPublicKey.getEncoded)))
+              case _ =>
+                complete(
+                  (BadRequest, s"Invalid client public key from ${ip.toOption.getOrElse("unknown")}")
+                )
+            }
+          case None =>
+            complete(
+              (BadRequest, s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
+            )
+        })))
 
   private[this] def status(implicit ec: ExecutionContext): Route = path("status")(
     get(
@@ -90,6 +106,7 @@ trait HttpController {
       })))))
 
   protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
+  protected[this] def legacyWebSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
   protected[this] def getStatus: Future[JsValue]
   protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
   protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]

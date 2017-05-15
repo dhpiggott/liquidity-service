@@ -108,13 +108,19 @@ lazy val `ws-protocol` = project
   .in(file("ws-protocol"))
   .settings(commonSettings)
   .settings(publishSettings)
+  .settings(protobufSettings)
   .settings(
     name := "liquidity-ws-protocol"
   )
+  .settings(
+    PB.includePaths in Compile += file("model/src/main/protobuf")
+  )
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
+  .dependsOn(serialization)
   .dependsOn(model)
   .dependsOn(`actor-protocol`)
   .settings(libraryDependencies += scalaTest % Test)
+  .dependsOn(model % "test->test")
 
 lazy val certgen = project
   .in(file("certgen"))

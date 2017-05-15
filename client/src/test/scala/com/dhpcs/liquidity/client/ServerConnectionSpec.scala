@@ -15,18 +15,18 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy, TLSClientAuth}
 import akka.testkit.{TestActor, TestKit, TestProbe}
-import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.liquidity.certgen.CertGen
-import com.dhpcs.liquidity.client.LegacyServerConnection._
-import com.dhpcs.liquidity.client.LegacyServerConnectionSpec._
+import com.dhpcs.liquidity.client.ServerConnection._
+import com.dhpcs.liquidity.client.ServerConnectionSpec._
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.proto
+import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConnectionActor}
-import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
-import com.dhpcs.liquidity.ws.protocol.legacy._
+import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
-import org.scalatest.OptionValues._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
@@ -37,7 +37,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future, Promise}
 
-object LegacyServerConnectionSpec {
+object ServerConnectionSpec {
 
   object ClientConnectionTestProbeForwarderActor {
     def props(clientConnectionActorTestProbe: ActorRef)(upstream: ActorRef): Props =
@@ -56,7 +56,7 @@ object LegacyServerConnectionSpec {
   }
 }
 
-class LegacyServerConnectionSpec
+class ServerConnectionSpec
     extends fixture.FreeSpec
     with HttpController
     with BeforeAndAfterAll
@@ -159,7 +159,7 @@ class LegacyServerConnectionSpec
   }
 
   private[this] val connectivityStatePublisherBuilder = new ConnectivityStatePublisherBuilder {
-    override def build(serverConnection: LegacyServerConnection): ConnectivityStatePublisher =
+    override def build(serverConnection: ServerConnection): ConnectivityStatePublisher =
       new ConnectivityStatePublisher {
         override def isConnectionAvailable: Boolean = true
         override def register(): Unit               = ()
@@ -189,7 +189,7 @@ class LegacyServerConnectionSpec
     override def main(): HandlerWrapper = MainHandlerWrapper
   }
 
-  private[this] val serverConnection = new LegacyServerConnection(
+  private[this] val serverConnection = new ServerConnection(
     filesDir.toFile,
     keyStoreInputStreamProvider,
     connectivityStatePublisherBuilder,
@@ -201,13 +201,12 @@ class LegacyServerConnectionSpec
   private[this] def send(command: Command): Future[Response] = {
     val promise = Promise[Response]
     MainHandlerWrapper.post(
-      () =>
-        serverConnection.sendCommand(
-          command,
-          new ResponseCallback {
-            override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
-            override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
-          }
+      serverConnection.sendCommand(
+        command,
+        new ResponseCallback {
+          override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
+          override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
+        }
       ))
     promise.future
   }
@@ -228,7 +227,7 @@ class LegacyServerConnectionSpec
   override protected def withFixture(test: OneArgTest): Outcome = {
     val (queue, sub) = Source
       .queue[ConnectionState](bufferSize = 0, overflowStrategy = OverflowStrategy.backpressure)
-      .toMat(TestSink.probe[LegacyServerConnection.ConnectionState])(Keep.both)
+      .toMat(TestSink.probe[ServerConnection.ConnectionState])(Keep.both)
       .run()
     val connectionStateListener = new ConnectionStateListener {
       override def onConnectionStateChanged(connectionState: ConnectionState): Unit = queue.offer(connectionState)
@@ -243,23 +242,12 @@ class LegacyServerConnectionSpec
 
   "ServerConnection" - {
     "will connect to the server and update the connection state as it does so" in { sub =>
-      clientConnectionActorTestProbe.setAutoPilot(new TestActor.AutoPilot {
-        override def run(sender: ActorRef, msg: Any): TestActor.AutoPilot = msg match {
-          case ActorSinkInit =>
-            sender.tell(
-              WrappedJsonRpcNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
-              sender = clientConnectionActorTestProbe.ref
-            )
-            TestActor.NoAutoPilot
-        }
-      })
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
-      sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
-      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
@@ -290,35 +278,45 @@ class LegacyServerConnectionSpec
       clientConnectionActorTestProbe.setAutoPilot((sender: ActorRef, msg: Any) =>
         msg match {
           case ActorSinkInit =>
-            sender.tell(
-              WrappedJsonRpcNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
-              sender = clientConnectionActorTestProbe.ref
-            )
             (sender: ActorRef, msg: Any) =>
               {
                 msg match {
-                  case WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
-                    assert(jsonRpcRequestMessage.id === NumericCorrelationId(0))
-                    assert(Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
+                  case WrappedProtobufCommand(protobufCommand) =>
+                    assert(protobufCommand.correlationId === 0L)
+                    // TODO: DRY
+                    inside(protobufCommand.command) {
+                      case proto.ws.protocol.Command.Command.ZoneCommand(protobufZoneCommand) =>
+                        assert(
+                          ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                            .asScala(protobufZoneCommand.zoneCommand)
+                            === createZoneCommand)
+                    }
                     sender.tell(
-                      WrappedJsonRpcResponse(
-                        SuccessResponse.write(createZoneResponse, jsonRpcRequestMessage.id)
+                      WrappedProtobufResponse(
+                        // TODO: DRY
+                        proto.ws.protocol.ResponseOrNotification.Response(
+                          protobufCommand.correlationId,
+                          proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(
+                            proto.ws.protocol.ZoneResponse(
+                              ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                                .asProto(createZoneResponse)
+                            )
+                          )
+                        )
                       ),
                       sender = clientConnectionActorTestProbe.ref
                     )
                 }
-
                 TestActor.NoAutoPilot
               }
       })
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
-      sub.requestNext(WAITING_FOR_VERSION_CHECK)
       sub.requestNext(ONLINE)
       assert(send(createZoneCommand).futureValue === createZoneResponse)
-      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }

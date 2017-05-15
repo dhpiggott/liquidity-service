@@ -37,8 +37,6 @@ object ZoneValidatorActor {
       (math.abs(command.zoneId.id.hashCode) % NumberOfShards).toString
   }
 
-  final val Topic = "Zone"
-
   private final val RequiredOwnerKeyLength = 2048
 
   private val ZoneLifetime = 2.days
@@ -368,7 +366,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     case PublishStatus =>
       if (state.zone != null)
         mediator ! Publish(
-          Topic,
+          ZoneStatusTopic,
           ActiveZoneSummary(
             zoneId,
             state.zone.metadata,

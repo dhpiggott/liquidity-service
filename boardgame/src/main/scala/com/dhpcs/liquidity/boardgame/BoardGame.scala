@@ -4,10 +4,10 @@ import java.util.Currency
 
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.boardgame.BoardGame._
-import com.dhpcs.liquidity.client.LegacyServerConnection
-import com.dhpcs.liquidity.client.LegacyServerConnection._
+import com.dhpcs.liquidity.client.ServerConnection
+import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.ws.protocol.legacy._
+import com.dhpcs.liquidity.ws.protocol._
 import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -24,18 +24,16 @@ object BoardGame {
   }
 
   sealed abstract class JoinState
-  case object UNAVAILABLE               extends JoinState
-  case object GENERAL_FAILURE           extends JoinState
-  case object TLS_ERROR                 extends JoinState
-  case object UNSUPPORTED_VERSION       extends JoinState
-  case object AVAILABLE                 extends JoinState
-  case object CONNECTING                extends JoinState
-  case object WAITING_FOR_VERSION_CHECK extends JoinState
-  case object CREATING                  extends JoinState
-  case object JOINING                   extends JoinState
-  case object JOINED                    extends JoinState
-  case object QUITTING                  extends JoinState
-  case object DISCONNECTING             extends JoinState
+  case object UNAVAILABLE     extends JoinState
+  case object GENERAL_FAILURE extends JoinState
+  case object TLS_ERROR       extends JoinState
+  case object AVAILABLE       extends JoinState
+  case object CONNECTING      extends JoinState
+  case object CREATING        extends JoinState
+  case object JOINING         extends JoinState
+  case object JOINED          extends JoinState
+  case object QUITTING        extends JoinState
+  case object DISCONNECTING   extends JoinState
 
   sealed abstract class Player extends Serializable {
 
@@ -248,15 +246,15 @@ object BoardGame {
     }
 }
 
-class BoardGame private (serverConnection: LegacyServerConnection,
+class BoardGame private (serverConnection: ServerConnection,
                          gameDatabase: GameDatabase,
                          currency: Option[Currency],
                          gameName: Option[String],
                          bankMemberName: Option[String],
                          private[this] var zoneId: Option[ZoneId],
                          private[this] var gameId: Option[Future[Long]])
-    extends LegacyServerConnection.ConnectionStateListener
-    with LegacyServerConnection.NotificationReceiptListener {
+    extends ServerConnection.ConnectionStateListener
+    with ServerConnection.NotificationReceiptListener {
 
   private[this] val connectionRequestToken = new ConnectionRequestToken
 
@@ -267,7 +265,7 @@ class BoardGame private (serverConnection: LegacyServerConnection,
   private[this] var joinStateListeners  = Set.empty[JoinStateListener]
   private[this] var gameActionListeners = Set.empty[GameActionListener]
 
-  def this(serverConnection: LegacyServerConnection,
+  def this(serverConnection: ServerConnection,
            gameDatabase: GameDatabase,
            currency: Currency,
            gameName: String,
@@ -283,7 +281,7 @@ class BoardGame private (serverConnection: LegacyServerConnection,
     )
   }
 
-  def this(serverConnection: LegacyServerConnection, gameDatabase: GameDatabase, zoneId: ZoneId) {
+  def this(serverConnection: ServerConnection, gameDatabase: GameDatabase, zoneId: ZoneId) {
     this(
       serverConnection,
       gameDatabase,
@@ -295,7 +293,7 @@ class BoardGame private (serverConnection: LegacyServerConnection,
     )
   }
 
-  def this(serverConnection: LegacyServerConnection, gameDatabase: GameDatabase, zoneId: ZoneId, gameId: Long) {
+  def this(serverConnection: ServerConnection, gameDatabase: GameDatabase, zoneId: ZoneId, gameId: Long) {
     this(
       serverConnection,
       gameDatabase,
@@ -458,7 +456,7 @@ class BoardGame private (serverConnection: LegacyServerConnection,
     if (_joinState != BoardGame.CREATING
         && _joinState != BoardGame.JOINING
         && _joinState != BoardGame.JOINED
-        && serverConnection.connectionState == LegacyServerConnection.ONLINE)
+        && serverConnection.connectionState == ServerConnection.ONLINE)
       zoneId match {
         case None =>
           state = null
@@ -530,35 +528,27 @@ class BoardGame private (serverConnection: LegacyServerConnection,
     }
 
   override def onConnectionStateChanged(connectionState: ConnectionState): Unit = connectionState match {
-    case LegacyServerConnection.UNAVAILABLE =>
+    case ServerConnection.UNAVAILABLE =>
       state = null
       _joinState = BoardGame.UNAVAILABLE
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-    case LegacyServerConnection.GENERAL_FAILURE =>
+    case ServerConnection.GENERAL_FAILURE =>
       state = null
       _joinState = BoardGame.GENERAL_FAILURE
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-    case LegacyServerConnection.TLS_ERROR =>
+    case ServerConnection.TLS_ERROR =>
       state = null
       _joinState = BoardGame.TLS_ERROR
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-    case LegacyServerConnection.UNSUPPORTED_VERSION =>
-      state = null
-      _joinState = BoardGame.UNSUPPORTED_VERSION
-      joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-    case LegacyServerConnection.AVAILABLE =>
+    case ServerConnection.AVAILABLE =>
       state = null
       _joinState = BoardGame.AVAILABLE
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-    case LegacyServerConnection.CONNECTING =>
+    case ServerConnection.CONNECTING =>
       state = null
       _joinState = BoardGame.CONNECTING
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-    case LegacyServerConnection.WAITING_FOR_VERSION_CHECK =>
-      state = null
-      _joinState = BoardGame.WAITING_FOR_VERSION_CHECK
-      joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-    case LegacyServerConnection.ONLINE =>
+    case ServerConnection.ONLINE =>
       if (joinRequestTokens.nonEmpty)
         zoneId match {
           case None =>
@@ -573,7 +563,7 @@ class BoardGame private (serverConnection: LegacyServerConnection,
             zoneId.foreach(join)
         }
 
-    case LegacyServerConnection.DISCONNECTING =>
+    case ServerConnection.DISCONNECTING =>
       state = null
       _joinState = BoardGame.DISCONNECTING
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))

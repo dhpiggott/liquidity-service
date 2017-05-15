@@ -57,6 +57,23 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
   "A LiquidityController" - {
     "will accept WebSocket connections" in {
       val wsProbe = WSProbe()
+      WS("/bws", wsProbe.flow)
+        .addHeader(
+          `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
+        )
+        .addHeader(
+          `Tls-Session-Info`(sslSession)
+        ) ~> route(enableClientRelay = true) ~> check {
+        assert(isWebSocketUpgrade === true)
+        val message = "Hello"
+        wsProbe.sendMessage(message)
+        wsProbe.expectMessage(message)
+        wsProbe.sendCompletion()
+        wsProbe.expectCompletion()
+      }
+    }
+    "will legacy accept WebSocket connections" in {
+      val wsProbe = WSProbe()
       WS("/ws", wsProbe.flow)
         .addHeader(
           `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
@@ -90,6 +107,9 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
   }
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
+    Flow[Message]
+  override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
+                                                  publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     Flow[Message]
 
   override protected[this] def getStatus: Future[JsValue] =

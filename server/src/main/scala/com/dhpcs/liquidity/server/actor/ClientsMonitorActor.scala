@@ -3,12 +3,8 @@ package com.dhpcs.liquidity.server.actor
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
-import com.dhpcs.liquidity.actor.protocol.ActiveClientSummary
-import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{
-  ActiveClientsSummary,
-  GetActiveClientsSummary,
-  PublishStatus
-}
+import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.server.actor.ClientsMonitorActor._
 
 import scala.concurrent.duration._
 
@@ -29,7 +25,7 @@ class ClientsMonitorActor extends Actor with ActorLogging {
   import context.dispatcher
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
-  mediator ! Subscribe(LegacyClientConnectionActor.Topic, self)
+  mediator ! Subscribe(ClientStatusTopic, self)
 
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
 

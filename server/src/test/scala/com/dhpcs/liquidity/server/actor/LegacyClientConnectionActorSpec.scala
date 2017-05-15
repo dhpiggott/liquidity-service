@@ -47,7 +47,7 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
     finally system.stop(clientConnection)
   }
 
-  "A ClientConnectionActor" - {
+  "A LegacyClientConnectionActor" - {
     "will send a JSON-RPC SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
       assert(expectJsonRpcNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))

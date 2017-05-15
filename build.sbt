@@ -115,6 +115,20 @@ lazy val `ws-protocol` = project
   .settings(
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
+  .dependsOn(serialization)
+  .dependsOn(model)
+  .dependsOn(`actor-protocol`)
+  .settings(libraryDependencies += playJson)
+  .settings(libraryDependencies += scalaTest % Test)
+  .dependsOn(model % "test->test")
+
+lazy val `ws-legacy-protocol` = project
+  .in(file("ws-legacy-protocol"))
+  .settings(commonSettings)
+  .settings(publishSettings)
+  .settings(
+    name := "liquidity-ws-legacy-protocol"
+  )
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
   .dependsOn(serialization)
   .dependsOn(model)
@@ -141,8 +155,9 @@ lazy val server = project
   )
   .dependsOn(model)
   .dependsOn(persistence)
-  .dependsOn(`ws-protocol`)
   .dependsOn(`actor-protocol`)
+  .dependsOn(`ws-protocol`)
+  .dependsOn(`ws-legacy-protocol`)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.18",
     "ch.qos.logback"           % "logback-classic"                      % "1.2.3",
@@ -208,11 +223,14 @@ lazy val healthcheck = project
     name := "liquidity-healthcheck"
   )
   .dependsOn(client)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.18",
-      scalaTest
-    ))
+  .dependsOn(`ws-legacy-protocol`)
+  .settings(libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.18",
+    scalaTest
+  ))
+  .dependsOn(certgen % "test")
+  .dependsOn(server % "test->test")
+  .settings(libraryDependencies += scalaTest % Test)
   .enablePlugins(JavaAppPackaging, UniversalPlugin)
 
 lazy val boardgame = project
@@ -237,6 +255,7 @@ lazy val root = project
     persistence,
     `actor-protocol`,
     `ws-protocol`,
+    `ws-legacy-protocol`,
     certgen,
     server,
     client,

@@ -241,7 +241,7 @@ class LegacyServerConnectionSpec
     }
   }
 
-  "ServerConnection" - {
+  "LegacyServerConnection" - {
     "will connect to the server and update the connection state as it does so" in { sub =>
       clientConnectionActorTestProbe.setAutoPilot(new TestActor.AutoPilot {
         override def run(sender: ActorRef, msg: Any): TestActor.AutoPilot = msg match {

@@ -6,7 +6,6 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.ws.protocol.WsProtocolSpec._
 import org.scalatest.FreeSpec
-import play.api.libs.json._
 
 object WsProtocolSpec {
 
@@ -18,10 +17,10 @@ object WsProtocolSpec {
     equityAccountMetadata = None,
     name = Some("Dave's zone"),
     metadata = Some(
-      Json.obj(
-        "currency" -> "GBP"
-      )
-    )
+      com.google.protobuf.struct.Struct(
+        Map(
+          "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
+        )))
   )
 
   val createZoneCommandProto = proto.ws.protocol.ZoneCommand.CreateZoneCommand(

@@ -41,7 +41,7 @@ object MemberId {
 final case class Member(id: MemberId,
                         ownerPublicKey: PublicKey,
                         name: Option[String] = None,
-                        metadata: Option[JsObject] = None)
+                        metadata: Option[com.google.protobuf.struct.Struct] = None)
 
 object Member {
   implicit final val MemberFormat: Format[Member] = Json.format[Member]
@@ -56,7 +56,7 @@ object AccountId {
 final case class Account(id: AccountId,
                          ownerMemberIds: Set[MemberId],
                          name: Option[String] = None,
-                         metadata: Option[JsObject] = None)
+                         metadata: Option[com.google.protobuf.struct.Struct] = None)
 
 object Account {
   implicit final val AccountFormat: Format[Account] = Json.format[Account]
@@ -76,7 +76,7 @@ final case class Transaction(id: TransactionId,
                              creator: MemberId,
                              created: Long,
                              description: Option[String] = None,
-                             metadata: Option[JsObject] = None) {
+                             metadata: Option[com.google.protobuf.struct.Struct] = None) {
   require(value >= 0)
   require(created >= 0)
 }
@@ -90,7 +90,7 @@ object Transaction {
       (JsPath \ "creator").format[MemberId] and
       (JsPath \ "created").format(min[Long](0)) and
       (JsPath \ "description").formatNullable[String] and
-      (JsPath \ "metadata").formatNullable[JsObject]
+      (JsPath \ "metadata").formatNullable[com.google.protobuf.struct.Struct]
   )(
     (id, from, to, value, creator, created, description, metadata) =>
       Transaction(
@@ -133,7 +133,7 @@ final case class Zone(id: ZoneId,
                       created: Long,
                       expires: Long,
                       name: Option[String] = None,
-                      metadata: Option[JsObject] = None) {
+                      metadata: Option[com.google.protobuf.struct.Struct] = None) {
   require(created >= 0)
   require(expires >= 0)
 }
@@ -148,7 +148,7 @@ object Zone {
       (JsPath \ "created").format(min[Long](0)) and
       (JsPath \ "expires").format(min[Long](0)) and
       (JsPath \ "name").formatNullable[String] and
-      (JsPath \ "metadata").formatNullable[JsObject]
+      (JsPath \ "metadata").formatNullable[com.google.protobuf.struct.Struct]
   )(
     (id, equityAccountId, members, accounts, transactions, created, expires, name, metadata) =>
       Zone(

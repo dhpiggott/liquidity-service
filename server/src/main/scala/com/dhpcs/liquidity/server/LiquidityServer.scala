@@ -19,16 +19,11 @@ import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.scaladsl.Flow
 import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
 import akka.util.Timeout
-import com.dhpcs.liquidity.actor.protocol.{ActiveClientSummary, ActiveZoneSummary}
-import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
+import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.LiquidityServer._
-import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
-import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.{
-  ActiveZonesSummary,
-  GetActiveZonesSummary,
-  GetZoneCount,
-  ZoneCount
-}
+import com.dhpcs.liquidity.server.actor.ClientsMonitorActor._
+import com.dhpcs.liquidity.server.actor.ZonesMonitorActor._
 import com.dhpcs.liquidity.server.actor._
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString

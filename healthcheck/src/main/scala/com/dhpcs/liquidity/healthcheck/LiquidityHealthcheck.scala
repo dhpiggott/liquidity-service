@@ -20,7 +20,6 @@ import okio.ByteString
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
-import play.api.libs.json.Json
 
 import scala.concurrent.{Future, Promise}
 
@@ -84,7 +83,11 @@ object LiquidityHealthcheck {
     created = 1456399347712L,
     expires = 1456572147712L,
     name = Some("Test"),
-    metadata = Some(Json.obj("currency" -> "GBP"))
+    metadata = Some(
+      com.google.protobuf.struct.Struct(
+        Map(
+          "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
+        )))
   )
 
   def main(args: Array[String]): Unit =

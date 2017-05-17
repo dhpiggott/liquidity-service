@@ -15,7 +15,6 @@ import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActor._
-import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.duration._
 
@@ -195,15 +194,16 @@ object ZoneValidatorActor {
         Some("Invalid owner public key type")
     }
 
-  private def checkTagAndMetadata(tag: Option[String], metadata: Option[JsObject]): Option[String] =
+  private def checkTagAndMetadata(tag: Option[String],
+                                  metadata: Option[com.google.protobuf.struct.Struct]): Option[String] =
     tag
       .collect {
         case excessiveTag if excessiveTag.length > MaxStringLength =>
           s"Tag length exceeds maximum ($MaxStringLength): $excessiveTag"
       }
-      .orElse(metadata.map(Json.stringify).collect {
-        case excessiveMetadataString if excessiveMetadataString.length > MaxMetadataSize =>
-          s"Metadata size exceeds maximum ($MaxMetadataSize): $excessiveMetadataString"
+      .orElse(metadata.collect {
+        case excessiveMetadata if excessiveMetadata.toByteArray.length > MaxMetadataSize =>
+          s"Metadata size exceeds maximum ($MaxMetadataSize): $excessiveMetadata"
       })
 
   private def checkTransaction(from: AccountId,

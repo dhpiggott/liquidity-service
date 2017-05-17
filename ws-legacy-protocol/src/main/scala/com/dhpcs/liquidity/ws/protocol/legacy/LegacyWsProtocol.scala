@@ -15,11 +15,11 @@ sealed abstract class ZoneCommand extends Command
 case object EmptyZoneCommand extends ZoneCommand
 final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                    equityOwnerName: Option[String],
-                                   equityOwnerMetadata: Option[JsObject],
+                                   equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
                                    equityAccountName: Option[String],
-                                   equityAccountMetadata: Option[JsObject],
+                                   equityAccountMetadata: Option[com.google.protobuf.struct.Struct],
                                    name: Option[String] = None,
-                                   metadata: Option[JsObject] = None)
+                                   metadata: Option[com.google.protobuf.struct.Struct] = None)
     extends ZoneCommand
 final case class JoinZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
 final case class QuitZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
@@ -27,13 +27,13 @@ final case class ChangeZoneNameCommand(zoneId: ZoneId, name: Option[String]) ext
 final case class CreateMemberCommand(zoneId: ZoneId,
                                      ownerPublicKey: PublicKey,
                                      name: Option[String] = None,
-                                     metadata: Option[JsObject] = None)
+                                     metadata: Option[com.google.protobuf.struct.Struct] = None)
     extends ZoneCommand
 final case class UpdateMemberCommand(zoneId: ZoneId, member: Member) extends ZoneCommand
 final case class CreateAccountCommand(zoneId: ZoneId,
                                       ownerMemberIds: Set[MemberId],
                                       name: Option[String] = None,
-                                      metadata: Option[JsObject] = None)
+                                      metadata: Option[com.google.protobuf.struct.Struct] = None)
     extends ZoneCommand
 final case class UpdateAccountCommand(zoneId: ZoneId, account: Account) extends ZoneCommand
 final case class AddTransactionCommand(zoneId: ZoneId,
@@ -42,7 +42,7 @@ final case class AddTransactionCommand(zoneId: ZoneId,
                                        to: AccountId,
                                        value: BigDecimal,
                                        description: Option[String] = None,
-                                       metadata: Option[JsObject] = None)
+                                       metadata: Option[com.google.protobuf.struct.Struct] = None)
     extends ZoneCommand {
   require(value >= 0)
 }
@@ -56,7 +56,7 @@ object Command extends CommandCompanion[Command] {
       (JsPath \ "to").format[AccountId] and
       (JsPath \ "value").format(min[BigDecimal](0)) and
       (JsPath \ "description").formatNullable[String] and
-      (JsPath \ "metadata").formatNullable[JsObject]
+      (JsPath \ "metadata").formatNullable[com.google.protobuf.struct.Struct]
   )(
     (zoneId, actingAs, from, to, value, description, metadata) =>
       AddTransactionCommand(

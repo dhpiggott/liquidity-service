@@ -8,7 +8,6 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.model
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import org.scalatest.FreeSpec
-import play.api.libs.json.Json
 
 object ModelSpec {
 
@@ -47,10 +46,10 @@ object ModelSpec {
     expires = 1433611420487L,
     name = Some("Dave's zone"),
     metadata = Some(
-      Json.obj(
-        "currency" -> "GBP"
-      )
-    )
+      com.google.protobuf.struct.Struct(
+        Map(
+          "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
+        )))
   )
 
   //noinspection RedundantDefaultArgument

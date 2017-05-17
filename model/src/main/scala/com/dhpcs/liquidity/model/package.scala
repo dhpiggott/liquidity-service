@@ -8,6 +8,15 @@ import play.api.libs.json._
 
 package object model {
 
+  implicit final val StructFormat: OFormat[com.google.protobuf.struct.Struct] = OFormat(
+    (jsValue: JsValue) =>
+      jsValue
+        .validate[JsObject]
+        .map(jsObject => ProtoConverter[JsObject, com.google.protobuf.struct.Struct].asProto(jsObject)),
+    (struct: com.google.protobuf.struct.Struct) =>
+      ProtoConverter[JsObject, com.google.protobuf.struct.Struct].asScala(struct)
+  )
+
   implicit def setProtoConverter[S, P](implicit protoConverter: ProtoConverter[S, P]): ProtoConverter[Set[S], Seq[P]] =
     ProtoConverter.instance(_.map(protoConverter.asProto).toSeq, _.map(protoConverter.asScala).toSet)
 

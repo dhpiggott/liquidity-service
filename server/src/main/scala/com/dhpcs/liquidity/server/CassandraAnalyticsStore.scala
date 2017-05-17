@@ -4,18 +4,13 @@ import java.util.Date
 
 import akka.actor.ActorPath
 import com.datastax.driver.core.{PreparedStatement, ResultSet, Row, Session}
-import com.dhpcs.liquidity.model.{Zone, _}
-import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore.{AccountStore, MemberStore, TransactionStore}
-import com.dhpcs.liquidity.server.CassandraAnalyticsStore.{
-  BalanceStore,
-  ClientStore,
-  JournalSequenceNumberStore,
-  ZoneStore
-}
+import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore._
+import com.dhpcs.liquidity.server.CassandraAnalyticsStore._
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
 import com.typesafe.config.Config
 import okio.ByteString
-import play.api.libs.json.{JsObject, Json, Reads}
+import play.api.libs.json.Json
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -130,7 +125,9 @@ object CassandraAnalyticsStore {
               memberId       = MemberId(row.getLong("id"))
               ownerPublicKey = PublicKey(ByteString.of(row.getBytes("owner_public_key")))
               name           = Option(row.getString("name"))
-              metadata       = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
+              metadata = Option(row.getString("metadata"))
+                .map(Json.parse)
+                .map(_.as[com.google.protobuf.struct.Struct])
             } yield memberId -> Member(memberId, ownerPublicKey, name, metadata)).toMap
 
       private[this] val createStatement = prepareStatement(s"""
@@ -148,8 +145,10 @@ object CassandraAnalyticsStore {
             member.ownerPublicKey.fingerprint,
             new Date(created),
             member.name.orNull,
-            member.metadata.map(Json.stringify).orNull,
-            member.metadata.read[Boolean]("hidden").map(hidden => hidden: java.lang.Boolean).orNull
+            member.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+            member.metadata
+              .flatMap(_.fields.get("hidden").flatMap(_.kind.boolValue).map(hidden => hidden: java.lang.Boolean))
+              .orNull
           )
         } yield ()
 
@@ -167,8 +166,10 @@ object CassandraAnalyticsStore {
             member.ownerPublicKey.fingerprint,
             new Date(modified),
             member.name.orNull,
-            member.metadata.map(Json.stringify).orNull,
-            member.metadata.read[Boolean]("hidden").map(hidden => hidden: java.lang.Boolean).orNull,
+            member.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+            member.metadata
+              .flatMap(_.fields.get("hidden").flatMap(_.kind.boolValue).map(hidden => hidden: java.lang.Boolean))
+              .orNull,
             zoneId.id,
             member.id.id: java.lang.Long
           )
@@ -187,8 +188,10 @@ object CassandraAnalyticsStore {
                new Date(updated),
                member.ownerPublicKey.fingerprint,
                member.name.orNull,
-               member.metadata.map(Json.stringify).orNull,
-               member.metadata.read[Boolean]("hidden").map(hidden => hidden: java.lang.Boolean).orNull
+               member.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+               member.metadata
+                 .flatMap(_.fields.get("hidden").flatMap(_.kind.boolValue).map(hidden => hidden: java.lang.Boolean))
+                 .orNull
              )) yield ()
 
     }
@@ -245,8 +248,10 @@ object CassandraAnalyticsStore {
                 .asScala
                 .map(MemberId(_))
                 .toSet
-              name     = Option(row.getString("name"))
-              metadata = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
+              name = Option(row.getString("name"))
+              metadata = Option(row.getString("metadata"))
+                .map(Json.parse)
+                .map(_.as[com.google.protobuf.struct.Struct])
             } yield accountId -> Account(accountId, ownerMemberIds, name, metadata)).toMap
 
       private[this] val createStatement = prepareStatement(s"""
@@ -264,7 +269,7 @@ object CassandraAnalyticsStore {
             ownerNames(zone.members, account),
             new Date(zone.created),
             account.name.orNull,
-            account.metadata.map(Json.stringify).orNull
+            account.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull
           )
         } yield ()
 
@@ -298,7 +303,7 @@ object CassandraAnalyticsStore {
             ownerNames(zone.members, account),
             new Date(modified),
             account.name.orNull,
-            account.metadata.map(Json.stringify).orNull,
+            account.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
             zone.id.id,
             account.id.id: java.lang.Long
           )
@@ -318,7 +323,7 @@ object CassandraAnalyticsStore {
                account.ownerMemberIds.map(_.id).asJava,
                ownerNames(zone.members, account),
                account.name.orNull,
-               account.metadata.map(Json.stringify).orNull
+               account.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull
              )) yield ()
 
     }
@@ -365,7 +370,9 @@ object CassandraAnalyticsStore {
               creator       = MemberId(row.getLong("creator"))
               created       = row.getTimestamp("created").getTime
               description   = Option(row.getString("description"))
-              metadata      = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
+              metadata = Option(row.getString("metadata"))
+                .map(Json.parse)
+                .map(_.as[com.google.protobuf.struct.Struct])
             } yield
               transactionId -> Transaction(transactionId, from, to, value, creator, created, description, metadata)).toMap
 
@@ -386,7 +393,7 @@ object CassandraAnalyticsStore {
                  transaction.creator.id: java.lang.Long,
                  new Date(transaction.created),
                  transaction.description.orNull,
-                 transaction.metadata.map(Json.stringify).orNull,
+                 transaction.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
                  zone.id.id,
                  transaction.id.id: java.lang.Long
              ))) yield ()
@@ -408,7 +415,7 @@ object CassandraAnalyticsStore {
                transaction.creator.id: java.lang.Long,
                new Date(transaction.created),
                transaction.description.orNull,
-               transaction.metadata.map(Json.stringify).orNull
+               transaction.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull
              )) yield ()
 
     }
@@ -486,7 +493,9 @@ object CassandraAnalyticsStore {
         created         = row.getTimestamp("created").getTime
         expires         = row.getTimestamp("expires").getTime
         name            = Option(row.getString("name"))
-        metadata        = Option(row.getString("metadata")).map(Json.parse).map(_.as[JsObject])
+        metadata = Option(row.getString("metadata"))
+          .map(Json.parse)
+          .map(_.as[com.google.protobuf.struct.Struct])
       } yield Zone(zoneId, equityAccountId, members, accounts, transactions, created, expires, name, metadata)
     }
 
@@ -505,8 +514,8 @@ object CassandraAnalyticsStore {
           new Date(zone.created),
           new Date(zone.expires),
           zone.name.orNull,
-          zone.metadata.map(Json.stringify).orNull,
-          zone.metadata.read[String]("currency").orNull
+          zone.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+          zone.metadata.flatMap(_.fields.get("currency").flatMap(_.kind.stringValue)).orNull
         )
         _ <- Future.traverse(zone.members.values)(memberStore.create(zone.id, zone.created))
         _ <- Future.traverse(zone.accounts.values)(accountStore.create(zone, zone.created))
@@ -770,10 +779,6 @@ object CassandraAnalyticsStore {
       })
       promise.future
     }
-  }
-
-  implicit class RichMetadata(private val metadata: Option[JsObject]) extends AnyVal {
-    def read[A: Reads](key: String): Option[A] = metadata.flatMap(metadata => (metadata \ key).asOpt[A])
   }
 
   private[this] def ownerNames(members: Map[MemberId, Member], account: Account): java.util.List[String] =

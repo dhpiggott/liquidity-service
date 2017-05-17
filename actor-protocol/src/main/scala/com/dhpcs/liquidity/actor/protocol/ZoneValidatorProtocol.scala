@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.actor.protocol
 
 import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.model._
-import play.api.libs.json._
 
 object ZoneValidatorMessage {
 
@@ -16,11 +15,11 @@ object ZoneValidatorMessage {
   final case class CreateZoneCommand(zoneId: ZoneId,
                                      equityOwnerPublicKey: PublicKey,
                                      equityOwnerName: Option[String],
-                                     equityOwnerMetadata: Option[JsObject],
+                                     equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
                                      equityAccountName: Option[String],
-                                     equityAccountMetadata: Option[JsObject],
+                                     equityAccountMetadata: Option[com.google.protobuf.struct.Struct],
                                      name: Option[String] = None,
-                                     metadata: Option[JsObject] = None)
+                                     metadata: Option[com.google.protobuf.struct.Struct] = None)
       extends ZoneCommand
   final case class JoinZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
   final case class QuitZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
@@ -28,13 +27,13 @@ object ZoneValidatorMessage {
   final case class CreateMemberCommand(zoneId: ZoneId,
                                        ownerPublicKey: PublicKey,
                                        name: Option[String] = None,
-                                       metadata: Option[JsObject] = None)
+                                       metadata: Option[com.google.protobuf.struct.Struct] = None)
       extends ZoneCommand
   final case class UpdateMemberCommand(zoneId: ZoneId, member: Member) extends ZoneCommand
   final case class CreateAccountCommand(zoneId: ZoneId,
                                         ownerMemberIds: Set[MemberId],
                                         name: Option[String] = None,
-                                        metadata: Option[JsObject] = None)
+                                        metadata: Option[com.google.protobuf.struct.Struct] = None)
       extends ZoneCommand
   final case class UpdateAccountCommand(zoneId: ZoneId, account: Account) extends ZoneCommand
   final case class AddTransactionCommand(zoneId: ZoneId,
@@ -43,7 +42,7 @@ object ZoneValidatorMessage {
                                          to: AccountId,
                                          value: BigDecimal,
                                          description: Option[String] = None,
-                                         metadata: Option[JsObject] = None)
+                                         metadata: Option[com.google.protobuf.struct.Struct] = None)
       extends ZoneCommand {
     require(value >= 0)
   }
@@ -112,7 +111,7 @@ final case class ZoneNotificationWithIds(notification: ZoneNotification, sequenc
     extends ZoneValidatorMessage
 
 final case class ActiveZoneSummary(zoneId: ZoneId,
-                                   metadata: Option[JsObject],
+                                   metadata: Option[com.google.protobuf.struct.Struct],
                                    members: Set[Member],
                                    accounts: Set[Account],
                                    transactions: Set[Transaction],

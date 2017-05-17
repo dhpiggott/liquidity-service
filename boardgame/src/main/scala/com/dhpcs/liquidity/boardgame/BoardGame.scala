@@ -8,7 +8,6 @@ import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol._
-import play.api.libs.json.{JsObject, Json}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -135,10 +134,11 @@ object BoardGame {
 
   def isTagValid(tag: CharSequence): Boolean = tag.length > 0 && tag.length <= MaxStringLength
 
-  private def currencyFromMetadata(metadata: Option[JsObject]): Option[Either[String, Currency]] =
+  private def currencyFromMetadata(
+      metadata: Option[com.google.protobuf.struct.Struct]): Option[Either[String, Currency]] =
     for {
       metadata     <- metadata
-      currencyCode <- metadata.value.get(CurrencyCodeKey).flatMap(_.asOpt[String])
+      currencyCode <- metadata.fields.get(CurrencyCodeKey).flatMap(_.kind.stringValue)
     } yield
       try Right(Currency.getInstance(currencyCode))
       catch {
@@ -187,7 +187,7 @@ object BoardGame {
       }
 
   private def isHidden(member: Member): Boolean =
-    member.metadata.flatMap(_.value.get(HiddenFlagKey)).flatMap(_.asOpt[Boolean]).getOrElse(false)
+    member.metadata.flatMap(_.fields.get(HiddenFlagKey)).flatMap(_.kind.boolValue).getOrElse(false)
 
   private def playersFromMembersAccounts(zoneId: ZoneId,
                                          membersAccounts: Map[MemberId, AccountId],
@@ -378,7 +378,10 @@ class BoardGame private (serverConnection: ServerConnection,
         zoneId.get,
         member.copy(
           metadata = Some(
-            member.metadata.getOrElse(Json.obj()) ++ Json.obj(HiddenFlagKey -> true)
+            member.metadata
+              .getOrElse(com.google.protobuf.struct.Struct.defaultInstance)
+              .addFields(HiddenFlagKey -> com.google.protobuf.struct
+                .Value(com.google.protobuf.struct.Value.Kind.BoolValue(true)))
           )
         )
       ),
@@ -392,7 +395,11 @@ class BoardGame private (serverConnection: ServerConnection,
       UpdateMemberCommand(
         zoneId.get,
         member.copy(
-          metadata = member.metadata.map(_ - HiddenFlagKey)
+          metadata = member.metadata.map(
+            metadata =>
+              com.google.protobuf.struct.Struct(
+                metadata.fields - HiddenFlagKey
+            ))
         )
       ),
       responseCallback = ResponseCallback(gameActionListeners.foreach(_.onRestoreIdentityError(member.name)))
@@ -863,10 +870,11 @@ class BoardGame private (serverConnection: ServerConnection,
         None,
         Some(name),
         Some(
-          Json.obj(
-            CurrencyCodeKey -> currency.getCurrencyCode
-          )
-        )
+          com.google.protobuf.struct.Struct(
+            Map(
+              CurrencyCodeKey -> com.google.protobuf.struct
+                .Value(com.google.protobuf.struct.Value.Kind.StringValue(currency.getCurrencyCode))
+            )))
       ),
       new ResponseCallback {
         override def onErrorResponse(errorResponse: ErrorResponse): Unit =

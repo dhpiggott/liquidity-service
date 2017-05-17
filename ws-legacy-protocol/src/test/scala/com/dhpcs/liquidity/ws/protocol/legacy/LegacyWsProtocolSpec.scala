@@ -64,10 +64,9 @@ class LegacyWsProtocolSpec extends FreeSpec {
         None,
         Some("Dave's zone"),
         Some(
-          Json.obj(
-            "currency" -> "GBP"
-          )
-        )
+          com.google.protobuf.struct.Struct(Map(
+            "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
+          )))
       )
       val id = NumericCorrelationId(1)
       val jsonRpcRequestMessage = JsonRpcRequestMessage(

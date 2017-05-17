@@ -1,32 +1,22 @@
 package com.dhpcs.liquidity.serialization
 
+import java.time.Instant
+
 import com.dhpcs.liquidity.serialization.ProtoConverter._
 import com.dhpcs.liquidity.serialization.ProtoConverterSpec._
 import org.scalatest.FreeSpec
-import play.api.libs.json.{JsObject, JsValue, Json}
 
 object ProtoConverterSpec {
 
-  implicit final val JsObjectProtoConverter: ProtoConverter[JsObject, com.google.protobuf.struct.Struct] =
-    ProtoConverter.instance(
-      jsObject =>
-        com.google.protobuf.struct
-          .Struct(jsObject.value.mapValues(ProtoConverter[JsValue, com.google.protobuf.struct.Value].asProto).toMap),
-      struct => JsObject(struct.fields.mapValues(ProtoConverter[JsValue, com.google.protobuf.struct.Value].asScala))
-    )
-
   case class IdWrapper(id: Long)
 
-  case class ScalaProduct(id: IdWrapper, created: Long, name: Option[String], metadata: Option[JsObject])
+  case class ScalaProduct(id: IdWrapper, created: Instant, name: Option[String])
 
-  case class ProtoProduct(id: Long,
-                          created: Long,
-                          name: Option[String],
-                          metadata: Option[com.google.protobuf.struct.Struct])
+  case class ProtoProduct(id: Long, created: Long, name: Option[String])
 
   sealed trait ScalaCoproduct
-  case class ScalaCoproductInstance1(id: IdWrapper, created: Long) extends ScalaCoproduct
-  case class ScalaCoproductInstance2(id: IdWrapper, name: String)  extends ScalaCoproduct
+  case class ScalaCoproductInstance1(id: IdWrapper, created: Instant) extends ScalaCoproduct
+  case class ScalaCoproductInstance2(id: IdWrapper, name: String)     extends ScalaCoproduct
 
   sealed trait ProtoCoproduct
   case class ProtoCoproductInstance1(id: Long, created: Long) extends ProtoCoproduct
@@ -39,28 +29,19 @@ class ProtoConverterSpec extends FreeSpec {
   implicit final val IdWrapperProtoConverter: ProtoConverter[IdWrapper, Long] =
     ProtoConverter.instance(_.id, IdWrapper)
 
+  implicit final val InstantProtoConverter: ProtoConverter[Instant, Long] =
+    ProtoConverter.instance(_.toEpochMilli, Instant.ofEpochMilli)
+
   "A ScalaProduct" - {
     val product = ScalaProduct(
       id = IdWrapper(0L),
-      created = 1433611420487L,
-      name = Some("test"),
-      metadata = Some(
-        Json.obj(
-          "currency" -> "GBP"
-        )
-      )
+      created = Instant.ofEpochMilli(1433611420487L),
+      name = Some("test")
     )
     val productProto = ProtoProduct(
       id = 0L,
       created = 1433611420487L,
-      name = Some("test"),
-      metadata = Some(
-        com.google.protobuf.struct.Struct(
-          Map(
-            "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
-          )
-        )
-      )
+      name = Some("test")
     )
     s"will convert to $productProto" in assert(
       ProtoConverter[ScalaProduct, ProtoProduct].asProto(product) === productProto
@@ -71,7 +52,8 @@ class ProtoConverterSpec extends FreeSpec {
   }
 
   "A ScalaCoproductInstance1" - {
-    val coproductInstance1: ScalaCoproduct      = ScalaCoproductInstance1(id = IdWrapper(0L), created = 1433611420487L)
+    val coproductInstance1: ScalaCoproduct =
+      ScalaCoproductInstance1(id = IdWrapper(0L), created = Instant.ofEpochMilli(1433611420487L))
     val coproductInstance1Proto: ProtoCoproduct = ProtoCoproductInstance1(id = 0L, created = 1433611420487L)
     s"will convert to $coproductInstance1Proto" in assert(
       ProtoConverter[ScalaCoproduct, ProtoCoproduct].asProto(coproductInstance1) === coproductInstance1Proto

@@ -1,11 +1,114 @@
 package com.dhpcs.liquidity.ws.protocol.legacy
 
+import java.util.UUID
+
 import com.dhpcs.jsonrpc.Message.{MessageFormats, objectFormat}
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.ws.protocol.legacy.LegacyModelFormats._
+import okio.ByteString
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads.min
 import play.api.libs.json._
+
+object LegacyModelFormats {
+
+  object ValueFormat {
+    def apply[A, B: Format](apply: B => A, unapply: A => B): Format[A] = Format(
+      Reads(
+        json => Reads.of[B].reads(json).map(apply(_))
+      ),
+      Writes(
+        a => Writes.of[B].writes(unapply(a))
+      )
+    )
+  }
+
+  implicit final val PublicKeyFormat: Format[PublicKey] = ValueFormat[PublicKey, String](
+    publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64)),
+    publicKey => publicKey.value.base64)
+
+  implicit final val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Long](MemberId, _.id)
+
+  implicit final val MemberFormat: Format[Member] = Json.format[Member]
+
+  implicit final val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Long](AccountId, _.id)
+
+  implicit final val AccountFormat: Format[Account] = Json.format[Account]
+
+  implicit final val TransactionIdFormat: Format[TransactionId] =
+    ValueFormat[TransactionId, Long](TransactionId, _.id)
+
+  implicit final val TransactionFormat: Format[Transaction] = (
+    (JsPath \ "id").format[TransactionId] and
+      (JsPath \ "from").format[AccountId] and
+      (JsPath \ "to").format[AccountId] and
+      (JsPath \ "value").format(min[BigDecimal](0)) and
+      (JsPath \ "creator").format[MemberId] and
+      (JsPath \ "created").format(min[Long](0)) and
+      (JsPath \ "description").formatNullable[String] and
+      (JsPath \ "metadata").formatNullable[com.google.protobuf.struct.Struct]
+  )(
+    (id, from, to, value, creator, created, description, metadata) =>
+      Transaction(
+        id,
+        from,
+        to,
+        value,
+        creator,
+        created,
+        description,
+        metadata
+    ),
+    transaction =>
+      (transaction.id,
+       transaction.from,
+       transaction.to,
+       transaction.value,
+       transaction.creator,
+       transaction.created,
+       transaction.description,
+       transaction.metadata)
+  )
+
+  implicit final val ZoneIdFormat: Format[ZoneId] = ValueFormat[ZoneId, UUID](ZoneId(_), _.id)
+
+  implicit final val ZoneFormat: Format[Zone] = (
+    (JsPath \ "id").format[ZoneId] and
+      (JsPath \ "equityAccountId").format[AccountId] and
+      (JsPath \ "members").format[Seq[Member]] and
+      (JsPath \ "accounts").format[Seq[Account]] and
+      (JsPath \ "transactions").format[Seq[Transaction]] and
+      (JsPath \ "created").format(min[Long](0)) and
+      (JsPath \ "expires").format(min[Long](0)) and
+      (JsPath \ "name").formatNullable[String] and
+      (JsPath \ "metadata").formatNullable[com.google.protobuf.struct.Struct]
+  )(
+    (id, equityAccountId, members, accounts, transactions, created, expires, name, metadata) =>
+      Zone(
+        id,
+        equityAccountId,
+        members.map(e => e.id      -> e).toMap,
+        accounts.map(e => e.id     -> e).toMap,
+        transactions.map(e => e.id -> e).toMap,
+        created,
+        expires,
+        name,
+        metadata
+    ),
+    zone =>
+      (zone.id,
+       zone.equityAccountId,
+       zone.members.values.toSeq,
+       zone.accounts.values.toSeq,
+       zone.transactions.values.toSeq,
+       zone.created,
+       zone.expires,
+       zone.name,
+       zone.metadata)
+  )
+
+}
 
 sealed abstract class Message
 

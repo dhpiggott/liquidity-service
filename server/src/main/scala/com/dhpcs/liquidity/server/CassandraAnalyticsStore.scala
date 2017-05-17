@@ -7,6 +7,7 @@ import com.datastax.driver.core.{PreparedStatement, ResultSet, Row, Session}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore._
+import com.dhpcs.liquidity.ws.protocol.legacy._
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
 import com.typesafe.config.Config
 import okio.ByteString

@@ -17,6 +17,7 @@ import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.HttpController._
+import com.dhpcs.liquidity.ws.protocol.legacy.LegacyModelFormats._
 import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.{ExecutionContext, Future}

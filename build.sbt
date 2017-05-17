@@ -41,8 +41,6 @@ lazy val noopPublishSettings = Seq(
   publishM2 := {}
 )
 
-lazy val playJson = "com.typesafe.play" %% "play-json" % "2.6.0-M7"
-
 lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.3"
 
 lazy val serialization = project
@@ -57,8 +55,7 @@ lazy val serialization = project
     libraryDependencies ++= Seq(
       "com.chuusai"       %% "shapeless"   % "2.3.2",
       "com.typesafe.akka" %% "akka-actor"  % "2.4.18",
-      "com.typesafe.akka" %% "akka-remote" % "2.4.18",
-      playJson
+      "com.typesafe.akka" %% "akka-remote" % "2.4.18"
     ))
   .settings(libraryDependencies += scalaTest % Test)
 
@@ -118,7 +115,6 @@ lazy val `ws-protocol` = project
   .dependsOn(serialization)
   .dependsOn(model)
   .dependsOn(`actor-protocol`)
-  .settings(libraryDependencies += playJson)
   .settings(libraryDependencies += scalaTest % Test)
   .dependsOn(model % "test->test")
 
@@ -172,8 +168,7 @@ lazy val server = project
     "io.netty"                 % "netty-transport-native-epoll"         % "4.1.11.Final" classifier "linux-x86_64",
     "com.google.code.findbugs" % "jsr305"                               % "3.0.2" % Compile,
     "com.datastax.cassandra"   % "cassandra-driver-core"                % "3.2.0",
-    "com.typesafe.akka"        %% "akka-http"                           % "10.0.6",
-    playJson
+    "com.typesafe.akka"        %% "akka-http"                           % "10.0.6"
   ))
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(

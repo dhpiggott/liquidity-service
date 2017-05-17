@@ -25,6 +25,7 @@ import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.actor.ClientsMonitorActor._
 import com.dhpcs.liquidity.server.actor.ZonesMonitorActor._
 import com.dhpcs.liquidity.server.actor._
+import com.dhpcs.liquidity.ws.protocol.legacy._
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
 import play.api.libs.json.Json.JsValueWrapper

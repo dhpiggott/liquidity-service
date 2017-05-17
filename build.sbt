@@ -66,7 +66,7 @@ lazy val model = project
     name := "liquidity-model"
   )
   .dependsOn(serialization)
-  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.12.0")
+  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val persistence = project

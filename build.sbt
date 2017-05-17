@@ -137,7 +137,7 @@ lazy val certgen = project
   .settings(
     name := "liquidity-certgen"
   )
-  .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.56")
+  .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.57")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val server = project

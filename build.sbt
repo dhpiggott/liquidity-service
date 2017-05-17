@@ -41,8 +41,6 @@ lazy val noopPublishSettings = Seq(
   publishM2 := {}
 )
 
-lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.0.3"
-
 lazy val serialization = project
   .in(file("serialization"))
   .settings(commonSettings)
@@ -57,7 +55,7 @@ lazy val serialization = project
       "com.typesafe.akka" %% "akka-actor"  % "2.4.18",
       "com.typesafe.akka" %% "akka-remote" % "2.4.18"
     ))
-  .settings(libraryDependencies += scalaTest % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val model = project
   .in(file("model"))
@@ -67,9 +65,9 @@ lazy val model = project
   .settings(
     name := "liquidity-model"
   )
-  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.12.0")
   .dependsOn(serialization)
-  .settings(libraryDependencies += scalaTest % Test)
+  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.12.0")
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val persistence = project
   .in(file("persistence"))
@@ -84,8 +82,8 @@ lazy val persistence = project
   )
   .dependsOn(serialization)
   .dependsOn(model)
-  .settings(libraryDependencies += scalaTest % Test)
   .dependsOn(model % "test->test")
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val `actor-protocol` = project
   .in(file("actor-protocol"))
@@ -115,8 +113,8 @@ lazy val `ws-protocol` = project
   .dependsOn(serialization)
   .dependsOn(model)
   .dependsOn(`actor-protocol`)
-  .settings(libraryDependencies += scalaTest % Test)
   .dependsOn(model % "test->test")
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val `ws-legacy-protocol` = project
   .in(file("ws-legacy-protocol"))
@@ -125,12 +123,12 @@ lazy val `ws-legacy-protocol` = project
   .settings(
     name := "liquidity-ws-legacy-protocol"
   )
-  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
   .dependsOn(serialization)
   .dependsOn(model)
   .dependsOn(`actor-protocol`)
-  .settings(libraryDependencies += scalaTest % Test)
+  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
   .dependsOn(model % "test->test")
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val certgen = project
   .in(file("certgen"))
@@ -140,7 +138,7 @@ lazy val certgen = project
     name := "liquidity-certgen"
   )
   .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.56")
-  .settings(libraryDependencies += scalaTest % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val server = project
   .in(file("server"))
@@ -172,16 +170,16 @@ lazy val server = project
   ))
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
-    scalaTest           % Test,
+    "org.scalatest"     %% "scalatest"         % "3.0.3"  % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.6" % Test
   ))
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)
   .dependsOn(certgen % MultiJvm)
   .settings(libraryDependencies ++= Seq(
-    scalaTest              % MultiJvm,
+    "org.scalatest"        %% "scalatest"               % "3.0.3"  % MultiJvm,
     "com.typesafe.akka"    %% "akka-multi-node-testkit" % "2.4.18" % MultiJvm,
-    "org.apache.cassandra" % "cassandra-all" % "3.10" % MultiJvm exclude ("io.netty", "netty-all")
+    "org.apache.cassandra" % "cassandra-all"            % "3.10"   % MultiJvm exclude ("io.netty", "netty-all")
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(
@@ -208,7 +206,7 @@ lazy val client = project
   ))
   .dependsOn(certgen % "test")
   .dependsOn(server % "test->test")
-  .settings(libraryDependencies += scalaTest % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val healthcheck = project
   .in(file("healthcheck"))
@@ -221,11 +219,11 @@ lazy val healthcheck = project
   .dependsOn(`ws-legacy-protocol`)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.18",
-    scalaTest
+    "org.scalatest"     %% "scalatest"           % "3.0.3"
   ))
   .dependsOn(certgen % "test")
   .dependsOn(server % "test->test")
-  .settings(libraryDependencies += scalaTest % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
   .enablePlugins(JavaAppPackaging, UniversalPlugin)
 
 lazy val boardgame = project

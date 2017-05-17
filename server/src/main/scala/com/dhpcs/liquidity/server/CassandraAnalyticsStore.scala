@@ -7,11 +7,10 @@ import com.datastax.driver.core.{PreparedStatement, ResultSet, Row, Session}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore._
-import com.dhpcs.liquidity.ws.protocol.legacy._
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
+import com.trueaccord.scalapb.json.JsonFormat
 import com.typesafe.config.Config
 import okio.ByteString
-import play.api.libs.json.Json
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -127,8 +126,7 @@ object CassandraAnalyticsStore {
               ownerPublicKey = PublicKey(ByteString.of(row.getBytes("owner_public_key")))
               name           = Option(row.getString("name"))
               metadata = Option(row.getString("metadata"))
-                .map(Json.parse)
-                .map(_.as[com.google.protobuf.struct.Struct])
+                .map(JsonFormat.fromJsonString[com.google.protobuf.struct.Struct])
             } yield memberId -> Member(memberId, ownerPublicKey, name, metadata)).toMap
 
       private[this] val createStatement = prepareStatement(s"""
@@ -146,7 +144,7 @@ object CassandraAnalyticsStore {
             member.ownerPublicKey.fingerprint,
             new Date(created),
             member.name.orNull,
-            member.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+            member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
             member.metadata
               .flatMap(_.fields.get("hidden").flatMap(_.kind.boolValue).map(hidden => hidden: java.lang.Boolean))
               .orNull
@@ -167,7 +165,7 @@ object CassandraAnalyticsStore {
             member.ownerPublicKey.fingerprint,
             new Date(modified),
             member.name.orNull,
-            member.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+            member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
             member.metadata
               .flatMap(_.fields.get("hidden").flatMap(_.kind.boolValue).map(hidden => hidden: java.lang.Boolean))
               .orNull,
@@ -189,7 +187,7 @@ object CassandraAnalyticsStore {
                new Date(updated),
                member.ownerPublicKey.fingerprint,
                member.name.orNull,
-               member.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+               member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
                member.metadata
                  .flatMap(_.fields.get("hidden").flatMap(_.kind.boolValue).map(hidden => hidden: java.lang.Boolean))
                  .orNull
@@ -251,8 +249,7 @@ object CassandraAnalyticsStore {
                 .toSet
               name = Option(row.getString("name"))
               metadata = Option(row.getString("metadata"))
-                .map(Json.parse)
-                .map(_.as[com.google.protobuf.struct.Struct])
+                .map(JsonFormat.fromJsonString[com.google.protobuf.struct.Struct])
             } yield accountId -> Account(accountId, ownerMemberIds, name, metadata)).toMap
 
       private[this] val createStatement = prepareStatement(s"""
@@ -270,7 +267,7 @@ object CassandraAnalyticsStore {
             ownerNames(zone.members, account),
             new Date(zone.created),
             account.name.orNull,
-            account.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull
+            account.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull
           )
         } yield ()
 
@@ -304,7 +301,7 @@ object CassandraAnalyticsStore {
             ownerNames(zone.members, account),
             new Date(modified),
             account.name.orNull,
-            account.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+            account.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
             zone.id.id,
             account.id.id: java.lang.Long
           )
@@ -324,7 +321,7 @@ object CassandraAnalyticsStore {
                account.ownerMemberIds.map(_.id).asJava,
                ownerNames(zone.members, account),
                account.name.orNull,
-               account.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull
+               account.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull
              )) yield ()
 
     }
@@ -372,8 +369,7 @@ object CassandraAnalyticsStore {
               created       = row.getTimestamp("created").getTime
               description   = Option(row.getString("description"))
               metadata = Option(row.getString("metadata"))
-                .map(Json.parse)
-                .map(_.as[com.google.protobuf.struct.Struct])
+                .map(JsonFormat.fromJsonString[com.google.protobuf.struct.Struct])
             } yield
               transactionId -> Transaction(transactionId, from, to, value, creator, created, description, metadata)).toMap
 
@@ -394,7 +390,7 @@ object CassandraAnalyticsStore {
                  transaction.creator.id: java.lang.Long,
                  new Date(transaction.created),
                  transaction.description.orNull,
-                 transaction.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+                 transaction.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
                  zone.id.id,
                  transaction.id.id: java.lang.Long
              ))) yield ()
@@ -416,7 +412,7 @@ object CassandraAnalyticsStore {
                transaction.creator.id: java.lang.Long,
                new Date(transaction.created),
                transaction.description.orNull,
-               transaction.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull
+               transaction.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull
              )) yield ()
 
     }
@@ -495,8 +491,7 @@ object CassandraAnalyticsStore {
         expires         = row.getTimestamp("expires").getTime
         name            = Option(row.getString("name"))
         metadata = Option(row.getString("metadata"))
-          .map(Json.parse)
-          .map(_.as[com.google.protobuf.struct.Struct])
+          .map(JsonFormat.fromJsonString[com.google.protobuf.struct.Struct])
       } yield Zone(zoneId, equityAccountId, members, accounts, transactions, created, expires, name, metadata)
     }
 
@@ -515,7 +510,7 @@ object CassandraAnalyticsStore {
           new Date(zone.created),
           new Date(zone.expires),
           zone.name.orNull,
-          zone.metadata.map(Json.toJsObject(_)).map(Json.stringify).orNull,
+          zone.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
           zone.metadata.flatMap(_.fields.get("currency").flatMap(_.kind.stringValue)).orNull
         )
         _ <- Future.traverse(zone.members.values)(memberStore.create(zone.id, zone.created))

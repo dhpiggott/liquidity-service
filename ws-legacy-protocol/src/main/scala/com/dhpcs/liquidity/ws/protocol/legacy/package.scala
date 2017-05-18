@@ -1,9 +1,9 @@
 package com.dhpcs.liquidity.ws.protocol
 
 import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
-import com.dhpcs.liquidity.ws.protocol
 import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.ws.protocol
 import play.api.libs.json._
 
 package object legacy {

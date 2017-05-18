@@ -23,8 +23,8 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server._
-import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConnectionActor}
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
+import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConnectionActor}
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.json4s.JValue

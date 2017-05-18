@@ -22,8 +22,8 @@ import com.dhpcs.liquidity.client.LegacyServerConnectionSpec._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server._
-import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConnectionActor}
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
+import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConnectionActor}
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import com.typesafe.config.ConfigFactory
 import org.json4s.JValue

@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.serialization
 
 import akka.actor.ExtendedActorSystem
 import com.dhpcs.liquidity.actor.protocol._
-// TODO: Why doesn't IntellIj recognise that this is needed?
+// TODO: Why doesn't IntelliJ recognise that this is needed?
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverterSerializer

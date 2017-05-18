@@ -18,8 +18,10 @@ import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.json4s.JValue
+import org.json4s.JsonAST.{JInt, JObject}
+import org.json4s.jackson.JsonMethods
 import org.scalatest.FreeSpec
-import play.api.libs.json.{JsValue, Json}
 
 import scala.concurrent.Future
 
@@ -95,12 +97,12 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
         assert(status === StatusCodes.OK)
         assert(contentType === ContentType(`application/json`))
         assert(
-          Json.parse(entityAs[String]) === Json.obj(
-            "clients"         -> Json.obj(),
-            "totalZonesCount" -> 0,
-            "activeZones"     -> Json.obj(),
-            "shardRegions"    -> Json.obj(),
-            "clusterSharding" -> Json.obj()
+          JsonMethods.parse(entityAs[String]) === JObject(
+            "clients"         -> JObject(),
+            "totalZonesCount" -> JInt(0),
+            "activeZones"     -> JObject(),
+            "shardRegions"    -> JObject(),
+            "clusterSharding" -> JObject()
           ))
       }
     }
@@ -112,14 +114,14 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
                                                   publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     Flow[Message]
 
-  override protected[this] def getStatus: Future[JsValue] =
+  override protected[this] def getStatus: Future[JValue] =
     Future.successful(
-      Json.obj(
-        "clients"         -> Json.obj(),
-        "totalZonesCount" -> 0,
-        "activeZones"     -> Json.obj(),
-        "shardRegions"    -> Json.obj(),
-        "clusterSharding" -> Json.obj()
+      JObject(
+        "clients"         -> JObject(),
+        "totalZonesCount" -> JInt(0),
+        "activeZones"     -> JObject(),
+        "shardRegions"    -> JObject(),
+        "clusterSharding" -> JObject()
       ))
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =

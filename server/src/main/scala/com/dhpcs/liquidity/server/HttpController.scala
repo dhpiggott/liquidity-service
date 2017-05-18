@@ -16,9 +16,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.proto
+import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.HttpController._
-import com.dhpcs.liquidity.ws.protocol.legacy.LegacyModelFormats._
-import play.api.libs.json.{JsValue, Json}
+import com.trueaccord.scalapb.json.JsonFormat
+import org.json4s.JValue
+import org.json4s.JsonAST.{JDecimal, JObject, JString}
+import org.json4s.jackson.JsonMethods
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -88,34 +92,34 @@ trait HttpController {
   private[this] def zone(id: UUID)(implicit ec: ExecutionContext): Route =
     get(complete(getZone(ZoneId(id)).map {
       case None       => HttpResponse(status = StatusCodes.NotFound)
-      case Some(zone) => toJsonResponse(Json.toJson(zone))
+      case Some(zone) => toJsonResponse(JsonFormat.toJson(ProtoConverter[Zone, proto.model.Zone].asProto(zone)))
     }))
 
   private[this] def balances(id: UUID)(implicit ec: ExecutionContext): Route =
     get(complete(getBalances(ZoneId(id)).map(balances =>
-      toJsonResponse(Json.toJson(balances.map {
-        case (accountId, balance) => accountId.id.toString -> balance
-      })))))
+      toJsonResponse(JObject(balances.map {
+        case (accountId, balance) => accountId.id.toString -> JDecimal(balance)
+      }.toList)))))
 
   private[this] def clients(id: UUID)(implicit ec: ExecutionContext): Route =
     get(complete(getClients(ZoneId(id)).map(clients =>
-      toJsonResponse(Json.toJson(clients.map {
+      toJsonResponse(JObject(clients.map {
         case (actorPath, (lastJoined, publicKey)) =>
-          actorPath.toSerializationFormat -> Json.obj(
-            "lastJoined"  -> DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(lastJoined)),
-            "fingerprint" -> publicKey.fingerprint)
-      })))))
+          actorPath.toSerializationFormat -> JObject(
+            "lastJoined"  -> JString(DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(lastJoined))),
+            "fingerprint" -> JString(publicKey.fingerprint))
+      }.toList)))))
 
   protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
   protected[this] def legacyWebSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
-  protected[this] def getStatus: Future[JsValue]
+  protected[this] def getStatus: Future[JValue]
   protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
   protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
   protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]]
 
-  private[this] def toJsonResponse(body: JsValue): HttpResponse =
+  private[this] def toJsonResponse(body: JValue): HttpResponse =
     HttpResponse(
-      entity = HttpEntity(ContentType(`application/json`), Json.prettyPrint(body))
+      entity = HttpEntity(ContentType(`application/json`), JsonMethods.pretty(body))
     )
 
 }

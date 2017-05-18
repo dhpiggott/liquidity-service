@@ -25,11 +25,11 @@ import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.actor.ClientsMonitorActor._
 import com.dhpcs.liquidity.server.actor.ZonesMonitorActor._
 import com.dhpcs.liquidity.server.actor._
-import com.dhpcs.liquidity.ws.protocol.legacy._
+import com.trueaccord.scalapb.json.JsonFormat
 import com.typesafe.config.{Config, ConfigFactory}
 import okio.ByteString
-import play.api.libs.json.Json.JsValueWrapper
-import play.api.libs.json.{JsObject, JsValue, Json}
+import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
+import org.json4s.{JObject, JValue}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
@@ -200,62 +200,74 @@ class LiquidityServer(config: Config,
     } yield ()
   }
 
-  override protected[this] def getStatus: Future[JsValue] = {
-    def fingerprint(id: String): JsValueWrapper = ByteString.encodeUtf8(id).sha256.hex
-    def clientsStatus(activeClientsSummary: ActiveClientsSummary): JsObject =
-      Json.obj(
-        "count" -> activeClientsSummary.activeClientSummaries.size,
-        "publicKeyFingerprints" -> activeClientsSummary.activeClientSummaries.map {
-          case ActiveClientSummary(publicKey) => publicKey.fingerprint
-        }.sorted
+  override protected[this] def getStatus: Future[JValue] = {
+    def fingerprint(id: String): String = ByteString.encodeUtf8(id).sha256.hex
+    def clientsStatus(activeClientsSummary: ActiveClientsSummary): JObject =
+      JObject(
+        "count" -> JInt(activeClientsSummary.activeClientSummaries.size),
+        "publicKeyFingerprints" -> JArray(
+          activeClientsSummary.activeClientSummaries.map(_.publicKey.fingerprint).toList.sorted.map(JString)
+        )
       )
-    def activeZonesStatus(activeZonesSummary: ActiveZonesSummary): JsObject =
-      Json.obj(
-        "count" -> activeZonesSummary.activeZoneSummaries.size,
-        "zones" -> activeZonesSummary.activeZoneSummaries.toSeq.sortBy(_.zoneId.id).map {
-          case ActiveZoneSummary(
-              zoneId,
-              metadata,
-              members,
-              accounts,
-              transactions,
-              clientConnections
-              ) =>
-            Json.obj(
-              "zoneIdFingerprint" -> fingerprint(zoneId.id.toString),
-              "metadata"          -> metadata,
-              "members"           -> Json.obj("count" -> members.size),
-              "accounts"          -> Json.obj("count" -> accounts.size),
-              "transactions"      -> Json.obj("count" -> transactions.size),
-              "clientConnections" -> Json.obj(
-                "count"                 -> clientConnections.size,
-                "publicKeyFingerprints" -> clientConnections.map(_.fingerprint).toSeq.sorted
-              )
-            )
-        }
+    def activeZonesStatus(activeZonesSummary: ActiveZonesSummary): JObject =
+      JObject(
+        "count" -> JInt(activeZonesSummary.activeZoneSummaries.size),
+        "zones" -> JArray(
+          activeZonesSummary.activeZoneSummaries.toSeq
+            .sortBy(_.zoneId.id)
+            .map {
+              case ActiveZoneSummary(
+                  zoneId,
+                  metadata,
+                  members,
+                  accounts,
+                  transactions,
+                  clientConnections
+                  ) =>
+                JObject(
+                  "zoneIdFingerprint" -> JString(fingerprint(zoneId.id.toString)),
+                  "metadata"          -> metadata.map(JsonFormat.toJson(_)).getOrElse(JNull),
+                  "members"           -> JObject("count" -> JInt(members.size)),
+                  "accounts"          -> JObject("count" -> JInt(accounts.size)),
+                  "transactions"      -> JObject("count" -> JInt(transactions.size)),
+                  "clientConnections" -> JObject(
+                    "count"                 -> JInt(clientConnections.size),
+                    "publicKeyFingerprints" -> JArray(clientConnections.map(_.fingerprint).toList.sorted.map(JString))
+                  )
+                )
+            }
+            .toList)
       )
-    def shardRegionStatus(shardRegionState: ShardRegion.CurrentShardRegionState): JsObject =
-      Json.obj(
-        "count" -> shardRegionState.shards.size,
-        "shards" -> Json.obj(shardRegionState.shards.toSeq.sortBy(_.shardId).map {
-          case ShardRegion.ShardState(shardId, entityIds) =>
-            shardId ->
-              (Json.arr(entityIds.toSeq.sorted.map(fingerprint): _*): JsValueWrapper)
-        }: _*)
+    def shardRegionStatus(shardRegionState: ShardRegion.CurrentShardRegionState): JObject =
+      JObject(
+        "count" -> JInt(shardRegionState.shards.size),
+        "shards" -> JObject(
+          shardRegionState.shards.toSeq
+            .sortBy(_.shardId)
+            .map {
+              case ShardRegion.ShardState(shardId, entityIds) =>
+                shardId -> JArray(entityIds.toList.sorted.map(fingerprint).map(JString))
+            }
+            .toList)
       )
-    def clusterShardingStatus(clusterShardingStats: ShardRegion.ClusterShardingStats): JsObject =
-      Json.obj(
-        "count" -> clusterShardingStats.regions.size,
-        "regions" -> Json.obj(clusterShardingStats.regions.toSeq.sortBy { case (address, _) => address }.map {
-          case (address, shardRegionStats) =>
-            address.toString ->
-              (Json.obj(shardRegionStats.stats.toSeq
-                .sortBy { case (shardId, _) => shardId }
-                .map {
-                  case (shardId, entityCount) =>
-                    shardId -> (entityCount: JsValueWrapper)
-                }: _*): JsValueWrapper)
-        }: _*)
+    def clusterShardingStatus(clusterShardingStats: ShardRegion.ClusterShardingStats): JObject =
+      JObject(
+        "count" -> JInt(clusterShardingStats.regions.size),
+        "regions" -> JObject(
+          clusterShardingStats.regions.toSeq
+            .sortBy { case (address, _) => address }
+            .map {
+              case (address, shardRegionStats) =>
+                address.toString ->
+                  JObject(shardRegionStats.stats.toSeq
+                    .sortBy { case (shardId, _) => shardId }
+                    .map {
+                      case (shardId, entityCount) =>
+                        shardId -> JInt(entityCount)
+                    }
+                    .toList)
+            }
+            .toList)
       )
     implicit val askTimeout = Timeout(5.seconds)
     for {
@@ -267,9 +279,9 @@ class LiquidityServer(config: Config,
       clusterShardingStats <- (zoneValidatorShardRegion ? ShardRegion.GetClusterShardingStats(askTimeout.duration))
         .mapTo[ShardRegion.ClusterShardingStats]
     } yield
-      Json.obj(
+      JObject(
         "clients"         -> clientsStatus(activeClientsSummary),
-        "totalZonesCount" -> totalZonesCount.count,
+        "totalZonesCount" -> JInt(totalZonesCount.count),
         "activeZones"     -> activeZonesStatus(activeZonesSummary),
         "shardRegions"    -> shardRegionStatus(shardRegionState),
         "clusterSharding" -> clusterShardingStatus(clusterShardingStats)

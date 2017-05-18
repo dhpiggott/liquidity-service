@@ -27,10 +27,11 @@ import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConn
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
+import org.json4s.JValue
+import org.json4s.JsonAST.{JInt, JObject}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
-import play.api.libs.json.{JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -125,14 +126,14 @@ class ServerConnectionSpec
       name = publicKey.fingerprint
     )
 
-  override protected[this] def getStatus: Future[JsValue] =
+  override protected[this] def getStatus: Future[JValue] =
     Future.successful(
-      Json.obj(
-        "clients"         -> Json.obj(),
-        "totalZonesCount" -> 0,
-        "activeZones"     -> Json.obj(),
-        "shardRegions"    -> Json.obj(),
-        "clusterSharding" -> Json.obj()
+      JObject(
+        "clients"         -> JObject(),
+        "totalZonesCount" -> JInt(0),
+        "activeZones"     -> JObject(),
+        "shardRegions"    -> JObject(),
+        "clusterSharding" -> JObject()
       ))
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =

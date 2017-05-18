@@ -26,11 +26,12 @@ import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConn
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import com.typesafe.config.ConfigFactory
+import org.json4s.JValue
+import org.json4s.JsonAST.{JInt, JObject}
 import org.scalatest.OptionValues._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
-import play.api.libs.json.{JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -125,14 +126,14 @@ class LegacyServerConnectionSpec
       name = publicKey.fingerprint
     )
 
-  override protected[this] def getStatus: Future[JsValue] =
+  override protected[this] def getStatus: Future[JValue] =
     Future.successful(
-      Json.obj(
-        "clients"         -> Json.obj(),
-        "totalZonesCount" -> 0,
-        "activeZones"     -> Json.obj(),
-        "shardRegions"    -> Json.obj(),
-        "clusterSharding" -> Json.obj()
+      JObject(
+        "clients"         -> JObject(),
+        "totalZonesCount" -> JInt(0),
+        "activeZones"     -> JObject(),
+        "shardRegions"    -> JObject(),
+        "clusterSharding" -> JObject()
       ))
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
@@ -243,15 +244,14 @@ class LegacyServerConnectionSpec
 
   "LegacyServerConnection" - {
     "will connect to the server and update the connection state as it does so" in { sub =>
-      clientConnectionActorTestProbe.setAutoPilot(new TestActor.AutoPilot {
-        override def run(sender: ActorRef, msg: Any): TestActor.AutoPilot = msg match {
+      clientConnectionActorTestProbe.setAutoPilot((sender: ActorRef, msg: Any) =>
+        msg match {
           case ActorSinkInit =>
             sender.tell(
               WrappedJsonRpcNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
               sender = clientConnectionActorTestProbe.ref
             )
             TestActor.NoAutoPilot
-        }
       })
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)

@@ -10,13 +10,13 @@ package object model {
     ProtoConverter.instance(_.map(protoConverter.asProto).toSeq, _.map(protoConverter.asScala).toSet)
 
   implicit final val MemberIdProtoConverter: ProtoConverter[MemberId, Long] =
-    ProtoConverter.instance(_.id, MemberId(_))
+    ProtoConverter.instance(_.id, MemberId)
 
   implicit final val AccountIdProtoConverter: ProtoConverter[AccountId, Long] =
-    ProtoConverter.instance(_.id, AccountId(_))
+    ProtoConverter.instance(_.id, AccountId)
 
   implicit final val TransactionIdProtoConverter: ProtoConverter[TransactionId, Long] =
-    ProtoConverter.instance(_.id, TransactionId(_))
+    ProtoConverter.instance(_.id, TransactionId)
 
   implicit final val ZoneIdProtoConverter: ProtoConverter[ZoneId, String] =
     ProtoConverter.instance(_.id.toString, id => ZoneId(UUID.fromString(id)))

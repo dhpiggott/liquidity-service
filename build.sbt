@@ -167,7 +167,7 @@ lazy val server = project
     "com.google.code.findbugs" % "jsr305"                               % "3.0.2" % Compile,
     "com.datastax.cassandra"   % "cassandra-driver-core"                % "3.2.0",
     "com.typesafe.akka"        %% "akka-http"                           % "10.0.6",
-    "com.trueaccord.scalapb"   %% "scalapb-json4s"                      % "0.2.1"
+    "com.trueaccord.scalapb"   %% "scalapb-json4s"                      % "0.3.0"
   ))
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(

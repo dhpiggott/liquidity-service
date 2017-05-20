@@ -126,7 +126,7 @@ lazy val `ws-legacy-protocol` = project
   .dependsOn(serialization)
   .dependsOn(model)
   .dependsOn(`actor-protocol`)
-  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-M4")
+  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC1")
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 

@@ -628,7 +628,6 @@ class BoardGame private (serverConnection: ServerConnection,
       }
       zoneNotification match {
         case EmptyZoneNotification =>
-          sys.error("EmptyZoneNotification")
         case ClientJoinedZoneNotification(_, publicKey) =>
           state.connectedClients = state.connectedClients + publicKey
           val (joinedPlayers, joinedHiddenPlayers) = playersFromMembersAccounts(

@@ -164,11 +164,9 @@ class ClientConnectionActor(ip: RemoteAddress,
         pingGeneratorActor ! FrameReceivedEvent
         serverMessage.commandOrResponse match {
           case proto.ws.protocol.ServerMessage.CommandOrResponse.Empty =>
-            sys.error("Empty")
           case proto.ws.protocol.ServerMessage.CommandOrResponse.Command(protoCommand) =>
             protoCommand.command match {
               case proto.ws.protocol.ServerMessage.Command.Command.Empty =>
-                sys.error("Empty")
               case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
                 val zoneCommand = ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
                   .asScala(protoZoneCommand.zoneCommand)
@@ -177,7 +175,7 @@ class ClientConnectionActor(ip: RemoteAddress,
           case proto.ws.protocol.ServerMessage.CommandOrResponse.Response(protoResponse) =>
             protoResponse.response match {
               case proto.ws.protocol.ServerMessage.Response.Response.Empty =>
-                sys.error("Empty")
+                sys.error("Empty or unsupported response")
               case proto.ws.protocol.ServerMessage.Response.Response.PingResponse(_) =>
             }
         }

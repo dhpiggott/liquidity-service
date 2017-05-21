@@ -299,7 +299,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   private[this] def sendResponse(response: Response, correlationId: Long): Unit =
     response match {
       case EmptyZoneResponse =>
-        sys.error("EmptyZoneResponse")
+        sys.error("Empty or unsupported zone response")
       case ErrorResponse(error) =>
         sendErrorResponse(error, NumericCorrelationId(correlationId))
       case successResponse: SuccessResponse =>

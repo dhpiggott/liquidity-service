@@ -404,7 +404,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] def handleCommand(publicKey: PublicKey, command: ZoneCommand, correlationId: Long): Unit =
     command match {
       case EmptyZoneCommand =>
-        sys.error("EmptyZoneCommand")
       case createZoneCommand: CreateZoneCommand =>
         val sequenceNumber = messageSequenceNumbers(sender().path)
         messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))

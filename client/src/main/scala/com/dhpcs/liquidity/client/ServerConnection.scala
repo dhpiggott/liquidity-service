@@ -337,7 +337,6 @@ class ServerConnection(filesDir: File,
       case activeState: ActiveState =>
         clientMessage.commandOrResponseOrNotification match {
           case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Empty =>
-            sys.error("Empty")
           case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Command(protoCommand) =>
             activeState.handlerWrapper.post(activeState.subState match {
               case _: ConnectingSubState =>
@@ -345,7 +344,6 @@ class ServerConnection(filesDir: File,
               case OnlineSubState(webSocket) =>
                 activeState.handlerWrapper.post(protoCommand.command match {
                   case proto.ws.protocol.ClientMessage.Command.Command.Empty =>
-                    sys.error("Empty")
                   case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
                     sendServerMessage(
                       webSocket,
@@ -374,13 +372,13 @@ class ServerConnection(filesDir: File,
                     pendingRequests = pendingRequests - protoResponse.correlationId
                     protoResponse.response match {
                       case proto.ws.protocol.ClientMessage.Response.Response.Empty =>
-                        sys.error("Empty")
+                        sys.error("Empty or unsupported response")
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
                         val zoneResponse = ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
                           .asScala(protoZoneResponse.zoneResponse)
                         zoneResponse match {
                           case EmptyZoneResponse =>
-                            sys.error("EmptyZoneResponse")
+                            sys.error("Empty or unsupported zone response")
                           case errorResponse: ErrorResponse =>
                             mainHandlerWrapper.post(responseCallback.onErrorResponse(errorResponse))
                           case successResponse: SuccessResponse =>
@@ -393,7 +391,6 @@ class ServerConnection(filesDir: File,
           case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Notification(protoNotification) =>
             activeState.handlerWrapper.post(protoNotification.notification match {
               case proto.ws.protocol.ClientMessage.Notification.Notification.Empty =>
-                sys.error("Empty")
               case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotification(protoZoneNotification) =>
                 val zoneNotification =
                   ProtoConverter[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]

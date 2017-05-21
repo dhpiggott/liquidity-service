@@ -50,18 +50,18 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
   "A LegacyClientConnectionActor" - {
     "will send a JSON-RPC SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      assert(expectJsonRpcNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
+      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
     }
     "will send a JSON-RPC KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      assert(expectJsonRpcNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
+      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
       upstreamTestProbe.within(3.5.seconds)(
-        assert(expectJsonRpcNotification(upstreamTestProbe) === KeepAliveNotification)
+        assert(expectNotification(upstreamTestProbe) === KeepAliveNotification)
       )
     }
     "will reply with a JSON-RPC CreateZoneResponse when forwarding a JSON-RPC CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
-      assert(expectJsonRpcNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
+      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
       val command = CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
         equityOwnerName = Some("Dave"),
@@ -71,7 +71,7 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
         name = Some("Dave's Game")
       )
       val correlationId = 0L
-      sendJsonRpc(sinkTestProbe, clientConnection)(command, correlationId)
+      sendCommand(sinkTestProbe, clientConnection)(command, correlationId)
       val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[AuthenticatedZoneCommandWithIds]) {
         case AuthenticatedZoneCommandWithIds(`publicKey`, zoneCommand, `correlationId`, 1L, 1L) =>
           zoneCommand.zoneId
@@ -98,11 +98,11 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
                             sequenceNumber = 1L,
                             deliveryId = 1L)
       )
-      assert(expectJsonRpcResponse(upstreamTestProbe, "createZone") === result)
+      assert(expectResponse(upstreamTestProbe, "createZone") === result)
     }
   }
 
-  private[this] def expectJsonRpcNotification(upstreamTestProbe: TestProbe): Notification = {
+  private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification = {
     val notification = upstreamTestProbe.expectMsgPF() {
       case WrappedJsonRpcNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage) =>
         Notification.read(jsonRpcNotificationMessage)
@@ -110,7 +110,7 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
     notification.asOpt.value
   }
 
-  private[this] def sendJsonRpc(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
+  private[this] def sendCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
                                                                                       correlationId: Long): Unit = {
     sinkTestProbe.send(
       clientConnection,
@@ -119,7 +119,7 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
     sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck)
   }
 
-  private[this] def expectJsonRpcResponse(upstreamTestProbe: TestProbe, method: String): Response = {
+  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): Response = {
     val response = upstreamTestProbe.expectMsgPF() {
       case WrappedJsonRpcResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
         SuccessResponse.read(jsonRpcResponseSuccessMessage, method)

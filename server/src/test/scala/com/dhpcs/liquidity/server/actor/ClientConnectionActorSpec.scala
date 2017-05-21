@@ -49,7 +49,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     "will send a JSON-RPC KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
       upstreamTestProbe.within(3.5.seconds)(
-        assert(expectProtobufNotification(upstreamTestProbe) === KeepAliveNotification)
+        assert(expectNotification(upstreamTestProbe) === KeepAliveNotification)
       )
     }
     "will reply with a Protobuf CreateZoneResponse when forwarding a Protobuf CreateZoneCommand" in { fixture =>
@@ -63,7 +63,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
         name = Some("Dave's Game")
       )
       val correlationId = 0L
-      sendProtobuf(sinkTestProbe, clientConnection)(command, correlationId)
+      sendCommand(sinkTestProbe, clientConnection)(command, correlationId)
       val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[AuthenticatedZoneCommandWithIds]) {
         case AuthenticatedZoneCommandWithIds(`publicKey`, zoneCommand, `correlationId`, 1L, 1L) =>
           zoneCommand.zoneId
@@ -90,13 +90,12 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
                             sequenceNumber = 1L,
                             deliveryId = 1L)
       )
-      assert(expectProtobufResponse(upstreamTestProbe) === result)
+      assert(expectResponse(upstreamTestProbe) === result)
     }
   }
 
-  // TODO: DRY
-  private[this] def sendProtobuf(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
-                                                                                       correlationId: Long): Unit = {
+  private[this] def sendCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
+                                                                                      correlationId: Long): Unit = {
     sinkTestProbe.send(
       clientConnection,
       WrappedProtobufCommand(
@@ -115,10 +114,10 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
   }
 
-  private[this] def expectProtobufNotification(upstreamTestProbe: TestProbe): Notification =
+  private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification =
     upstreamTestProbe.expectMsgPF() {
-      case WrappedProtobufNotification(protobufNotification) =>
-        protobufNotification.notification match {
+      case WrappedProtobufNotification(protoNotification) =>
+        protoNotification.notification match {
           case proto.ws.protocol.ResponseOrNotification.Notification.Notification.Empty =>
             sys.error("Empty")
           case proto.ws.protocol.ResponseOrNotification.Notification.Notification.KeepAliveNotification(_) =>
@@ -130,11 +129,10 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
         }
     }
 
-  // TODO: DRY
-  private[this] def expectProtobufResponse(upstreamTestProbe: TestProbe): Response =
+  private[this] def expectResponse(upstreamTestProbe: TestProbe): Response =
     upstreamTestProbe.expectMsgPF() {
-      case WrappedProtobufResponse(protobufResponse) =>
-        protobufResponse.response match {
+      case WrappedProtobufResponse(protoResponse) =>
+        protoResponse.response match {
           case proto.ws.protocol.ResponseOrNotification.Response.Response.Empty =>
             sys.error("Empty")
           case proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(protoZoneResponse) =>

@@ -54,23 +54,23 @@ object ClientConnectionActor {
 
   private final val OutFlow: Flow[WrappedProtobufResponseOrNotification, WsMessage, NotUsed] =
     Flow[WrappedProtobufResponseOrNotification].map {
-      case WrappedProtobufResponse(protobufResponse) =>
+      case WrappedProtobufResponse(protoResponse) =>
         BinaryMessage(
           ByteString(
             proto.ws.protocol
               .ResponseOrNotification(
                 proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Response(
-                  protobufResponse
+                  protoResponse
                 )
               )
               .toByteArray))
-      case WrappedProtobufNotification(protobufNotification) =>
+      case WrappedProtobufNotification(protoNotification) =>
         BinaryMessage(
           ByteString(
             proto.ws.protocol
               .ResponseOrNotification(
                 proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Notification(
-                  protobufNotification
+                  protoNotification
                 )
               )
               .toByteArray))
@@ -107,14 +107,14 @@ object ClientConnectionActor {
     )
   }
 
-  final case class WrappedProtobufCommand(protobufCommand: proto.ws.protocol.Command)
+  final case class WrappedProtobufCommand(protoCommand: proto.ws.protocol.Command)
       extends NoSerializationVerificationNeeded
 
   sealed abstract class WrappedProtobufResponseOrNotification extends NoSerializationVerificationNeeded
-  final case class WrappedProtobufResponse(protobufResponse: proto.ws.protocol.ResponseOrNotification.Response)
+  final case class WrappedProtobufResponse(protoResponse: proto.ws.protocol.ResponseOrNotification.Response)
       extends WrappedProtobufResponseOrNotification
   final case class WrappedProtobufNotification(
-      protobufNotification: proto.ws.protocol.ResponseOrNotification.Notification)
+      protoNotification: proto.ws.protocol.ResponseOrNotification.Notification)
       extends WrappedProtobufResponseOrNotification
 
   case object ActorSinkInit
@@ -182,34 +182,26 @@ class ClientConnectionActor(ip: RemoteAddress,
   override def receiveCommand: Receive = waitingForActorSinkInit
 
   private[this] def waitingForActorSinkInit: Receive =
-    publishStatus orElse sendKeepAlive(sendNotification = sendProtobufNotification) orElse {
+    publishStatus orElse sendKeepAlive orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
-        context.become(receiveActorSinkMessages())
+        context.become(receiveActorSinkMessages)
     }
 
-  private[this] def receiveActorSinkMessages(
-      sendResponse: (Response, Long) => Unit = sendProtobufResponse,
-      sendNotification: Notification => Unit = sendProtobufNotification): Receive =
-    publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive(sendNotification) orElse {
-      case WrappedProtobufCommand(protobufCommand) =>
+  private[this] def receiveActorSinkMessages: Receive =
+    publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
+      case WrappedProtobufCommand(protoCommand) =>
         sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
-        // TODO: DRY
-        protobufCommand.command match {
+        protoCommand.command match {
           case proto.ws.protocol.Command.Command.Empty =>
             sys.error("Empty")
-          case proto.ws.protocol.Command.Command.ZoneCommand(protobufZoneCommand) =>
+          case proto.ws.protocol.Command.Command.ZoneCommand(protoZoneCommand) =>
             val zoneCommand = ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-              .asScala(protobufZoneCommand.zoneCommand)
-            handleZoneCommand(zoneCommand, protobufCommand.correlationId)
+              .asScala(protoZoneCommand.zoneCommand)
+            handleZoneCommand(zoneCommand, protoCommand.correlationId)
         }
-        context.become(
-          receiveActorSinkMessages(
-            sendResponse = sendProtobufResponse,
-            sendNotification = sendProtobufNotification
-          )
-        )
+        context.become(receiveActorSinkMessages)
       case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
@@ -258,7 +250,7 @@ class ClientConnectionActor(ip: RemoteAddress,
       }
   }
 
-  private[this] def sendKeepAlive(sendNotification: Notification => Unit): Receive = {
+  private[this] def sendKeepAlive: Receive = {
     case SendKeepAlive =>
       sendNotification(KeepAliveNotification)
   }
@@ -292,8 +284,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  // TODO: DRY
-  private[this] def sendProtobufNotification(notification: Notification): Unit =
+  private[this] def sendNotification(notification: Notification): Unit =
     send(
       WrappedProtobufNotification(
         proto.ws.protocol.ResponseOrNotification.Notification(notification match {
@@ -305,14 +296,15 @@ class ClientConnectionActor(ip: RemoteAddress,
             proto.ws.protocol.ResponseOrNotification.Notification.Notification.ZoneNotification(
               proto.ws.protocol.ZoneNotification(
                 ProtoConverter[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
-                  .asProto(zoneNotification))
+                  .asProto(zoneNotification)
+              )
             )
+
         })
       )
     )
 
-  // TODO: DRY
-  private[this] def sendProtobufResponse(response: Response, correlationId: Long): Unit =
+  private[this] def sendResponse(response: Response, correlationId: Long): Unit =
     send(
       WrappedProtobufResponse(
         proto.ws.protocol.ResponseOrNotification.Response(
@@ -322,7 +314,8 @@ class ClientConnectionActor(ip: RemoteAddress,
               proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(
                 proto.ws.protocol.ZoneResponse(
                   ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
-                    .asProto(zoneResponse))
+                    .asProto(zoneResponse)
+                )
               )
           }
         )

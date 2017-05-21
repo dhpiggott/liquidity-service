@@ -232,13 +232,12 @@ class ServerConnection(filesDir: File,
                 proto.ws.protocol
                   .Command(
                     correlationId,
-                    // TODO: DRY
                     command match {
                       case zoneCommand: ZoneCommand =>
                         proto.ws.protocol.Command.Command.ZoneCommand(
                           proto.ws.protocol.ZoneCommand(
-                            ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                              .asProto(zoneCommand))
+                            ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand].asProto(zoneCommand)
+                          )
                         )
                     }
                   )
@@ -339,7 +338,6 @@ class ServerConnection(filesDir: File,
       case _: IdleState =>
         sys.error("Not connected")
       case activeState: ActiveState =>
-        // TODO: DRY
         responseWithCorrelationIdOrNotification.responseOrNotification match {
           case proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Empty =>
             sys.error("Empty")

@@ -262,7 +262,7 @@ sealed abstract class LiquidityServerSpec
                 protocol.legacy.CompatibleVersionNumbers))
           )
           val correlationId = 0L
-          sendJsonRpc(pub)(
+          sendJsonRpcCommand(pub)(
             protocol.legacy.CreateZoneCommand(
               equityOwnerPublicKey = clientPublicKey,
               equityOwnerName = Some("Dave"),
@@ -294,7 +294,7 @@ sealed abstract class LiquidityServerSpec
                 protocol.legacy.CompatibleVersionNumbers))
           )
           val correlationId = 0L
-          sendJsonRpc(pub)(
+          sendJsonRpcCommand(pub)(
             protocol.legacy.CreateZoneCommand(
               equityOwnerPublicKey = clientPublicKey,
               equityOwnerName = Some("Dave"),
@@ -319,7 +319,7 @@ sealed abstract class LiquidityServerSpec
               assert(zone.metadata === None)
               zone
           }
-          sendJsonRpc(pub)(
+          sendJsonRpcCommand(pub)(
             protocol.legacy.JoinZoneCommand(zone.id),
             correlationId
           )
@@ -333,7 +333,7 @@ sealed abstract class LiquidityServerSpec
         "will reply with a Protobuf CreateZoneResponse when sending a Protobuf CreateZoneCommand" in withProtobufWsTestProbes {
           (sub, pub) =>
             val correlationId = 0L
-            sendProtobuf(pub)(
+            sendProtobufCommand(pub)(
               protocol.legacy.CreateZoneCommand(
                 equityOwnerPublicKey = clientPublicKey,
                 equityOwnerName = Some("Dave"),
@@ -360,7 +360,7 @@ sealed abstract class LiquidityServerSpec
         "will reply with a Protobuf JoinZoneResponse when sending a Protobuf JoinZoneCommand" in withProtobufWsTestProbes {
           (sub, pub) =>
             val correlationId = 0L
-            sendProtobuf(pub)(
+            sendProtobufCommand(pub)(
               protocol.legacy.CreateZoneCommand(
                 equityOwnerPublicKey = clientPublicKey,
                 equityOwnerName = Some("Dave"),
@@ -385,7 +385,7 @@ sealed abstract class LiquidityServerSpec
                 assert(zone.metadata === None)
                 zone
             }
-            sendProtobuf(pub)(
+            sendProtobufCommand(pub)(
               protocol.legacy.JoinZoneCommand(zone.id),
               correlationId
             )
@@ -504,8 +504,8 @@ sealed abstract class LiquidityServerSpec
 
   private final val ProtobufOutFlow: Flow[ClientConnectionActor.WrappedProtobufCommand, WsMessage, NotUsed] =
     Flow[ClientConnectionActor.WrappedProtobufCommand].map {
-      case ClientConnectionActor.WrappedProtobufCommand(protobufCommand) =>
-        BinaryMessage(ByteString(protobufCommand.toByteArray))
+      case ClientConnectionActor.WrappedProtobufCommand(protoCommand) =>
+        BinaryMessage(ByteString(protoCommand.toByteArray))
     }
 
   private[this] def expectJsonRpcNotification(
@@ -519,7 +519,7 @@ sealed abstract class LiquidityServerSpec
     }
   }
 
-  private[this] def sendJsonRpc(pub: TestPublisher.Probe[LegacyClientConnectionActor.WrappedJsonRpcCommand])(
+  private[this] def sendJsonRpcCommand(pub: TestPublisher.Probe[LegacyClientConnectionActor.WrappedJsonRpcCommand])(
       command: protocol.legacy.Command,
       correlationId: Long): Unit =
     pub.sendNext(
@@ -540,8 +540,7 @@ sealed abstract class LiquidityServerSpec
     }
   }
 
-  // TODO: DRY
-  private[this] def sendProtobuf(pub: TestPublisher.Probe[ClientConnectionActor.WrappedProtobufCommand])(
+  private[this] def sendProtobufCommand(pub: TestPublisher.Probe[ClientConnectionActor.WrappedProtobufCommand])(
       command: protocol.legacy.Command,
       correlationId: Long): Unit =
     pub.sendNext(
@@ -553,22 +552,22 @@ sealed abstract class LiquidityServerSpec
               proto.ws.protocol.Command.Command.ZoneCommand(
                 proto.ws.protocol.ZoneCommand(
                   ProtoConverter[protocol.legacy.ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                    .asProto(zoneCommand))
+                    .asProto(zoneCommand)
+                )
               )
           }
         )
       )
     )
 
-  // TODO: DRY
   private[this] def expectProtobufResponse(
       sub: TestSubscriber.Probe[ClientConnectionActor.WrappedProtobufResponseOrNotification],
       expectedCorrelationId: Long): protocol.Response = {
     sub.request(1)
     sub.expectNextPF {
-      case ClientConnectionActor.WrappedProtobufResponse(protobufResponse) =>
-        assert(protobufResponse.correlationId == expectedCorrelationId)
-        protobufResponse.response match {
+      case ClientConnectionActor.WrappedProtobufResponse(protoResponse) =>
+        assert(protoResponse.correlationId == expectedCorrelationId)
+        protoResponse.response match {
           case proto.ws.protocol.ResponseOrNotification.Response.Response.Empty =>
             sys.error("Empty")
           case proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(protoZoneResponse) =>

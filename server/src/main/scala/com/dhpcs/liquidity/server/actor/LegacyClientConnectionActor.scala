@@ -168,17 +168,15 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   override def receiveCommand: Receive = waitingForActorSinkInit
 
   private[this] def waitingForActorSinkInit: Receive =
-    publishStatus orElse sendKeepAlive(sendNotification = sendJsonRpcNotification) orElse {
+    publishStatus orElse sendKeepAlive orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
-        sendJsonRpcNotification(SupportedVersionsNotification(CompatibleVersionNumbers))
-        context.become(receiveActorSinkMessages())
+        sendNotification(SupportedVersionsNotification(CompatibleVersionNumbers))
+        context.become(receiveActorSinkMessages)
     }
 
-  private[this] def receiveActorSinkMessages(
-      sendResponse: (Response, Long) => Unit = sendJsonRpcResponse,
-      sendNotification: Notification => Unit = sendJsonRpcNotification): Receive =
-    publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive(sendNotification) orElse {
+  private[this] def receiveActorSinkMessages: Receive =
+    publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
       case WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
         sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
@@ -193,22 +191,25 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           case JsSuccess(command, _) =>
             jsonRpcRequestMessage.id match {
               case NoCorrelationId =>
-                sendJsonRpcErrorResponse(
+                sendErrorResponse(
                   error = "Correlation ID must be set",
                   correlationId = jsonRpcRequestMessage.id
                 )
               case StringCorrelationId(_) =>
-                sendJsonRpcErrorResponse(
+                sendErrorResponse(
                   error = "String correlation IDs are not supported",
                   correlationId = jsonRpcRequestMessage.id
                 )
               case NumericCorrelationId(value) if !value.isValidLong =>
-                sendJsonRpcErrorResponse(
+                sendErrorResponse(
                   error = "Floating point correlation IDs are not supported",
                   correlationId = jsonRpcRequestMessage.id
                 )
               case NumericCorrelationId(value) =>
-                handleCommand(command, value.toLongExact)
+                command match {
+                  case zoneCommand: ZoneCommand =>
+                    handleZoneCommand(zoneCommand, value.toLongExact)
+                }
             }
         }
       case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
@@ -216,8 +217,8 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
           // Converting it back to the WS type is what ensures we'll then end up generating a fresh ZoneId when we then
           // convert it back again _from_ the WS type.
-          handleCommand(ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
-                        correlationId)
+          handleZoneCommand(ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
+                            correlationId)
         )
       case ZoneResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
@@ -259,29 +260,26 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
       }
   }
 
-  private[this] def sendKeepAlive(sendNotification: Notification => Unit): Receive = {
+  private[this] def sendKeepAlive: Receive = {
     case SendKeepAlive =>
       sendNotification(KeepAliveNotification)
   }
 
-  private[this] def handleCommand(command: Command, correlationId: Long) = {
-    command match {
-      case zoneCommand: ZoneCommand =>
-        // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-        val protoZoneCommand = ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
-        val zoneId           = protoZoneCommand.zoneId
-        val sequenceNumber   = commandSequenceNumbers(zoneId)
-        commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-        deliver(zoneValidatorShardRegion.path) { deliveryId =>
-          pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-          AuthenticatedZoneCommandWithIds(
-            publicKey,
-            protoZoneCommand,
-            correlationId,
-            sequenceNumber,
-            deliveryId
-          )
-        }
+  private[this] def handleZoneCommand(zoneCommand: ZoneCommand, correlationId: Long) = {
+    // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
+    val protoZoneCommand = ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
+    val zoneId           = protoZoneCommand.zoneId
+    val sequenceNumber   = commandSequenceNumbers(zoneId)
+    commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+    deliver(zoneValidatorShardRegion.path) { deliveryId =>
+      pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+      AuthenticatedZoneCommandWithIds(
+        publicKey,
+        protoZoneCommand,
+        correlationId,
+        sequenceNumber,
+        deliveryId
+      )
     }
   }
 
@@ -296,20 +294,20 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  private[this] def sendJsonRpcNotification(notification: Notification): Unit =
+  private[this] def sendNotification(notification: Notification): Unit =
     send(WrappedJsonRpcNotification(Notification.write(notification)))
 
-  private[this] def sendJsonRpcResponse(response: Response, correlationId: Long): Unit =
+  private[this] def sendResponse(response: Response, correlationId: Long): Unit =
     response match {
       case EmptyZoneResponse =>
         sys.error("EmptyZoneResponse")
       case ErrorResponse(error) =>
-        sendJsonRpcErrorResponse(error, NumericCorrelationId(correlationId))
+        sendErrorResponse(error, NumericCorrelationId(correlationId))
       case successResponse: SuccessResponse =>
-        sendJsonRpcSuccessResponse(successResponse, correlationId)
+        sendSuccessResponse(successResponse, correlationId)
     }
 
-  private[this] def sendJsonRpcErrorResponse(error: String, correlationId: CorrelationId): Unit =
+  private[this] def sendErrorResponse(error: String, correlationId: CorrelationId): Unit =
     send(
       WrappedJsonRpcResponse(
         JsonRpcResponseErrorMessage.applicationError(
@@ -320,7 +318,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
         )
       ))
 
-  private[this] def sendJsonRpcSuccessResponse(response: SuccessResponse, correlationId: Long): Unit =
+  private[this] def sendSuccessResponse(response: SuccessResponse, correlationId: Long): Unit =
     send(WrappedJsonRpcResponse(SuccessResponse.write(response, NumericCorrelationId(correlationId))))
 
   private[this] def send(wrappedJsonRpcOrProtobufResponseOrNotification: WrappedJsonRpcResponseOrNotification): Unit = {

@@ -282,21 +282,19 @@ class ServerConnectionSpec
             (sender: ActorRef, msg: Any) =>
               {
                 msg match {
-                  case WrappedProtobufCommand(protobufCommand) =>
-                    assert(protobufCommand.correlationId === 0L)
-                    // TODO: DRY
-                    inside(protobufCommand.command) {
-                      case proto.ws.protocol.Command.Command.ZoneCommand(protobufZoneCommand) =>
+                  case WrappedProtobufCommand(protoCommand) =>
+                    assert(protoCommand.correlationId === 0L)
+                    inside(protoCommand.command) {
+                      case proto.ws.protocol.Command.Command.ZoneCommand(protoZoneCommand) =>
                         assert(
                           ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                            .asScala(protobufZoneCommand.zoneCommand)
+                            .asScala(protoZoneCommand.zoneCommand)
                             === createZoneCommand)
                     }
                     sender.tell(
                       WrappedProtobufResponse(
-                        // TODO: DRY
                         proto.ws.protocol.ResponseOrNotification.Response(
-                          protobufCommand.correlationId,
+                          protoCommand.correlationId,
                           proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(
                             proto.ws.protocol.ZoneResponse(
                               ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]

@@ -3,11 +3,17 @@ package com.dhpcs.liquidity.ws.protocol
 import com.dhpcs.liquidity.model._
 
 sealed abstract class Message
+sealed abstract class ClientCommand      extends Message
+sealed abstract class ClientResponse     extends Message
+sealed abstract class ServerCommand      extends Message
+sealed abstract class ServerResponse     extends Message
+sealed abstract class ClientNotification extends Message
 
-sealed abstract class Command     extends Message
-sealed abstract class ZoneCommand extends Command
+case object PingCommand  extends ClientCommand
+case object PingResponse extends ClientResponse
 
-case object EmptyZoneCommand extends ZoneCommand
+sealed abstract class ZoneCommand extends ServerCommand
+case object EmptyZoneCommand      extends ZoneCommand
 final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                    equityOwnerName: Option[String],
                                    equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
@@ -42,8 +48,7 @@ final case class AddTransactionCommand(zoneId: ZoneId,
   require(value >= 0)
 }
 
-sealed abstract class Response                                                  extends Message
-sealed abstract class ZoneResponse                                              extends Response
+sealed abstract class ZoneResponse                                              extends ServerResponse
 case object EmptyZoneResponse                                                   extends ZoneResponse
 final case class ErrorResponse(error: String)                                   extends ZoneResponse
 sealed abstract class SuccessResponse                                           extends ZoneResponse
@@ -57,15 +62,9 @@ final case class CreateAccountResponse(account: Account)                        
 case object UpdateAccountResponse                                               extends SuccessResponse
 final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
 
-sealed trait ResponseWithCorrelationIdOrNotification
-final case class ResponseWithCorrelationId(response: Response, correlationId: Long)
-    extends ResponseWithCorrelationIdOrNotification
-
-sealed abstract class Notification extends Message with ResponseWithCorrelationIdOrNotification
-sealed abstract class ZoneNotification extends Notification {
+sealed abstract class ZoneNotification extends ClientNotification {
   def zoneId: ZoneId
 }
-case object KeepAliveNotification extends Notification
 case object EmptyZoneNotification extends ZoneNotification {
   override def zoneId: ZoneId = sys.error("EmptyZoneNotification")
 }

@@ -24,16 +24,14 @@ import scala.concurrent.duration._
 
 object ClientConnectionActor {
 
-  def props(ip: RemoteAddress,
-            publicKey: PublicKey,
-            zoneValidatorShardRegion: ActorRef,
-            keepAliveInterval: FiniteDuration)(upstream: ActorRef): Props =
+  def props(ip: RemoteAddress, publicKey: PublicKey, zoneValidatorShardRegion: ActorRef, pingInterval: FiniteDuration)(
+      upstream: ActorRef): Props =
     Props(
       new ClientConnectionActor(
         ip,
         publicKey,
         zoneValidatorShardRegion,
-        keepAliveInterval,
+        pingInterval,
         upstream
       )
     )
@@ -41,40 +39,20 @@ object ClientConnectionActor {
   def webSocketFlow(props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
                                                             mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
-      .via(actorFlow[WrappedProtobufCommand, WrappedProtobufResponseOrNotification](props, name))
+      .via(actorFlow[proto.ws.protocol.ServerMessage, proto.ws.protocol.ClientMessage](props, name))
       .via(OutFlow)
 
-  private final val InFlow: Flow[WsMessage, WrappedProtobufCommand, NotUsed] =
-    Flow[WsMessage]
-      .flatMapConcat(wsMessage =>
-        for (byteString <- wsMessage.asBinaryMessage match {
-               case BinaryMessage.Streamed(dataStream) => dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
-               case BinaryMessage.Strict(data)         => Source.single(data)
-             }) yield WrappedProtobufCommand(proto.ws.protocol.Command.parseFrom(byteString.toArray)))
+  private final val InFlow: Flow[WsMessage, proto.ws.protocol.ServerMessage, NotUsed] =
+    Flow[WsMessage].flatMapConcat(wsMessage =>
+      for (byteString <- wsMessage.asBinaryMessage match {
+             case BinaryMessage.Streamed(dataStream) => dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
+             case BinaryMessage.Strict(data)         => Source.single(data)
+           }) yield proto.ws.protocol.ServerMessage.parseFrom(byteString.toArray))
 
-  private final val OutFlow: Flow[WrappedProtobufResponseOrNotification, WsMessage, NotUsed] =
-    Flow[WrappedProtobufResponseOrNotification].map {
-      case WrappedProtobufResponse(protoResponse) =>
-        BinaryMessage(
-          ByteString(
-            proto.ws.protocol
-              .ResponseOrNotification(
-                proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Response(
-                  protoResponse
-                )
-              )
-              .toByteArray))
-      case WrappedProtobufNotification(protoNotification) =>
-        BinaryMessage(
-          ByteString(
-            proto.ws.protocol
-              .ResponseOrNotification(
-                proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Notification(
-                  protoNotification
-                )
-              )
-              .toByteArray))
-    }
+  private final val OutFlow: Flow[proto.ws.protocol.ClientMessage, WsMessage, NotUsed] =
+    Flow[proto.ws.protocol.ClientMessage].map(
+      serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
+    )
 
   private def actorFlow[In, Out](props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
                                                                          mat: Materializer): Flow[In, Out, NotUsed] = {
@@ -86,7 +64,8 @@ object ClientConnectionActor {
       Sink.actorRefWithAck(
         factory.actorOf(
           Props(new Actor {
-            val flowActor: ActorRef                             = context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
+            val flowActor: ActorRef =
+              context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive: Receive = {
               case _: Status.Success | _: Status.Failure =>
@@ -107,39 +86,29 @@ object ClientConnectionActor {
     )
   }
 
-  final case class WrappedProtobufCommand(protoCommand: proto.ws.protocol.Command)
-      extends NoSerializationVerificationNeeded
-
-  sealed abstract class WrappedProtobufResponseOrNotification extends NoSerializationVerificationNeeded
-  final case class WrappedProtobufResponse(protoResponse: proto.ws.protocol.ResponseOrNotification.Response)
-      extends WrappedProtobufResponseOrNotification
-  final case class WrappedProtobufNotification(
-      protoNotification: proto.ws.protocol.ResponseOrNotification.Notification)
-      extends WrappedProtobufResponseOrNotification
-
   case object ActorSinkInit
   case object ActorSinkAck
 
   private case object PublishStatus
 
-  private object KeepAliveGeneratorActor {
+  private object PingGeneratorActor {
 
-    def props(keepAliveInterval: FiniteDuration): Props = Props(new KeepAliveGeneratorActor(keepAliveInterval))
+    def props(pingInterval: FiniteDuration): Props = Props(new PingGeneratorActor(pingInterval))
 
     case object FrameReceivedEvent
     case object FrameSentEvent
-    case object SendKeepAlive
+    case object SendPingCommand
 
   }
 
-  private class KeepAliveGeneratorActor(keepAliveInterval: FiniteDuration) extends Actor {
+  private class PingGeneratorActor(pingInterval: FiniteDuration) extends Actor {
 
-    import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
+    import com.dhpcs.liquidity.server.actor.ClientConnectionActor.PingGeneratorActor._
 
-    context.setReceiveTimeout(keepAliveInterval)
+    context.setReceiveTimeout(pingInterval)
 
     override def receive: Receive = {
-      case ReceiveTimeout                      => context.parent ! SendKeepAlive
+      case ReceiveTimeout                      => context.parent ! SendPingCommand
       case FrameReceivedEvent | FrameSentEvent => ()
     }
   }
@@ -148,19 +117,19 @@ object ClientConnectionActor {
 class ClientConnectionActor(ip: RemoteAddress,
                             publicKey: PublicKey,
                             zoneValidatorShardRegion: ActorRef,
-                            keepAliveInterval: FiniteDuration,
+                            pingInterval: FiniteDuration,
                             upstream: ActorRef)
     extends PersistentActor
     with ActorLogging
     with AtLeastOnceDelivery {
 
-  import com.dhpcs.liquidity.server.actor.ClientConnectionActor.KeepAliveGeneratorActor._
+  import com.dhpcs.liquidity.server.actor.ClientConnectionActor.PingGeneratorActor._
   import context.dispatcher
 
   private[this] val mediator          = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
-  private[this] val keepAliveGeneratorActor =
-    context.actorOf(KeepAliveGeneratorActor.props(keepAliveInterval).withDeploy(Deploy.local))
+  private[this] val pingGeneratorActor =
+    context.actorOf(PingGeneratorActor.props(pingInterval).withDeploy(Deploy.local))
 
   private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)
@@ -182,24 +151,35 @@ class ClientConnectionActor(ip: RemoteAddress,
   override def receiveCommand: Receive = waitingForActorSinkInit
 
   private[this] def waitingForActorSinkInit: Receive =
-    publishStatus orElse sendKeepAlive orElse {
+    publishStatus orElse sendPingCommand orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
         context.become(receiveActorSinkMessages)
     }
 
   private[this] def receiveActorSinkMessages: Receive =
-    publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
-      case WrappedProtobufCommand(protoCommand) =>
+    publishStatus orElse commandReceivedConfirmation orElse sendPingCommand orElse {
+      case serverMessage: proto.ws.protocol.ServerMessage =>
         sender() ! ActorSinkAck
-        keepAliveGeneratorActor ! FrameReceivedEvent
-        protoCommand.command match {
-          case proto.ws.protocol.Command.Command.Empty =>
+        pingGeneratorActor ! FrameReceivedEvent
+        serverMessage.commandOrResponse match {
+          case proto.ws.protocol.ServerMessage.CommandOrResponse.Empty =>
             sys.error("Empty")
-          case proto.ws.protocol.Command.Command.ZoneCommand(protoZoneCommand) =>
-            val zoneCommand = ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-              .asScala(protoZoneCommand.zoneCommand)
-            handleZoneCommand(zoneCommand, protoCommand.correlationId)
+          case proto.ws.protocol.ServerMessage.CommandOrResponse.Command(protoCommand) =>
+            protoCommand.command match {
+              case proto.ws.protocol.ServerMessage.Command.Command.Empty =>
+                sys.error("Empty")
+              case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
+                val zoneCommand = ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                  .asScala(protoZoneCommand.zoneCommand)
+                handleZoneCommand(zoneCommand, protoCommand.correlationId)
+            }
+          case proto.ws.protocol.ServerMessage.CommandOrResponse.Response(protoResponse) =>
+            protoResponse.response match {
+              case proto.ws.protocol.ServerMessage.Response.Response.Empty =>
+                sys.error("Empty")
+              case proto.ws.protocol.ServerMessage.Response.Response.PingResponse(_) =>
+            }
         }
         context.become(receiveActorSinkMessages)
       case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
@@ -213,13 +193,13 @@ class ClientConnectionActor(ip: RemoteAddress,
       case ZoneResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendResponse(ProtoConverter[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asScala(response),
-                       correlationId)
+          sendServerResponse(ProtoConverter[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asScala(response),
+                             correlationId)
         )
       case ZoneNotificationWithIds(notification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendNotification(
+          sendClientNotification(
             ProtoConverter[ZoneNotification, ZoneValidatorMessage.ZoneNotification].asScala(notification))
         )
       case ZoneRestarted(zoneId) =>
@@ -228,7 +208,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         commandSequenceNumbers = commandSequenceNumbers - zoneId
         pendingDeliveries(zoneId).foreach(confirmDelivery)
         pendingDeliveries = pendingDeliveries - zoneId
-        sendNotification(ZoneTerminatedNotification(zoneId))
+        sendClientNotification(ZoneTerminatedNotification(zoneId))
     }
 
   override def receiveRecover: Receive = Actor.emptyBehavior
@@ -250,9 +230,8 @@ class ClientConnectionActor(ip: RemoteAddress,
       }
   }
 
-  private[this] def sendKeepAlive: Receive = {
-    case SendKeepAlive =>
-      sendNotification(KeepAliveNotification)
+  private[this] def sendPingCommand: Receive = {
+    case SendPingCommand => sendClientCommand(PingCommand, correlationId = -1)
   }
 
   private[this] def handleZoneCommand(zoneCommand: ZoneCommand, correlationId: Long) = {
@@ -284,46 +263,65 @@ class ClientConnectionActor(ip: RemoteAddress,
     }
   }
 
-  private[this] def sendNotification(notification: Notification): Unit =
-    send(
-      WrappedProtobufNotification(
-        proto.ws.protocol.ResponseOrNotification.Notification(notification match {
-          case KeepAliveNotification =>
-            proto.ws.protocol.ResponseOrNotification.Notification.Notification.KeepAliveNotification(
-              proto.ws.protocol.KeepAliveNotification()
-            )
-          case zoneNotification: ZoneNotification =>
-            proto.ws.protocol.ResponseOrNotification.Notification.Notification.ZoneNotification(
-              proto.ws.protocol.ZoneNotification(
-                ProtoConverter[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
-                  .asProto(zoneNotification)
-              )
-            )
-
-        })
-      )
-    )
-
-  private[this] def sendResponse(response: Response, correlationId: Long): Unit =
-    send(
-      WrappedProtobufResponse(
-        proto.ws.protocol.ResponseOrNotification.Response(
-          correlationId,
-          response match {
-            case zoneResponse: ZoneResponse =>
-              proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(
-                proto.ws.protocol.ZoneResponse(
-                  ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
-                    .asProto(zoneResponse)
+  private[this] def sendClientCommand(clientCommand: ClientCommand, correlationId: Long): Unit =
+    sendClientMessage(
+      proto.ws.protocol.ClientMessage(
+        proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Command(
+          proto.ws.protocol.ClientMessage.Command(
+            correlationId,
+            clientCommand match {
+              case PingCommand =>
+                proto.ws.protocol.ClientMessage.Command.Command.PingCommand(
+                  proto.ws.protocol.PingCommand()
                 )
-              )
-          }
+            }
+          )
         )
       )
     )
 
-  private[this] def send(wrappedProtobufResponseOrNotification: WrappedProtobufResponseOrNotification): Unit = {
-    upstream ! wrappedProtobufResponseOrNotification
-    keepAliveGeneratorActor ! FrameSentEvent
+  private[this] def sendClientNotification(clientNotification: ClientNotification): Unit =
+    sendClientMessage(
+      proto.ws.protocol.ClientMessage(
+        proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Notification(
+          proto.ws.protocol.ClientMessage.Notification(
+            clientNotification match {
+              case zoneNotification: ZoneNotification =>
+                proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotification(
+                  proto.ws.protocol.ZoneNotification(
+                    ProtoConverter[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
+                      .asProto(zoneNotification)
+                  )
+                )
+
+            }
+          )
+        )
+      )
+    )
+
+  private[this] def sendServerResponse(serverResponse: ServerResponse, correlationId: Long): Unit =
+    sendClientMessage(
+      proto.ws.protocol.ClientMessage(
+        proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Response(
+          proto.ws.protocol.ClientMessage.Response(
+            correlationId,
+            serverResponse match {
+              case zoneResponse: ZoneResponse =>
+                proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
+                  proto.ws.protocol.ZoneResponse(
+                    ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                      .asProto(zoneResponse)
+                  )
+                )
+            }
+          )
+        )
+      )
+    )
+
+  private[this] def sendClientMessage(clientMessage: proto.ws.protocol.ClientMessage): Unit = {
+    upstream ! clientMessage
+    pingGeneratorActor ! FrameSentEvent
   }
 }

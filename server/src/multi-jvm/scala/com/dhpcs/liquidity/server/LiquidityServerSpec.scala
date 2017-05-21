@@ -31,6 +31,7 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.actor._
 import com.dhpcs.liquidity.ws.protocol
+import com.dhpcs.liquidity.ws.protocol.ZoneResponse
 import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.OptionValues._
@@ -86,7 +87,7 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |}
        |liquidity {
        |  server.http {
-       |    keep-alive-interval = 3s
+       |    ping-interval = 3s
        |    interface = "0.0.0.0"
        |  }
        |  analytics.cassandra.keyspace = "liquidity_analytics_v3"
@@ -330,6 +331,11 @@ sealed abstract class LiquidityServerSpec
           }
       }
       "The LiquidityServer Protobuf WebSocket API" - {
+        "will send a Protobuf PingCommand when left idle" in withProtobufWsTestProbes { (sub, _) =>
+          sub.within(3.5.seconds)(
+            assert(expectProtobufCommand(sub) === protocol.PingCommand)
+          )
+        }
         "will reply with a Protobuf CreateZoneResponse when sending a Protobuf CreateZoneCommand" in withProtobufWsTestProbes {
           (sub, pub) =>
             val correlationId = 0L
@@ -404,11 +410,11 @@ sealed abstract class LiquidityServerSpec
   )
 
   private[this] def withJsonRpcWsTestProbes(
-      test: (TestSubscriber.Probe[LegacyClientConnectionActor.WrappedJsonRpcResponseOrNotification],
-             TestPublisher.Probe[LegacyClientConnectionActor.WrappedJsonRpcCommand]) => Unit): Unit = {
+      test: (TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
+             TestPublisher.Probe[LegacyClientConnectionActor.WrappedCommand]) => Unit): Unit = {
     val testProbeFlow = Flow.fromSinkAndSourceMat(
-      TestSink.probe[LegacyClientConnectionActor.WrappedJsonRpcResponseOrNotification],
-      TestSource.probe[LegacyClientConnectionActor.WrappedJsonRpcCommand]
+      TestSink.probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
+      TestSource.probe[LegacyClientConnectionActor.WrappedCommand]
     )(Keep.both)
     val wsClientFlow =
       JsonRpcInFlow
@@ -424,11 +430,11 @@ sealed abstract class LiquidityServerSpec
   }
 
   private[this] def withProtobufWsTestProbes(
-      test: (TestSubscriber.Probe[ClientConnectionActor.WrappedProtobufResponseOrNotification],
-             TestPublisher.Probe[ClientConnectionActor.WrappedProtobufCommand]) => Unit): Unit = {
+      test: (TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
+             TestPublisher.Probe[proto.ws.protocol.ServerMessage]) => Unit): Unit = {
     val testProbeFlow = Flow.fromSinkAndSourceMat(
-      TestSink.probe[ClientConnectionActor.WrappedProtobufResponseOrNotification],
-      TestSource.probe[ClientConnectionActor.WrappedProtobufCommand]
+      TestSink.probe[proto.ws.protocol.ClientMessage],
+      TestSource.probe[proto.ws.protocol.ServerMessage]
     )(Keep.both)
     val wsClientFlow =
       ProtobufInFlow
@@ -444,136 +450,111 @@ sealed abstract class LiquidityServerSpec
   }
 
   private final val JsonRpcInFlow
-    : Flow[WsMessage, LegacyClientConnectionActor.WrappedJsonRpcResponseOrNotification, NotUsed] =
-    Flow[WsMessage]
-      .flatMapConcat {
-        case binaryMessage: BinaryMessage =>
-          sys.error(s"Received binary message: $binaryMessage")
-        case textMessage: TextMessage =>
-          for (jsonString <- textMessage match {
-                 case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
-                 case TextMessage.Strict(text)         => Source.single(text)
-               })
-            yield LegacyClientConnectionActor.WrappedJsonRpcRequest(Json.parse(jsonString).as[JsonRpcRequestMessage])
-          for (jsonString <- textMessage match {
-                 case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
-                 case TextMessage.Strict(text)         => Source.single(text)
-               })
-            yield
-              Json.parse(jsonString).as[JsonRpcMessage] match {
-                case _: JsonRpcRequestMessage       => sys.error("Received JsonRpcRequestMessage")
-                case _: JsonRpcRequestMessageBatch  => sys.error("Received JsonRpcRequestMessageBatch")
-                case _: JsonRpcResponseMessageBatch => sys.error("Received JsonRpcResponseMessageBatch")
-                case jsonRpcResponseMessage: JsonRpcResponseMessage =>
-                  LegacyClientConnectionActor.WrappedJsonRpcResponse(jsonRpcResponseMessage)
-                case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
-                  LegacyClientConnectionActor.WrappedJsonRpcNotification(jsonRpcNotificationMessage)
-              }
-      }
+    : Flow[WsMessage, LegacyClientConnectionActor.WrappedResponseOrNotification, NotUsed] =
+    Flow[WsMessage].flatMapConcat(
+      wsMessage =>
+        for (jsonString <- wsMessage.asTextMessage match {
+               case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
+               case TextMessage.Strict(text)         => Source.single(text)
+             })
+          yield
+            Json.parse(jsonString).as[JsonRpcMessage] match {
+              case _: JsonRpcRequestMessage       => sys.error("Received JsonRpcRequestMessage")
+              case _: JsonRpcRequestMessageBatch  => sys.error("Received JsonRpcRequestMessageBatch")
+              case _: JsonRpcResponseMessageBatch => sys.error("Received JsonRpcResponseMessageBatch")
+              case jsonRpcResponseMessage: JsonRpcResponseMessage =>
+                LegacyClientConnectionActor.WrappedResponse(jsonRpcResponseMessage)
+              case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
+                LegacyClientConnectionActor.WrappedNotification(jsonRpcNotificationMessage)
+          })
 
-  private final val JsonRpcOutFlow: Flow[LegacyClientConnectionActor.WrappedJsonRpcCommand, WsMessage, NotUsed] =
-    Flow[LegacyClientConnectionActor.WrappedJsonRpcCommand].map {
-      case LegacyClientConnectionActor.WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
+  private final val JsonRpcOutFlow: Flow[LegacyClientConnectionActor.WrappedCommand, WsMessage, NotUsed] =
+    Flow[LegacyClientConnectionActor.WrappedCommand].map {
+      case LegacyClientConnectionActor.WrappedCommand(jsonRpcRequestMessage) =>
         TextMessage(Json.stringify(Json.toJson(jsonRpcRequestMessage)))
     }
 
-  private final val ProtobufInFlow
-    : Flow[WsMessage, ClientConnectionActor.WrappedProtobufResponseOrNotification, NotUsed] =
-    Flow[WsMessage]
-      .flatMapConcat {
-        case binaryMessage: BinaryMessage =>
-          for (byteString <- binaryMessage match {
-                 case BinaryMessage.Streamed(dataStream) =>
-                   dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
-                 case BinaryMessage.Strict(data) => Source.single(data)
-               })
-            yield
-              proto.ws.protocol.ResponseOrNotification
-                .parseFrom(byteString.toArray)
-                .responseOrNotification match {
-                case proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Empty =>
-                  sys.error("Empty")
-                case proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Response(protoResponse) =>
-                  ClientConnectionActor.WrappedProtobufResponse(protoResponse)
-                case proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Notification(protoNotification) =>
-                  ClientConnectionActor.WrappedProtobufNotification(protoNotification)
-              }
-        case textMessage: TextMessage =>
-          sys.error(s"Received text message: $textMessage")
-      }
+  private final val ProtobufInFlow: Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
+    Flow[WsMessage].flatMapConcat(wsMessage =>
+      for (byteString <- wsMessage.asBinaryMessage match {
+             case BinaryMessage.Streamed(dataStream) =>
+               dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
+             case BinaryMessage.Strict(data) => Source.single(data)
+           }) yield proto.ws.protocol.ClientMessage.parseFrom(byteString.toArray))
 
-  private final val ProtobufOutFlow: Flow[ClientConnectionActor.WrappedProtobufCommand, WsMessage, NotUsed] =
-    Flow[ClientConnectionActor.WrappedProtobufCommand].map {
-      case ClientConnectionActor.WrappedProtobufCommand(protoCommand) =>
-        BinaryMessage(ByteString(protoCommand.toByteArray))
-    }
+  private final val ProtobufOutFlow: Flow[proto.ws.protocol.ServerMessage, WsMessage, NotUsed] =
+    Flow[proto.ws.protocol.ServerMessage].map(
+      serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
+    )
 
   private[this] def expectJsonRpcNotification(
-      sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedJsonRpcResponseOrNotification])
+      sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification])
     : protocol.legacy.Notification = {
     sub.request(1)
     sub.expectNextPF {
-      case LegacyClientConnectionActor.WrappedJsonRpcNotification(jsonRpcNotificationMessage) =>
-        val notification = protocol.legacy.Notification.read(jsonRpcNotificationMessage)
-        notification.asOpt.value
+      case LegacyClientConnectionActor.WrappedNotification(jsonRpcNotificationMessage) =>
+        protocol.legacy.Notification.read(jsonRpcNotificationMessage).asOpt.value
     }
   }
 
-  private[this] def sendJsonRpcCommand(pub: TestPublisher.Probe[LegacyClientConnectionActor.WrappedJsonRpcCommand])(
+  private[this] def sendJsonRpcCommand(pub: TestPublisher.Probe[LegacyClientConnectionActor.WrappedCommand])(
       command: protocol.legacy.Command,
       correlationId: Long): Unit =
     pub.sendNext(
-      LegacyClientConnectionActor.WrappedJsonRpcRequest(
-        protocol.legacy.Command.write(command, id = NumericCorrelationId(correlationId))))
+      LegacyClientConnectionActor.WrappedCommand(
+        protocol.legacy.Command.write(command, id = NumericCorrelationId(correlationId))
+      ))
 
   private[this] def expectJsonRpcResponse(
-      sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedJsonRpcResponseOrNotification],
+      sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
       expectedCorrelationId: Long,
       method: String): protocol.legacy.Response = {
     sub.request(1)
     sub.expectNextPF {
-      case LegacyClientConnectionActor.WrappedJsonRpcResponse(
-          jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
+      case LegacyClientConnectionActor.WrappedResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
         assert(jsonRpcResponseSuccessMessage.id === NumericCorrelationId(expectedCorrelationId))
-        val successResponse = protocol.legacy.SuccessResponse.read(jsonRpcResponseSuccessMessage, method)
-        successResponse.asOpt.value
+        protocol.legacy.SuccessResponse.read(jsonRpcResponseSuccessMessage, method).asOpt.value
     }
   }
 
-  private[this] def sendProtobufCommand(pub: TestPublisher.Probe[ClientConnectionActor.WrappedProtobufCommand])(
+  private[this] def expectProtobufCommand(
+      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage]): protocol.ClientCommand =
+    inside(sub.requestNext().commandOrResponseOrNotification) {
+      case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Command(protoCommand) =>
+        inside(protoCommand.command) {
+          case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(protoPingCommand) =>
+            ProtoConverter[protocol.PingCommand.type, proto.ws.protocol.PingCommand]
+              .asScala(protoPingCommand)
+        }
+    }
+
+  private[this] def sendProtobufCommand(pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
       command: protocol.legacy.Command,
       correlationId: Long): Unit =
     pub.sendNext(
-      ClientConnectionActor.WrappedProtobufCommand(
-        proto.ws.protocol.Command(
+      proto.ws.protocol.ServerMessage(
+        proto.ws.protocol.ServerMessage.CommandOrResponse.Command(proto.ws.protocol.ServerMessage.Command(
           correlationId,
           command match {
             case zoneCommand: protocol.legacy.ZoneCommand =>
-              proto.ws.protocol.Command.Command.ZoneCommand(
+              proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(
                 proto.ws.protocol.ZoneCommand(
                   ProtoConverter[protocol.legacy.ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
                     .asProto(zoneCommand)
-                )
-              )
+                ))
           }
-        )
-      )
-    )
+        ))))
 
-  private[this] def expectProtobufResponse(
-      sub: TestSubscriber.Probe[ClientConnectionActor.WrappedProtobufResponseOrNotification],
-      expectedCorrelationId: Long): protocol.Response = {
-    sub.request(1)
-    sub.expectNextPF {
-      case ClientConnectionActor.WrappedProtobufResponse(protoResponse) =>
+  private[this] def expectProtobufResponse(sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
+                                           expectedCorrelationId: Long): protocol.ServerResponse =
+    inside(sub.requestNext().commandOrResponseOrNotification) {
+      case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Response(protoResponse) =>
         assert(protoResponse.correlationId == expectedCorrelationId)
-        protoResponse.response match {
-          case proto.ws.protocol.ResponseOrNotification.Response.Response.Empty =>
-            sys.error("Empty")
-          case proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoConverter[protocol.ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+        inside(protoResponse.response) {
+          case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
+            ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
               .asScala(protoZoneResponse.zoneResponse)
         }
     }
-  }
+
 }

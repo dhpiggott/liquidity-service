@@ -42,22 +42,21 @@ object LegacyClientConnectionActor {
   def webSocketFlow(props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
                                                             mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
-      .via(actorFlow[WrappedJsonRpcCommand, WrappedJsonRpcResponseOrNotification](props, name))
+      .via(actorFlow[WrappedCommand, WrappedResponseOrNotification](props, name))
       .via(OutFlow)
 
-  private final val InFlow: Flow[WsMessage, WrappedJsonRpcCommand, NotUsed] =
-    Flow[WsMessage]
-      .flatMapConcat(wsMessage =>
-        for (jsonString <- wsMessage.asTextMessage match {
-               case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
-               case TextMessage.Strict(text)         => Source.single(text)
-             }) yield WrappedJsonRpcRequest(Json.parse(jsonString).as[JsonRpcRequestMessage]))
+  private final val InFlow: Flow[WsMessage, WrappedCommand, NotUsed] =
+    Flow[WsMessage].flatMapConcat(wsMessage =>
+      for (jsonString <- wsMessage.asTextMessage match {
+             case TextMessage.Streamed(textStream) => textStream.fold("")(_ + _)
+             case TextMessage.Strict(text)         => Source.single(text)
+           }) yield WrappedCommand(Json.parse(jsonString).as[JsonRpcRequestMessage]))
 
-  private final val OutFlow: Flow[WrappedJsonRpcResponseOrNotification, WsMessage, NotUsed] =
-    Flow[WrappedJsonRpcResponseOrNotification].map {
-      case WrappedJsonRpcResponse(jsonRpcResponseMessage) =>
+  private final val OutFlow: Flow[WrappedResponseOrNotification, WsMessage, NotUsed] =
+    Flow[WrappedResponseOrNotification].map {
+      case WrappedResponse(jsonRpcResponseMessage) =>
         TextMessage(Json.stringify(Json.toJson(jsonRpcResponseMessage)))
-      case WrappedJsonRpcNotification(jsonRpcNotificationMessage) =>
+      case WrappedNotification(jsonRpcNotificationMessage) =>
         TextMessage(Json.stringify(Json.toJson(jsonRpcNotificationMessage)))
     }
 
@@ -71,7 +70,8 @@ object LegacyClientConnectionActor {
       Sink.actorRefWithAck(
         factory.actorOf(
           Props(new Actor {
-            val flowActor: ActorRef                             = context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
+            val flowActor: ActorRef =
+              context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive: Receive = {
               case _: Status.Success | _: Status.Failure =>
@@ -94,14 +94,14 @@ object LegacyClientConnectionActor {
 
   final val Topic = "Client"
 
-  sealed abstract class WrappedJsonRpcCommand                                          extends NoSerializationVerificationNeeded
-  final case class WrappedJsonRpcRequest(jsonRpcRequestMessage: JsonRpcRequestMessage) extends WrappedJsonRpcCommand
+  final case class WrappedCommand(jsonRpcRequestMessage: JsonRpcRequestMessage)
+      extends NoSerializationVerificationNeeded
 
-  sealed abstract class WrappedJsonRpcResponseOrNotification extends NoSerializationVerificationNeeded
-  final case class WrappedJsonRpcResponse(jsonRpcResponseMessage: JsonRpcResponseMessage)
-      extends WrappedJsonRpcResponseOrNotification
-  final case class WrappedJsonRpcNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
-      extends WrappedJsonRpcResponseOrNotification
+  sealed abstract class WrappedResponseOrNotification extends NoSerializationVerificationNeeded
+  final case class WrappedResponse(jsonRpcResponseMessage: JsonRpcResponseMessage)
+      extends WrappedResponseOrNotification
+  final case class WrappedNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
+      extends WrappedResponseOrNotification
 
   case object ActorSinkInit
   case object ActorSinkAck
@@ -177,14 +177,14 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
 
   private[this] def receiveActorSinkMessages: Receive =
     publishStatus orElse commandReceivedConfirmation orElse sendKeepAlive orElse {
-      case WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
+      case WrappedCommand(jsonRpcRequestMessage) =>
         sender() ! ActorSinkAck
         keepAliveGeneratorActor ! FrameReceivedEvent
         Command.read(jsonRpcRequestMessage) match {
           case error: JsError =>
             log.warning(s"Receive error: $error")
             send(
-              WrappedJsonRpcResponse(
+              WrappedResponse(
                 JsonRpcResponseErrorMessage.invalidRequest(error, jsonRpcRequestMessage.id)
               )
             )
@@ -261,8 +261,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   }
 
   private[this] def sendKeepAlive: Receive = {
-    case SendKeepAlive =>
-      sendNotification(KeepAliveNotification)
+    case SendKeepAlive => sendNotification(KeepAliveNotification)
   }
 
   private[this] def handleZoneCommand(zoneCommand: ZoneCommand, correlationId: Long) = {
@@ -295,7 +294,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   }
 
   private[this] def sendNotification(notification: Notification): Unit =
-    send(WrappedJsonRpcNotification(Notification.write(notification)))
+    send(WrappedNotification(Notification.write(notification)))
 
   private[this] def sendResponse(response: Response, correlationId: Long): Unit =
     response match {
@@ -309,7 +308,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
 
   private[this] def sendErrorResponse(error: String, correlationId: CorrelationId): Unit =
     send(
-      WrappedJsonRpcResponse(
+      WrappedResponse(
         JsonRpcResponseErrorMessage.applicationError(
           code = JsonRpcResponseErrorMessage.ReservedErrorCodeFloor - 1,
           message = error,
@@ -319,10 +318,10 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
       ))
 
   private[this] def sendSuccessResponse(response: SuccessResponse, correlationId: Long): Unit =
-    send(WrappedJsonRpcResponse(SuccessResponse.write(response, NumericCorrelationId(correlationId))))
+    send(WrappedResponse(SuccessResponse.write(response, NumericCorrelationId(correlationId))))
 
-  private[this] def send(wrappedJsonRpcOrProtobufResponseOrNotification: WrappedJsonRpcResponseOrNotification): Unit = {
-    upstream ! wrappedJsonRpcOrProtobufResponseOrNotification
+  private[this] def send(wrappedResponseOrNotification: WrappedResponseOrNotification): Unit = {
+    upstream ! wrappedResponseOrNotification
     keepAliveGeneratorActor ! FrameSentEvent
   }
 }

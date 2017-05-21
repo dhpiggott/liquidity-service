@@ -327,7 +327,7 @@ class BoardGame private (serverConnection: ServerConnection,
     state.connectedClients.contains(publicKey)
 
   def changeGameName(name: String): Unit =
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       ChangeZoneNameCommand(
         zoneId.get,
         Some(name)
@@ -336,7 +336,7 @@ class BoardGame private (serverConnection: ServerConnection,
     )
 
   def createIdentity(name: String): Unit =
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       CreateMemberCommand(
         zoneId.get,
         serverConnection.clientKey,
@@ -354,7 +354,7 @@ class BoardGame private (serverConnection: ServerConnection,
     )
 
   def changeIdentityName(identity: Identity, name: String): Unit =
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       UpdateMemberCommand(
         zoneId.get,
         state.identities(identity.member.id).member.copy(name = Some(name))
@@ -363,7 +363,7 @@ class BoardGame private (serverConnection: ServerConnection,
     )
 
   def transferIdentity(identity: Identity, toPublicKey: PublicKey): Unit =
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       UpdateMemberCommand(
         zoneId.get,
         state.identities(identity.member.id).member.copy(ownerPublicKey = toPublicKey)
@@ -373,7 +373,7 @@ class BoardGame private (serverConnection: ServerConnection,
 
   def deleteIdentity(identity: Identity): Unit = {
     val member = state.identities(identity.member.id).member
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       UpdateMemberCommand(
         zoneId.get,
         member.copy(
@@ -391,7 +391,7 @@ class BoardGame private (serverConnection: ServerConnection,
 
   def restoreIdentity(identity: Identity): Unit = {
     val member = state.hiddenIdentities(identity.member.id).member
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       UpdateMemberCommand(
         zoneId.get,
         member.copy(
@@ -409,7 +409,7 @@ class BoardGame private (serverConnection: ServerConnection,
   def transferToPlayer(actingAs: Identity, from: Identity, to: Seq[Player], value: BigDecimal): Unit =
     to.foreach(
       to =>
-        serverConnection.sendCommand(
+        serverConnection.sendServerCommand(
           AddTransactionCommand(
             zoneId.get,
             actingAs.member.id,
@@ -496,7 +496,7 @@ class BoardGame private (serverConnection: ServerConnection,
         state = null
         _joinState = BoardGame.QUITTING
         joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-        serverConnection.sendCommand(
+        serverConnection.sendServerCommand(
           QuitZoneCommand(
             zoneId.get
           ),
@@ -861,7 +861,7 @@ class BoardGame private (serverConnection: ServerConnection,
     }
 
   private[this] def createAndThenJoinZone(currency: Currency, name: String): Unit =
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       CreateZoneCommand(
         serverConnection.clientKey,
         bankMemberName,
@@ -894,7 +894,7 @@ class BoardGame private (serverConnection: ServerConnection,
     )
 
   private[this] def join(zoneId: ZoneId): Unit =
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       JoinZoneCommand(
         zoneId
       ),
@@ -1021,7 +1021,7 @@ class BoardGame private (serverConnection: ServerConnection,
     )
 
   private[this] def createAccount(ownerMember: Member): Unit =
-    serverConnection.sendCommand(
+    serverConnection.sendServerCommand(
       CreateAccountCommand(
         zoneId.get,
         Set(ownerMember.id)

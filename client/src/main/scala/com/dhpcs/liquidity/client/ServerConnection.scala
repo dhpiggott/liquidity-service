@@ -215,40 +215,37 @@ class ServerConnection(filesDir: File,
       connect()
   }
 
-  def sendCommand(command: Command, responseCallback: ResponseCallback): Unit = state match {
+  def sendServerCommand(serverCommand: ServerCommand, responseCallback: ResponseCallback): Unit = state match {
     case _: IdleState =>
       sys.error("Not connected")
     case activeState: ActiveState =>
       activeState.handlerWrapper.post(activeState.subState match {
         case _: ConnectingSubState | DisconnectingSubState =>
           sys.error(s"Not connected")
-        case onlineSubState: OnlineSubState =>
+        case OnlineSubState(webSocket) =>
           val correlationId = nextCorrelationId
           nextCorrelationId = nextCorrelationId + 1
-          try {
-            onlineSubState.webSocket.sendMessage(
-              RequestBody.create(
-                WebSocket.BINARY,
-                proto.ws.protocol
-                  .Command(
+          sendServerMessage(
+            webSocket,
+            proto.ws.protocol
+              .ServerMessage(
+                proto.ws.protocol.ServerMessage.CommandOrResponse.Command(
+                  proto.ws.protocol.ServerMessage.Command(
                     correlationId,
-                    command match {
+                    serverCommand match {
                       case zoneCommand: ZoneCommand =>
-                        proto.ws.protocol.Command.Command.ZoneCommand(
+                        proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(
                           proto.ws.protocol.ZoneCommand(
-                            ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand].asProto(zoneCommand)
+                            ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                              .asProto(zoneCommand)
                           )
                         )
                     }
                   )
-                  .toByteArray
-              )
-            )
-            pendingRequests = pendingRequests + (correlationId -> responseCallback)
-          } catch {
-            // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
-            case _: IOException =>
-          }
+                )
+              ),
+            (pendingRequests = pendingRequests + (correlationId -> responseCallback)): Unit
+          )
       })
   }
 
@@ -330,35 +327,57 @@ class ServerConnection(filesDir: File,
   }
 
   override def onMessage(message: ResponseBody): Unit = {
-    val responseWithCorrelationIdOrNotification = message.contentType match {
-      case WebSocket.BINARY => proto.ws.protocol.ResponseOrNotification.parseFrom(message.bytes)
+    val clientMessage = message.contentType match {
+      case WebSocket.BINARY => proto.ws.protocol.ClientMessage.parseFrom(message.bytes)
       case WebSocket.TEXT   => sys.error("Received text frame")
     }
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
         sys.error("Not connected")
       case activeState: ActiveState =>
-        responseWithCorrelationIdOrNotification.responseOrNotification match {
-          case proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Empty =>
+        clientMessage.commandOrResponseOrNotification match {
+          case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Empty =>
             sys.error("Empty")
-          case proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Response(response) =>
+          case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Command(protoCommand) =>
+            activeState.handlerWrapper.post(activeState.subState match {
+              case _: ConnectingSubState =>
+                sys.error("Not connected")
+              case OnlineSubState(webSocket) =>
+                activeState.handlerWrapper.post(protoCommand.command match {
+                  case proto.ws.protocol.ClientMessage.Command.Command.Empty =>
+                    sys.error("Empty")
+                  case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
+                    sendServerMessage(
+                      webSocket,
+                      proto.ws.protocol.ServerMessage(
+                        proto.ws.protocol.ServerMessage.CommandOrResponse.Response(
+                          proto.ws.protocol.ServerMessage.Response(
+                            protoCommand.correlationId,
+                            proto.ws.protocol.ServerMessage.Response.Response.PingResponse(
+                              ProtoConverter[PingResponse.type, proto.ws.protocol.PingResponse]
+                                .asProto(PingResponse)
+                            )
+                          )))
+                    )
+                })
+              case DisconnectingSubState =>
+            })
+          case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Response(protoResponse) =>
             activeState.handlerWrapper.post(activeState.subState match {
               case _: ConnectingSubState =>
                 sys.error("Not connected")
               case _: OnlineSubState =>
-                activeState.handlerWrapper.post(pendingRequests.get(response.correlationId) match {
+                activeState.handlerWrapper.post(pendingRequests.get(protoResponse.correlationId) match {
                   case None =>
-                    sys.error(s"No pending request exists with correlationId=${response.correlationId}")
+                    sys.error(s"No pending request exists with correlationId=${protoResponse.correlationId}")
                   case Some(responseCallback) =>
-                    pendingRequests = pendingRequests - response.correlationId
-                    response.response match {
-                      case proto.ws.protocol.ResponseOrNotification.Response.Response.Empty =>
+                    pendingRequests = pendingRequests - protoResponse.correlationId
+                    protoResponse.response match {
+                      case proto.ws.protocol.ClientMessage.Response.Response.Empty =>
                         sys.error("Empty")
-                      case proto.ws.protocol.ResponseOrNotification.Response.Response
-                            .ZoneResponse(protoZoneResponse) =>
-                        val zoneResponse =
-                          ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
-                            .asScala(protoZoneResponse.zoneResponse)
+                      case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
+                        val zoneResponse = ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                          .asScala(protoZoneResponse.zoneResponse)
                         zoneResponse match {
                           case EmptyZoneResponse =>
                             sys.error("EmptyZoneResponse")
@@ -371,19 +390,11 @@ class ServerConnection(filesDir: File,
                 })
               case DisconnectingSubState =>
             })
-          case proto.ws.protocol.ResponseOrNotification.ResponseOrNotification.Notification(notification) =>
-            activeState.handlerWrapper.post(notification.notification match {
-              case proto.ws.protocol.ResponseOrNotification.Notification.Notification.Empty =>
+          case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Notification(protoNotification) =>
+            activeState.handlerWrapper.post(protoNotification.notification match {
+              case proto.ws.protocol.ClientMessage.Notification.Notification.Empty =>
                 sys.error("Empty")
-              case proto.ws.protocol.ResponseOrNotification.Notification.Notification.KeepAliveNotification(_) =>
-                activeState.subState match {
-                  case _: ConnectingSubState =>
-                    sys.error("Not connected")
-                  case _: OnlineSubState     =>
-                  case DisconnectingSubState =>
-                }
-              case proto.ws.protocol.ResponseOrNotification.Notification.Notification
-                    .ZoneNotification(protoZoneNotification) =>
+              case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotification(protoZoneNotification) =>
                 val zoneNotification =
                   ProtoConverter[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
                     .asScala(protoZoneNotification.zoneNotification)
@@ -458,6 +469,21 @@ class ServerConnection(filesDir: File,
       })
   }
 
+  private[this] def doOpen(): Unit = {
+    val activeState = ActiveState(handlerWrapperFactory.create("ServerConnection"))
+    state = activeState
+    activeState.handlerWrapper.post {
+      val webSocketCall = WebSocketCall.create(
+        okHttpClient,
+        new okhttp3.Request.Builder().url(s"https://$hostname:$port/bws").build
+      )
+      webSocketCall.enqueue(this)
+      activeState.subState = ConnectingSubState(webSocketCall)
+    }
+    _connectionState = CONNECTING
+    connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
+  }
+
   private[this] def doClose(handlerWrapper: HandlerWrapper, closeCause: CloseCause): Unit = {
     handlerWrapper.quit()
     nextCorrelationId = 0
@@ -492,18 +518,20 @@ class ServerConnection(filesDir: File,
     }
   }
 
-  private[this] def doOpen(): Unit = {
-    val activeState = ActiveState(handlerWrapperFactory.create("ServerConnection"))
-    state = activeState
-    activeState.handlerWrapper.post {
-      val webSocketCall = WebSocketCall.create(
-        okHttpClient,
-        new okhttp3.Request.Builder().url(s"https://$hostname:$port/bws").build
+  private[this] def sendServerMessage(webSocket: WebSocket,
+                                      serverMessage: proto.ws.protocol.ServerMessage,
+                                      onSuccess: => Unit = ()): Unit =
+    try {
+      webSocket.sendMessage(
+        RequestBody.create(
+          WebSocket.BINARY,
+          serverMessage.toByteArray
+        )
       )
-      webSocketCall.enqueue(this)
-      activeState.subState = ConnectingSubState(webSocketCall)
+      onSuccess
+    } catch {
+      // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
+      case _: IOException =>
     }
-    _connectionState = CONNECTING
-    connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
-  }
+
 }

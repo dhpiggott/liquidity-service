@@ -199,10 +199,10 @@ class ServerConnectionSpec
     port = akkaHttpPort
   )
 
-  private[this] def send(command: Command): Future[Response] = {
-    val promise = Promise[Response]
+  private[this] def send(command: ServerCommand): Future[ServerResponse] = {
+    val promise = Promise[ServerResponse]
     MainHandlerWrapper.post(
-      serverConnection.sendCommand(
+      serverConnection.sendServerCommand(
         command,
         new ResponseCallback {
           override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
@@ -276,35 +276,37 @@ class ServerConnectionSpec
           name = Some("Dave's Game")
         )
       )
-      clientConnectionActorTestProbe.setAutoPilot((sender: ActorRef, msg: Any) =>
+      clientConnectionActorTestProbe.setAutoPilot((_, msg: Any) =>
         msg match {
           case ActorSinkInit =>
             (sender: ActorRef, msg: Any) =>
               {
                 msg match {
-                  case WrappedProtobufCommand(protoCommand) =>
-                    assert(protoCommand.correlationId === 0L)
-                    inside(protoCommand.command) {
-                      case proto.ws.protocol.Command.Command.ZoneCommand(protoZoneCommand) =>
-                        assert(
-                          ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                            .asScala(protoZoneCommand.zoneCommand)
-                            === createZoneCommand)
-                    }
-                    sender.tell(
-                      WrappedProtobufResponse(
-                        proto.ws.protocol.ResponseOrNotification.Response(
-                          protoCommand.correlationId,
-                          proto.ws.protocol.ResponseOrNotification.Response.Response.ZoneResponse(
-                            proto.ws.protocol.ZoneResponse(
-                              ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
-                                .asProto(createZoneResponse)
+                  case serverMessage: proto.ws.protocol.ServerMessage =>
+                    inside(serverMessage.commandOrResponse) {
+                      case proto.ws.protocol.ServerMessage.CommandOrResponse.Command(protoCommand) =>
+                        assert(protoCommand.correlationId === 0L)
+                        inside(protoCommand.command) {
+                          case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
+                            assert(
+                              ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                                .asScala(protoZoneCommand.zoneCommand) === createZoneCommand
                             )
-                          )
+                        }
+                        sender.tell(
+                          proto.ws.protocol.ClientMessage(
+                            proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Response(
+                              proto.ws.protocol.ClientMessage.Response(
+                                protoCommand.correlationId,
+                                proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
+                                  proto.ws.protocol.ZoneResponse(
+                                    ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                                      .asProto(createZoneResponse)
+                                  ))
+                              ))),
+                          sender = clientConnectionActorTestProbe.ref
                         )
-                      ),
-                      sender = clientConnectionActorTestProbe.ref
-                    )
+                    }
                 }
                 TestActor.NoAutoPilot
               }

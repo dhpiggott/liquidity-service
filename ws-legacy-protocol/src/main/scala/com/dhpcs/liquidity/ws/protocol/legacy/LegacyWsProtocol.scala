@@ -111,11 +111,12 @@ object LegacyModelFormats {
 }
 
 sealed abstract class Message
+sealed abstract class Command      extends Message
+sealed abstract class Response     extends Message
+sealed abstract class Notification extends Message
 
-sealed abstract class Command     extends Message
 sealed abstract class ZoneCommand extends Command
-
-case object EmptyZoneCommand extends ZoneCommand
+case object EmptyZoneCommand      extends ZoneCommand
 final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                    equityOwnerName: Option[String],
                                    equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
@@ -194,7 +195,6 @@ object Command extends CommandCompanion[Command] {
   )
 }
 
-sealed abstract class Response                                                  extends Message
 sealed abstract class ZoneResponse                                              extends Response
 case object EmptyZoneResponse                                                   extends ZoneResponse
 final case class ErrorResponse(error: String)                                   extends ZoneResponse
@@ -223,16 +223,11 @@ object SuccessResponse extends ResponseCompanion[SuccessResponse] {
   )
 }
 
-sealed trait ResponseWithCorrelationIdOrNotification
-final case class ResponseWithCorrelationId(response: Response, correlationId: Long)
-    extends ResponseWithCorrelationIdOrNotification
-
-sealed abstract class Notification extends Message with ResponseWithCorrelationIdOrNotification
+final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Long]) extends Notification
+case object KeepAliveNotification                                                   extends Notification
 sealed abstract class ZoneNotification extends Notification {
   def zoneId: ZoneId
 }
-final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Long]) extends Notification
-case object KeepAliveNotification                                                   extends Notification
 case object EmptyZoneNotification extends ZoneNotification {
   override def zoneId: ZoneId = sys.error("EmptyZoneNotification")
 }

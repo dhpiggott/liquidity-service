@@ -248,7 +248,7 @@ class LegacyServerConnectionSpec
         msg match {
           case ActorSinkInit =>
             sender.tell(
-              WrappedJsonRpcNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
+              WrappedNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
               sender = clientConnectionActorTestProbe.ref
             )
             TestActor.NoAutoPilot
@@ -291,17 +291,17 @@ class LegacyServerConnectionSpec
         msg match {
           case ActorSinkInit =>
             sender.tell(
-              WrappedJsonRpcNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
+              WrappedNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
               sender = clientConnectionActorTestProbe.ref
             )
             (sender: ActorRef, msg: Any) =>
               {
                 msg match {
-                  case WrappedJsonRpcRequest(jsonRpcRequestMessage) =>
+                  case WrappedCommand(jsonRpcRequestMessage) =>
                     assert(jsonRpcRequestMessage.id === NumericCorrelationId(0))
                     assert(Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
                     sender.tell(
-                      WrappedJsonRpcResponse(
+                      WrappedResponse(
                         SuccessResponse.write(createZoneResponse, jsonRpcRequestMessage.id)
                       ),
                       sender = clientConnectionActorTestProbe.ref

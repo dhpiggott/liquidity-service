@@ -9,8 +9,10 @@ import "google/protobuf/struct.proto";
 
 import "dhpcs/liquidity/model.proto";
 
-// TODO
-message KeepAliveNotification {
+message PingCommand {
+}
+
+message PingResponse {
 }
 
 message ZoneCommand {
@@ -166,14 +168,13 @@ message ZoneNotification {
     }
 }
 
-message Command {
-    int64 correlation_id = 1;
-    oneof command {
-        ZoneCommand zone_command = 2;
+message ClientMessage {
+    message Command {
+        int64 correlation_id = 1;
+        oneof command {
+            PingCommand ping_command = 2;
+        }
     }
-}
-
-message ResponseOrNotification {
     message Response {
         int64 correlation_id = 1;
         oneof response {
@@ -182,12 +183,31 @@ message ResponseOrNotification {
     }
     message Notification {
         oneof notification {
-            KeepAliveNotification keep_alive_notification = 1;
-            ZoneNotification zone_notification = 2;
+            ZoneNotification zone_notification = 1;
         }
     }
-    oneof response_or_notification {
-        Response response = 1;
-        Notification notification = 2;
+    oneof command_or_response_or_notification {
+        Command command = 1;
+        Response response = 2;
+        Notification notification = 3;
+    }
+}
+
+message ServerMessage {
+    message Command {
+        int64 correlation_id = 1;
+        oneof command {
+            ZoneCommand zone_command = 2;
+        }
+    }
+    message Response {
+        int64 correlation_id = 1;
+        oneof response {
+            PingResponse ping_response = 2;
+        }
+    }
+    oneof command_or_response {
+        Command command = 1;
+        Response response = 2;
     }
 }

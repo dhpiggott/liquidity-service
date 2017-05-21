@@ -7,8 +7,8 @@ import akka.actor.{ActorRef, Deploy}
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
-import com.dhpcs.jsonrpc.{JsonRpcNotificationMessage, JsonRpcResponseSuccessMessage}
-import com.dhpcs.liquidity.actor.protocol.{AuthenticatedZoneCommandWithIds, ZoneResponseWithIds, ZoneValidatorMessage}
+import com.dhpcs.jsonrpc.JsonRpcResponseSuccessMessage
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
@@ -102,28 +102,25 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
     }
   }
 
-  private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification = {
-    val notification = upstreamTestProbe.expectMsgPF() {
-      case WrappedJsonRpcNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage) =>
-        Notification.read(jsonRpcNotificationMessage)
+  private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification =
+    upstreamTestProbe.expectMsgPF() {
+      case WrappedNotification(jsonRpcNotificationMessage) =>
+        Notification.read(jsonRpcNotificationMessage).asOpt.value
     }
-    notification.asOpt.value
-  }
 
   private[this] def sendCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
                                                                                       correlationId: Long): Unit = {
     sinkTestProbe.send(
       clientConnection,
-      WrappedJsonRpcRequest(Command.write(command, id = NumericCorrelationId(correlationId)))
+      WrappedCommand(Command.write(command, id = NumericCorrelationId(correlationId)))
     )
     sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck)
   }
 
-  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): Response = {
-    val response = upstreamTestProbe.expectMsgPF() {
-      case WrappedJsonRpcResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
-        SuccessResponse.read(jsonRpcResponseSuccessMessage, method)
+  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): Response =
+    upstreamTestProbe.expectMsgPF() {
+      case WrappedResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
+        SuccessResponse.read(jsonRpcResponseSuccessMessage, method).asOpt.value
     }
-    response.asOpt.value
-  }
+
 }

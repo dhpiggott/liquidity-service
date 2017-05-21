@@ -181,8 +181,8 @@ class LiquidityServer(config: Config,
     httpsConnectionContext
   )
 
-  private[this] val keepAliveInterval = FiniteDuration(
-    config.getDuration("liquidity.server.http.keep-alive-interval", SECONDS),
+  private[this] val pingInterval = FiniteDuration(
+    config.getDuration("liquidity.server.http.ping-interval", SECONDS),
     SECONDS
   )
 
@@ -290,14 +290,14 @@ class LiquidityServer(config: Config,
 
   override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
+      props = ClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, pingInterval),
       name = publicKey.fingerprint
     )
 
   override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
                                                   publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     LegacyClientConnectionActor.webSocketFlow(
-      props = LegacyClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, keepAliveInterval),
+      props = LegacyClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, pingInterval),
       name = publicKey.fingerprint
     )
 

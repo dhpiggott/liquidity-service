@@ -163,7 +163,7 @@ class LegacyServerConnection(filesDir: File,
                           Array(serverTrustManager)
                         ),
                         serverTrustManager)
-      .hostnameVerifier((s: String, sslSession: SSLSession) => true)
+      .hostnameVerifier((_: String, _: SSLSession) => true)
       .readTimeout(0, TimeUnit.SECONDS)
       .writeTimeout(0, TimeUnit.SECONDS)
       .build()
@@ -434,7 +434,7 @@ class LegacyServerConnection(filesDir: File,
                     }
                   case DisconnectingSubState =>
               })
-            case jsonRpc_Message =>
+            case _ =>
               activeState.handlerWrapper.post(() =>
                 activeState.subState match {
                   case _: ConnectingSubState =>
@@ -442,7 +442,7 @@ class LegacyServerConnection(filesDir: File,
                   case _: WaitingForVersionCheckSubState =>
                     sys.error("Waiting for version check")
                   case _: OnlineSubState =>
-                    sys.error(s"Received $jsonRpc_Message")
+                    sys.error(s"Received $jsonRpcMessage")
                   case DisconnectingSubState =>
               })
           }

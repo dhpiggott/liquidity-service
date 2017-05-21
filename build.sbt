@@ -85,7 +85,7 @@ lazy val persistence = project
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
-lazy val `actor-protocol` = project
+lazy val actorProtocol = project
   .in(file("actor-protocol"))
   .settings(commonSettings)
   .settings(noopPublishSettings)
@@ -99,7 +99,7 @@ lazy val `actor-protocol` = project
   .dependsOn(serialization)
   .dependsOn(model)
 
-lazy val `ws-protocol` = project
+lazy val wsProtocol = project
   .in(file("ws-protocol"))
   .settings(commonSettings)
   .settings(publishSettings)
@@ -112,11 +112,11 @@ lazy val `ws-protocol` = project
   )
   .dependsOn(serialization)
   .dependsOn(model)
-  .dependsOn(`actor-protocol`)
+  .dependsOn(actorProtocol)
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
-lazy val `ws-legacy-protocol` = project
+lazy val wsLegacyProtocol = project
   .in(file("ws-legacy-protocol"))
   .settings(commonSettings)
   .settings(publishSettings)
@@ -125,7 +125,7 @@ lazy val `ws-legacy-protocol` = project
   )
   .dependsOn(serialization)
   .dependsOn(model)
-  .dependsOn(`actor-protocol`)
+  .dependsOn(actorProtocol)
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC1")
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
@@ -149,9 +149,9 @@ lazy val server = project
   )
   .dependsOn(model)
   .dependsOn(persistence)
-  .dependsOn(`actor-protocol`)
-  .dependsOn(`ws-protocol`)
-  .dependsOn(`ws-legacy-protocol`)
+  .dependsOn(actorProtocol)
+  .dependsOn(wsProtocol)
+  .dependsOn(wsLegacyProtocol)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.18",
     "ch.qos.logback"           % "logback-classic"                      % "1.2.3",
@@ -200,7 +200,7 @@ lazy val client = project
     name := "liquidity-client"
   )
   .dependsOn(model)
-  .dependsOn(`ws-protocol`)
+  .dependsOn(wsProtocol)
   .settings(libraryDependencies ++= Seq(
     "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
     "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
@@ -217,7 +217,7 @@ lazy val healthcheck = project
     name := "liquidity-healthcheck"
   )
   .dependsOn(client)
-  .dependsOn(`ws-legacy-protocol`)
+  .dependsOn(wsLegacyProtocol)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.18",
     "org.scalatest"     %% "scalatest"           % "3.0.3"
@@ -247,9 +247,9 @@ lazy val root = project
     serialization,
     model,
     persistence,
-    `actor-protocol`,
-    `ws-protocol`,
-    `ws-legacy-protocol`,
+    actorProtocol,
+    wsProtocol,
+    wsLegacyProtocol,
     certgen,
     server,
     client,

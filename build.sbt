@@ -1,31 +1,3 @@
-lazy val commonSettings = Seq(
-  scalaVersion := "2.12.2",
-  crossScalaVersions := Seq("2.11.11", "2.12.2"),
-  scalacOptions in Compile ++= Seq(
-    "-target:jvm-1.8",
-    "-encoding",
-    "UTF-8",
-    "-deprecation",
-    "-feature",
-    "-unchecked",
-    "-Xfuture",
-    "-Xlint",
-    "-Yno-adapted-args",
-    "-Ywarn-dead-code",
-    "-Ywarn-inaccessible",
-    "-Ywarn-infer-any",
-    "-Ywarn-nullary-override",
-    "-Ywarn-nullary-unit",
-    "-Ywarn-numeric-widen",
-    "-Ywarn-unused",
-    "-Ywarn-unused-import"
-  ),
-  resolvers += Resolver.bintrayRepo("dhpcs", "maven"),
-  coverageExcludedFiles := ".*/target/.*"
-) ++
-  addCommandAlias("coverage", ";clean; coverage; test; multi-jvm:test; coverageReport") ++
-  addCommandAlias("validate", ";scalafmtTest; test; multi-jvm:test")
-
 lazy val protobufSettings = Seq(
   PB.targets in Compile := Seq(
     scalapb.gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value
@@ -33,18 +5,11 @@ lazy val protobufSettings = Seq(
   libraryDependencies += "com.trueaccord.scalapb" %% "scalapb-runtime" % com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
 )
 
-lazy val publishSettings = Seq(
-  organization := "com.dhpcs"
-)
-
-lazy val noopPublishSettings = Seq(
-  publishM2 := {}
-)
+lazy val noopPublishSetting = publishM2 := {}
 
 lazy val serialization = project
   .in(file("serialization"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
+  .settings(noopPublishSetting)
   .settings(protobufSettings)
   .settings(
     name := "liquidity-serialization"
@@ -59,8 +24,6 @@ lazy val serialization = project
 
 lazy val model = project
   .in(file("model"))
-  .settings(commonSettings)
-  .settings(publishSettings)
   .settings(protobufSettings)
   .settings(
     name := "liquidity-model"
@@ -71,8 +34,7 @@ lazy val model = project
 
 lazy val persistence = project
   .in(file("persistence"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
+  .settings(noopPublishSetting)
   .settings(protobufSettings)
   .settings(
     name := "liquidity-persistence"
@@ -87,8 +49,7 @@ lazy val persistence = project
 
 lazy val actorProtocol = project
   .in(file("actor-protocol"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
+  .settings(noopPublishSetting)
   .settings(protobufSettings)
   .settings(
     name := "liquidity-actor-protocol"
@@ -101,8 +62,6 @@ lazy val actorProtocol = project
 
 lazy val wsProtocol = project
   .in(file("ws-protocol"))
-  .settings(commonSettings)
-  .settings(publishSettings)
   .settings(protobufSettings)
   .settings(
     name := "liquidity-ws-protocol"
@@ -118,8 +77,6 @@ lazy val wsProtocol = project
 
 lazy val wsLegacyProtocol = project
   .in(file("ws-legacy-protocol"))
-  .settings(commonSettings)
-  .settings(publishSettings)
   .settings(
     name := "liquidity-ws-legacy-protocol"
   )
@@ -132,8 +89,7 @@ lazy val wsLegacyProtocol = project
 
 lazy val certgen = project
   .in(file("certgen"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
+  .settings(noopPublishSetting)
   .settings(
     name := "liquidity-certgen"
   )
@@ -142,8 +98,7 @@ lazy val certgen = project
 
 lazy val server = project
   .in(file("server"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
+  .settings(noopPublishSetting)
   .settings(
     name := "liquidity-server"
   )
@@ -194,34 +149,33 @@ lazy val server = project
 
 lazy val client = project
   .in(file("client"))
-  .settings(commonSettings)
-  .settings(publishSettings)
   .settings(
     name := "liquidity-client"
   )
   .dependsOn(model)
   .dependsOn(wsProtocol)
-  .settings(libraryDependencies ++= Seq(
-    "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
-    "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
+      "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
+    ))
   .dependsOn(certgen % "test")
   .dependsOn(server % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val healthcheck = project
   .in(file("healthcheck"))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
+  .settings(noopPublishSetting)
   .settings(
     name := "liquidity-healthcheck"
   )
   .dependsOn(client)
   .dependsOn(wsLegacyProtocol)
-  .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.18",
-    "org.scalatest"     %% "scalatest"           % "3.0.3"
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.18",
+      "org.scalatest"     %% "scalatest"           % "3.0.3"
+    ))
   .dependsOn(certgen % "test")
   .dependsOn(server % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
@@ -229,8 +183,6 @@ lazy val healthcheck = project
 
 lazy val boardgame = project
   .in(file("boardgame"))
-  .settings(commonSettings)
-  .settings(publishSettings)
   .settings(
     name := "liquidity-boardgame"
   )
@@ -238,8 +190,7 @@ lazy val boardgame = project
 
 lazy val root = project
   .in(file("."))
-  .settings(commonSettings)
-  .settings(noopPublishSettings)
+  .settings(noopPublishSetting)
   .settings(
     name := "liquidity"
   )

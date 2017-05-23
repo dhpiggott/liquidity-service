@@ -27,7 +27,7 @@ class ClientKeyStoreSpec extends FreeSpec with BeforeAndAfterAll {
         .getCertificateChain("identity")(0)
         .getPublicKey
         .getEncoded
-      assert(clientKeyStore.publicKey.value.toByteArray === expectedPublicKey)
+      assert(clientKeyStore.rsaPublicKey.getEncoded === expectedPublicKey)
     }
   }
 }

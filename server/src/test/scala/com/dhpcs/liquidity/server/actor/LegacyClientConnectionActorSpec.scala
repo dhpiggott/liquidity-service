@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
 import java.net.InetAddress
-import java.security.KeyPairGenerator
 
 import akka.actor.{ActorRef, Deploy}
 import akka.http.scaladsl.model.RemoteAddress
@@ -21,11 +20,8 @@ import scala.concurrent.duration._
 
 class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures with Inside {
 
-  private[this] val ip = RemoteAddress(InetAddress.getLoopbackAddress)
-  private[this] val publicKey = {
-    val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    PublicKey(publicKeyBytes)
-  }
+  private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
+  private[this] val ip        = RemoteAddress(InetAddress.getLoopbackAddress)
 
   override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
@@ -48,18 +44,18 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
   }
 
   "A LegacyClientConnectionActor" - {
-    "will send a JSON-RPC SupportedVersionsNotification when connected" in { fixture =>
+    "will send a SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
       assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
     }
-    "will send a JSON-RPC KeepAliveNotification when left idle" in { fixture =>
+    "will send a KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
       assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
       upstreamTestProbe.within(3.5.seconds)(
         assert(expectNotification(upstreamTestProbe) === KeepAliveNotification)
       )
     }
-    "will reply with a JSON-RPC CreateZoneResponse when forwarding a JSON-RPC CreateZoneCommand" in { fixture =>
+    "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
       assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
       val command = CreateZoneCommand(
@@ -72,10 +68,13 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
       )
       val correlationId = 0L
       sendCommand(sinkTestProbe, clientConnection)(command, correlationId)
-      val zoneId = inside(zoneValidatorShardRegionTestProbe.expectMsgType[AuthenticatedZoneCommandWithIds]) {
-        case AuthenticatedZoneCommandWithIds(`publicKey`, zoneCommand, `correlationId`, 1L, 1L) =>
-          zoneCommand.zoneId
-      }
+      val authenticatedZoneCommandWithIds =
+        zoneValidatorShardRegionTestProbe.expectMsgType[AuthenticatedZoneCommandWithIds]
+      assert(authenticatedZoneCommandWithIds.publicKey === publicKey)
+      assert(authenticatedZoneCommandWithIds.correlationId === correlationId)
+      assert(authenticatedZoneCommandWithIds.sequenceNumber === 1L)
+      assert(authenticatedZoneCommandWithIds.deliveryId === 1L)
+      val zoneId = authenticatedZoneCommandWithIds.command.zoneId
       val result = CreateZoneResponse({
         val created = System.currentTimeMillis
         Zone(

@@ -76,9 +76,6 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
       WS("/bws", wsProbe.flow)
         .addHeader(
           `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
-        )
-        .addHeader(
-          `Tls-Session-Info`(sslSession)
         ) ~> route(enableClientRelay = true) ~> check {
         assert(isWebSocketUpgrade === true)
         val message = "Hello"
@@ -88,7 +85,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
         wsProbe.expectCompletion()
       }
     }
-    "will legacy accept WebSocket connections" in {
+    "will accept legacy WebSocket connections" in {
       val wsProbe = WSProbe()
       WS("/ws", wsProbe.flow)
         .addHeader(
@@ -122,7 +119,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
     }
   }
 
-  override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
+  override protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed] =
     Flow[Message]
   override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
                                                   publicKey: PublicKey): Flow[Message, Message, NotUsed] =

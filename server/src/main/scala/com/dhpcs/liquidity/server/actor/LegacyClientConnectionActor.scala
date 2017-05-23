@@ -15,7 +15,6 @@ import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, Numeric
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
-import com.dhpcs.liquidity.persistence.RichPublicKey
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
@@ -39,10 +38,10 @@ object LegacyClientConnectionActor {
       )
     )
 
-  def webSocketFlow(props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
-                                                            mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
+  def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
+                                              mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
-      .via(actorFlow[WrappedCommand, WrappedResponseOrNotification](props, name))
+      .via(actorFlow[WrappedCommand, WrappedResponseOrNotification](props))
       .via(OutFlow)
 
   private final val InFlow: Flow[WsMessage, WrappedCommand, NotUsed] =
@@ -60,8 +59,8 @@ object LegacyClientConnectionActor {
         TextMessage(Json.stringify(Json.toJson(jsonRpcNotificationMessage)))
     }
 
-  private def actorFlow[In, Out](props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
-                                                                         mat: Materializer): Flow[In, Out, NotUsed] = {
+  private def actorFlow[In, Out](props: ActorRef => Props)(implicit factory: ActorRefFactory,
+                                                           mat: Materializer): Flow[In, Out, NotUsed] = {
     val (outActor, publisher) = Source
       .actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
       .toMat(Sink.asPublisher(false))(Keep.both)
@@ -71,7 +70,7 @@ object LegacyClientConnectionActor {
         factory.actorOf(
           Props(new Actor {
             val flowActor: ActorRef =
-              context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
+              context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local)))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive: Receive = {
               case _: Status.Success | _: Status.Failure =>
@@ -152,7 +151,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries                  = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
-  override def persistenceId: String = publicKey.persistenceId
+  override def persistenceId: String = self.path.name
 
   override def preStart(): Unit = {
     super.preStart()
@@ -299,7 +298,8 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   private[this] def sendResponse(response: Response, correlationId: Long): Unit =
     response match {
       case EmptyZoneResponse =>
-        sys.error("Empty or unsupported zone response")
+        log.error("Received inconceivable EmptyZoneResponse! Stopping...")
+        context.stop(self)
       case ErrorResponse(error) =>
         sendErrorResponse(error, NumericCorrelationId(correlationId))
       case successResponse: SuccessResponse =>

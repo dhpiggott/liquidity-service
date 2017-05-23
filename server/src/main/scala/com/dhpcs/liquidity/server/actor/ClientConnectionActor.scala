@@ -14,7 +14,6 @@ import akka.stream.{Materializer, OverflowStrategy}
 import akka.util.ByteString
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.persistence.RichPublicKey
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
@@ -24,22 +23,21 @@ import scala.concurrent.duration._
 
 object ClientConnectionActor {
 
-  def props(ip: RemoteAddress, publicKey: PublicKey, zoneValidatorShardRegion: ActorRef, pingInterval: FiniteDuration)(
+  def props(ip: RemoteAddress, zoneValidatorShardRegion: ActorRef, pingInterval: FiniteDuration)(
       upstream: ActorRef): Props =
     Props(
       new ClientConnectionActor(
         ip,
-        publicKey,
         zoneValidatorShardRegion,
         pingInterval,
         upstream
       )
     )
 
-  def webSocketFlow(props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
-                                                            mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
+  def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
+                                              mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
-      .via(actorFlow[proto.ws.protocol.ServerMessage, proto.ws.protocol.ClientMessage](props, name))
+      .via(actorFlow[proto.ws.protocol.ServerMessage, proto.ws.protocol.ClientMessage](props))
       .via(OutFlow)
 
   private final val InFlow: Flow[WsMessage, proto.ws.protocol.ServerMessage, NotUsed] =
@@ -54,8 +52,8 @@ object ClientConnectionActor {
       serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
     )
 
-  private def actorFlow[In, Out](props: ActorRef => Props, name: String)(implicit factory: ActorRefFactory,
-                                                                         mat: Materializer): Flow[In, Out, NotUsed] = {
+  private def actorFlow[In, Out](props: ActorRef => Props)(implicit factory: ActorRefFactory,
+                                                           mat: Materializer): Flow[In, Out, NotUsed] = {
     val (outActor, publisher) = Source
       .actorRef[Out](bufferSize = 16, overflowStrategy = OverflowStrategy.fail)
       .toMat(Sink.asPublisher(false))(Keep.both)
@@ -65,7 +63,7 @@ object ClientConnectionActor {
         factory.actorOf(
           Props(new Actor {
             val flowActor: ActorRef =
-              context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local), name))
+              context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local)))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive: Receive = {
               case _: Status.Success | _: Status.Failure =>
@@ -115,7 +113,6 @@ object ClientConnectionActor {
 }
 
 class ClientConnectionActor(ip: RemoteAddress,
-                            publicKey: PublicKey,
                             zoneValidatorShardRegion: ActorRef,
                             pingInterval: FiniteDuration,
                             upstream: ActorRef)
@@ -135,7 +132,7 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries                  = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
-  override def persistenceId: String = publicKey.persistenceId
+  override def persistenceId: String = self.path.name
 
   override def preStart(): Unit = {
     super.preStart()
@@ -151,41 +148,97 @@ class ClientConnectionActor(ip: RemoteAddress,
   override def receiveCommand: Receive = waitingForActorSinkInit
 
   private[this] def waitingForActorSinkInit: Receive =
-    publishStatus orElse sendPingCommand orElse {
+    publishStatus(maybePublicKey = None) orElse sendPingCommand orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
-        context.become(receiveActorSinkMessages)
+        context.become(waitingForBeginKeyOwnershipProof)
     }
 
-  private[this] def receiveActorSinkMessages: Receive =
-    publishStatus orElse commandReceivedConfirmation orElse sendPingCommand orElse {
+  private[this] def waitingForBeginKeyOwnershipProof: Receive =
+    publishStatus(maybePublicKey = None) orElse sendPingCommand orElse {
       case serverMessage: proto.ws.protocol.ServerMessage =>
         sender() ! ActorSinkAck
         pingGeneratorActor ! FrameReceivedEvent
-        serverMessage.commandOrResponse match {
-          case proto.ws.protocol.ServerMessage.CommandOrResponse.Empty =>
-          case proto.ws.protocol.ServerMessage.CommandOrResponse.Command(protoCommand) =>
+        serverMessage.message match {
+          case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
+              _: proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof |
+              _: proto.ws.protocol.ServerMessage.Message.Command |
+              _: proto.ws.protocol.ServerMessage.Message.Response) =>
+            log.warning(s"Stopping due to unexpected message; required BeginKeyOwnershipProof but received $other")
+            context.stop(self)
+          case proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof(protoBeginKeyOwnershipProof) =>
+            val protoKeyOwnershipProofNonce = createKeyOwnershipNonceMessage()
+            sendClientMessage(
+              proto.ws.protocol.ClientMessage(
+                proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(protoKeyOwnershipProofNonce)
+              )
+            )
+            context.become(
+              waitingForCompleteKeyOwnershipProof(protoBeginKeyOwnershipProof, protoKeyOwnershipProofNonce))
+        }
+    }
+
+  private[this] def waitingForCompleteKeyOwnershipProof(
+      beginKeyOwnershipProofMessage: proto.ws.protocol.BeginKeyOwnershipProof,
+      keyOwnershipProofNonceMessage: proto.ws.protocol.KeyOwnershipProofNonce): Receive =
+    publishStatus(maybePublicKey = None) orElse sendPingCommand orElse {
+      case serverMessage: proto.ws.protocol.ServerMessage =>
+        sender() ! ActorSinkAck
+        pingGeneratorActor ! FrameReceivedEvent
+        serverMessage.message match {
+          case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
+              _: proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof |
+              _: proto.ws.protocol.ServerMessage.Message.Command |
+              _: proto.ws.protocol.ServerMessage.Message.Response) =>
+            log.warning(s"Stopping due to unexpected message; required CompleteKeyOwnershipProof but received $other")
+            context.stop(self)
+          case proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof(completeKeyOwnershipProofMessage) =>
+            if (!isValidKeyOwnershipProof(beginKeyOwnershipProofMessage,
+                                          keyOwnershipProofNonceMessage,
+                                          completeKeyOwnershipProofMessage)) {
+              log.warning(
+                s"Stopping due to invalid key ownership proof for public key $beginKeyOwnershipProofMessage " +
+                  s"and nonce $keyOwnershipProofNonceMessage; received signature was $completeKeyOwnershipProofMessage")
+              context.stop(self)
+            } else
+              context.become(receiveActorSinkMessages(PublicKey(beginKeyOwnershipProofMessage.publicKey.toByteArray)))
+        }
+    }
+
+  private[this] def receiveActorSinkMessages(publicKey: PublicKey): Receive =
+    publishStatus(maybePublicKey = Some(publicKey)) orElse commandReceivedConfirmation orElse sendPingCommand orElse {
+      case serverMessage: proto.ws.protocol.ServerMessage =>
+        sender() ! ActorSinkAck
+        pingGeneratorActor ! FrameReceivedEvent
+        serverMessage.message match {
+          case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
+              _: proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof |
+              _: proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof) =>
+            log.warning(s"Stopping due to unexpected message; required Command or Response but received $other")
+            context.stop(self)
+          case proto.ws.protocol.ServerMessage.Message.Command(protoCommand) =>
             protoCommand.command match {
               case proto.ws.protocol.ServerMessage.Command.Command.Empty =>
               case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
                 val zoneCommand = ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
                   .asScala(protoZoneCommand.zoneCommand)
-                handleZoneCommand(zoneCommand, protoCommand.correlationId)
+                handleZoneCommand(publicKey, zoneCommand, protoCommand.correlationId)
             }
-          case proto.ws.protocol.ServerMessage.CommandOrResponse.Response(protoResponse) =>
+          case proto.ws.protocol.ServerMessage.Message.Response(protoResponse) =>
             protoResponse.response match {
               case proto.ws.protocol.ServerMessage.Response.Response.Empty =>
-                sys.error("Empty or unsupported response")
+                log.warning("Stopping due to unexpected message; required PingResponse but received Empty")
+                context.stop(self)
               case proto.ws.protocol.ServerMessage.Response.Response.PingResponse(_) =>
             }
         }
-        context.become(receiveActorSinkMessages)
       case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
           // Converting it back to the WS type is what ensures we'll then end up generating a fresh ZoneId when we then
           // convert it back again _from_ the WS type.
-          handleZoneCommand(ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
+          handleZoneCommand(publicKey,
+                            ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
                             correlationId)
         )
       case ZoneResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
@@ -211,12 +264,13 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   override def receiveRecover: Receive = Actor.emptyBehavior
 
-  private[this] def publishStatus: Receive = {
+  private[this] def publishStatus(maybePublicKey: Option[PublicKey]): Receive = {
     case PublishStatus =>
-      mediator ! Publish(
-        ClientStatusTopic,
-        ActiveClientSummary(publicKey)
-      )
+      for (publicKey <- maybePublicKey)
+        mediator ! Publish(
+          ClientStatusTopic,
+          ActiveClientSummary(publicKey)
+        )
   }
 
   private[this] def commandReceivedConfirmation: Receive = {
@@ -232,7 +286,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     case SendPingCommand => sendClientCommand(PingCommand, correlationId = -1)
   }
 
-  private[this] def handleZoneCommand(zoneCommand: ZoneCommand, correlationId: Long) = {
+  private[this] def handleZoneCommand(publicKey: PublicKey, zoneCommand: ZoneCommand, correlationId: Long) = {
     // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
     val protoZoneCommand = ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
     val zoneId           = protoZoneCommand.zoneId
@@ -264,7 +318,7 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] def sendClientCommand(clientCommand: ClientCommand, correlationId: Long): Unit =
     sendClientMessage(
       proto.ws.protocol.ClientMessage(
-        proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Command(
+        proto.ws.protocol.ClientMessage.Message.Command(
           proto.ws.protocol.ClientMessage.Command(
             correlationId,
             clientCommand match {
@@ -281,7 +335,7 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] def sendClientNotification(clientNotification: ClientNotification): Unit =
     sendClientMessage(
       proto.ws.protocol.ClientMessage(
-        proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Notification(
+        proto.ws.protocol.ClientMessage.Message.Notification(
           proto.ws.protocol.ClientMessage.Notification(
             clientNotification match {
               case zoneNotification: ZoneNotification =>
@@ -301,7 +355,7 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] def sendServerResponse(serverResponse: ServerResponse, correlationId: Long): Unit =
     sendClientMessage(
       proto.ws.protocol.ClientMessage(
-        proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Response(
+        proto.ws.protocol.ClientMessage.Message.Response(
           proto.ws.protocol.ClientMessage.Response(
             correlationId,
             serverResponse match {

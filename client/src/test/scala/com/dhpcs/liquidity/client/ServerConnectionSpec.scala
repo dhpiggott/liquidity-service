@@ -14,7 +14,7 @@ import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy, TLSClientAuth}
-import akka.testkit.{TestActor, TestKit, TestProbe}
+import akka.testkit.{TestKit, TestProbe}
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
@@ -112,18 +112,15 @@ class ServerConnectionSpec
     )
   }
 
-  override protected[this] def webSocketApi(ip: RemoteAddress,
-                                            publicKey: PublicKey): Flow[ws.Message, ws.Message, NotUsed] =
+  override protected[this] def webSocketApi(ip: RemoteAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref),
-      name = publicKey.fingerprint
+      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )
 
   override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
                                                   publicKey: PublicKey): Flow[ws.Message, ws.Message, NotUsed] =
     LegacyClientConnectionActor.webSocketFlow(
-      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref),
-      name = publicKey.fingerprint
+      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )
 
   override protected[this] def getStatus: Future[JValue] =
@@ -247,6 +244,31 @@ class ServerConnectionSpec
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
+      clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
+      sub.requestNext(AUTHENTICATING)
+      val beginKeyOwnershipProofMessage =
+        inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
+          case proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof(protoBeginKeyOwnershipProof) =>
+            protoBeginKeyOwnershipProof
+        }
+      val keyOwnershipProofNonceMessage = createKeyOwnershipNonceMessage()
+      clientConnectionActorTestProbe
+        .sender()
+        .tell(
+          proto.ws.protocol.ClientMessage(
+            proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(
+              keyOwnershipProofNonceMessage
+            )),
+          sender = clientConnectionActorTestProbe.ref
+        )
+      inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
+        case proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof(protoCompleteKeyOwnershipProof) =>
+          val completeKeyOwnershipProofMessage = protoCompleteKeyOwnershipProof
+          assert(
+            isValidKeyOwnershipProof(beginKeyOwnershipProofMessage,
+                                     keyOwnershipProofNonceMessage,
+                                     completeKeyOwnershipProofMessage))
+      }
       sub.requestNext(ONLINE)
       MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
@@ -276,47 +298,62 @@ class ServerConnectionSpec
           name = Some("Dave's Game")
         )
       )
-      clientConnectionActorTestProbe.setAutoPilot((_, msg: Any) =>
-        msg match {
-          case ActorSinkInit =>
-            (sender: ActorRef, msg: Any) =>
-              {
-                msg match {
-                  case serverMessage: proto.ws.protocol.ServerMessage =>
-                    inside(serverMessage.commandOrResponse) {
-                      case proto.ws.protocol.ServerMessage.CommandOrResponse.Command(protoCommand) =>
-                        assert(protoCommand.correlationId === 0L)
-                        inside(protoCommand.command) {
-                          case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
-                            assert(
-                              ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                                .asScala(protoZoneCommand.zoneCommand) === createZoneCommand
-                            )
-                        }
-                        sender.tell(
-                          proto.ws.protocol.ClientMessage(
-                            proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Response(
-                              proto.ws.protocol.ClientMessage.Response(
-                                protoCommand.correlationId,
-                                proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
-                                  proto.ws.protocol.ZoneResponse(
-                                    ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
-                                      .asProto(createZoneResponse)
-                                  ))
-                              ))),
-                          sender = clientConnectionActorTestProbe.ref
-                        )
-                    }
-                }
-                TestActor.NoAutoPilot
-              }
-      })
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
+      clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
+      sub.requestNext(AUTHENTICATING)
+      val beginKeyOwnershipProofMessage =
+        inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
+          case proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof(protoBeginKeyOwnershipProof) =>
+            protoBeginKeyOwnershipProof
+        }
+      val keyOwnershipProofNonceMessage = createKeyOwnershipNonceMessage()
+      clientConnectionActorTestProbe
+        .sender()
+        .tell(
+          proto.ws.protocol.ClientMessage(
+            proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(
+              keyOwnershipProofNonceMessage
+            )),
+          sender = clientConnectionActorTestProbe.ref
+        )
+      inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
+        case proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof(protoCompleteKeyOwnershipProof) =>
+          val completeKeyOwnershipProofMessage = protoCompleteKeyOwnershipProof
+          assert(
+            isValidKeyOwnershipProof(beginKeyOwnershipProofMessage,
+                                     keyOwnershipProofNonceMessage,
+                                     completeKeyOwnershipProofMessage))
+      }
       sub.requestNext(ONLINE)
-      assert(send(createZoneCommand).futureValue === createZoneResponse)
+      val request = send(createZoneCommand)
+      inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
+        case proto.ws.protocol.ServerMessage.Message.Command(protoCommand) =>
+          assert(protoCommand.correlationId === 0L)
+          inside(protoCommand.command) {
+            case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
+              assert(
+                ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                  .asScala(protoZoneCommand.zoneCommand) === createZoneCommand
+              )
+          }
+      }
+      clientConnectionActorTestProbe
+        .sender()
+        .tell(
+          proto.ws.protocol.ClientMessage(
+            proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
+              correlationId = 0L,
+              proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.ws.protocol.ZoneResponse(
+                ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                  .asProto(createZoneResponse)
+              ))
+            ))),
+          sender = clientConnectionActorTestProbe.ref
+        )
+      assert(request.futureValue === createZoneResponse)
       MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)

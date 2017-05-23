@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.model
 
 import java.security.KeyPairGenerator
+import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.util.UUID
 
 import com.dhpcs.liquidity.model.ModelSpec._
@@ -11,7 +12,12 @@ import org.scalatest.FreeSpec
 
 object ModelSpec {
 
-  val publicKeyBytes: Array[Byte] = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
+  val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(KeySize)
+    val keyPair = keyPairGenerator.generateKeyPair
+    (keyPair.getPrivate, keyPair.getPublic)
+  }
 
   val zone: Zone = Zone(
     id = ZoneId(
@@ -20,9 +26,9 @@ object ModelSpec {
     equityAccountId = AccountId(0L),
     members = Map(
       MemberId(0L) ->
-        Member(id = MemberId(0L), ownerPublicKey = PublicKey(publicKeyBytes), name = Some("Banker")),
+        Member(id = MemberId(0L), ownerPublicKey = PublicKey(rsaPublicKey.getEncoded), name = Some("Banker")),
       MemberId(1L) ->
-        Member(id = MemberId(1L), ownerPublicKey = PublicKey(publicKeyBytes), name = Some("Dave"))
+        Member(id = MemberId(1L), ownerPublicKey = PublicKey(rsaPublicKey.getEncoded), name = Some("Dave"))
     ),
     accounts = Map(
       AccountId(0L) ->
@@ -58,10 +64,10 @@ object ModelSpec {
     equityAccountId = 0L,
     members = Seq(
       proto.model.Member(id = 0L,
-                         ownerPublicKey = com.google.protobuf.ByteString.copyFrom(publicKeyBytes),
+                         ownerPublicKey = com.google.protobuf.ByteString.copyFrom(rsaPublicKey.getEncoded),
                          name = Some("Banker")),
       proto.model.Member(id = 1L,
-                         ownerPublicKey = com.google.protobuf.ByteString.copyFrom(publicKeyBytes),
+                         ownerPublicKey = com.google.protobuf.ByteString.copyFrom(rsaPublicKey.getEncoded),
                          name = Some("Dave"))
     ),
     accounts = Seq(

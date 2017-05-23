@@ -184,7 +184,7 @@ class LegacyServerConnection(filesDir: File,
 
   handleConnectivityStateChange()
 
-  def clientKey: PublicKey = clientKeyStore.publicKey
+  lazy val clientKey: PublicKey = PublicKey(clientKeyStore.rsaPublicKey.getEncoded)
 
   def connectionState: ConnectionState = _connectionState
 

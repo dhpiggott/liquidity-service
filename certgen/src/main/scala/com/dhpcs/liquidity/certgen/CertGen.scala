@@ -18,7 +18,7 @@ object CertGen {
 
   private final val SubjectAlternativeName = "liquidity.dhpcs.com"
   private final val CommonName             = "liquidity.dhpcs.com"
-  private final val KeyLength              = 2048
+  private final val KeySize                = 2048
 
   private final val CertKeyStoreFilename   = "liquidity.dhpcs.com.keystore.p12"
   private final val CertKeyStoreEntryAlias = "identity"
@@ -39,7 +39,7 @@ object CertGen {
 
   def generateCertKey(subjectAlternativeName: Option[String]): (X509Certificate, PrivateKey) = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(KeyLength)
+    keyPairGenerator.initialize(KeySize)
     val keyPair     = keyPairGenerator.generateKeyPair
     val certificate = generateCert(keyPair, subjectAlternativeName)
     (certificate, keyPair.getPrivate)

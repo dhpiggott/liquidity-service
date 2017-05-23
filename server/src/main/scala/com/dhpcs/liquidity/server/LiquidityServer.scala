@@ -277,17 +277,15 @@ class LiquidityServer(config: Config,
       )
   }
 
-  override protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed] =
+  override protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, pingInterval),
-      name = publicKey.fingerprint
+      props = ClientConnectionActor.props(ip, zoneValidatorShardRegion, pingInterval)
     )
 
   override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
                                                   publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     LegacyClientConnectionActor.webSocketFlow(
-      props = LegacyClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, pingInterval),
-      name = publicKey.fingerprint
+      props = LegacyClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, pingInterval)
     )
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =

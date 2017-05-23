@@ -28,6 +28,7 @@ object BoardGame {
   case object TLS_ERROR       extends JoinState
   case object AVAILABLE       extends JoinState
   case object CONNECTING      extends JoinState
+  case object AUTHENTICATING  extends JoinState
   case object CREATING        extends JoinState
   case object JOINING         extends JoinState
   case object JOINED          extends JoinState
@@ -551,6 +552,10 @@ class BoardGame private (serverConnection: ServerConnection,
       state = null
       _joinState = BoardGame.AVAILABLE
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
+    case ServerConnection.AUTHENTICATING =>
+      state = null
+      _joinState = BoardGame.AUTHENTICATING
+      joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
     case ServerConnection.CONNECTING =>
       state = null
       _joinState = BoardGame.CONNECTING
@@ -569,7 +574,6 @@ class BoardGame private (serverConnection: ServerConnection,
             joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
             zoneId.foreach(join)
         }
-
     case ServerConnection.DISCONNECTING =>
       state = null
       _joinState = BoardGame.DISCONNECTING

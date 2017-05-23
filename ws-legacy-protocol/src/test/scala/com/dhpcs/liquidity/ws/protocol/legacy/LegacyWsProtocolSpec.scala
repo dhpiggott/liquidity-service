@@ -62,11 +62,10 @@ object LegacyModelFormatsSpec {
     }
 
     "A PublicKey" - {
-      val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-      val publicKey      = PublicKey(publicKeyBytes)
+      val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
       val publicKeyJson = Json.parse(
         s"""
-           |"${ByteString.of(publicKeyBytes: _*).base64}"""".stripMargin
+           |"${ByteString.of(ModelSpec.rsaPublicKey.getEncoded: _*).base64}"""".stripMargin
       )
       s"will decode to $publicKey" in assert(
         Json.fromJson[PublicKey](publicKeyJson) === JsSuccess(publicKey)

@@ -9,6 +9,65 @@ import "google/protobuf/struct.proto";
 
 import "dhpcs/liquidity/model.proto";
 
+message ServerMessage {
+    message Command {
+        int64 correlation_id = 1;
+        oneof command {
+            ZoneCommand zone_command = 2;
+        }
+    }
+    message Response {
+        int64 correlation_id = 1;
+        oneof response {
+            PingResponse ping_response = 2;
+        }
+    }
+    oneof message {
+        BeginKeyOwnershipProof begin_key_ownership_proof = 1;
+        CompleteKeyOwnershipProof complete_key_ownership_proof = 2;
+        Command command = 3;
+        Response response = 4;
+    }
+}
+
+message ClientMessage {
+    message Command {
+        int64 correlation_id = 1;
+        oneof command {
+            PingCommand ping_command = 2;
+        }
+    }
+    message Response {
+        int64 correlation_id = 1;
+        oneof response {
+            ZoneResponse zone_response = 2;
+        }
+    }
+    message Notification {
+        oneof notification {
+            ZoneNotification zone_notification = 1;
+        }
+    }
+    oneof message {
+        KeyOwnershipProofNonce key_ownership_proof_nonce = 1;
+        Command command = 2;
+        Response response = 3;
+        Notification notification = 4;
+    }
+}
+
+message BeginKeyOwnershipProof {
+    bytes public_key = 1;
+}
+
+message KeyOwnershipProofNonce {
+    bytes nonce = 1;
+}
+
+message CompleteKeyOwnershipProof {
+    bytes signature = 1;
+}
+
 message PingCommand {
 }
 
@@ -165,49 +224,5 @@ message ZoneNotification {
         AccountCreatedNotification account_created_notification = 7;
         AccountUpdatedNotification account_updated_notification = 8;
         TransactionAddedNotification transaction_added_notification = 9;
-    }
-}
-
-message ClientMessage {
-    message Command {
-        int64 correlation_id = 1;
-        oneof command {
-            PingCommand ping_command = 2;
-        }
-    }
-    message Response {
-        int64 correlation_id = 1;
-        oneof response {
-            ZoneResponse zone_response = 2;
-        }
-    }
-    message Notification {
-        oneof notification {
-            ZoneNotification zone_notification = 1;
-        }
-    }
-    oneof command_or_response_or_notification {
-        Command command = 1;
-        Response response = 2;
-        Notification notification = 3;
-    }
-}
-
-message ServerMessage {
-    message Command {
-        int64 correlation_id = 1;
-        oneof command {
-            ZoneCommand zone_command = 2;
-        }
-    }
-    message Response {
-        int64 correlation_id = 1;
-        oneof response {
-            PingResponse ping_response = 2;
-        }
-    }
-    oneof command_or_response {
-        Command command = 1;
-        Response response = 2;
     }
 }

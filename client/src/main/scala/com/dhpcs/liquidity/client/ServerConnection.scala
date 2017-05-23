@@ -55,6 +55,7 @@ object ServerConnection {
   case object TLS_ERROR       extends ConnectionState
   case object AVAILABLE       extends ConnectionState
   case object CONNECTING      extends ConnectionState
+  case object AUTHENTICATING  extends ConnectionState
   case object ONLINE          extends ConnectionState
   case object DISCONNECTING   extends ConnectionState
 
@@ -95,8 +96,9 @@ object ServerConnection {
   private sealed abstract class ConnectedSubState extends SubState {
     val webSocket: WebSocket
   }
-  private final case class OnlineSubState(webSocket: WebSocket) extends ConnectedSubState
-  private case object DisconnectingSubState                     extends SubState
+  private final case class AuthenticatingSubState(webSocket: WebSocket) extends ConnectedSubState
+  private final case class OnlineSubState(webSocket: WebSocket)         extends ConnectedSubState
+  private case object DisconnectingSubState                             extends SubState
 
   private sealed abstract class CloseCause
   private case object GeneralFailure   extends CloseCause
@@ -104,12 +106,11 @@ object ServerConnection {
   private case object ServerDisconnect extends CloseCause
   private case object ClientDisconnect extends CloseCause
 
-  private def createSslSocketFactory(keyManagers: Array[KeyManager],
-                                     trustManagers: Array[TrustManager]): SSLSocketFactory = {
+  private def createSslSocketFactory(serverTrustManager: TrustManager): SSLSocketFactory = {
     val sslContext = SSLContext.getInstance("TLS")
     sslContext.init(
-      keyManagers,
-      trustManagers,
+      null,
+      Array(serverTrustManager),
       null
     )
     sslContext.getSocketFactory
@@ -156,11 +157,7 @@ class ServerConnection(filesDir: File,
     val clientKeyStore     = ClientKeyStore(filesDir)
     val serverTrustManager = ServerTrustManager(keyStoreInputStreamProvider.get())
     val okHttpClient = new OkHttpClient.Builder()
-      .sslSocketFactory(createSslSocketFactory(
-                          clientKeyStore.keyManagers,
-                          Array(serverTrustManager)
-                        ),
-                        serverTrustManager)
+      .sslSocketFactory(createSslSocketFactory(serverTrustManager), serverTrustManager)
       .hostnameVerifier(new HostnameVerifier {
         override def verify(s: String, sslSession: SSLSession): Boolean = true
       })
@@ -186,7 +183,7 @@ class ServerConnection(filesDir: File,
 
   handleConnectivityStateChange()
 
-  def clientKey: PublicKey = clientKeyStore.publicKey
+  lazy val clientKey: PublicKey = PublicKey(clientKeyStore.rsaPublicKey.getEncoded)
 
   def connectionState: ConnectionState = _connectionState
 
@@ -221,28 +218,24 @@ class ServerConnection(filesDir: File,
       activeState.handlerWrapper.post(activeState.subState match {
         case _: ConnectingSubState | DisconnectingSubState =>
           sys.error(s"Not connected")
+        case _: AuthenticatingSubState =>
+          sys.error("Authenticating")
         case OnlineSubState(webSocket) =>
           val correlationId = nextCorrelationId
           nextCorrelationId = nextCorrelationId + 1
           sendServerMessage(
             webSocket,
-            proto.ws.protocol
-              .ServerMessage(
-                proto.ws.protocol.ServerMessage.CommandOrResponse.Command(
-                  proto.ws.protocol.ServerMessage.Command(
-                    correlationId,
-                    serverCommand match {
-                      case zoneCommand: ZoneCommand =>
-                        proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(
-                          proto.ws.protocol.ZoneCommand(
-                            ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                              .asProto(zoneCommand)
-                          )
-                        )
-                    }
-                  )
-                )
-              ),
+            proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
+              correlationId,
+              serverCommand match {
+                case zoneCommand: ZoneCommand =>
+                  proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(
+                    proto.ws.protocol.ZoneCommand(
+                      ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                        .asProto(zoneCommand)
+                    ))
+              }
+            )),
             (pendingRequests = pendingRequests + (correlationId -> responseCallback)): Unit
           )
       })
@@ -293,14 +286,14 @@ class ServerConnection(filesDir: File,
         activeState.handlerWrapper.post(activeState.subState match {
           case _: ConnectingSubState =>
             sys.error("Not connected or disconnecting")
-          case _: OnlineSubState =>
+          case _: AuthenticatingSubState | _: OnlineSubState =>
             doClose(activeState.handlerWrapper, ServerDisconnect)
           case DisconnectingSubState =>
             doClose(activeState.handlerWrapper, ClientDisconnect)
         })
     })
 
-  override def onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response): Unit = {
+  override def onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response): Unit =
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
         sys.error("Already disconnected")
@@ -316,14 +309,10 @@ class ServerConnection(filesDir: File,
                   doClose(activeState.handlerWrapper, TlsError)
                 case _ =>
                   doClose(activeState.handlerWrapper, GeneralFailure)
-              } else if (response.code == 400)
-              // Server rejected client certificate.
-              doClose(activeState.handlerWrapper, TlsError)
-            else
+              } else
               doClose(activeState.handlerWrapper, GeneralFailure)
         })
     })
-  }
 
   override def onMessage(webSocket: WebSocket, bytes: ByteString): Unit = {
     val clientMessage = proto.ws.protocol.ClientMessage.parseFrom(bytes.toByteArray)
@@ -331,35 +320,49 @@ class ServerConnection(filesDir: File,
       case _: IdleState =>
         sys.error("Not connected")
       case activeState: ActiveState =>
-        clientMessage.commandOrResponseOrNotification match {
-          case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Empty =>
-          case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Command(protoCommand) =>
+        clientMessage.message match {
+          case proto.ws.protocol.ClientMessage.Message.Empty =>
+          case proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(protoKeyOwnershipProofNonce) =>
+            sendServerMessage(
+              webSocket,
+              proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof(
+                createCompleteKeyOwnershipProofMessage(clientKeyStore.rsaPrivateKey, protoKeyOwnershipProofNonce)
+              )
+            )
+            activeState.handlerWrapper.post {
+              activeState.subState = OnlineSubState(webSocket)
+              mainHandlerWrapper.post {
+                _connectionState = ONLINE
+                connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
+              }
+            }
+          case proto.ws.protocol.ClientMessage.Message.Command(protoCommand) =>
             activeState.handlerWrapper.post(activeState.subState match {
               case _: ConnectingSubState =>
                 sys.error("Not connected")
-              case _: OnlineSubState =>
+              case _: AuthenticatingSubState | _: OnlineSubState =>
                 activeState.handlerWrapper.post(protoCommand.command match {
                   case proto.ws.protocol.ClientMessage.Command.Command.Empty =>
                   case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
                     sendServerMessage(
                       webSocket,
-                      proto.ws.protocol.ServerMessage(
-                        proto.ws.protocol.ServerMessage.CommandOrResponse.Response(
-                          proto.ws.protocol.ServerMessage.Response(
-                            protoCommand.correlationId,
-                            proto.ws.protocol.ServerMessage.Response.Response.PingResponse(
-                              ProtoConverter[PingResponse.type, proto.ws.protocol.PingResponse]
-                                .asProto(PingResponse)
-                            )
-                          )))
+                      proto.ws.protocol.ServerMessage.Message.Response(proto.ws.protocol.ServerMessage.Response(
+                        protoCommand.correlationId,
+                        proto.ws.protocol.ServerMessage.Response.Response.PingResponse(
+                          ProtoConverter[PingResponse.type, proto.ws.protocol.PingResponse]
+                            .asProto(PingResponse)
+                        )
+                      ))
                     )
                 })
               case DisconnectingSubState =>
             })
-          case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Response(protoResponse) =>
+          case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
             activeState.handlerWrapper.post(activeState.subState match {
               case _: ConnectingSubState =>
                 sys.error("Not connected")
+              case _: AuthenticatingSubState =>
+                sys.error("Authenticating")
               case _: OnlineSubState =>
                 activeState.handlerWrapper.post(pendingRequests.get(protoResponse.correlationId) match {
                   case None =>
@@ -384,7 +387,7 @@ class ServerConnection(filesDir: File,
                 })
               case DisconnectingSubState =>
             })
-          case proto.ws.protocol.ClientMessage.CommandOrResponseOrNotification.Notification(protoNotification) =>
+          case proto.ws.protocol.ClientMessage.Message.Notification(protoNotification) =>
             activeState.handlerWrapper.post(protoNotification.notification match {
               case proto.ws.protocol.ClientMessage.Notification.Notification.Empty =>
               case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotification(protoZoneNotification) =>
@@ -394,6 +397,8 @@ class ServerConnection(filesDir: File,
                 activeState.subState match {
                   case _: ConnectingSubState =>
                     sys.error("Not connected")
+                  case _: AuthenticatingSubState =>
+                    sys.error("Authenticating")
                   case _: OnlineSubState =>
                     activeState.handlerWrapper.post(
                       mainHandlerWrapper.post(
@@ -416,9 +421,15 @@ class ServerConnection(filesDir: File,
           case _: ConnectedSubState | DisconnectingSubState =>
             sys.error("Not connecting")
           case _: ConnectingSubState =>
-            activeState.subState = OnlineSubState(webSocket)
+            sendServerMessage(
+              webSocket,
+              proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof(
+                createBeginKeyOwnershipProofMessage(clientKeyStore.rsaPublicKey)
+              )
+            )
+            activeState.subState = AuthenticatingSubState(webSocket)
             mainHandlerWrapper.post {
-              _connectionState = ONLINE
+              _connectionState = AUTHENTICATING
               connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
             }
         })
@@ -447,6 +458,12 @@ class ServerConnection(filesDir: File,
             connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
           }
           webSocket.cancel()
+        case AuthenticatingSubState(webSocket) =>
+          try {
+            webSocket.close(code, null); ()
+          } catch {
+            case _: IOException =>
+          }
         case OnlineSubState(webSocket) =>
           activeState.subState = DisconnectingSubState
           mainHandlerWrapper.post {
@@ -510,10 +527,10 @@ class ServerConnection(filesDir: File,
   }
 
   private[this] def sendServerMessage(webSocket: WebSocket,
-                                      serverMessage: proto.ws.protocol.ServerMessage,
+                                      message: proto.ws.protocol.ServerMessage.Message,
                                       onSuccess: => Unit = ()): Unit =
     try {
-      webSocket.send(ByteString.of(serverMessage.toByteArray: _*))
+      webSocket.send(ByteString.of(proto.ws.protocol.ServerMessage(message).toByteArray: _*))
       onSuccess
     } catch {
       // We do nothing here because we count on receiving a call to onFailure due to a matching read error.

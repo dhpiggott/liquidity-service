@@ -143,6 +143,7 @@ lazy val server = project
       "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.0"
     )
   )
+  .dependsOn(model % "test->test")
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
     "org.scalatest"     %% "scalatest"           % "3.0.3"  % Test,
@@ -178,6 +179,7 @@ lazy val client = project
   .dependsOn(model)
   .dependsOn(wsProtocol)
   .settings(
+    dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
     libraryDependencies ++= Seq(
       "com.madgag.spongycastle" % "pkix"   % "1.54.0.0",
       "com.squareup.okhttp3"    % "okhttp" % "3.8.0"

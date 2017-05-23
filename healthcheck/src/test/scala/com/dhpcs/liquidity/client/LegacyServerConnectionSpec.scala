@@ -14,7 +14,7 @@ import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy, TLSClientAuth}
-import akka.testkit.{TestActor, TestKit, TestProbe}
+import akka.testkit.{TestKit, TestProbe}
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.client.LegacyServerConnection._
@@ -112,18 +112,15 @@ class LegacyServerConnectionSpec
     )
   }
 
-  override protected[this] def webSocketApi(ip: RemoteAddress,
-                                            publicKey: PublicKey): Flow[ws.Message, ws.Message, NotUsed] =
+  override protected[this] def webSocketApi(ip: RemoteAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref),
-      name = publicKey.fingerprint
+      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )
 
   override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
                                                   publicKey: PublicKey): Flow[ws.Message, ws.Message, NotUsed] =
     LegacyClientConnectionActor.webSocketFlow(
-      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref),
-      name = publicKey.fingerprint
+      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )
 
   override protected[this] def getStatus: Future[JValue] =
@@ -244,20 +241,18 @@ class LegacyServerConnectionSpec
 
   "LegacyServerConnection" - {
     "will connect to the server and update the connection state as it does so" in { sub =>
-      clientConnectionActorTestProbe.setAutoPilot((sender: ActorRef, msg: Any) =>
-        msg match {
-          case ActorSinkInit =>
-            sender.tell(
-              WrappedNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
-              sender = clientConnectionActorTestProbe.ref
-            )
-            TestActor.NoAutoPilot
-      })
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
+      clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
+      clientConnectionActorTestProbe
+        .sender()
+        .tell(
+          WrappedNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
+          sender = clientConnectionActorTestProbe.ref
+        )
       sub.requestNext(ONLINE)
       MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
@@ -287,37 +282,32 @@ class LegacyServerConnectionSpec
           name = Some("Dave's Game")
         )
       )
-      clientConnectionActorTestProbe.setAutoPilot((sender: ActorRef, msg: Any) =>
-        msg match {
-          case ActorSinkInit =>
-            sender.tell(
-              WrappedNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
-              sender = clientConnectionActorTestProbe.ref
-            )
-            (sender: ActorRef, msg: Any) =>
-              {
-                msg match {
-                  case WrappedCommand(jsonRpcRequestMessage) =>
-                    assert(jsonRpcRequestMessage.id === NumericCorrelationId(0))
-                    assert(Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
-                    sender.tell(
-                      WrappedResponse(
-                        SuccessResponse.write(createZoneResponse, jsonRpcRequestMessage.id)
-                      ),
-                      sender = clientConnectionActorTestProbe.ref
-                    )
-                }
-
-                TestActor.NoAutoPilot
-              }
-      })
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
       MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
+      clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
+      clientConnectionActorTestProbe
+        .sender()
+        .tell(
+          WrappedNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
+          sender = clientConnectionActorTestProbe.ref
+        )
       sub.requestNext(ONLINE)
-      assert(send(createZoneCommand).futureValue === createZoneResponse)
+      val request               = send(createZoneCommand)
+      val jsonRpcRequestMessage = clientConnectionActorTestProbe.expectMsgType[WrappedCommand].jsonRpcRequestMessage
+      assert(jsonRpcRequestMessage.id === NumericCorrelationId(0))
+      assert(Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
+      clientConnectionActorTestProbe
+        .sender()
+        .tell(
+          WrappedResponse(
+            SuccessResponse.write(createZoneResponse, jsonRpcRequestMessage.id)
+          ),
+          sender = clientConnectionActorTestProbe.ref
+        )
+      assert(request.futureValue === createZoneResponse)
       MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)

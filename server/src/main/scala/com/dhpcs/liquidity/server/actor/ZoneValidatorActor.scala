@@ -36,7 +36,7 @@ object ZoneValidatorActor {
       (math.abs(command.zoneId.id.hashCode) % NumberOfShards).toString
   }
 
-  private final val RequiredOwnerKeyLength = 2048
+  private final val RequiredOwnerKeySize = 2048
 
   private val ZoneLifetime = 2.days
 
@@ -185,7 +185,7 @@ object ZoneValidatorActor {
               .generatePublic(new X509EncodedKeySpec(ownerPublicKey.value.toByteArray))
               .asInstanceOf[RSAPublicKey]
               .getModulus
-              .bitLength != RequiredOwnerKeyLength)
+              .bitLength != RequiredOwnerKeySize)
       Some("Invalid owner public key length")
     else
       None

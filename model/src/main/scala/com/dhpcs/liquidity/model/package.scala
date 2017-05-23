@@ -6,6 +6,8 @@ import com.dhpcs.liquidity.serialization.ProtoConverter
 
 package object model {
 
+  final val KeySize = 2048
+
   implicit def setProtoConverter[S, P](implicit protoConverter: ProtoConverter[S, P]): ProtoConverter[Set[S], Seq[P]] =
     ProtoConverter.instance(_.map(protoConverter.asProto).toSeq, _.map(protoConverter.asScala).toSet)
 

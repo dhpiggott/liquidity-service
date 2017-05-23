@@ -1,6 +1,5 @@
 package com.dhpcs.liquidity.server.actor
 
-import java.security.KeyPairGenerator
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -23,10 +22,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
     extractShardId = ZoneValidatorActor.extractShardId
   )
 
-  private[this] val publicKey = {
-    val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
-    PublicKey(publicKeyBytes)
-  }
+  private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
 
   "A ZoneValidatorActor" - {
     "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in {

@@ -15,10 +15,6 @@ package object persistence {
     def persistenceId: String = s"zone-${zoneId.id}"
   }
 
-  implicit class RichPublicKey(val publicKey: PublicKey) extends AnyVal {
-    def persistenceId: String = s"client-${publicKey.fingerprint})"
-  }
-
   implicit final val ActorPathProtoConverter: ProtoConverter[ActorPath, String] =
     ProtoConverter.instance(_.toSerializationFormat, ActorPath.fromString)
 

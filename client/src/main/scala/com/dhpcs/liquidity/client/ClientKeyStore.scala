@@ -3,6 +3,7 @@ package com.dhpcs.liquidity.client
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.math.BigInteger
 import java.security.cert.X509Certificate
+import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.security.{KeyPairGenerator, KeyStore, PrivateKey}
 import java.util.{Calendar, Locale}
 import javax.net.ssl.{KeyManager, KeyManagerFactory}
@@ -22,7 +23,7 @@ object ClientKeyStore {
   private final val BksKeystoreFilename    = "client.keystore"
   private final val EntryAlias             = "identity"
   private final val CommonName             = "com.dhpcs.liquidity"
-  private final val KeyLength              = 2048
+  private final val KeySize                = 2048
 
   def apply(filesDir: File): ClientKeyStore = {
     val keyStore     = KeyStore.getInstance("PKCS12")
@@ -58,7 +59,7 @@ object ClientKeyStore {
   private def generateCertKey(): (X509Certificate, PrivateKey) = {
     val identity         = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(KeyLength)
+    keyPairGenerator.initialize(KeySize)
     val keyPair = keyPairGenerator.generateKeyPair
     val certificate = new JcaX509CertificateConverter().getCertificate(
       new JcaX509v3CertificateBuilder(
@@ -95,6 +96,7 @@ class ClientKeyStore private (keyStore: KeyStore) {
     keyManagerFactory.getKeyManagers
   }
 
-  val publicKey: PublicKey = PublicKey(keyStore.getCertificate(EntryAlias).getPublicKey.getEncoded)
+  val rsaPublicKey: RSAPublicKey   = keyStore.getCertificate(EntryAlias).getPublicKey.asInstanceOf[RSAPublicKey]
+  val rsaPrivateKey: RSAPrivateKey = keyStore.getKey(EntryAlias, Array.emptyCharArray).asInstanceOf[RSAPrivateKey]
 
 }

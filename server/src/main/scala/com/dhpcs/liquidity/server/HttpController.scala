@@ -27,7 +27,7 @@ import org.json4s.jackson.JsonMethods
 import scala.concurrent.{ExecutionContext, Future}
 
 object HttpController {
-  private final val RequiredClientKeyLength = 2048
+  private final val RequiredClientKeySize = 2048
 }
 
 trait HttpController {
@@ -48,7 +48,7 @@ trait HttpController {
       headerValueByType[`Tls-Session-Info`](())(_.peerCertificates.headOption match {
         case Some(certificate) =>
           certificate.getPublicKey match {
-            case rsaPublicKey: RSAPublicKey if rsaPublicKey.getModulus.bitLength == RequiredClientKeyLength =>
+            case rsaPublicKey: RSAPublicKey if rsaPublicKey.getModulus.bitLength == RequiredClientKeySize =>
               handleWebSocketMessages(legacyWebSocketApi(ip, PublicKey(rsaPublicKey.getEncoded)))
             case _ =>
               complete(
@@ -60,22 +60,7 @@ trait HttpController {
             (BadRequest, s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
           )
       }))) ~
-      path("bws")(extractClientIP(ip =>
-        headerValueByType[`Tls-Session-Info`](())(_.peerCertificates.headOption match {
-          case Some(certificate) =>
-            certificate.getPublicKey match {
-              case rsaPublicKey: RSAPublicKey if rsaPublicKey.getModulus.bitLength == RequiredClientKeyLength =>
-                handleWebSocketMessages(webSocketApi(ip, PublicKey(rsaPublicKey.getEncoded)))
-              case _ =>
-                complete(
-                  (BadRequest, s"Invalid client public key from ${ip.toOption.getOrElse("unknown")}")
-                )
-            }
-          case None =>
-            complete(
-              (BadRequest, s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
-            )
-        })))
+      path("bws")(extractClientIP(ip => handleWebSocketMessages(webSocketApi(ip))))
 
   private[this] def status(implicit ec: ExecutionContext): Route =
     path("status")(
@@ -114,7 +99,7 @@ trait HttpController {
             "fingerprint" -> JString(publicKey.fingerprint))
       }.toList)))))
 
-  protected[this] def webSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
+  protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed]
   protected[this] def legacyWebSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
   protected[this] def getStatus: Future[JValue]
   protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]

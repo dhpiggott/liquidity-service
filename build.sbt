@@ -17,8 +17,8 @@ lazy val serialization = project
   .settings(
     libraryDependencies ++= Seq(
       "com.chuusai"       %% "shapeless"   % "2.3.2",
-      "com.typesafe.akka" %% "akka-actor"  % "2.4.18",
-      "com.typesafe.akka" %% "akka-remote" % "2.4.18"
+      "com.typesafe.akka" %% "akka-actor"  % "2.5.2",
+      "com.typesafe.akka" %% "akka-remote" % "2.5.2"
     ))
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
@@ -108,34 +108,34 @@ lazy val server = project
   .dependsOn(wsProtocol)
   .dependsOn(wsLegacyProtocol)
   .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka"        %% "akka-slf4j"                          % "2.4.18",
-    "ch.qos.logback"           % "logback-classic"                      % "1.2.3",
-    "com.typesafe.akka"        %% "akka-actor"                          % "2.4.18",
-    "com.typesafe.akka"        %% "akka-cluster"                        % "2.4.18",
-    "com.typesafe.akka"        %% "akka-cluster-sharding"               % "2.4.18",
-    "com.typesafe.akka"        %% "akka-cluster-tools"                  % "2.4.18",
-    "com.typesafe.akka"        %% "akka-distributed-data-experimental"  % "2.4.18",
-    "com.typesafe.akka"        %% "akka-persistence"                    % "2.4.18",
-    "com.typesafe.akka"        %% "akka-persistence-query-experimental" % "2.4.18",
-    "com.typesafe.akka"        %% "akka-persistence-cassandra"          % "0.28",
-    "io.netty"                 % "netty-transport-native-epoll"         % "4.1.11.Final" classifier "linux-x86_64",
-    "com.google.code.findbugs" % "jsr305"                               % "3.0.2" % Compile,
-    "com.datastax.cassandra"   % "cassandra-driver-core"                % "3.2.0",
-    "com.typesafe.akka"        %% "akka-http"                           % "10.0.7",
-    "com.trueaccord.scalapb"   %% "scalapb-json4s"                      % "0.3.0"
+    "com.typesafe.akka"        %% "akka-slf4j"                  % "2.5.2",
+    "ch.qos.logback"           % "logback-classic"              % "1.2.3",
+    "com.typesafe.akka"        %% "akka-actor"                  % "2.5.2",
+    "com.typesafe.akka"        %% "akka-cluster"                % "2.5.2",
+    "com.typesafe.akka"        %% "akka-cluster-sharding"       % "2.5.2",
+    "com.typesafe.akka"        %% "akka-cluster-tools"          % "2.5.2",
+    "com.typesafe.akka"        %% "akka-distributed-data"       % "2.5.2",
+    "com.typesafe.akka"        %% "akka-persistence"            % "2.5.2",
+    "com.typesafe.akka"        %% "akka-persistence-query"      % "2.5.2",
+    "com.typesafe.akka"        %% "akka-persistence-cassandra"  % "0.53",
+    "io.netty"                 % "netty-transport-native-epoll" % "4.1.11.Final" classifier "linux-x86_64",
+    "com.google.code.findbugs" % "jsr305"                       % "3.0.2" % Compile,
+    "com.datastax.cassandra"   % "cassandra-driver-core"        % "3.2.0",
+    "com.typesafe.akka"        %% "akka-http"                   % "10.0.7",
+    "com.trueaccord.scalapb"   %% "scalapb-json4s"              % "0.3.0"
   ))
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
-    "org.scalatest"     %% "scalatest"         % "3.0.3"  % Test,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.7" % Test
+    "org.scalatest"     %% "scalatest"           % "3.0.3"  % Test,
+    "com.typesafe.akka" %% "akka-http-testkit"   % "10.0.7" % Test,
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.2"  % Test
   ))
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)
   .dependsOn(certgen % MultiJvm)
   .settings(libraryDependencies ++= Seq(
-    "org.scalatest"        %% "scalatest"               % "3.0.3"  % MultiJvm,
-    "com.typesafe.akka"    %% "akka-multi-node-testkit" % "2.4.18" % MultiJvm,
-    "org.apache.cassandra" % "cassandra-all"            % "3.10"   % MultiJvm exclude ("io.netty", "netty-all")
+    "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.2" % MultiJvm,
+    "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.53"  % MultiJvm
   ))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
   .settings(
@@ -173,7 +173,7 @@ lazy val healthcheck = project
   .dependsOn(wsLegacyProtocol)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.18",
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.2",
       "org.scalatest"     %% "scalatest"           % "3.0.3"
     ))
   .dependsOn(certgen % "test")

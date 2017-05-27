@@ -4,7 +4,7 @@ import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.ask
-import akka.persistence.query.scaladsl.{AllPersistenceIdsQuery, CurrentPersistenceIdsQuery, ReadJournal}
+import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, PersistenceIdsQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import akka.util.Timeout
@@ -16,14 +16,14 @@ import scala.concurrent.duration._
 
 object ZoneAnalyticsStarterActor {
 
-  def props(readJournal: ReadJournal with CurrentPersistenceIdsQuery with AllPersistenceIdsQuery,
+  def props(readJournal: ReadJournal with CurrentPersistenceIdsQuery with PersistenceIdsQuery,
             zoneAnalyticsShardRegion: ActorRef,
             streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer): Props =
     Props(new ZoneAnalyticsStarterActor(readJournal, zoneAnalyticsShardRegion, streamFailureHandler))
 
 }
 
-class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery with AllPersistenceIdsQuery,
+class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery with PersistenceIdsQuery,
                                 zoneViewShardRegion: ActorRef,
                                 streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)
     extends Actor
@@ -47,7 +47,7 @@ class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistence
       .flatMapConcat(
         currentZoneIds =>
           readJournal
-            .allPersistenceIds()
+            .persistenceIds()
             .collect { case ZoneIdStringPattern(uuidString) => ZoneId(UUID.fromString(uuidString)) }
             .filterNot(currentZoneIds.contains)
             .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId =>

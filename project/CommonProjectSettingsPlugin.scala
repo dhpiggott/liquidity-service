@@ -4,7 +4,7 @@ import scoverage.ScoverageKeys._
 
 object CommonProjectSettingsPlugin extends AutoPlugin {
 
-  private[this] val scalaSettings = Seq(
+  private lazy val scalaSettings = Seq(
     scalaVersion := "2.12.2",
     crossScalaVersions := Seq("2.11.11", "2.12.2"),
     // See https://tpolecat.github.io/2017/04/25/scalac-flags.html for explanations. 2.11 doesn't support all of these,
@@ -58,21 +58,21 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
     })
   )
 
-  private[this] val resolverSettings = Seq(
+  private lazy val resolverSettings = Seq(
     resolvers += Resolver.bintrayRepo("dhpcs", "maven")
   )
 
-  private[this] val coverageSettings = Seq(
+  private lazy val coverageSettings = Seq(
     coverageExcludedFiles := ".*/target/.*"
   )
 
-  private[this] val publishSettings = Seq(
+  private lazy val publishSettings = Seq(
     organization := "com.dhpcs"
   )
 
   override def trigger: PluginTrigger = allRequirements
 
-  override lazy val projectSettings: Seq[Setting[_]] =
+  override def projectSettings: Seq[Setting[_]] =
     scalaSettings ++
       resolverSettings ++
       coverageSettings ++

@@ -9,9 +9,8 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.ws.protocol._
-import okhttp3.ws.{WebSocket, WebSocketCall, WebSocketListener}
-import okhttp3.{OkHttpClient, RequestBody, ResponseBody}
-import okio.Buffer
+import okhttp3.{OkHttpClient, WebSocket, WebSocketListener}
+import okio.ByteString
 
 object ServerConnection {
 
@@ -92,7 +91,7 @@ object ServerConnection {
     var subState: SubState = _
   }
   private sealed abstract class SubState
-  private final case class ConnectingSubState(webSocketCall: WebSocketCall) extends SubState
+  private final case class ConnectingSubState(webSocket: WebSocket) extends SubState
   private sealed abstract class ConnectedSubState extends SubState {
     val webSocket: WebSocket
   }
@@ -286,7 +285,7 @@ class ServerConnection(filesDir: File,
         case _ =>
       }
 
-  override def onClose(code: Int, reason: String): Unit =
+  override def onClosed(webSocket: WebSocket, code: Int, reason: String): Unit =
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
         sys.error("Already disconnected")
@@ -301,7 +300,7 @@ class ServerConnection(filesDir: File,
         })
     })
 
-  override def onFailure(e: IOException, response: okhttp3.Response): Unit = {
+  override def onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response): Unit = {
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
         sys.error("Already disconnected")
@@ -311,7 +310,7 @@ class ServerConnection(filesDir: File,
             doClose(activeState.handlerWrapper, ClientDisconnect)
           case _ =>
             if (response == null)
-              e match {
+              t match {
                 case _: SSLException =>
                   // Client rejected server certificate.
                   doClose(activeState.handlerWrapper, TlsError)
@@ -326,11 +325,8 @@ class ServerConnection(filesDir: File,
     })
   }
 
-  override def onMessage(message: ResponseBody): Unit = {
-    val clientMessage = message.contentType match {
-      case WebSocket.BINARY => proto.ws.protocol.ClientMessage.parseFrom(message.bytes)
-      case WebSocket.TEXT   => sys.error("Received text frame")
-    }
+  override def onMessage(webSocket: WebSocket, bytes: ByteString): Unit = {
+    val clientMessage = proto.ws.protocol.ClientMessage.parseFrom(bytes.toByteArray)
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
         sys.error("Not connected")
@@ -341,7 +337,7 @@ class ServerConnection(filesDir: File,
             activeState.handlerWrapper.post(activeState.subState match {
               case _: ConnectingSubState =>
                 sys.error("Not connected")
-              case OnlineSubState(webSocket) =>
+              case _: OnlineSubState =>
                 activeState.handlerWrapper.post(protoCommand.command match {
                   case proto.ws.protocol.ClientMessage.Command.Command.Empty =>
                   case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
@@ -428,8 +424,6 @@ class ServerConnection(filesDir: File,
         })
     })
 
-  override def onPong(payload: Buffer): Unit = ()
-
   private[this] def connect(): Unit = state match {
     case _: ActiveState =>
       sys.error("Already connecting/connected/disconnecting")
@@ -446,21 +440,22 @@ class ServerConnection(filesDir: File,
       activeState.handlerWrapper.post(activeState.subState match {
         case DisconnectingSubState =>
           sys.error("Already disconnecting")
-        case ConnectingSubState(webSocketCall) =>
+        case ConnectingSubState(webSocket) =>
           activeState.subState = DisconnectingSubState
           mainHandlerWrapper.post {
             _connectionState = DISCONNECTING
             connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
           }
-          webSocketCall.cancel()
+          webSocket.cancel()
         case OnlineSubState(webSocket) =>
           activeState.subState = DisconnectingSubState
           mainHandlerWrapper.post {
             _connectionState = DISCONNECTING
             connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
           }
-          try webSocket.close(code, null)
-          catch {
+          try {
+            webSocket.close(code, null); ()
+          } catch {
             case _: IOException =>
           }
       })
@@ -470,12 +465,11 @@ class ServerConnection(filesDir: File,
     val activeState = ActiveState(handlerWrapperFactory.create("ServerConnection"))
     state = activeState
     activeState.handlerWrapper.post {
-      val webSocketCall = WebSocketCall.create(
-        okHttpClient,
-        new okhttp3.Request.Builder().url(s"https://$hostname:$port/bws").build
+      val webSocket = okHttpClient.newWebSocket(
+        new okhttp3.Request.Builder().url(s"https://$hostname:$port/bws").build,
+        this
       )
-      webSocketCall.enqueue(this)
-      activeState.subState = ConnectingSubState(webSocketCall)
+      activeState.subState = ConnectingSubState(webSocket)
     }
     _connectionState = CONNECTING
     connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
@@ -519,12 +513,7 @@ class ServerConnection(filesDir: File,
                                       serverMessage: proto.ws.protocol.ServerMessage,
                                       onSuccess: => Unit = ()): Unit =
     try {
-      webSocket.sendMessage(
-        RequestBody.create(
-          WebSocket.BINARY,
-          serverMessage.toByteArray
-        )
-      )
+      webSocket.send(ByteString.of(serverMessage.toByteArray: _*))
       onSuccess
     } catch {
       // We do nothing here because we count on receiving a call to onFailure due to a matching read error.

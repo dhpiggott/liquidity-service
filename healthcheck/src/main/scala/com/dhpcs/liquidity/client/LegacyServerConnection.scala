@@ -9,9 +9,7 @@ import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.client.LegacyServerConnection._
 import com.dhpcs.liquidity.model.PublicKey
 import com.dhpcs.liquidity.ws.protocol.legacy._
-import okhttp3.ws.{WebSocket, WebSocketCall, WebSocketListener}
-import okhttp3.{OkHttpClient, RequestBody, ResponseBody}
-import okio.Buffer
+import okhttp3.{OkHttpClient, WebSocket, WebSocketListener}
 import play.api.libs.json.{JsError, JsSuccess, Json}
 
 object LegacyServerConnection {
@@ -89,7 +87,7 @@ object LegacyServerConnection {
     var subState: SubState = _
   }
   private sealed abstract class SubState
-  private final case class ConnectingSubState(webSocketCall: WebSocketCall) extends SubState
+  private final case class ConnectingSubState(webSocket: WebSocket) extends SubState
   private sealed abstract class ConnectedSubState extends SubState {
     val webSocket: WebSocket
   }
@@ -230,11 +228,8 @@ class LegacyServerConnection(filesDir: File,
             nextCorrelationId = nextCorrelationId + 1
             val jsonRpcRequestMessage = Command.write(command, correlationId)
             try {
-              onlineSubState.webSocket.sendMessage(
-                RequestBody.create(
-                  WebSocket.TEXT,
-                  Json.stringify(Json.toJson(jsonRpcRequestMessage))
-                )
+              onlineSubState.webSocket.send(
+                Json.stringify(Json.toJson(jsonRpcRequestMessage))
               )
               pendingRequests = pendingRequests +
                 (correlationId.value -> PendingRequest(jsonRpcRequestMessage, responseCallback))
@@ -283,7 +278,7 @@ class LegacyServerConnection(filesDir: File,
         case _ =>
       }
 
-  override def onClose(code: Int, reason: String): Unit =
+  override def onClosed(webSocket: WebSocket, code: Int, reason: String): Unit =
     mainHandlerWrapper.post(() =>
       state match {
         case _: IdleState =>
@@ -302,7 +297,7 @@ class LegacyServerConnection(filesDir: File,
           })
     })
 
-  override def onFailure(e: IOException, response: okhttp3.Response): Unit =
+  override def onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response): Unit =
     mainHandlerWrapper.post(() =>
       state match {
         case _: IdleState =>
@@ -314,7 +309,7 @@ class LegacyServerConnection(filesDir: File,
                 doClose(activeState.handlerWrapper, ClientDisconnect)
               case _ =>
                 if (response == null)
-                  e match {
+                  t match {
                     case _: SSLException =>
                       // Client rejected server certificate.
                       doClose(activeState.handlerWrapper, TlsError)
@@ -328,11 +323,8 @@ class LegacyServerConnection(filesDir: File,
           })
     })
 
-  override def onMessage(message: ResponseBody): Unit = {
-    val jsonRpcMessage = message.contentType match {
-      case WebSocket.BINARY => sys.error("Received binary frame")
-      case WebSocket.TEXT   => Json.parse(message.string).as[JsonRpcMessage]
-    }
+  override def onMessage(webSocket: WebSocket, message: String): Unit = {
+    val jsonRpcMessage = Json.parse(message).as[JsonRpcMessage]
     mainHandlerWrapper.post(() =>
       state match {
         case _: IdleState =>
@@ -352,7 +344,7 @@ class LegacyServerConnection(filesDir: File,
                             sys.error("Not connected")
                           case _: OnlineSubState =>
                             sys.error("Already online")
-                          case WaitingForVersionCheckSubState(webSocket) =>
+                          case _: WaitingForVersionCheckSubState =>
                             if (!compatibleVersionNumbers.contains(VersionNumber))
                               mainHandlerWrapper.post(() => disconnect(1001))
                             else
@@ -468,8 +460,6 @@ class LegacyServerConnection(filesDir: File,
           })
     })
 
-  override def onPong(payload: Buffer): Unit = ()
-
   private[this] def connect(): Unit = state match {
     case _: ActiveState =>
       sys.error("Already connecting/connected/disconnecting")
@@ -487,13 +477,13 @@ class LegacyServerConnection(filesDir: File,
         activeState.subState match {
           case DisconnectingSubState =>
             sys.error("Already disconnecting")
-          case ConnectingSubState(webSocketCall) =>
+          case ConnectingSubState(webSocket) =>
             activeState.subState = DisconnectingSubState
             mainHandlerWrapper.post { () =>
               _connectionState = DISCONNECTING
               connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
             }
-            webSocketCall.cancel()
+            webSocket.cancel()
           case WaitingForVersionCheckSubState(webSocket) =>
             try webSocket.close(code, null)
             catch {
@@ -555,12 +545,11 @@ class LegacyServerConnection(filesDir: File,
     val activeState = ActiveState(handlerWrapperFactory.create("ServerConnection"))
     state = activeState
     activeState.handlerWrapper.post { () =>
-      val webSocketCall = WebSocketCall.create(
-        okHttpClient,
-        new okhttp3.Request.Builder().url(s"https://$hostname:$port/ws").build
+      val webSocket = okHttpClient.newWebSocket(
+        new okhttp3.Request.Builder().url(s"https://$hostname:$port/ws").build,
+        this
       )
-      webSocketCall.enqueue(this)
-      activeState.subState = ConnectingSubState(webSocketCall)
+      activeState.subState = ConnectingSubState(webSocket)
     }
     _connectionState = CONNECTING
     connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))

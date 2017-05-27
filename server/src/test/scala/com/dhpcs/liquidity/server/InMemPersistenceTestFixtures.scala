@@ -24,7 +24,6 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
        |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
        |    }
-       |    enable-additional-serialization-bindings = on
        |    allow-java-serialization = on
        |    serialize-messages = on
        |    serialize-creators = on

@@ -37,9 +37,7 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |    metrics.enabled = off
        |    roles = ["zone-host", "client-relay"]
        |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
-       |    sharding.state-store-mode = ddata
        |  }
-       |  extensions += "akka.cluster.ddata.DistributedData"
        |  extensions += "akka.persistence.Persistence"
        |  persistence.journal {
        |    auto-start-journals = ["akka.persistence.journal.inmem"]

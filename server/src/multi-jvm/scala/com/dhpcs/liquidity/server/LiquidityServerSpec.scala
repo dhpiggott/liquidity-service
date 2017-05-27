@@ -66,11 +66,7 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    serialize-messages = on
        |    serialize-creators = off
        |  }
-       |  cluster {
-       |    metrics.enabled = off
-       |    sharding.state-store-mode = ddata
-       |  }
-       |  extensions += "akka.cluster.ddata.DistributedData"
+       |  cluster.metrics.enabled = off
        |  extensions += "akka.persistence.Persistence"
        |  persistence.journal {
        |    auto-start-journals = ["cassandra-journal"]

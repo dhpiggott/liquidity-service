@@ -124,21 +124,20 @@ lazy val server = project
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final"
     ),
     libraryDependencies ++= Seq(
-      "com.typesafe.akka"        %% "akka-slf4j"                  % "2.5.2",
-      "ch.qos.logback"           % "logback-classic"              % "1.2.3",
-      "com.typesafe.akka"        %% "akka-actor"                  % "2.5.2",
-      "com.typesafe.akka"        %% "akka-cluster"                % "2.5.2",
-      "com.typesafe.akka"        %% "akka-cluster-sharding"       % "2.5.2",
-      "com.typesafe.akka"        %% "akka-cluster-tools"          % "2.5.2",
-      "com.typesafe.akka"        %% "akka-distributed-data"       % "2.5.2",
-      "com.typesafe.akka"        %% "akka-persistence"            % "2.5.2",
-      "com.typesafe.akka"        %% "akka-persistence-query"      % "2.5.2",
-      "com.typesafe.akka"        %% "akka-persistence-cassandra"  % "0.53",
-      "io.netty"                 % "netty-transport-native-epoll" % "4.1.11.Final" classifier "linux-x86_64",
-      "com.google.code.findbugs" % "jsr305"                       % "3.0.2" % Compile,
-      "com.datastax.cassandra"   % "cassandra-driver-core"        % "3.2.0",
-      "com.typesafe.akka"        %% "akka-http"                   % "10.0.7",
-      "com.trueaccord.scalapb"   %% "scalapb-json4s"              % "0.3.0"
+      "com.typesafe.akka"      %% "akka-slf4j"                  % "2.5.2",
+      "ch.qos.logback"         % "logback-classic"              % "1.2.3",
+      "com.typesafe.akka"      %% "akka-actor"                  % "2.5.2",
+      "com.typesafe.akka"      %% "akka-cluster"                % "2.5.2",
+      "com.typesafe.akka"      %% "akka-cluster-sharding"       % "2.5.2",
+      "com.typesafe.akka"      %% "akka-cluster-tools"          % "2.5.2",
+      "com.typesafe.akka"      %% "akka-distributed-data"       % "2.5.2",
+      "com.typesafe.akka"      %% "akka-persistence"            % "2.5.2",
+      "com.typesafe.akka"      %% "akka-persistence-query"      % "2.5.2",
+      "com.typesafe.akka"      %% "akka-persistence-cassandra"  % "0.53",
+      "io.netty"               % "netty-transport-native-epoll" % "4.1.11.Final" classifier "linux-x86_64",
+      "com.datastax.cassandra" % "cassandra-driver-core"        % "3.2.0",
+      "com.typesafe.akka"      %% "akka-http"                   % "10.0.7",
+      "com.trueaccord.scalapb" %% "scalapb-json4s"              % "0.3.0"
     )
   )
   .dependsOn(certgen % "test")
@@ -173,8 +172,8 @@ lazy val client = project
   .dependsOn(wsProtocol)
   .settings(
     libraryDependencies ++= Seq(
-      "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
-      "com.squareup.okhttp3"    % "okhttp"    % "3.8.0"
+      "com.madgag.spongycastle" % "pkix"   % "1.54.0.0",
+      "com.squareup.okhttp3"    % "okhttp" % "3.8.0"
     )
   )
   .dependsOn(certgen % "test")

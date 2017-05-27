@@ -107,23 +107,40 @@ lazy val server = project
   .dependsOn(actorProtocol)
   .dependsOn(wsProtocol)
   .dependsOn(wsLegacyProtocol)
-  .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka"        %% "akka-slf4j"                  % "2.5.2",
-    "ch.qos.logback"           % "logback-classic"              % "1.2.3",
-    "com.typesafe.akka"        %% "akka-actor"                  % "2.5.2",
-    "com.typesafe.akka"        %% "akka-cluster"                % "2.5.2",
-    "com.typesafe.akka"        %% "akka-cluster-sharding"       % "2.5.2",
-    "com.typesafe.akka"        %% "akka-cluster-tools"          % "2.5.2",
-    "com.typesafe.akka"        %% "akka-distributed-data"       % "2.5.2",
-    "com.typesafe.akka"        %% "akka-persistence"            % "2.5.2",
-    "com.typesafe.akka"        %% "akka-persistence-query"      % "2.5.2",
-    "com.typesafe.akka"        %% "akka-persistence-cassandra"  % "0.53",
-    "io.netty"                 % "netty-transport-native-epoll" % "4.1.11.Final" classifier "linux-x86_64",
-    "com.google.code.findbugs" % "jsr305"                       % "3.0.2" % Compile,
-    "com.datastax.cassandra"   % "cassandra-driver-core"        % "3.2.0",
-    "com.typesafe.akka"        %% "akka-http"                   % "10.0.7",
-    "com.trueaccord.scalapb"   %% "scalapb-json4s"              % "0.3.0"
-  ))
+  .settings(
+    dependencyOverrides ++= Set(
+      "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
+      "com.fasterxml.jackson.core" % "jackson-databind"             % "2.8.8",
+      "com.github.jnr"             % "jnr-constants"                % "0.9.6",
+      "com.github.jnr"             % "jnr-ffi"                      % "2.1.2",
+      "org.slf4j"                  % "slf4j-api"                    % "1.7.25",
+      "com.typesafe.akka"          %% "akka-actor"                  % "2.5.2",
+      "com.typesafe.akka"          %% "akka-cluster-tools"          % "2.5.2",
+      "com.typesafe.akka"          %% "akka-stream"                 % "2.5.2",
+      "com.typesafe.akka"          %% "akka-stream-testkit"         % "2.5.2",
+      "com.typesafe.akka"          %% "akka-persistence"            % "2.5.2",
+      "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.2",
+      "com.datastax.cassandra"     % "cassandra-driver-core"        % "3.2.0",
+      "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final"
+    ),
+    libraryDependencies ++= Seq(
+      "com.typesafe.akka"        %% "akka-slf4j"                  % "2.5.2",
+      "ch.qos.logback"           % "logback-classic"              % "1.2.3",
+      "com.typesafe.akka"        %% "akka-actor"                  % "2.5.2",
+      "com.typesafe.akka"        %% "akka-cluster"                % "2.5.2",
+      "com.typesafe.akka"        %% "akka-cluster-sharding"       % "2.5.2",
+      "com.typesafe.akka"        %% "akka-cluster-tools"          % "2.5.2",
+      "com.typesafe.akka"        %% "akka-distributed-data"       % "2.5.2",
+      "com.typesafe.akka"        %% "akka-persistence"            % "2.5.2",
+      "com.typesafe.akka"        %% "akka-persistence-query"      % "2.5.2",
+      "com.typesafe.akka"        %% "akka-persistence-cassandra"  % "0.53",
+      "io.netty"                 % "netty-transport-native-epoll" % "4.1.11.Final" classifier "linux-x86_64",
+      "com.google.code.findbugs" % "jsr305"                       % "3.0.2" % Compile,
+      "com.datastax.cassandra"   % "cassandra-driver-core"        % "3.2.0",
+      "com.typesafe.akka"        %% "akka-http"                   % "10.0.7",
+      "com.trueaccord.scalapb"   %% "scalapb-json4s"              % "0.3.0"
+    )
+  )
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
     "org.scalatest"     %% "scalatest"           % "3.0.3"  % Test,
@@ -155,10 +172,12 @@ lazy val client = project
   .dependsOn(model)
   .dependsOn(wsProtocol)
   .settings(
+    dependencyOverrides += "com.squareup.okio" % "okio" % "1.13.0",
     libraryDependencies ++= Seq(
       "com.madgag.spongycastle" % "pkix"      % "1.54.0.0",
       "com.squareup.okhttp3"    % "okhttp-ws" % "3.4.2"
-    ))
+    )
+  )
   .dependsOn(certgen % "test")
   .dependsOn(server % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
@@ -172,10 +191,12 @@ lazy val healthcheck = project
   .dependsOn(client)
   .dependsOn(wsLegacyProtocol)
   .settings(
+    dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.2",
       "org.scalatest"     %% "scalatest"           % "3.0.3"
-    ))
+    )
+  )
   .dependsOn(certgen % "test")
   .dependsOn(server % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)

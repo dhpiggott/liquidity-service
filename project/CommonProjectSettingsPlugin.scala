@@ -59,7 +59,8 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
   )
 
   private lazy val resolverSettings = Seq(
-    resolvers += Resolver.bintrayRepo("dhpcs", "maven")
+    resolvers += Resolver.bintrayRepo("dhpcs", "maven"),
+    conflictManager := ConflictManager.strict
   )
 
   private lazy val coverageSettings = Seq(

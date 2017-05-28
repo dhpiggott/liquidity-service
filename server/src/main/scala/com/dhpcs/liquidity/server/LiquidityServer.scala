@@ -7,6 +7,7 @@ import javax.net.ssl._
 import akka.NotUsed
 import akka.actor.{ActorPath, ActorRef, ActorSystem, Deploy, PoisonPill}
 import akka.cluster.Cluster
+import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
 import akka.http.scaladsl.model.RemoteAddress
@@ -174,6 +175,10 @@ class LiquidityServer(config: Config,
     )
   }
 
+  private[this] val clusterHttpManagement = ClusterHttpManagement(Cluster(system))
+
+  clusterHttpManagement.start()
+
   private[this] val binding = Http().bindAndHandle(
     route(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
     config.getString("liquidity.server.http.interface"),
@@ -197,6 +202,7 @@ class LiquidityServer(config: Config,
       _       <- binding.unbind()
       _       <- stop(clientsMonitorActor)
       _       <- stop(zonesMonitorActor)
+      _       <- clusterHttpManagement.stop()
     } yield ()
   }
 

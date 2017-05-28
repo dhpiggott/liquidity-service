@@ -47,6 +47,8 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
   val zoneHostNode: RoleName    = role("zone-host")
   val clientRelayNode: RoleName = role("client-relay")
 
+  private val clusterHttpManagementPort = freePort()
+
   commonConfig(ConfigFactory.parseString(s"""
        |akka {
        |  actor {
@@ -65,7 +67,10 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    serialize-messages = on
        |    serialize-creators = off
        |  }
-       |  cluster.metrics.enabled = off
+       |  cluster {
+       |    http.management.port = $clusterHttpManagementPort
+       |    metrics.enabled = off
+       |  }
        |  extensions += "akka.persistence.Persistence"
        |  persistence.journal {
        |    auto-start-journals = ["cassandra-journal"]
@@ -145,7 +150,7 @@ sealed abstract class LiquidityServerSpec
 
   private[this] val server = new LiquidityServer(
     ConfigFactory.parseString(s"""
-         |liquidity.server.http.port = "$akkaHttpPort"
+         |liquidity.server.http.port = $akkaHttpPort
           """.stripMargin).withFallback(system.settings.config),
     readJournal,
     futureAnalyticsStore,

@@ -4,8 +4,7 @@ import java.security.KeyStore
 import java.security.cert.{CertificateException, X509Certificate}
 import javax.net.ssl._
 
-import akka.NotUsed
-import akka.actor.{ActorPath, ActorRef, ActorSystem, Deploy, PoisonPill}
+import akka.actor.{ActorPath, ActorRef, ActorSystem, CoordinatedShutdown, Deploy, PoisonPill}
 import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
@@ -13,13 +12,14 @@ import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerS
 import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.{ConnectionContext, Http}
-import akka.pattern.{ask, gracefulStop}
+import akka.pattern.ask
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, ReadJournal}
 import akka.stream.scaladsl.Flow
 import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
 import akka.util.Timeout
+import akka.{Done, NotUsed}
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.LiquidityServer._
@@ -34,7 +34,7 @@ import org.json4s.{JObject, JValue}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 
 object LiquidityServer {
 
@@ -72,7 +72,10 @@ object LiquidityServer {
       t.printStackTrace(Console.err)
       sys.exit(1)
     }
-
+    val clusterHttpManagement = ClusterHttpManagement(Cluster(system))
+    clusterHttpManagement.start()
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseClusterExitingDone, "clusterHttpManagementStop")(() =>
+      clusterHttpManagement.stop())
     val zoneValidatorShardRegion =
       if (Cluster(system).selfRoles.contains(ZoneHostRole))
         ClusterSharding(system).start(
@@ -126,10 +129,9 @@ object LiquidityServer {
       zoneValidatorShardRegion,
       keyManagerFactory.getKeyManagers
     )
-    sys.addShutdownHook {
-      Await.result(server.shutdown(), Duration.Inf)
-      Await.result(system.terminate(), Duration.Inf)
-    }
+    val binding = server.bind()
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>
+      for (_ <- binding.flatMap(_.unbind())) yield Done)
   }
 }
 
@@ -175,36 +177,17 @@ class LiquidityServer(config: Config,
     )
   }
 
-  private[this] val clusterHttpManagement = ClusterHttpManagement(Cluster(system))
-
-  clusterHttpManagement.start()
-
-  private[this] val binding = Http().bindAndHandle(
-    route(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
-    config.getString("liquidity.server.http.interface"),
-    config.getInt("liquidity.server.http.port"),
-    httpsConnectionContext
-  )
-
   private[this] val pingInterval = FiniteDuration(
     config.getDuration("liquidity.server.http.ping-interval", SECONDS),
     SECONDS
   )
 
-  def shutdown(): Future[Unit] = {
-    def stop(target: ActorRef): Future[Unit] =
-      gracefulStop(target, 5.seconds).flatMap {
-        case true  => Future.successful(())
-        case false => stop(target)
-      }
-    for {
-      binding <- binding
-      _       <- binding.unbind()
-      _       <- stop(clientsMonitorActor)
-      _       <- stop(zonesMonitorActor)
-      _       <- clusterHttpManagement.stop()
-    } yield ()
-  }
+  def bind(): Future[Http.ServerBinding] = Http().bindAndHandle(
+    route(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
+    config.getString("liquidity.server.http.interface"),
+    config.getInt("liquidity.server.http.port"),
+    httpsConnectionContext
+  )
 
   override protected[this] def getStatus: Future[JValue] = {
     def fingerprint(id: String): String = ByteString.encodeUtf8(id).sha256.hex

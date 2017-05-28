@@ -158,6 +158,8 @@ sealed abstract class LiquidityServerSpec
     serverKeyManagers
   )
 
+  private[this] val binding = server.bind()
+
   private[this] val (clientPublicKey, clientHttpsConnectionContext) = {
     val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
     val publicKey                 = PublicKey(certificate.getPublicKey.getEncoded)
@@ -198,7 +200,7 @@ sealed abstract class LiquidityServerSpec
   }
 
   override protected def afterAll(): Unit = {
-    Await.result(server.shutdown(), Duration.Inf)
+    Await.result(binding.flatMap(_.unbind())(ExecutionContext.global), Duration.Inf)
     multiNodeSpecAfterAll()
     runOn(cassandraNode) {
       CassandraLauncher.stop()

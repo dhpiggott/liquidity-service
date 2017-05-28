@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.client
 
-import java.io.{File, IOException, InputStream}
-import java.util.concurrent.TimeUnit
+import java.io.{File, IOException}
 import javax.net.ssl._
 
 import com.dhpcs.liquidity.client.ServerConnection._
@@ -13,10 +12,6 @@ import okhttp3.{OkHttpClient, WebSocket, WebSocketListener}
 import okio.ByteString
 
 object ServerConnection {
-
-  trait KeyStoreInputStreamProvider {
-    def get(): InputStream
-  }
 
   trait ConnectivityStatePublisherBuilder {
     def build(serverConnection: ServerConnection): ConnectivityStatePublisher
@@ -106,66 +101,46 @@ object ServerConnection {
   private case object ServerDisconnect extends CloseCause
   private case object ClientDisconnect extends CloseCause
 
-  private def createSslSocketFactory(serverTrustManager: TrustManager): SSLSocketFactory = {
-    val sslContext = SSLContext.getInstance("TLS")
-    sslContext.init(
-      null,
-      Array(serverTrustManager),
-      null
-    )
-    sslContext.getSocketFactory
-  }
 }
 
 class ServerConnection(filesDir: File,
-                       keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
                        connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
                        handlerWrapperFactory: HandlerWrapperFactory,
+                       scheme: String,
                        hostname: String,
                        port: Int)
     extends WebSocketListener {
 
   def this(filesDir: File,
-           keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
            connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
            handlerWrapperFactory: HandlerWrapperFactory,
+           scheme: Option[String],
            hostname: Option[String],
            port: Option[Int]) =
     this(
       filesDir,
-      keyStoreInputStreamProvider,
       connectivityStatePublisherBuilder,
       handlerWrapperFactory,
-      hostname.getOrElse("liquidity.dhpcs.com"),
+      scheme.getOrElse("https"),
+      hostname.getOrElse("api.liquidityapp.com"),
       port.getOrElse(443)
     )
 
   def this(filesDir: File,
-           keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
            connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
            handlerWrapperFactory: HandlerWrapperFactory) =
     this(
       filesDir,
-      keyStoreInputStreamProvider,
       connectivityStatePublisherBuilder,
       handlerWrapperFactory,
+      scheme = None,
       hostname = None,
       port = None
     )
 
-  private[this] lazy val (clientKeyStore, okHttpClient) = {
-    val clientKeyStore     = ClientKeyStore(filesDir)
-    val serverTrustManager = ServerTrustManager(keyStoreInputStreamProvider.get())
-    val okHttpClient = new OkHttpClient.Builder()
-      .sslSocketFactory(createSslSocketFactory(serverTrustManager), serverTrustManager)
-      .hostnameVerifier(new HostnameVerifier {
-        override def verify(s: String, sslSession: SSLSession): Boolean = true
-      })
-      .readTimeout(0, TimeUnit.SECONDS)
-      .writeTimeout(0, TimeUnit.SECONDS)
-      .build()
-    (clientKeyStore, okHttpClient)
-  }
+  private[this] lazy val clientKeyStore = ClientKeyStore(filesDir)
+
+  private[this] val okHttpClient = new OkHttpClient()
 
   private[this] val connectivityStatePublisher = connectivityStatePublisherBuilder.build(this)
   private[this] val mainHandlerWrapper         = handlerWrapperFactory.main()
@@ -483,7 +458,7 @@ class ServerConnection(filesDir: File,
     state = activeState
     activeState.handlerWrapper.post {
       val webSocket = okHttpClient.newWebSocket(
-        new okhttp3.Request.Builder().url(s"https://$hostname:$port/bws").build,
+        new okhttp3.Request.Builder().url(s"$scheme://$hostname:$port/ws").build,
         this
       )
       activeState.subState = ConnectingSubState(webSocket)

@@ -32,11 +32,7 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
 import com.dhpcs.liquidity.server.actor._
 import com.dhpcs.liquidity.ws.protocol
-import com.dhpcs.liquidity.ws.protocol.{
-  ZoneResponse,
-  createBeginKeyOwnershipProofMessage,
-  createCompleteKeyOwnershipProofMessage
-}
+import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.OptionValues._
@@ -91,9 +87,10 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |  keyspace = "liquidity_server_v3"
        |}
        |liquidity {
-       |  server.http {
+       |  server {
        |    ping-interval = 3s
-       |    interface = "0.0.0.0"
+       |    http.interface = "0.0.0.0"
+       |    https.interface = "0.0.0.0"
        |  }
        |  analytics.cassandra.keyspace = "liquidity_analytics_v3"
        |}
@@ -146,7 +143,8 @@ sealed abstract class LiquidityServerSpec
     extractShardId = ZoneValidatorActor.extractShardId
   )
 
-  private[this] val akkaHttpPort = freePort()
+  private[this] val akkaHttpPort  = freePort()
+  private[this] val akkaHttpsPort = freePort()
 
   private[this] val (serverCertificate, serverKeyManagers) = {
     val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = Some("localhost"))
@@ -156,6 +154,7 @@ sealed abstract class LiquidityServerSpec
   private[this] val server = new LiquidityServer(
     ConfigFactory.parseString(s"""
          |liquidity.server.http.port = $akkaHttpPort
+         |liquidity.server.https.port = $akkaHttpsPort
           """.stripMargin).withFallback(system.settings.config),
     readJournal,
     futureAnalyticsStore,
@@ -163,7 +162,8 @@ sealed abstract class LiquidityServerSpec
     serverKeyManagers
   )
 
-  private[this] val binding = server.bind()
+  private[this] val httpBinding  = server.bindHttp()
+  private[this] val httpsBinding = server.bindHttps()
 
   private[this] val (rsaPublicKey: RSAPublicKey, rsaPrivateKey: RSAPrivateKey, clientHttpsConnectionContext) = {
     val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
@@ -204,7 +204,8 @@ sealed abstract class LiquidityServerSpec
   }
 
   override protected def afterAll(): Unit = {
-    Await.result(binding.flatMap(_.unbind())(ExecutionContext.global), Duration.Inf)
+    Await.result(httpsBinding.flatMap(_.unbind())(ExecutionContext.global), Duration.Inf)
+    Await.result(httpBinding.flatMap(_.unbind())(ExecutionContext.global), Duration.Inf)
     multiNodeSpecAfterAll()
     runOn(cassandraNode) {
       CassandraLauncher.stop()
@@ -242,7 +243,84 @@ sealed abstract class LiquidityServerSpec
     }
   )
 
-  runOn(clientRelayNode)(
+  runOn(clientRelayNode) {
+    "The LiquidityServer Protobuf WebSocket API" - {
+      "will send a PingCommand when left idle" in withProtobufWsTestProbes { (sub, _) =>
+        sub.within(3.5.seconds)(
+          assert(expectProtobufCommand(sub) === protocol.PingCommand)
+        )
+      }
+      "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withProtobufWsTestProbes {
+        (sub, pub) =>
+          val correlationId = 0L
+          sendProtobufCommand(pub)(
+            protocol.CreateZoneCommand(
+              equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
+              equityOwnerName = Some("Dave"),
+              equityOwnerMetadata = None,
+              equityAccountName = None,
+              equityAccountMetadata = None,
+              name = Some("Dave's Game")
+            ),
+            correlationId
+          )
+          inside(expectProtobufResponse(sub, correlationId)) {
+            case protocol.CreateZoneResponse(zone) =>
+              assert(zone.equityAccountId === AccountId(0))
+              assert(
+                zone.members(MemberId(0)) === Member(MemberId(0),
+                                                     PublicKey(rsaPublicKey.getEncoded),
+                                                     name = Some("Dave")))
+              assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
+              assert(
+                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 500L))
+              assert(zone.transactions === Map.empty)
+              assert(zone.name === Some("Dave's Game"))
+              assert(zone.metadata === None)
+          }
+      }
+      "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withProtobufWsTestProbes { (sub, pub) =>
+        val correlationId = 0L
+        sendProtobufCommand(pub)(
+          protocol.CreateZoneCommand(
+            equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
+            equityOwnerName = Some("Dave"),
+            equityOwnerMetadata = None,
+            equityAccountName = None,
+            equityAccountMetadata = None,
+            name = Some("Dave's Game")
+          ),
+          correlationId
+        )
+        val zone = inside(expectProtobufResponse(sub, correlationId)) {
+          case createZoneResponse: protocol.CreateZoneResponse =>
+            val zone = createZoneResponse.zone
+            assert(zone.equityAccountId === AccountId(0))
+            assert(
+              zone.members(MemberId(0)) === Member(MemberId(0),
+                                                   PublicKey(rsaPublicKey.getEncoded),
+                                                   name = Some("Dave")))
+            assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+            assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
+            assert(
+              zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 500L))
+            assert(zone.transactions === Map.empty)
+            assert(zone.name === Some("Dave's Game"))
+            assert(zone.metadata === None)
+            zone
+        }
+        sendProtobufCommand(pub)(
+          protocol.JoinZoneCommand(zone.id),
+          correlationId
+        )
+        inside(expectProtobufResponse(sub, correlationId)) {
+          case joinZoneResponse: protocol.JoinZoneResponse =>
+            assert(joinZoneResponse.zone === zone)
+            assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
+        }
+      }
+    }
     "The LiquidityServer JSON-RPC WebSocket API" - {
       "will send a SupportedVersionsNotification when connected" in withJsonRpcWsTestProbes { (sub, _) =>
         sub.within(5.seconds)(
@@ -296,156 +374,57 @@ sealed abstract class LiquidityServerSpec
               assert(zone.metadata === None)
           }
       }
-      "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withJsonRpcWsTestProbes {
-        (sub, pub) =>
-          sub.within(5.seconds)(
+      "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withJsonRpcWsTestProbes { (sub, pub) =>
+        sub.within(5.seconds)(
+          assert(
+            expectJsonRpcNotification(sub) === protocol.legacy.SupportedVersionsNotification(
+              protocol.legacy.CompatibleVersionNumbers))
+        )
+        val correlationId = 0L
+        sendJsonRpcCommand(pub)(
+          protocol.legacy.CreateZoneCommand(
+            equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
+            equityOwnerName = Some("Dave"),
+            equityOwnerMetadata = None,
+            equityAccountName = None,
+            equityAccountMetadata = None,
+            name = Some("Dave's Game")
+          ),
+          correlationId
+        )
+        val zone = inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
+          case createZoneResponse: protocol.legacy.CreateZoneResponse =>
+            val zone = createZoneResponse.zone
+            assert(zone.equityAccountId === AccountId(0))
             assert(
-              expectJsonRpcNotification(sub) === protocol.legacy.SupportedVersionsNotification(
-                protocol.legacy.CompatibleVersionNumbers))
-          )
-          val correlationId = 0L
-          sendJsonRpcCommand(pub)(
-            protocol.legacy.CreateZoneCommand(
-              equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
-              equityOwnerName = Some("Dave"),
-              equityOwnerMetadata = None,
-              equityAccountName = None,
-              equityAccountMetadata = None,
-              name = Some("Dave's Game")
-            ),
-            correlationId
-          )
-          val zone = inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
-            case createZoneResponse: protocol.legacy.CreateZoneResponse =>
-              val zone = createZoneResponse.zone
-              assert(zone.equityAccountId === AccountId(0))
-              assert(
-                zone.members(MemberId(0)) === Member(MemberId(0),
-                                                     PublicKey(rsaPublicKey.getEncoded),
-                                                     name = Some("Dave")))
-              assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
-              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
-              assert(
-                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 500L))
-              assert(zone.transactions === Map.empty)
-              assert(zone.name === Some("Dave's Game"))
-              assert(zone.metadata === None)
-              zone
-          }
-          sendJsonRpcCommand(pub)(
-            protocol.legacy.JoinZoneCommand(zone.id),
-            correlationId
-          )
-          inside(expectJsonRpcResponse(sub, correlationId, "joinZone")) {
-            case joinZoneResponse: protocol.legacy.JoinZoneResponse =>
-              assert(joinZoneResponse.zone === zone)
-              assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
-          }
-      }
-      "The LiquidityServer Protobuf WebSocket API" - {
-        "will send a PingCommand when left idle" in withProtobufWsTestProbes { (sub, _) =>
-          sub.within(3.5.seconds)(
-            assert(expectProtobufCommand(sub) === protocol.PingCommand)
-          )
+              zone.members(MemberId(0)) === Member(MemberId(0),
+                                                   PublicKey(rsaPublicKey.getEncoded),
+                                                   name = Some("Dave")))
+            assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+            assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
+            assert(
+              zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 500L))
+            assert(zone.transactions === Map.empty)
+            assert(zone.name === Some("Dave's Game"))
+            assert(zone.metadata === None)
+            zone
         }
-        "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withProtobufWsTestProbes {
-          (sub, pub) =>
-            val correlationId = 0L
-            sendProtobufCommand(pub)(
-              protocol.CreateZoneCommand(
-                equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
-                equityOwnerName = Some("Dave"),
-                equityOwnerMetadata = None,
-                equityAccountName = None,
-                equityAccountMetadata = None,
-                name = Some("Dave's Game")
-              ),
-              correlationId
-            )
-            inside(expectProtobufResponse(sub, correlationId)) {
-              case protocol.CreateZoneResponse(zone) =>
-                assert(zone.equityAccountId === AccountId(0))
-                assert(
-                  zone.members(MemberId(0)) === Member(MemberId(0),
-                                                       PublicKey(rsaPublicKey.getEncoded),
-                                                       name = Some("Dave")))
-                assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
-                assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
-                assert(zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli,
-                                               tolerance = 500L))
-                assert(zone.transactions === Map.empty)
-                assert(zone.name === Some("Dave's Game"))
-                assert(zone.metadata === None)
-            }
-        }
-        "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withProtobufWsTestProbes {
-          (sub, pub) =>
-            val correlationId = 0L
-            sendProtobufCommand(pub)(
-              protocol.CreateZoneCommand(
-                equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
-                equityOwnerName = Some("Dave"),
-                equityOwnerMetadata = None,
-                equityAccountName = None,
-                equityAccountMetadata = None,
-                name = Some("Dave's Game")
-              ),
-              correlationId
-            )
-            val zone = inside(expectProtobufResponse(sub, correlationId)) {
-              case createZoneResponse: protocol.CreateZoneResponse =>
-                val zone = createZoneResponse.zone
-                assert(zone.equityAccountId === AccountId(0))
-                assert(
-                  zone.members(MemberId(0)) === Member(MemberId(0),
-                                                       PublicKey(rsaPublicKey.getEncoded),
-                                                       name = Some("Dave")))
-                assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
-                assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
-                assert(zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli,
-                                               tolerance = 500L))
-                assert(zone.transactions === Map.empty)
-                assert(zone.name === Some("Dave's Game"))
-                assert(zone.metadata === None)
-                zone
-            }
-            sendProtobufCommand(pub)(
-              protocol.JoinZoneCommand(zone.id),
-              correlationId
-            )
-            inside(expectProtobufResponse(sub, correlationId)) {
-              case joinZoneResponse: protocol.JoinZoneResponse =>
-                assert(joinZoneResponse.zone === zone)
-                assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
-            }
+        sendJsonRpcCommand(pub)(
+          protocol.legacy.JoinZoneCommand(zone.id),
+          correlationId
+        )
+        inside(expectJsonRpcResponse(sub, correlationId, "joinZone")) {
+          case joinZoneResponse: protocol.legacy.JoinZoneResponse =>
+            assert(joinZoneResponse.zone === zone)
+            assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
         }
       }
     }
-  )
+  }
 
   "Each test process" - (
     "will wait for the others to be ready to stop" in enterBarrier("stop")
   )
-
-  private[this] def withJsonRpcWsTestProbes(
-      test: (TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
-             TestPublisher.Probe[LegacyClientConnectionActor.WrappedCommand]) => Unit): Unit = {
-    val testProbeFlow = Flow.fromSinkAndSourceMat(
-      TestSink.probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
-      TestSource.probe[LegacyClientConnectionActor.WrappedCommand]
-    )(Keep.both)
-    val wsClientFlow =
-      JsonRpcInFlow
-        .viaMat(testProbeFlow)(Keep.right)
-        .via(JsonRpcOutFlow)
-    val (_, (sub, pub)) = Http().singleWebSocketRequest(
-      WebSocketRequest(s"wss://localhost:$akkaHttpPort/ws"),
-      wsClientFlow,
-      clientHttpsConnectionContext
-    )
-    try test(sub, pub)
-    finally pub.sendComplete()
-  }
 
   private[this] def withProtobufWsTestProbes(
       test: (TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
@@ -459,7 +438,7 @@ sealed abstract class LiquidityServerSpec
         .viaMat(testProbeFlow)(Keep.right)
         .via(ProtobufOutFlow)
     val (_, (sub, pub)) = Http().singleWebSocketRequest(
-      WebSocketRequest(s"wss://localhost:$akkaHttpPort/bws"),
+      WebSocketRequest(s"ws://localhost:$akkaHttpPort/ws"),
       wsClientFlow,
       clientHttpsConnectionContext
     )
@@ -478,6 +457,39 @@ sealed abstract class LiquidityServerSpec
     try test(sub, pub)
     finally pub.sendComplete()
   }
+
+  private[this] def withJsonRpcWsTestProbes(
+      test: (TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
+             TestPublisher.Probe[LegacyClientConnectionActor.WrappedCommand]) => Unit): Unit = {
+    val testProbeFlow = Flow.fromSinkAndSourceMat(
+      TestSink.probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
+      TestSource.probe[LegacyClientConnectionActor.WrappedCommand]
+    )(Keep.both)
+    val wsClientFlow =
+      JsonRpcInFlow
+        .viaMat(testProbeFlow)(Keep.right)
+        .via(JsonRpcOutFlow)
+    val (_, (sub, pub)) = Http().singleWebSocketRequest(
+      WebSocketRequest(s"wss://localhost:$akkaHttpsPort/ws"),
+      wsClientFlow,
+      clientHttpsConnectionContext
+    )
+    try test(sub, pub)
+    finally pub.sendComplete()
+  }
+
+  private final val ProtobufInFlow: Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
+    Flow[WsMessage].flatMapConcat(wsMessage =>
+      for (byteString <- wsMessage.asBinaryMessage match {
+             case BinaryMessage.Streamed(dataStream) =>
+               dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
+             case BinaryMessage.Strict(data) => Source.single(data)
+           }) yield proto.ws.protocol.ClientMessage.parseFrom(byteString.toArray))
+
+  private final val ProtobufOutFlow: Flow[proto.ws.protocol.ServerMessage, WsMessage, NotUsed] =
+    Flow[proto.ws.protocol.ServerMessage].map(
+      serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
+    )
 
   private final val JsonRpcInFlow
     : Flow[WsMessage, LegacyClientConnectionActor.WrappedResponseOrNotification, NotUsed] =
@@ -503,49 +515,6 @@ sealed abstract class LiquidityServerSpec
       case LegacyClientConnectionActor.WrappedCommand(jsonRpcRequestMessage) =>
         TextMessage(Json.stringify(Json.toJson(jsonRpcRequestMessage)))
     }
-
-  private final val ProtobufInFlow: Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
-    Flow[WsMessage].flatMapConcat(wsMessage =>
-      for (byteString <- wsMessage.asBinaryMessage match {
-             case BinaryMessage.Streamed(dataStream) =>
-               dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
-             case BinaryMessage.Strict(data) => Source.single(data)
-           }) yield proto.ws.protocol.ClientMessage.parseFrom(byteString.toArray))
-
-  private final val ProtobufOutFlow: Flow[proto.ws.protocol.ServerMessage, WsMessage, NotUsed] =
-    Flow[proto.ws.protocol.ServerMessage].map(
-      serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
-    )
-
-  private[this] def expectJsonRpcNotification(
-      sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification])
-    : protocol.legacy.Notification = {
-    sub.request(1)
-    sub.expectNextPF {
-      case LegacyClientConnectionActor.WrappedNotification(jsonRpcNotificationMessage) =>
-        protocol.legacy.Notification.read(jsonRpcNotificationMessage).asOpt.value
-    }
-  }
-
-  private[this] def sendJsonRpcCommand(pub: TestPublisher.Probe[LegacyClientConnectionActor.WrappedCommand])(
-      command: protocol.legacy.Command,
-      correlationId: Long): Unit =
-    pub.sendNext(
-      LegacyClientConnectionActor.WrappedCommand(
-        protocol.legacy.Command.write(command, id = NumericCorrelationId(correlationId))
-      ))
-
-  private[this] def expectJsonRpcResponse(
-      sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
-      expectedCorrelationId: Long,
-      method: String): protocol.legacy.Response = {
-    sub.request(1)
-    sub.expectNextPF {
-      case LegacyClientConnectionActor.WrappedResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
-        assert(jsonRpcResponseSuccessMessage.id === NumericCorrelationId(expectedCorrelationId))
-        protocol.legacy.SuccessResponse.read(jsonRpcResponseSuccessMessage, method).asOpt.value
-    }
-  }
 
   private[this] def expectProtobufCommand(
       sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage]): protocol.ClientCommand =
@@ -596,4 +565,33 @@ sealed abstract class LiquidityServerSpec
       sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage]): proto.ws.protocol.ClientMessage.Message =
     sub.requestNext().message
 
+  private[this] def expectJsonRpcNotification(
+      sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification])
+    : protocol.legacy.Notification = {
+    sub.request(1)
+    sub.expectNextPF {
+      case LegacyClientConnectionActor.WrappedNotification(jsonRpcNotificationMessage) =>
+        protocol.legacy.Notification.read(jsonRpcNotificationMessage).asOpt.value
+    }
+  }
+
+  private[this] def sendJsonRpcCommand(pub: TestPublisher.Probe[LegacyClientConnectionActor.WrappedCommand])(
+      command: protocol.legacy.Command,
+      correlationId: Long): Unit =
+    pub.sendNext(
+      LegacyClientConnectionActor.WrappedCommand(
+        protocol.legacy.Command.write(command, id = NumericCorrelationId(correlationId))
+      ))
+
+  private[this] def expectJsonRpcResponse(
+      sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
+      expectedCorrelationId: Long,
+      method: String): protocol.legacy.Response = {
+    sub.request(1)
+    sub.expectNextPF {
+      case LegacyClientConnectionActor.WrappedResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
+        assert(jsonRpcResponseSuccessMessage.id === NumericCorrelationId(expectedCorrelationId))
+        protocol.legacy.SuccessResponse.read(jsonRpcResponseSuccessMessage, method).asOpt.value
+    }
+  }
 }

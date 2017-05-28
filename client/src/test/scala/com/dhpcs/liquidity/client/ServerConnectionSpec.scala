@@ -1,30 +1,25 @@
 package com.dhpcs.liquidity.client
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
 import java.nio.file.Files
-import java.security.cert.{CertificateException, X509Certificate}
 import java.util.concurrent.Executors
-import javax.net.ssl.{SSLContext, X509TrustManager}
 
 import akka.NotUsed
 import akka.actor.{Actor, ActorPath, ActorRef, ActorSystem, Props}
+import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{RemoteAddress, ws}
-import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
-import akka.stream.{ActorMaterializer, OverflowStrategy, TLSClientAuth}
+import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.{TestKit, TestProbe}
-import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
-import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server._
+import com.dhpcs.liquidity.server.actor.ClientConnectionActor
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
-import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConnectionActor}
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.json4s.JValue
@@ -83,43 +78,8 @@ class ServerConnectionSpec
 
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
-  private[this] val (serverCertificate, serverKeyManagers) = {
-    val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = Some("localhost"))
-    (certificate, createKeyManagers(certificate, privateKey))
-  }
-
-  private[this] val httpsConnectionContext = {
-    val sslContext = SSLContext.getInstance("TLS")
-    sslContext.init(
-      serverKeyManagers,
-      Array(new X509TrustManager {
-
-        override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-
-        override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
-          throw new CertificateException
-
-        override def getAcceptedIssuers: Array[X509Certificate] = Array.empty
-
-      }),
-      null
-    )
-    ConnectionContext.https(
-      sslContext,
-      enabledCipherSuites = Some(EnabledCipherSuites),
-      enabledProtocols = Some(EnabledProtocols),
-      clientAuth = Some(TLSClientAuth.Want)
-    )
-  }
-
   override protected[this] def webSocketApi(ip: RemoteAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
-    )
-
-  override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
-                                                  publicKey: PublicKey): Flow[ws.Message, ws.Message, NotUsed] =
-    LegacyClientConnectionActor.webSocketFlow(
       props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )
 
@@ -139,22 +99,12 @@ class ServerConnectionSpec
     Future.successful(Map.empty)
 
   private[this] val binding = Http().bindAndHandle(
-    route(enableClientRelay = true),
+    httpRoutes(enableClientRelay = true),
     "0.0.0.0",
-    akkaHttpPort,
-    httpsConnectionContext
+    akkaHttpPort
   )
 
   private[this] val filesDir = Files.createTempDirectory("liquidity-server-connection-spec-files-dir")
-
-  private[this] val keyStoreInputStreamProvider = {
-    val to = new ByteArrayOutputStream
-    CertGen.saveCert(to, "PKCS12", serverCertificate)
-    val keyStoreInputStream = new ByteArrayInputStream(to.toByteArray)
-    new KeyStoreInputStreamProvider {
-      override def get(): InputStream = keyStoreInputStream
-    }
-  }
 
   private[this] val connectivityStatePublisherBuilder = new ConnectivityStatePublisherBuilder {
     override def build(serverConnection: ServerConnection): ConnectivityStatePublisher =
@@ -189,9 +139,9 @@ class ServerConnectionSpec
 
   private[this] val serverConnection = new ServerConnection(
     filesDir.toFile,
-    keyStoreInputStreamProvider,
     connectivityStatePublisherBuilder,
     handlerWrapperFactory,
+    scheme = "http",
     hostname = "localhost",
     port = akkaHttpPort
   )
@@ -328,7 +278,7 @@ class ServerConnectionSpec
                                      completeKeyOwnershipProofMessage))
       }
       sub.requestNext(ONLINE)
-      val request = send(createZoneCommand)
+      val response = send(createZoneCommand)
       inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
         case proto.ws.protocol.ServerMessage.Message.Command(protoCommand) =>
           assert(protoCommand.correlationId === 0L)
@@ -353,7 +303,7 @@ class ServerConnectionSpec
             ))),
           sender = clientConnectionActorTestProbe.ref
         )
-      assert(request.futureValue === createZoneResponse)
+      assert(response.futureValue === createZoneResponse)
       MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)

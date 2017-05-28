@@ -1,6 +1,5 @@
 package com.dhpcs.liquidity.server
 
-import java.security.interfaces.RSAPublicKey
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -8,9 +7,7 @@ import java.util.UUID
 import akka.NotUsed
 import akka.actor.ActorPath
 import akka.http.scaladsl.model.MediaTypes._
-import akka.http.scaladsl.model.StatusCodes.BadRequest
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.`Tls-Session-Info`
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -18,7 +15,6 @@ import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoConverter
-import com.dhpcs.liquidity.server.HttpController._
 import com.trueaccord.scalapb.json.JsonFormat
 import org.json4s.JValue
 import org.json4s.JsonAST.{JDecimal, JObject, JString}
@@ -26,13 +22,9 @@ import org.json4s.jackson.JsonMethods
 
 import scala.concurrent.{ExecutionContext, Future}
 
-object HttpController {
-  private final val RequiredClientKeySize = 2048
-}
-
 trait HttpController {
 
-  protected[this] def route(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
+  protected[this] def httpRoutes(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
     version ~ (if (enableClientRelay) ws else reject) ~ status ~ analytics
 
   private[this] def version: Route =
@@ -44,23 +36,7 @@ trait HttpController {
           )))))
 
   private[this] def ws: Route =
-    path("ws")(extractClientIP(ip =>
-      headerValueByType[`Tls-Session-Info`](())(_.peerCertificates.headOption match {
-        case Some(certificate) =>
-          certificate.getPublicKey match {
-            case rsaPublicKey: RSAPublicKey if rsaPublicKey.getModulus.bitLength == RequiredClientKeySize =>
-              handleWebSocketMessages(legacyWebSocketApi(ip, PublicKey(rsaPublicKey.getEncoded)))
-            case _ =>
-              complete(
-                (BadRequest, s"Invalid client public key from ${ip.toOption.getOrElse("unknown")}")
-              )
-          }
-        case None =>
-          complete(
-            (BadRequest, s"Client certificate not presented by ${ip.toOption.getOrElse("unknown")}")
-          )
-      }))) ~
-      path("bws")(extractClientIP(ip => handleWebSocketMessages(webSocketApi(ip))))
+    path("ws")(extractClientIP(ip => handleWebSocketMessages(webSocketApi(ip))))
 
   private[this] def status(implicit ec: ExecutionContext): Route =
     path("status")(
@@ -100,7 +76,6 @@ trait HttpController {
       }.toList)))))
 
   protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed]
-  protected[this] def legacyWebSocketApi(ip: RemoteAddress, publicKey: PublicKey): Flow[Message, Message, NotUsed]
   protected[this] def getStatus: Future[JValue]
   protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
   protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]

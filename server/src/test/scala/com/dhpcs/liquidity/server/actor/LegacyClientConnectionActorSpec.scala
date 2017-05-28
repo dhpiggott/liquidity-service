@@ -14,11 +14,11 @@ import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import org.scalatest.OptionValues._
-import org.scalatest.{Inside, Outcome, fixture}
+import org.scalatest.{Outcome, fixture}
 
 import scala.concurrent.duration._
 
-class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures with Inside {
+class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures {
 
   private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
   private[this] val ip        = RemoteAddress(InetAddress.getLoopbackAddress)

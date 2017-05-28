@@ -7,7 +7,7 @@ import java.util.concurrent.Executors
 import javax.net.ssl.{SSLContext, X509TrustManager}
 
 import akka.NotUsed
-import akka.actor.{Actor, ActorPath, ActorRef, ActorSystem, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.model.{RemoteAddress, ws}
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.stream.scaladsl.{Flow, Keep, Source}
@@ -22,12 +22,10 @@ import com.dhpcs.liquidity.client.LegacyServerConnectionSpec._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server._
+import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
-import com.dhpcs.liquidity.server.actor.{ClientConnectionActor, LegacyClientConnectionActor}
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import com.typesafe.config.ConfigFactory
-import org.json4s.JValue
-import org.json4s.JsonAST.{JInt, JObject}
 import org.scalatest.OptionValues._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -59,10 +57,9 @@ object LegacyServerConnectionSpec {
 
 class LegacyServerConnectionSpec
     extends fixture.FreeSpec
-    with HttpController
+    with HttpsController
     with BeforeAndAfterAll
-    with ScalaFutures
-    with Inside {
+    with ScalaFutures {
 
   private[this] val akkaHttpPort = freePort()
 
@@ -112,34 +109,14 @@ class LegacyServerConnectionSpec
     )
   }
 
-  override protected[this] def webSocketApi(ip: RemoteAddress): Flow[ws.Message, ws.Message, NotUsed] =
-    ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
-    )
-
   override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
                                                   publicKey: PublicKey): Flow[ws.Message, ws.Message, NotUsed] =
     LegacyClientConnectionActor.webSocketFlow(
       props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )
 
-  override protected[this] def getStatus: Future[JValue] =
-    Future.successful(
-      JObject(
-        "clients"         -> JObject(),
-        "totalZonesCount" -> JInt(0),
-        "activeZones"     -> JObject(),
-        "shardRegions"    -> JObject(),
-        "clusterSharding" -> JObject()
-      ))
-  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
-  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
-    Future.successful(Map.empty)
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
-    Future.successful(Map.empty)
-
   private[this] val binding = Http().bindAndHandle(
-    route(enableClientRelay = true),
+    httpsRoutes(enableClientRelay = true),
     "0.0.0.0",
     akkaHttpPort,
     httpsConnectionContext
@@ -295,7 +272,7 @@ class LegacyServerConnectionSpec
           sender = clientConnectionActorTestProbe.ref
         )
       sub.requestNext(ONLINE)
-      val request               = send(createZoneCommand)
+      val response              = send(createZoneCommand)
       val jsonRpcRequestMessage = clientConnectionActorTestProbe.expectMsgType[WrappedCommand].jsonRpcRequestMessage
       assert(jsonRpcRequestMessage.id === NumericCorrelationId(0))
       assert(Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
@@ -307,7 +284,7 @@ class LegacyServerConnectionSpec
           ),
           sender = clientConnectionActorTestProbe.ref
         )
-      assert(request.futureValue === createZoneResponse)
+      assert(response.futureValue === createZoneResponse)
       MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)

@@ -129,9 +129,13 @@ object LiquidityServer {
       zoneValidatorShardRegion,
       keyManagerFactory.getKeyManagers
     )
-    val binding = server.bind()
+    val httpBinding  = server.bindHttp()
+    val httpsBinding = server.bindHttps()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>
-      for (_ <- binding.flatMap(_.unbind())) yield Done)
+      for {
+        _ <- httpsBinding.flatMap(_.unbind())
+        _ <- httpBinding.flatMap(_.unbind())
+      } yield Done)
   }
 }
 
@@ -140,7 +144,8 @@ class LiquidityServer(config: Config,
                       futureAnalyticsStore: Future[CassandraAnalyticsStore],
                       zoneValidatorShardRegion: ActorRef,
                       keyManagers: Array[KeyManager])(implicit system: ActorSystem, mat: Materializer)
-    extends HttpController {
+    extends HttpController
+    with HttpsController {
 
   import system.dispatcher
 
@@ -178,14 +183,20 @@ class LiquidityServer(config: Config,
   }
 
   private[this] val pingInterval = FiniteDuration(
-    config.getDuration("liquidity.server.http.ping-interval", SECONDS),
+    config.getDuration("liquidity.server.ping-interval", SECONDS),
     SECONDS
   )
 
-  def bind(): Future[Http.ServerBinding] = Http().bindAndHandle(
-    route(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
+  def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
+    httpRoutes(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
     config.getString("liquidity.server.http.interface"),
-    config.getInt("liquidity.server.http.port"),
+    config.getInt("liquidity.server.http.port")
+  )
+
+  def bindHttps(): Future[Http.ServerBinding] = Http().bindAndHandle(
+    httpsRoutes(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
+    config.getString("liquidity.server.https.interface"),
+    config.getInt("liquidity.server.https.port"),
     httpsConnectionContext
   )
 

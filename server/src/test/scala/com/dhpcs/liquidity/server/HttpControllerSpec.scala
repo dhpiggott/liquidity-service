@@ -21,11 +21,11 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.json4s.JValue
 import org.json4s.JsonAST.{JInt, JObject}
 import org.json4s.jackson.JsonMethods
-import org.scalatest.FreeSpec
+import org.scalatest.{FreeSpec, Inside}
 
 import scala.concurrent.Future
 
-class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRouteTest {
+class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRouteTest with Inside {
 
   private[this] val sslSession = {
     val (certificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
@@ -57,6 +57,20 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
   override def testConfig: Config = ConfigFactory.defaultReference()
 
   "A LiquidityController" - {
+    "will provide version information" in {
+      val getRequest = RequestBuilding.Get("/version")
+      getRequest ~> route(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        assert(contentType === ContentType(`application/json`))
+        inside(JsonMethods.parse(entityAs[String])) {
+          case JObject(obj) =>
+            val keys = obj.toMap.keySet
+            assert(keys.contains("version"))
+            assert(keys.contains("builtAtString"))
+            assert(keys.contains("builtAtMillis"))
+        }
+      }
+    }
     "will accept WebSocket connections" in {
       val wsProbe = WSProbe()
       WS("/bws", wsProbe.flow)

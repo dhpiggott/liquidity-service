@@ -156,8 +156,12 @@ lazy val server = project
     "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.2" % MultiJvm,
     "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.53"  % MultiJvm
   ))
-  .enablePlugins(JavaAppPackaging, DockerPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(
+    buildInfoPackage := "com.dhpcs.liquidity.server",
+    buildInfoUsePackageAsPath := true,
+    buildInfoKeys := Seq(version),
+    buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     bashScriptExtraDefines ++= Seq(
       "addJava -Djdk.tls.ephemeralDHKeySize=2048",
       "addJava -Djdk.tls.rejectClientInitiatedRenegotiation=true"

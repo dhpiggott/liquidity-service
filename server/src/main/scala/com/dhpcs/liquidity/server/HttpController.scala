@@ -33,7 +33,15 @@ object HttpController {
 trait HttpController {
 
   protected[this] def route(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
-    (if (enableClientRelay) ws else reject) ~ status ~ analytics
+    version ~ (if (enableClientRelay) ws else reject) ~ status ~ analytics
+
+  private[this] def version: Route =
+    path("version")(
+      get(
+        complete(
+          toJsonResponse(JObject(
+            BuildInfo.toMap.mapValues(value => JString(value.toString)).toList
+          )))))
 
   private[this] def ws: Route =
     path("ws")(extractClientIP(ip =>
@@ -69,25 +77,21 @@ trait HttpController {
             )
         })))
 
-  private[this] def status(implicit ec: ExecutionContext): Route = path("status")(
-    get(
-      complete(
-        getStatus.map(toJsonResponse)
-      )
-    )
-  )
+  private[this] def status(implicit ec: ExecutionContext): Route =
+    path("status")(
+      get(
+        complete(
+          getStatus.map(toJsonResponse)
+        )))
 
   private[this] def analytics(implicit ec: ExecutionContext): Route =
     pathPrefix("analytics")(
       pathPrefix("api")(
         pathPrefix("zone")(
-          pathPrefix(JavaUUID)(
-            id =>
-              pathEnd(zone(id)) ~
-                path("balances")(balances(id)) ~
-                path("clients")(clients(id))))
-      )
-    )
+          pathPrefix(JavaUUID)(id =>
+            pathEnd(zone(id)) ~
+              path("balances")(balances(id)) ~
+              path("clients")(clients(id))))))
 
   private[this] def zone(id: UUID)(implicit ec: ExecutionContext): Route =
     get(complete(getZone(ZoneId(id)).map {

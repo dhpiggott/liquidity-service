@@ -16,6 +16,7 @@ lazy val serialization = project
   .settings(
     libraryDependencies ++= Seq(
       "com.chuusai"       %% "shapeless"   % "2.3.2",
+      // TODO: Move ProtoConverterSerializer from serializtion, or change client to not use ProtoConverters
       "com.typesafe.akka" %% "akka-actor"  % "2.5.2",
       "com.typesafe.akka" %% "akka-remote" % "2.5.2"
     ))
@@ -69,6 +70,7 @@ lazy val wsProtocol = project
   )
   .dependsOn(serialization)
   .dependsOn(model)
+  // TODO: Restructure to avoid this
   .dependsOn(actorProtocol)
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
@@ -81,6 +83,7 @@ lazy val wsLegacyProtocol = project
   )
   .dependsOn(serialization)
   .dependsOn(model)
+  // TODO: Restructure to avoid this
   .dependsOn(actorProtocol)
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC1")
   .dependsOn(model % "test->test")

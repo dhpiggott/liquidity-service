@@ -74,6 +74,8 @@ message PingCommand {
 message PingResponse {
 }
 
+// TODO: Eliminate these?
+
 message ZoneCommand {
     message CreateZoneCommand {
         bytes equity_owner_public_key = 1;

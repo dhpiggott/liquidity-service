@@ -167,6 +167,7 @@ message AuthenticatedZoneCommandWithIds {
     bytes public_key = 1;
     ZoneCommand command = 2;
     int64 correlation_id = 3;
+    // TODO: Replace these?
     int64 sequence_number = 4;
     int64 delivery_id = 5;
 }

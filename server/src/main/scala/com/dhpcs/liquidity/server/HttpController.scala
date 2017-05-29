@@ -47,12 +47,12 @@ trait HttpController {
 
   private[this] def analytics(implicit ec: ExecutionContext): Route =
     pathPrefix("analytics")(
-      pathPrefix("api")(
-        pathPrefix("zone")(
-          pathPrefix(JavaUUID)(id =>
+      pathPrefix("zone")(
+        pathPrefix(JavaUUID)(
+          id =>
             pathEnd(zone(id)) ~
               path("balances")(balances(id)) ~
-              path("clients")(clients(id))))))
+              path("clients")(clients(id)))))
 
   private[this] def zone(id: UUID)(implicit ec: ExecutionContext): Route =
     get(complete(getZone(ZoneId(id)).map {

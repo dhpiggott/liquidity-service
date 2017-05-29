@@ -9,7 +9,6 @@ lazy val noopPublishSetting = publishM2 := {}
 
 lazy val serialization = project
   .in(file("serialization"))
-  .settings(noopPublishSetting)
   .settings(protobufSettings)
   .settings(
     name := "liquidity-serialization"
@@ -49,7 +48,6 @@ lazy val persistence = project
 
 lazy val actorProtocol = project
   .in(file("actor-protocol"))
-  .settings(noopPublishSetting)
   .settings(protobufSettings)
   .settings(
     name := "liquidity-actor-protocol"
@@ -77,6 +75,7 @@ lazy val wsProtocol = project
 
 lazy val wsLegacyProtocol = project
   .in(file("ws-legacy-protocol"))
+  .settings(noopPublishSetting)
   .settings(
     name := "liquidity-ws-legacy-protocol"
   )

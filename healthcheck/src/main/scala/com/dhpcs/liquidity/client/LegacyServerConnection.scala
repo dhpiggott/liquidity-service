@@ -14,34 +14,28 @@ import play.api.libs.json.{JsError, JsSuccess, Json}
 
 object LegacyServerConnection {
 
-  trait KeyStoreInputStreamProvider {
+  abstract class KeyStoreInputStreamProvider {
     def get(): InputStream
   }
 
-  trait ConnectivityStatePublisherBuilder {
+  abstract class ConnectivityStatePublisherBuilder {
     def build(serverConnection: LegacyServerConnection): ConnectivityStatePublisher
   }
 
-  trait ConnectivityStatePublisher {
-
+  abstract class ConnectivityStatePublisher {
     def isConnectionAvailable: Boolean
     def register(): Unit
     def unregister(): Unit
-
   }
 
-  trait HandlerWrapperFactory {
-
+  abstract class HandlerWrapperFactory {
     def create(name: String): HandlerWrapper
     def main(): HandlerWrapper
-
   }
 
   abstract class HandlerWrapper {
-
     def post(runnable: Runnable): Unit
     def quit(): Unit
-
   }
 
   sealed abstract class ConnectionState
@@ -70,10 +64,8 @@ object LegacyServerConnection {
   }
 
   trait ResponseCallback {
-
     def onErrorResponse(error: ErrorResponse): Unit
     def onSuccessResponse(success: SuccessResponse): Unit = ()
-
   }
 
   private sealed abstract class State

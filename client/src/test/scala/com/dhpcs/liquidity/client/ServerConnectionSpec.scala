@@ -149,12 +149,13 @@ class ServerConnectionSpec
   private[this] def send(command: ServerCommand): Future[ServerResponse] = {
     val promise = Promise[ServerResponse]
     MainHandlerWrapper.post(
-      serverConnection.sendServerCommand(
-        command,
-        new ResponseCallback {
-          override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
-          override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
-        }
+      () =>
+        serverConnection.sendServerCommand(
+          command,
+          new ResponseCallback {
+            override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
+            override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
+          }
       ))
     promise.future
   }
@@ -192,7 +193,7 @@ class ServerConnectionSpec
     "will connect to the server and update the connection state as it does so" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(AUTHENTICATING)
@@ -220,7 +221,7 @@ class ServerConnectionSpec
                                      completeKeyOwnershipProofMessage))
       }
       sub.requestNext(ONLINE)
-      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
@@ -250,7 +251,7 @@ class ServerConnectionSpec
       )
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
+      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(AUTHENTICATING)
@@ -304,7 +305,7 @@ class ServerConnectionSpec
           sender = clientConnectionActorTestProbe.ref
         )
       assert(response.futureValue === createZoneResponse)
-      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
+      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }

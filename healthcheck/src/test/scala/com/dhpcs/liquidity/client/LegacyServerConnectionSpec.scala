@@ -66,7 +66,7 @@ class LegacyServerConnectionSpec
   private[this] val config = ConfigFactory
     .parseString("""
       |akka {
-      |  loglevel = "ERROR"
+      |  loglevel = "WARNING"
       |  http.server {
       |    remote-address-header = on
       |    parsing.tls-session-info-header = on

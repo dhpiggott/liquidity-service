@@ -11,7 +11,7 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
   private[this] val config = ConfigFactory.parseString(s"""
        |akka {
-       |  loglevel = "ERROR"
+       |  loglevel = "WARNING"
        |  actor {
        |    provider = "akka.cluster.ClusterActorRefProvider"
        |    serializers {

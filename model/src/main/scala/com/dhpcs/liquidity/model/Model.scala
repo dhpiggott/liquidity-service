@@ -43,7 +43,7 @@ final case class Transaction(id: TransactionId,
 final case class ZoneId(id: UUID)
 
 object ZoneId {
-  def generate: ZoneId = apply(UUID.randomUUID)
+  def generate: ZoneId = ZoneId(UUID.randomUUID)
 }
 
 final case class Zone(id: ZoneId,

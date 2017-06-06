@@ -72,7 +72,6 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
       resolverSettings ++
       coverageSettings ++
       addCommandAlias("validate", ";scalafmtTest; test; multi-jvm:test") ++
-      addCommandAlias("coverage", ";clean; coverage; test; multi-jvm:test; coverageReport") ++
       publishSettings
 
 }

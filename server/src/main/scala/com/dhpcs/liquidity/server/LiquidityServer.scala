@@ -154,7 +154,7 @@ class LiquidityServer(config: Config,
     "clients-monitor"
   )
   private[this] val zonesMonitorActor = system.actorOf(
-    ZonesMonitorActor.props(ZonesMonitorActor.zoneCount(readJournal)).withDeploy(Deploy.local),
+    ZonesMonitorActor.props(() => ZonesMonitorActor.zoneCount(readJournal)).withDeploy(Deploy.local),
     "zones-monitor"
   )
 

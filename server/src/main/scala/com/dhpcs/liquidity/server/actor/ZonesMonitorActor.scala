@@ -18,7 +18,7 @@ import scala.concurrent.duration._
 
 object ZonesMonitorActor {
 
-  def props(zoneCount: => Future[Int]): Props = Props(new ZonesMonitorActor(zoneCount))
+  def props(zoneCount: () => Future[Int]): Props = Props(classOf[ZonesMonitorActor], zoneCount)
 
   def zoneCount(readJournal: ReadJournal with CurrentPersistenceIdsQuery)(implicit mat: Materializer): Future[Int] =
     readJournal.currentPersistenceIds
@@ -40,7 +40,7 @@ object ZonesMonitorActor {
 
 }
 
-class ZonesMonitorActor(zoneCount: => Future[Int]) extends Actor with ActorLogging {
+class ZonesMonitorActor(zoneCount: () => Future[Int]) extends Actor with ActorLogging {
 
   import context.dispatcher
 
@@ -66,7 +66,7 @@ class ZonesMonitorActor(zoneCount: => Future[Int]) extends Actor with ActorLoggi
       activeZoneSummaries = activeZoneSummaries + (sender() -> activeZoneSummary)
     case GetZoneCount =>
       val requester = sender()
-      zoneCount.map(ZoneCount).pipeTo(requester)
+      zoneCount().map(ZoneCount).pipeTo(requester)
     case GetActiveZonesSummary =>
       sender() ! ActiveZonesSummary(activeZoneSummaries.values.toSet)
     case Terminated(zoneValidator) =>

@@ -9,6 +9,7 @@ import akka.actor.{Actor, ActorLogging, ActorPath, ActorRef, Deploy, PoisonPill,
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
+import akka.cluster.sharding.ShardRegion.Passivate
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.actor.protocol._
@@ -20,7 +21,7 @@ import scala.concurrent.duration._
 
 object ZoneValidatorActor {
 
-  def props: Props = Props(new ZoneValidatorActor)
+  def props: Props = Props[ZoneValidatorActor]
 
   final val ShardTypeName = "zone-validator"
 
@@ -105,7 +106,7 @@ object ZoneValidatorActor {
 
   private object PassivationCountdownActor {
 
-    def props: Props = Props(new PassivationCountdownActor)
+    def props: Props = Props[PassivationCountdownActor]
 
     case object CommandReceivedEvent
     case object RequestPassivate
@@ -228,7 +229,6 @@ object ZoneValidatorActor {
 
 class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
 
-  import ShardRegion.Passivate
   import ZoneValidatorActor.PassivationCountdownActor._
   import context.dispatcher
 

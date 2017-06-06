@@ -29,13 +29,12 @@ object LegacyClientConnectionActor {
             zoneValidatorShardRegion: ActorRef,
             keepAliveInterval: FiniteDuration)(upstream: ActorRef): Props =
     Props(
-      new LegacyClientConnectionActor(
-        ip,
-        publicKey,
-        zoneValidatorShardRegion,
-        keepAliveInterval,
-        upstream
-      )
+      classOf[LegacyClientConnectionActor],
+      ip,
+      publicKey,
+      zoneValidatorShardRegion,
+      keepAliveInterval,
+      upstream
     )
 
   def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
@@ -109,7 +108,7 @@ object LegacyClientConnectionActor {
 
   private object KeepAliveGeneratorActor {
 
-    def props(keepAliveInterval: FiniteDuration): Props = Props(new KeepAliveGeneratorActor(keepAliveInterval))
+    def props(keepAliveInterval: FiniteDuration): Props = Props(classOf[KeepAliveGeneratorActor], keepAliveInterval)
 
     case object FrameReceivedEvent
     case object FrameSentEvent

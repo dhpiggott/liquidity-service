@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 
 object ClientsMonitorActor {
 
-  def props: Props = Props(new ClientsMonitorActor)
+  def props: Props = Props[ClientsMonitorActor]
 
   final case class ActiveClientsSummary(activeClientSummaries: Seq[ActiveClientSummary])
 

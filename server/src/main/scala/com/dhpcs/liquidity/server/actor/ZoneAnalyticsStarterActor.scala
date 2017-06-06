@@ -15,21 +15,22 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object ZoneAnalyticsStarterActor {
-
   def props(readJournal: ReadJournal with CurrentPersistenceIdsQuery with PersistenceIdsQuery,
             zoneAnalyticsShardRegion: ActorRef,
             streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer): Props =
-    Props(new ZoneAnalyticsStarterActor(readJournal, zoneAnalyticsShardRegion, streamFailureHandler))
-
+    Props(classOf[ZoneAnalyticsStarterActor], readJournal, zoneAnalyticsShardRegion, streamFailureHandler, mat)
 }
 
 class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery with PersistenceIdsQuery,
                                 zoneViewShardRegion: ActorRef,
-                                streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer)
+                                streamFailureHandler: PartialFunction[Throwable, Unit],
+                                _mat: Materializer)
     extends Actor
     with ActorLogging {
 
   import context.dispatcher
+
+  private[this] implicit val mat = _mat
 
   private[this] val killSwitch = {
 

@@ -14,7 +14,7 @@ class ZonesMonitorActorSpec extends FreeSpec with InMemPersistenceTestFixtures {
     "will provide a count of the number of zones" in {
       val testProbe = TestProbe()
       val zonesMonitor =
-        system.actorOf(ZonesMonitorActor.props(Future.successful(0)).withDeploy(Deploy.local), "zones-monitor")
+        system.actorOf(ZonesMonitorActor.props(() => Future.successful(0)).withDeploy(Deploy.local), "zones-monitor")
       try {
         testProbe.send(
           zonesMonitor,

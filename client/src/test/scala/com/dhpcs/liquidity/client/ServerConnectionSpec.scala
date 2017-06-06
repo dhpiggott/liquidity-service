@@ -37,7 +37,7 @@ object ServerConnectionSpec {
 
   object ClientConnectionTestProbeForwarderActor {
     def props(clientConnectionActorTestProbe: ActorRef)(upstream: ActorRef): Props =
-      Props(new ClientConnectionTestProbeForwarderActor(clientConnectionActorTestProbe, upstream))
+      Props(classOf[ClientConnectionTestProbeForwarderActor], clientConnectionActorTestProbe, upstream)
   }
 
   class ClientConnectionTestProbeForwarderActor(clientConnectionActorTestProbe: ActorRef, upstream: ActorRef)

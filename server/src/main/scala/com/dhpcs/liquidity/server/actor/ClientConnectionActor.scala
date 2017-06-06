@@ -26,12 +26,11 @@ object ClientConnectionActor {
   def props(ip: RemoteAddress, zoneValidatorShardRegion: ActorRef, pingInterval: FiniteDuration)(
       upstream: ActorRef): Props =
     Props(
-      new ClientConnectionActor(
-        ip,
-        zoneValidatorShardRegion,
-        pingInterval,
-        upstream
-      )
+      classOf[ClientConnectionActor],
+      ip,
+      zoneValidatorShardRegion,
+      pingInterval,
+      upstream
     )
 
   def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
@@ -91,7 +90,7 @@ object ClientConnectionActor {
 
   private object PingGeneratorActor {
 
-    def props(pingInterval: FiniteDuration): Props = Props(new PingGeneratorActor(pingInterval))
+    def props(pingInterval: FiniteDuration): Props = Props(classOf[PingGeneratorActor], pingInterval)
 
     case object FrameReceivedEvent
     case object FrameSentEvent

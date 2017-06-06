@@ -9,17 +9,15 @@ lazy val noopPublishSetting = publishM2 := {}
 
 lazy val serialization = project
   .in(file("serialization"))
-  .settings(protobufSettings)
   .settings(
     name := "liquidity-serialization"
   )
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.chuusai"       %% "shapeless"   % "2.3.2",
-      // TODO: Move ProtoConverterSerializer from serializtion, or change client to not use ProtoConverters
-      "com.typesafe.akka" %% "akka-actor"  % "2.5.2",
-      "com.typesafe.akka" %% "akka-remote" % "2.5.2"
-    ))
+  .settings(libraryDependencies ++= Seq(
+    "com.chuusai" %% "shapeless" % "2.3.2",
+    // TODO: Move ProtoConverterSerializer from serialization, or change client to not use ProtoConverters
+    "com.typesafe.akka" %% "akka-actor"  % "2.5.2",
+    "com.typesafe.akka" %% "akka-remote" % "2.5.2"
+  ))
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val model = project
@@ -135,7 +133,6 @@ lazy val server = project
       "com.lightbend.akka"     %% "akka-management-cluster-http" % "0.3",
       "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.2",
       "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.2",
-      "com.typesafe.akka"      %% "akka-distributed-data"        % "2.5.2",
       "com.typesafe.akka"      %% "akka-persistence"             % "2.5.2",
       "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.2",
       "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.53",

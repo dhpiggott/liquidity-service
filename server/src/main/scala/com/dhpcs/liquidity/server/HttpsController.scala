@@ -13,15 +13,13 @@ import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.HttpsController._
 
-import scala.concurrent.ExecutionContext
-
 object HttpsController {
   private final val RequiredClientKeySize = 2048
 }
 
 trait HttpsController {
 
-  protected[this] def httpsRoutes(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
+  protected[this] def httpsRoutes(enableClientRelay: Boolean): Route =
     if (enableClientRelay) legacyWs else reject
 
   private[this] def legacyWs: Route =

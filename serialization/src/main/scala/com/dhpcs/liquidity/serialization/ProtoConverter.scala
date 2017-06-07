@@ -49,7 +49,7 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
       Some(protoConverter.asProto(s))
     override def asScala(maybeP: Option[P]): S =
       protoConverter.asScala(
-        maybeP.getOrElse(throw new IllegalArgumentException(s"Empty ${protoClassTag.runtimeClass.getSimpleName}"))
+        maybeP.getOrElse(throw new IllegalArgumentException(s"Empty ${protoClassTag.runtimeClass.getName}"))
       )
   }
 

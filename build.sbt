@@ -2,7 +2,8 @@ lazy val protobufSettings = Seq(
   PB.targets in Compile := Seq(
     scalapb.gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value
   ),
-  libraryDependencies += "com.trueaccord.scalapb" %% "scalapb-runtime" % com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
+  libraryDependencies += "com.trueaccord.scalapb"          %% "scalapb-runtime" %
+    com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
 )
 
 lazy val noopPublishSetting = publishM2 := {}
@@ -15,7 +16,6 @@ lazy val serialization = project
   .settings(libraryDependencies ++= Seq(
     "com.chuusai" %% "shapeless" % "2.3.2",
     // TODO: Move ProtoConverterSerializer from serialization, or change client to not use ProtoConverters
-    "com.typesafe.akka" %% "akka-actor"  % "2.5.2",
     "com.typesafe.akka" %% "akka-remote" % "2.5.2"
   ))
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
@@ -122,7 +122,6 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-persistence"            % "2.5.2",
       "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.2",
       "com.typesafe.akka"          %% "akka-http"                   % "10.0.7",
-      "com.datastax.cassandra"     % "cassandra-driver-core"        % "3.2.0",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final"
     ),
     libraryDependencies ++= Seq(
@@ -135,7 +134,7 @@ lazy val server = project
       "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.2",
       "com.typesafe.akka"      %% "akka-persistence"             % "2.5.2",
       "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.2",
-      "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.53",
+      "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.54",
       "io.netty"               % "netty-transport-native-epoll"  % "4.1.11.Final" classifier "linux-x86_64",
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
       "com.typesafe.akka"      %% "akka-http"                    % "10.0.7",
@@ -154,7 +153,7 @@ lazy val server = project
   .dependsOn(certgen % MultiJvm)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.2" % MultiJvm,
-    "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.53"  % MultiJvm
+    "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.54"  % MultiJvm
   ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(

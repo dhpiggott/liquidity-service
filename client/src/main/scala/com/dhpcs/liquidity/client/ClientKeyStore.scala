@@ -9,7 +9,6 @@ import java.util.{Calendar, Locale}
 import javax.net.ssl.{KeyManager, KeyManagerFactory}
 
 import com.dhpcs.liquidity.client.ClientKeyStore._
-import com.dhpcs.liquidity.model.PublicKey
 import org.spongycastle.asn1.x500.X500NameBuilder
 import org.spongycastle.asn1.x500.style.BCStyle
 import org.spongycastle.asn1.x509.{Extension, Time}

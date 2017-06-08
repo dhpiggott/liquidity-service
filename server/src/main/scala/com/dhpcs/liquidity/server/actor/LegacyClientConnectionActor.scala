@@ -15,7 +15,7 @@ import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, Numeric
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import play.api.libs.json.{JsError, JsSuccess, Json}
@@ -215,20 +215,18 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
           // Converting it back to the WS type is what ensures we'll then end up generating a fresh ZoneId when we then
           // convert it back again _from_ the WS type.
-          handleZoneCommand(ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
+          handleZoneCommand(ProtoBinding[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
                             correlationId)
         )
       case ZoneResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendResponse(ProtoConverter[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asScala(response),
-                       correlationId)
+          sendResponse(ProtoBinding[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asScala(response), correlationId)
         )
       case ZoneNotificationWithIds(notification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendNotification(
-            ProtoConverter[ZoneNotification, ZoneValidatorMessage.ZoneNotification].asScala(notification))
+          sendNotification(ProtoBinding[ZoneNotification, ZoneValidatorMessage.ZoneNotification].asScala(notification))
         )
       case ZoneRestarted(zoneId) =>
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
@@ -264,7 +262,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
 
   private[this] def handleZoneCommand(zoneCommand: ZoneCommand, correlationId: Long) = {
     // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-    val protoZoneCommand = ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
+    val protoZoneCommand = ProtoBinding[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
     val zoneId           = protoZoneCommand.zoneId
     val sequenceNumber   = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))

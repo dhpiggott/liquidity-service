@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.persistence
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.PersistenceSpec._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import org.scalatest.FreeSpec
 
 object PersistenceSpec {
@@ -24,11 +24,11 @@ class PersistenceSpec extends FreeSpec {
 
   "A ZoneCreatedEvent" - {
     s"will convert to $zoneCreatedEventProto" in assert(
-      ProtoConverter[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent]
+      ProtoBinding[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent]
         .asProto(zoneCreatedEvent) === zoneCreatedEventProto
     )
     s"will convert from $zoneCreatedEvent" in assert(
-      ProtoConverter[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent]
+      ProtoBinding[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent]
         .asScala(zoneCreatedEventProto) === zoneCreatedEvent
     )
   }

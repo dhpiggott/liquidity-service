@@ -6,7 +6,7 @@ import javax.net.ssl._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.ws.protocol._
 import okhttp3.{OkHttpClient, WebSocket, WebSocketListener}
 import okio.ByteString
@@ -192,7 +192,7 @@ class ServerConnection(filesDir: File,
                   case zoneCommand: ZoneCommand =>
                     proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(
                       proto.ws.protocol.ZoneCommand(
-                        ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                        ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
                           .asProto(zoneCommand)
                       ))
                 }
@@ -319,7 +319,7 @@ class ServerConnection(filesDir: File,
                                 proto.ws.protocol.ServerMessage.Response(
                                   protoCommand.correlationId,
                                   proto.ws.protocol.ServerMessage.Response.Response.PingResponse(
-                                    ProtoConverter[PingResponse.type, proto.ws.protocol.PingResponse]
+                                    ProtoBinding[PingResponse.type, proto.ws.protocol.PingResponse]
                                       .asProto(PingResponse)
                                   )
                                 ))
@@ -346,7 +346,7 @@ class ServerConnection(filesDir: File,
                                 sys.error("Empty or unsupported response")
                               case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
                                 val zoneResponse =
-                                  ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                                  ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
                                     .asScala(protoZoneResponse.zoneResponse)
                                 zoneResponse match {
                                   case EmptyZoneResponse =>
@@ -367,7 +367,7 @@ class ServerConnection(filesDir: File,
                     case proto.ws.protocol.ClientMessage.Notification.Notification
                           .ZoneNotification(protoZoneNotification) =>
                       val zoneNotification =
-                        ProtoConverter[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
+                        ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
                           .asScala(protoZoneNotification.zoneNotification)
                       activeState.subState match {
                         case _: ConnectingSubState =>

@@ -2,7 +2,7 @@ package com.dhpcs.liquidity
 
 import akka.actor.ActorPath
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
 import scala.util.matching.Regex
 
@@ -15,7 +15,7 @@ package object persistence {
     def persistenceId: String = s"zone-${zoneId.id}"
   }
 
-  implicit final val ActorPathProtoConverter: ProtoConverter[ActorPath, String] =
-    ProtoConverter.instance(_.toSerializationFormat, ActorPath.fromString)
+  implicit final val ActorPathProtoBinding: ProtoBinding[ActorPath, String] =
+    ProtoBinding.instance(_.toSerializationFormat, ActorPath.fromString)
 
 }

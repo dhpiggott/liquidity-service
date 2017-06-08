@@ -6,61 +6,62 @@ import java.util.concurrent.atomic.AtomicReference
 import akka.actor.ExtendedActorSystem
 import akka.remote.serialization.ProtobufSerializer
 import akka.serialization.SerializerWithStringManifest
-import com.dhpcs.liquidity.serialization.ProtoConverterSerializer.AnyRefProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
+import com.dhpcs.liquidity.serialization.ProtoBindingBackedSerializer.AnyRefProtoBinding
 
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
 
-object ProtoConverterSerializer {
+object ProtoBindingBackedSerializer {
 
-  object AnyRefProtoConverter {
+  object AnyRefProtoBinding {
     def apply[S, P](implicit scalaClassTag: ClassTag[S],
                     protoClassTag: ClassTag[P],
-                    protoConverter: ProtoConverter[S, P]): AnyRefProtoConverter[S, P] =
-      new AnyRefProtoConverter(scalaClassTag, protoClassTag, protoConverter)
+                    protoBinding: ProtoBinding[S, P]): AnyRefProtoBinding[S, P] =
+      new AnyRefProtoBinding(scalaClassTag, protoClassTag, protoBinding)
   }
 
-  class AnyRefProtoConverter[S, P](val scalaClassTag: ClassTag[S],
-                                   val protoClassTag: ClassTag[P],
-                                   protoConverter: ProtoConverter[S, P]) {
-    def anyRefScalaAsAnyRefProto(s: AnyRef): AnyRef = protoConverter.asProto(s.asInstanceOf[S]).asInstanceOf[AnyRef]
-    def anyRefProtoAsAnyRefScala(p: AnyRef): AnyRef = protoConverter.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]
+  class AnyRefProtoBinding[S, P](val scalaClassTag: ClassTag[S],
+                                 val protoClassTag: ClassTag[P],
+                                 protoBinding: ProtoBinding[S, P]) {
+    def anyRefScalaAsAnyRefProto(s: AnyRef): AnyRef = protoBinding.asProto(s.asInstanceOf[S]).asInstanceOf[AnyRef]
+    def anyRefProtoAsAnyRefScala(p: AnyRef): AnyRef = protoBinding.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]
   }
 }
 
-abstract class ProtoConverterSerializer(system: ExtendedActorSystem,
-                                        protoConverters: Seq[AnyRefProtoConverter[_, _]],
-                                        override val identifier: Int)
+abstract class ProtoBindingBackedSerializer(system: ExtendedActorSystem,
+                                            protoBindings: Seq[AnyRefProtoBinding[_, _]],
+                                            override val identifier: Int)
     extends SerializerWithStringManifest {
 
-  private[this] val scalaClassToProtoConverter: Map[Class[_], AnyRefProtoConverter[_, _]] = {
-    val scalaClasses = protoConverters.map(_.scalaClassTag.runtimeClass)
+  private[this] val scalaClassToProtoBinding: Map[Class[_], AnyRefProtoBinding[_, _]] = {
+    val scalaClasses = protoBindings.map(_.scalaClassTag.runtimeClass)
     require(scalaClasses == scalaClasses.distinct, "Duplicate Scala classes: " + scalaClasses.mkString(", "))
-    (for (protoConverter <- protoConverters) yield protoConverter.scalaClassTag.runtimeClass -> protoConverter).toMap
+    (for (protoBinding <- protoBindings) yield protoBinding.scalaClassTag.runtimeClass -> protoBinding).toMap
   }
 
-  private[this] val protoClassToProtoConverter: Map[Class[_], AnyRefProtoConverter[_, _]] = {
-    val protoClasses = protoConverters.map(_.protoClassTag.runtimeClass)
+  private[this] val protoClassToProtoBinding: Map[Class[_], AnyRefProtoBinding[_, _]] = {
+    val protoClasses = protoBindings.map(_.protoClassTag.runtimeClass)
     require(protoClasses == protoClasses.distinct, "Duplicate Proto classes: " + protoClasses.mkString(", "))
-    (for (protoConverter <- protoConverters) yield protoConverter.protoClassTag.runtimeClass -> protoConverter).toMap
+    (for (protoBinding <- protoBindings) yield protoBinding.protoClassTag.runtimeClass -> protoBinding).toMap
   }
 
   private[this] val protobufSerializer = new ProtobufSerializer(system)
   private[this] val manifestCache      = new AtomicReference[Map[String, Class[_]]](Map.empty)
 
   override def manifest(o: AnyRef): String =
-    scalaClassToProtoConverter
-      .getOrElse(o.getClass, sys.error(s"No ProtoConverter registered for [${o.getClass}]"))
+    scalaClassToProtoBinding
+      .getOrElse(o.getClass, sys.error(s"No ProtoBinding registered for [${o.getClass}]"))
       .protoClassTag
       .runtimeClass
       .getName
 
   override def toBinary(o: AnyRef): Array[Byte] =
     protobufSerializer.toBinary(
-      scalaClassToProtoConverter
-        .getOrElse(o.getClass, sys.error(s"No ProtoConverter registered for [${o.getClass}]"))
+      scalaClassToProtoBinding
+        .getOrElse(o.getClass, sys.error(s"No ProtoBinding registered for [${o.getClass}]"))
         .anyRefScalaAsAnyRefProto(o)
     )
 
@@ -80,8 +81,8 @@ abstract class ProtoConverterSerializer(system: ExtendedActorSystem,
       case Some(cachedProtoClass) =>
         cachedProtoClass
     }
-    protoClassToProtoConverter
-      .getOrElse(protoClass, sys.error(s"No ProtoConverter registered for [$protoClass]"))
+    protoClassToProtoBinding
+      .getOrElse(protoClass, sys.error(s"No ProtoBinding registered for [$protoClass]"))
       .anyRefProtoAsAnyRefScala(
         protobufSerializer.fromBinary(bytes, Some(protoClass))
       )

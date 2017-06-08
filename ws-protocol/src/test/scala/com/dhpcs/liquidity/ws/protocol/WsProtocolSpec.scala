@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.ws.protocol
 
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.ws.protocol.WsProtocolSpec._
 import org.scalatest.FreeSpec
 
@@ -74,11 +74,11 @@ class WsProtocolSpec extends FreeSpec {
 
   "A CreateZoneCommand" - {
     s"will convert to $createZoneCommandProto" in assert(
-      ProtoConverter[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand]
+      ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand]
         .asProto(createZoneCommand) === createZoneCommandProto
     )
     s"will convert from $createZoneCommand" in assert(
-      ProtoConverter[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand]
+      ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand]
         .asScala(createZoneCommandProto) === createZoneCommand
     )
   }

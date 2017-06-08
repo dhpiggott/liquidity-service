@@ -9,7 +9,7 @@ import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc.JsonRpcResponseSuccessMessage
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
@@ -92,7 +92,7 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
         // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-        ZoneResponseWithIds(ProtoConverter[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asProto(result),
+        ZoneResponseWithIds(ProtoBinding[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asProto(result),
                             correlationId,
                             sequenceNumber = 1L,
                             deliveryId = 1L)

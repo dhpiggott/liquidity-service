@@ -14,7 +14,7 @@ import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.trueaccord.scalapb.json.JsonFormat
 import org.json4s.JValue
 import org.json4s.JsonAST.{JDecimal, JObject, JString}
@@ -57,7 +57,7 @@ trait HttpController {
   private[this] def zone(id: UUID)(implicit ec: ExecutionContext): Route =
     get(complete(getZone(ZoneId(id)).map {
       case None       => HttpResponse(status = StatusCodes.NotFound)
-      case Some(zone) => toJsonResponse(JsonFormat.toJson(ProtoConverter[Zone, proto.model.Zone].asProto(zone)))
+      case Some(zone) => toJsonResponse(JsonFormat.toJson(ProtoBinding[Zone, proto.model.Zone].asProto(zone)))
     }))
 
   private[this] def balances(id: UUID)(implicit ec: ExecutionContext): Route =

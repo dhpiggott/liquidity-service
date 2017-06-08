@@ -29,7 +29,7 @@ import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor._
 import com.dhpcs.liquidity.ws.protocol
 import com.dhpcs.liquidity.ws.protocol._
@@ -522,7 +522,7 @@ sealed abstract class LiquidityServerSpec
       case proto.ws.protocol.ClientMessage.Message.Command(protoCommand) =>
         inside(protoCommand.command) {
           case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(protoPingCommand) =>
-            ProtoConverter[protocol.PingCommand.type, proto.ws.protocol.PingCommand]
+            ProtoBinding[protocol.PingCommand.type, proto.ws.protocol.PingCommand]
               .asScala(protoPingCommand)
         }
     }
@@ -537,7 +537,7 @@ sealed abstract class LiquidityServerSpec
           case zoneCommand: protocol.ZoneCommand =>
             proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(
               proto.ws.protocol.ZoneCommand(
-                ProtoConverter[protocol.ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                ProtoBinding[protocol.ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
                   .asProto(zoneCommand)
               ))
         }
@@ -556,7 +556,7 @@ sealed abstract class LiquidityServerSpec
         assert(protoResponse.correlationId == expectedCorrelationId)
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
               .asScala(protoZoneResponse.zoneResponse)
         }
     }

@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.ws.protocol
 
 import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
 import com.dhpcs.liquidity.model.ZoneId
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.ws.protocol
 import play.api.libs.json._
 
@@ -80,9 +80,9 @@ package object legacy {
 
   // The WS CreateZoneCommand type doesn't have a ZoneId. This is to ensure that only UUIDs generated on the _server_
   // side are used. This is where that generation happens.
-  implicit final val ZoneValidatorMessageCreateZoneCommandProtoConverter
-    : ProtoConverter[protocol.legacy.CreateZoneCommand, ZoneValidatorMessage.CreateZoneCommand] =
-    ProtoConverter.instance(
+  implicit final val ZoneValidatorMessageCreateZoneCommandProtoBinding
+    : ProtoBinding[protocol.legacy.CreateZoneCommand, ZoneValidatorMessage.CreateZoneCommand] =
+    ProtoBinding.instance(
       createZoneCommand =>
         ZoneValidatorMessage.CreateZoneCommand(
           zoneId = ZoneId.generate,

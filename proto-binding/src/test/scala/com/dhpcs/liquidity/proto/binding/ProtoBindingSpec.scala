@@ -1,12 +1,13 @@
-package com.dhpcs.liquidity.serialization
+package com.dhpcs.liquidity.proto.binding
 
 import java.time.Instant
 
-import com.dhpcs.liquidity.serialization.ProtoConverter._
-import com.dhpcs.liquidity.serialization.ProtoConverterSpec._
+import com.dhpcs.liquidity.proto.binding.ProtoBindingSpec.IdWrapper
+import com.dhpcs.liquidity.proto.binding.ProtoBinding._
+import com.dhpcs.liquidity.proto.binding.ProtoBindingSpec._
 import org.scalatest.FreeSpec
 
-object ProtoConverterSpec {
+object ProtoBindingSpec {
 
   case class IdWrapper(id: Long)
 
@@ -24,13 +25,13 @@ object ProtoConverterSpec {
 
 }
 
-class ProtoConverterSpec extends FreeSpec {
+class ProtoBindingSpec extends FreeSpec {
 
-  implicit final val IdWrapperProtoConverter: ProtoConverter[IdWrapper, Long] =
-    ProtoConverter.instance(_.id, IdWrapper)
+  implicit final val IdWrapperProtoBinding: ProtoBinding[IdWrapper, Long] =
+    ProtoBinding.instance(_.id, IdWrapper)
 
-  implicit final val InstantProtoConverter: ProtoConverter[Instant, Long] =
-    ProtoConverter.instance(_.toEpochMilli, Instant.ofEpochMilli)
+  implicit final val InstantProtoBinding: ProtoBinding[Instant, Long] =
+    ProtoBinding.instance(_.toEpochMilli, Instant.ofEpochMilli)
 
   "A ScalaProduct" - {
     val product = ScalaProduct(
@@ -44,10 +45,10 @@ class ProtoConverterSpec extends FreeSpec {
       name = Some("test")
     )
     s"will convert to $productProto" in assert(
-      ProtoConverter[ScalaProduct, ProtoProduct].asProto(product) === productProto
+      ProtoBinding[ScalaProduct, ProtoProduct].asProto(product) === productProto
     )
     s"will convert from $product" in assert(
-      ProtoConverter[ScalaProduct, ProtoProduct].asScala(productProto) === product
+      ProtoBinding[ScalaProduct, ProtoProduct].asScala(productProto) === product
     )
   }
 
@@ -56,10 +57,10 @@ class ProtoConverterSpec extends FreeSpec {
       ScalaCoproductInstance1(id = IdWrapper(0L), created = Instant.ofEpochMilli(1433611420487L))
     val coproductInstance1Proto: ProtoCoproduct = ProtoCoproductInstance1(id = 0L, created = 1433611420487L)
     s"will convert to $coproductInstance1Proto" in assert(
-      ProtoConverter[ScalaCoproduct, ProtoCoproduct].asProto(coproductInstance1) === coproductInstance1Proto
+      ProtoBinding[ScalaCoproduct, ProtoCoproduct].asProto(coproductInstance1) === coproductInstance1Proto
     )
     s"will convert from $coproductInstance1" in assert(
-      ProtoConverter[ScalaCoproduct, ProtoCoproduct].asScala(coproductInstance1Proto) === coproductInstance1
+      ProtoBinding[ScalaCoproduct, ProtoCoproduct].asScala(coproductInstance1Proto) === coproductInstance1
     )
   }
 
@@ -67,10 +68,10 @@ class ProtoConverterSpec extends FreeSpec {
     val coproductInstance2: ScalaCoproduct      = ScalaCoproductInstance2(id = IdWrapper(0L), name = "test")
     val coproductInstance2Proto: ProtoCoproduct = ProtoCoproductInstance2(id = 0L, name = "test")
     s"will convert to $coproductInstance2Proto" in assert(
-      ProtoConverter[ScalaCoproduct, ProtoCoproduct].asProto(coproductInstance2) === coproductInstance2Proto
+      ProtoBinding[ScalaCoproduct, ProtoCoproduct].asProto(coproductInstance2) === coproductInstance2Proto
     )
     s"will convert from $coproductInstance2" in assert(
-      ProtoConverter[ScalaCoproduct, ProtoCoproduct].asScala(coproductInstance2Proto) === coproductInstance2
+      ProtoBinding[ScalaCoproduct, ProtoCoproduct].asScala(coproductInstance2Proto) === coproductInstance2
     )
   }
 }

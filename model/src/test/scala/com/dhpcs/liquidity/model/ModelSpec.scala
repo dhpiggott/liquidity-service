@@ -6,8 +6,8 @@ import java.util.UUID
 
 import com.dhpcs.liquidity.model.ModelSpec._
 import com.dhpcs.liquidity.proto
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.proto.model
-import com.dhpcs.liquidity.serialization.ProtoConverter
 import org.scalatest.FreeSpec
 
 object ModelSpec {
@@ -103,10 +103,10 @@ class ModelSpec extends FreeSpec {
 
   "A Zone" - {
     s"will convert to $zoneProto" in assert(
-      ProtoConverter[Zone, proto.model.Zone].asProto(zone) === zoneProto
+      ProtoBinding[Zone, proto.model.Zone].asProto(zone) === zoneProto
     )
     s"will convert from $zone" in assert(
-      ProtoConverter[Zone, proto.model.Zone].asScala(zoneProto) === zone
+      ProtoBinding[Zone, proto.model.Zone].asScala(zoneProto) === zone
     )
   }
 }

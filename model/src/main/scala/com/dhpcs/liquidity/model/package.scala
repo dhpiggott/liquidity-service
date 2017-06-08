@@ -2,35 +2,35 @@ package com.dhpcs.liquidity
 
 import java.util.UUID
 
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
 package object model {
 
   final val KeySize = 2048
 
-  implicit def setProtoConverter[S, P](implicit protoConverter: ProtoConverter[S, P]): ProtoConverter[Set[S], Seq[P]] =
-    ProtoConverter.instance(_.map(protoConverter.asProto).toSeq, _.map(protoConverter.asScala).toSet)
+  implicit def setProtoBinding[S, P](implicit protoConverter: ProtoBinding[S, P]): ProtoBinding[Set[S], Seq[P]] =
+    ProtoBinding.instance(_.map(protoConverter.asProto).toSeq, _.map(protoConverter.asScala).toSet)
 
-  implicit final val MemberIdProtoConverter: ProtoConverter[MemberId, Long] =
-    ProtoConverter.instance(_.id, MemberId)
+  implicit final val MemberIdProtoBinding: ProtoBinding[MemberId, Long] =
+    ProtoBinding.instance(_.id, MemberId)
 
-  implicit final val AccountIdProtoConverter: ProtoConverter[AccountId, Long] =
-    ProtoConverter.instance(_.id, AccountId)
+  implicit final val AccountIdProtoBinding: ProtoBinding[AccountId, Long] =
+    ProtoBinding.instance(_.id, AccountId)
 
-  implicit final val TransactionIdProtoConverter: ProtoConverter[TransactionId, Long] =
-    ProtoConverter.instance(_.id, TransactionId)
+  implicit final val TransactionIdProtoBinding: ProtoBinding[TransactionId, Long] =
+    ProtoBinding.instance(_.id, TransactionId)
 
-  implicit final val ZoneIdProtoConverter: ProtoConverter[ZoneId, String] =
-    ProtoConverter.instance(_.id.toString, id => ZoneId(UUID.fromString(id)))
+  implicit final val ZoneIdProtoBinding: ProtoBinding[ZoneId, String] =
+    ProtoBinding.instance(_.id.toString, id => ZoneId(UUID.fromString(id)))
 
-  implicit final val PublicKeyProtoConverter: ProtoConverter[PublicKey, com.google.protobuf.ByteString] =
-    ProtoConverter.instance(
+  implicit final val PublicKeyProtoBinding: ProtoBinding[PublicKey, com.google.protobuf.ByteString] =
+    ProtoBinding.instance(
       publicKey => com.google.protobuf.ByteString.copyFrom(publicKey.value.asByteBuffer()),
       byteString => PublicKey(okio.ByteString.of(byteString.asReadOnlyByteBuffer()))
     )
 
-  implicit final val BigDecimalProtoConverter: ProtoConverter[BigDecimal, Option[proto.model.BigDecimal]] =
-    ProtoConverter.instance(
+  implicit final val BigDecimalProtoBinding: ProtoBinding[BigDecimal, Option[proto.model.BigDecimal]] =
+    ProtoBinding.instance(
       bigDecimal =>
         Some(
           proto.model.BigDecimal(
@@ -55,10 +55,10 @@ package object model {
   implicit final val TransactionIdExtractor: EntityIdExtractor[Transaction, TransactionId] =
     EntityIdExtractor.instance[Transaction, TransactionId](_.id)
 
-  implicit def idMapProtoConverter[SK, SV, P](
-      implicit protoConverter: ProtoConverter[SV, P],
-      entityIdExtractor: EntityIdExtractor[SV, SK]): ProtoConverter[Map[SK, SV], Seq[P]] =
-    ProtoConverter.instance(_.values.map(protoConverter.asProto).toSeq,
-                            _.map(protoConverter.asScala).map(s => entityIdExtractor.extractId(s) -> s).toMap)
+  implicit def idMapProtoBinding[SK, SV, P](
+      implicit protoConverter: ProtoBinding[SV, P],
+      entityIdExtractor: EntityIdExtractor[SV, SK]): ProtoBinding[Map[SK, SV], Seq[P]] =
+    ProtoBinding.instance(_.values.map(protoConverter.asProto).toSeq,
+                          _.map(protoConverter.asScala).map(s => entityIdExtractor.extractId(s) -> s).toMap)
 
 }

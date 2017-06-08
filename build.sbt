@@ -8,16 +8,12 @@ lazy val protobufSettings = Seq(
 
 lazy val noopPublishSetting = publishM2 := {}
 
-lazy val serialization = project
-  .in(file("serialization"))
+lazy val protoBinding = project
+  .in(file("proto-binding"))
   .settings(
-    name := "liquidity-serialization"
+    name := "liquidity-proto-binding"
   )
-  .settings(libraryDependencies ++= Seq(
-    "com.chuusai" %% "shapeless" % "2.3.2",
-    // TODO: Move ProtoConverterSerializer from serialization, or change client to not use ProtoConverters
-    "com.typesafe.akka" %% "akka-remote" % "2.5.2"
-  ))
+  .settings(libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.2")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val model = project
@@ -26,7 +22,7 @@ lazy val model = project
   .settings(
     name := "liquidity-model"
   )
-  .dependsOn(serialization)
+  .dependsOn(protoBinding)
   .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
@@ -40,9 +36,10 @@ lazy val persistence = project
   .settings(
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
-  .dependsOn(serialization)
   .dependsOn(model)
+  .dependsOn(protoBinding)
   .dependsOn(model % "test->test")
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.5.2")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val actorProtocol = project
@@ -54,8 +51,8 @@ lazy val actorProtocol = project
   .settings(
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
-  .dependsOn(serialization)
   .dependsOn(model)
+  .dependsOn(protoBinding)
 
 lazy val wsProtocol = project
   .in(file("ws-protocol"))
@@ -66,10 +63,10 @@ lazy val wsProtocol = project
   .settings(
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
-  .dependsOn(serialization)
   .dependsOn(model)
   // TODO: Restructure to avoid this
   .dependsOn(actorProtocol)
+  .dependsOn(protoBinding)
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
@@ -79,10 +76,10 @@ lazy val wsLegacyProtocol = project
   .settings(
     name := "liquidity-ws-legacy-protocol"
   )
-  .dependsOn(serialization)
   .dependsOn(model)
   // TODO: Restructure to avoid this
   .dependsOn(actorProtocol)
+  .dependsOn(protoBinding)
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC2")
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
@@ -96,6 +93,15 @@ lazy val certgen = project
   .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.57")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
+lazy val serialization = project
+  .in(file("serialization"))
+  .settings(noopPublishSetting)
+  .settings(
+    name := "liquidity-serialization"
+  )
+  .dependsOn(protoBinding)
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-remote" % "2.5.2")
+
 lazy val server = project
   .in(file("server"))
   .settings(noopPublishSetting)
@@ -105,6 +111,7 @@ lazy val server = project
   .dependsOn(model)
   .dependsOn(persistence)
   .dependsOn(actorProtocol)
+  .dependsOn(serialization)
   .dependsOn(wsProtocol)
   .dependsOn(wsLegacyProtocol)
   .settings(
@@ -221,13 +228,14 @@ lazy val root = project
     name := "liquidity"
   )
   .aggregate(
-    serialization,
+    protoBinding,
     model,
     persistence,
     actorProtocol,
     wsProtocol,
     wsLegacyProtocol,
     certgen,
+    serialization,
     server,
     client,
     healthcheck,

@@ -16,7 +16,7 @@ import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
@@ -286,7 +286,7 @@ class ServerConnectionSpec
           inside(protoCommand.command) {
             case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
               assert(
-                ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
                   .asScala(protoZoneCommand.zoneCommand) === createZoneCommand
               )
           }
@@ -298,7 +298,7 @@ class ServerConnectionSpec
             proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
               correlationId = 0L,
               proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.ws.protocol.ZoneResponse(
-                ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
                   .asProto(createZoneResponse)
               ))
             ))),

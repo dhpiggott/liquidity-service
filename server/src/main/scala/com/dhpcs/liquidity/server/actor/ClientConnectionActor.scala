@@ -15,7 +15,7 @@ import akka.util.ByteString
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.serialization.ProtoConverter
+import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol._
 
@@ -219,7 +219,7 @@ class ClientConnectionActor(ip: RemoteAddress,
             protoCommand.command match {
               case proto.ws.protocol.ServerMessage.Command.Command.Empty =>
               case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
-                val zoneCommand = ProtoConverter[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
+                val zoneCommand = ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
                   .asScala(protoZoneCommand.zoneCommand)
                 handleZoneCommand(publicKey, zoneCommand, protoCommand.correlationId)
             }
@@ -237,20 +237,20 @@ class ClientConnectionActor(ip: RemoteAddress,
           // Converting it back to the WS type is what ensures we'll then end up generating a fresh ZoneId when we then
           // convert it back again _from_ the WS type.
           handleZoneCommand(publicKey,
-                            ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
+                            ProtoBinding[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
                             correlationId)
         )
       case ZoneResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendServerResponse(ProtoConverter[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asScala(response),
+          sendServerResponse(ProtoBinding[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asScala(response),
                              correlationId)
         )
       case ZoneNotificationWithIds(notification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
           sendClientNotification(
-            ProtoConverter[ZoneNotification, ZoneValidatorMessage.ZoneNotification].asScala(notification))
+            ProtoBinding[ZoneNotification, ZoneValidatorMessage.ZoneNotification].asScala(notification))
         )
       case ZoneRestarted(zoneId) =>
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
@@ -287,7 +287,7 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   private[this] def handleZoneCommand(publicKey: PublicKey, zoneCommand: ZoneCommand, correlationId: Long) = {
     // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-    val protoZoneCommand = ProtoConverter[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
+    val protoZoneCommand = ProtoBinding[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
     val zoneId           = protoZoneCommand.zoneId
     val sequenceNumber   = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
@@ -340,7 +340,7 @@ class ClientConnectionActor(ip: RemoteAddress,
               case zoneNotification: ZoneNotification =>
                 proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotification(
                   proto.ws.protocol.ZoneNotification(
-                    ProtoConverter[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
+                    ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
                       .asProto(zoneNotification)
                   )
                 )
@@ -361,7 +361,7 @@ class ClientConnectionActor(ip: RemoteAddress,
               case zoneResponse: ZoneResponse =>
                 proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
                   proto.ws.protocol.ZoneResponse(
-                    ProtoConverter[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                    ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
                       .asProto(zoneResponse)
                   )
                 )

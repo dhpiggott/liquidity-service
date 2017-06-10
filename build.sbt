@@ -80,7 +80,7 @@ lazy val wsLegacyProtocol = project
   // TODO: Restructure to avoid this
   .dependsOn(actorProtocol)
   .dependsOn(protoBinding)
-  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC2")
+  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC3")
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 

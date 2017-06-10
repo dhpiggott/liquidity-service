@@ -18,7 +18,7 @@ import org.spongycastle.operator.jcajce.JcaContentSignerBuilder
 
 object ClientKeyStore {
 
-  private final val Pkcs12KeystoreFilename = "client.keystore"
+  private final val Pkcs12KeystoreFilename = "client.p12"
   private final val BksKeystoreFilename    = "client.keystore"
   private final val EntryAlias             = "identity"
   private final val CommonName             = "com.dhpcs.liquidity"
@@ -80,7 +80,7 @@ object ClientKeyStore {
     (certificate, keyPair.getPrivate)
   }
 
-  private def loadIntoKeyStore(keyStoreFile: File, keyStore: KeyStore) = {
+  private def loadIntoKeyStore(keyStoreFile: File, keyStore: KeyStore): Unit = {
     val keyStoreFileInputStream = new FileInputStream(keyStoreFile)
     try keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
     finally keyStoreFileInputStream.close()

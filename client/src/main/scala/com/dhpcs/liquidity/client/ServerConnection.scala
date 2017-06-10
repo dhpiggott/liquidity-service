@@ -214,7 +214,7 @@ class ServerConnection(filesDir: File,
                     ))
               }
             )),
-            (pendingRequests = pendingRequests + (correlationId -> responseCallback)): Unit
+            onSuccess = () => pendingRequests = pendingRequests + (correlationId -> responseCallback)
           )
       })
   }
@@ -506,10 +506,10 @@ class ServerConnection(filesDir: File,
 
   private[this] def sendServerMessage(webSocket: WebSocket,
                                       message: proto.ws.protocol.ServerMessage.Message,
-                                      onSuccess: => Unit = ()): Unit =
+                                      onSuccess: () => Unit = () => ()): Unit =
     try {
       webSocket.send(ByteString.of(proto.ws.protocol.ServerMessage(message).toByteArray: _*))
-      onSuccess
+      onSuccess()
     } catch {
       // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
       case _: IOException =>

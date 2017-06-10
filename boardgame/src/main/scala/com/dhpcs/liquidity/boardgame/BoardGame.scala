@@ -493,27 +493,28 @@ class BoardGame private (serverConnection: ServerConnection,
               instances = instances - zoneId)
         if (_joinState != BoardGame.JOINING && _joinState != BoardGame.JOINED)
           serverConnection.unrequestConnection(connectionRequestToken)
-      } else {
-        state = null
-        _joinState = BoardGame.QUITTING
-        joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-        serverConnection.sendServerCommand(
-          QuitZoneCommand(
-            zoneId.get
-          ),
-          new ResponseCallback {
-            override def onErrorResponse(errorResponse: ErrorResponse): Unit =
-              gameActionListeners.foreach(_.onQuitGameError())
+        else {
+          state = null
+          _joinState = BoardGame.QUITTING
+          joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
+          serverConnection.sendServerCommand(
+            QuitZoneCommand(
+              zoneId.get
+            ),
+            new ResponseCallback {
+              override def onErrorResponse(errorResponse: ErrorResponse): Unit =
+                gameActionListeners.foreach(_.onQuitGameError())
 
-            override def onSuccessResponse(successResponse: SuccessResponse): Unit =
-              if (joinRequestTokens.nonEmpty) {
-                state = null
-                _joinState = BoardGame.JOINING
-                joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-                join(zoneId.get)
-              } else serverConnection.unrequestConnection(connectionRequestToken)
-          }
-        )
+              override def onSuccessResponse(successResponse: SuccessResponse): Unit =
+                if (joinRequestTokens.nonEmpty) {
+                  state = null
+                  _joinState = BoardGame.JOINING
+                  joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
+                  join(zoneId.get)
+                } else serverConnection.unrequestConnection(connectionRequestToken)
+            }
+          )
+        }
       }
     }
 

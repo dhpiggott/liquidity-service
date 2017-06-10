@@ -18,15 +18,15 @@ import org.spongycastle.operator.jcajce.JcaContentSignerBuilder
 
 object ClientKeyStore {
 
-  private final val Pkcs12KeystoreFilename = "client.p12"
-  private final val BksKeystoreFilename    = "client.keystore"
+  private final val Pkcs12KeyStoreFilename = "client.p12"
+  private final val BksKeyStoreFilename    = "client.keystore"
   private final val EntryAlias             = "identity"
   private final val CommonName             = "com.dhpcs.liquidity"
   private final val KeySize                = 2048
 
   def apply(filesDir: File): ClientKeyStore = {
     val keyStore     = KeyStore.getInstance("PKCS12")
-    val keyStoreFile = new File(filesDir, Pkcs12KeystoreFilename)
+    val keyStoreFile = new File(filesDir, Pkcs12KeyStoreFilename)
     if (!keyStoreFile.exists) {
       val (certificate, privateKey) = loadFromLegacyBksKeyStore(filesDir).getOrElse(generateCertKey())
       keyStore.load(null, null)
@@ -39,12 +39,13 @@ object ClientKeyStore {
       val keyStoreFileOutputStream = new FileOutputStream(keyStoreFile)
       try keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
       finally keyStoreFileOutputStream.close()
+      // TODO: Delete legacy file?
     } else loadIntoKeyStore(keyStoreFile, keyStore)
     new ClientKeyStore(keyStore)
   }
 
   private def loadFromLegacyBksKeyStore(filesDir: File): Option[(X509Certificate, PrivateKey)] = {
-    val keyStoreFile = new File(filesDir, BksKeystoreFilename)
+    val keyStoreFile = new File(filesDir, BksKeyStoreFilename)
     if (!keyStoreFile.exists) None
     else {
       val keyStore = KeyStore.getInstance("BKS")

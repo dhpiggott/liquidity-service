@@ -39,19 +39,20 @@ package object server {
     port
   }
 
-  def delete(path: Path): Unit = Files.walkFileTree(
-    path,
-    new SimpleFileVisitor[Path]() {
-      override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
-        Files.delete(file)
-        FileVisitResult.CONTINUE
-      }
+  def delete(path: Path): Unit = {
+    Files.walkFileTree(
+      path,
+      new SimpleFileVisitor[Path]() {
+        override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
+          Files.delete(file)
+          FileVisitResult.CONTINUE
+        }
 
-      override def postVisitDirectory(dir: Path, exc: IOException): FileVisitResult = {
-        Files.delete(dir)
-        FileVisitResult.CONTINUE
+        override def postVisitDirectory(dir: Path, exc: IOException): FileVisitResult = {
+          Files.delete(dir)
+          FileVisitResult.CONTINUE
+        }
       }
-    }
-  )
-
+    ); ()
+  }
 }

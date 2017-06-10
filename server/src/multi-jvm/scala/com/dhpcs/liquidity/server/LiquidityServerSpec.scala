@@ -248,7 +248,7 @@ sealed abstract class LiquidityServerSpec
       "will send a PingCommand when left idle" in withProtobufWsTestProbes { (sub, _) =>
         sub.within(3.5.seconds)(
           assert(expectProtobufCommand(sub) === protocol.PingCommand)
-        )
+        ); ()
       }
       "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withProtobufWsTestProbes {
         (sub, pub) =>
@@ -278,7 +278,7 @@ sealed abstract class LiquidityServerSpec
               assert(zone.transactions === Map.empty)
               assert(zone.name === Some("Dave's Game"))
               assert(zone.metadata === None)
-          }
+          }; ()
       }
       "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withProtobufWsTestProbes { (sub, pub) =>
         val correlationId = 0L
@@ -318,7 +318,7 @@ sealed abstract class LiquidityServerSpec
           case joinZoneResponse: protocol.JoinZoneResponse =>
             assert(joinZoneResponse.zone === zone)
             assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
-        }
+        }; ()
       }
     }
     "The LiquidityServer JSON-RPC WebSocket API" - {
@@ -327,7 +327,7 @@ sealed abstract class LiquidityServerSpec
           assert(
             expectJsonRpcNotification(sub) === protocol.legacy.SupportedVersionsNotification(
               protocol.legacy.CompatibleVersionNumbers))
-        )
+        ); ()
       }
       "will send a KeepAliveNotification when left idle" in withJsonRpcWsTestProbes { (sub, _) =>
         sub.within(5.seconds)(
@@ -337,7 +337,7 @@ sealed abstract class LiquidityServerSpec
         )
         sub.within(3.5.seconds)(
           assert(expectJsonRpcNotification(sub) === protocol.legacy.KeepAliveNotification)
-        )
+        ); ()
       }
       "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withJsonRpcWsTestProbes {
         (sub, pub) =>
@@ -372,7 +372,7 @@ sealed abstract class LiquidityServerSpec
               assert(zone.transactions === Map.empty)
               assert(zone.name === Some("Dave's Game"))
               assert(zone.metadata === None)
-          }
+          }; ()
       }
       "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withJsonRpcWsTestProbes { (sub, pub) =>
         sub.within(5.seconds)(
@@ -417,7 +417,7 @@ sealed abstract class LiquidityServerSpec
           case joinZoneResponse: protocol.legacy.JoinZoneResponse =>
             assert(joinZoneResponse.zone === zone)
             assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
-        }
+        }; ()
       }
     }
   }
@@ -455,7 +455,9 @@ sealed abstract class LiquidityServerSpec
         .CompleteKeyOwnershipProof(createCompleteKeyOwnershipProofMessage(rsaPrivateKey, keyOwnershipProofNonce))
     )
     try test(sub, pub)
-    finally pub.sendComplete()
+    finally {
+      pub.sendComplete(); ()
+    }
   }
 
   private[this] def withJsonRpcWsTestProbes(
@@ -475,7 +477,9 @@ sealed abstract class LiquidityServerSpec
       clientHttpsConnectionContext
     )
     try test(sub, pub)
-    finally pub.sendComplete()
+    finally {
+      pub.sendComplete(); ()
+    }
   }
 
   private final val ProtobufInFlow: Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
@@ -544,10 +548,11 @@ sealed abstract class LiquidityServerSpec
       )))
 
   private[this] def sendProtobufMessage(pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
-      message: proto.ws.protocol.ServerMessage.Message): Unit =
+      message: proto.ws.protocol.ServerMessage.Message): Unit = {
     pub.sendNext(
       proto.ws.protocol.ServerMessage(message)
-    )
+    ); ()
+  }
 
   private[this] def expectProtobufResponse(sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
                                            expectedCorrelationId: Long): protocol.ServerResponse =
@@ -577,11 +582,12 @@ sealed abstract class LiquidityServerSpec
 
   private[this] def sendJsonRpcCommand(pub: TestPublisher.Probe[LegacyClientConnectionActor.WrappedCommand])(
       command: protocol.legacy.Command,
-      correlationId: Long): Unit =
+      correlationId: Long): Unit = {
     pub.sendNext(
       LegacyClientConnectionActor.WrappedCommand(
         protocol.legacy.Command.write(command, id = NumericCorrelationId(correlationId))
-      ))
+      )); ()
+  }
 
   private[this] def expectJsonRpcResponse(
       sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification],

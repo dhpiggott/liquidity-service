@@ -65,14 +65,10 @@ object LegacyServerConnection {
 
   class ConnectionRequestToken
 
-  object ResponseCallback {
-    def apply(onError: => Unit): ResponseCallback = (_: ErrorResponse) => onError
-  }
-
   trait ResponseCallback {
 
     def onErrorResponse(error: ErrorResponse): Unit
-    def onSuccessResponse(success: SuccessResponse): Unit = ()
+    def onSuccessResponse(success: SuccessResponse): Unit
 
   }
 
@@ -485,8 +481,9 @@ class LegacyServerConnection(filesDir: File,
             }
             webSocket.cancel()
           case WaitingForVersionCheckSubState(webSocket) =>
-            try webSocket.close(code, null)
-            catch {
+            try {
+              webSocket.close(code, null); ()
+            } catch {
               case _: IOException =>
             }
           case OnlineSubState(webSocket) =>
@@ -495,8 +492,9 @@ class LegacyServerConnection(filesDir: File,
               _connectionState = DISCONNECTING
               connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
             }
-            try webSocket.close(code, null)
-            catch {
+            try {
+              webSocket.close(code, null); ()
+            } catch {
               case _: IOException =>
             }
       })

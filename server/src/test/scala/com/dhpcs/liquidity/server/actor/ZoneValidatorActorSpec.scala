@@ -98,7 +98,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       zoneValidatorShardRegion,
       message
     )
-    clientConnectionTestProbe.expectMsg(ZoneCommandReceivedConfirmation(zoneId, deliveryId))
+    clientConnectionTestProbe.expectMsg(ZoneCommandReceivedConfirmation(zoneId, deliveryId)); ()
   }
 
   private[this] def expectResponse(clientConnectionTestProbe: TestProbe,

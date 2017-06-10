@@ -113,7 +113,7 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
       clientConnection,
       WrappedCommand(Command.write(command, id = NumericCorrelationId(correlationId)))
     )
-    sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck)
+    sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck); ()
   }
 
   private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): Response =

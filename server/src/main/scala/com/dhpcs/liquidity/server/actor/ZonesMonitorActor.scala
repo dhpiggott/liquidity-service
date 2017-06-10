@@ -66,7 +66,7 @@ class ZonesMonitorActor(zoneCount: () => Future[Int]) extends Actor with ActorLo
       activeZoneSummaries = activeZoneSummaries + (sender() -> activeZoneSummary)
     case GetZoneCount =>
       val requester = sender()
-      zoneCount().map(ZoneCount).pipeTo(requester)
+      zoneCount().map(ZoneCount).pipeTo(requester); ()
     case GetActiveZonesSummary =>
       sender() ! ActiveZonesSummary(activeZoneSummaries.values.toSet)
     case Terminated(zoneValidator) =>

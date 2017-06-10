@@ -120,8 +120,11 @@ class LiquidityHealthcheck(scheme: Option[String],
 
     private[this] val executor = Executors.newSingleThreadExecutor()
 
-    override def post(runnable: Runnable): Unit = executor.submit(runnable)
-    override def quit(): Unit                   = executor.shutdown()
+    override def post(runnable: Runnable): Unit = {
+      executor.submit(runnable); ()
+    }
+
+    override def quit(): Unit = executor.shutdown()
 
   }
 
@@ -129,8 +132,11 @@ class LiquidityHealthcheck(scheme: Option[String],
 
     private[this] val executor = Executors.newSingleThreadExecutor()
 
-    override def post(runnable: Runnable): Unit = executor.submit(runnable)
-    override def quit(): Unit                   = executor.shutdown()
+    override def post(runnable: Runnable): Unit = {
+      executor.submit(runnable); ()
+    }
+
+    override def quit(): Unit = executor.shutdown()
 
   }
 
@@ -240,14 +246,15 @@ class LiquidityHealthcheck(scheme: Option[String],
       .toMat(TestSink.probe)(Keep.both)
       .run()
     val connectionStateListener = new ServerConnection.ConnectionStateListener {
-      override def onConnectionStateChanged(connectionState: ServerConnection.ConnectionState): Unit =
-        queue.offer(connectionState)
+      override def onConnectionStateChanged(connectionState: ServerConnection.ConnectionState): Unit = {
+        queue.offer(connectionState); ()
+      }
     }
     serverConnection.registerListener(connectionStateListener)
     try test(sub)
     finally {
       serverConnection.unregisterListener(connectionStateListener)
-      sub.cancel()
+      sub.cancel(); ()
     }
   }
 
@@ -258,77 +265,86 @@ class LiquidityHealthcheck(scheme: Option[String],
       .toMat(TestSink.probe)(Keep.both)
       .run()
     val connectionStateListener = new LegacyServerConnection.ConnectionStateListener {
-      override def onConnectionStateChanged(connectionState: LegacyServerConnection.ConnectionState): Unit =
-        queue.offer(connectionState)
+      override def onConnectionStateChanged(connectionState: LegacyServerConnection.ConnectionState): Unit = {
+        queue.offer(connectionState); ()
+      }
     }
     legacyServerConnection.registerListener(connectionStateListener)
     try test(sub)
     finally {
       legacyServerConnection.unregisterListener(connectionStateListener)
-      sub.cancel()
+      sub.cancel(); ()
     }
   }
 
   "The Protobuf service" - {
     "will accept connections" in withServerConnectionStateTestProbe { sub =>
       val connectionRequestToken = new ServerConnection.ConnectionRequestToken
-      sub.requestNext(ServerConnection.AVAILABLE)
+      sub.requestNext(ServerConnection.AVAILABLE); ()
       LegacyMainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
-      sub.requestNext(ServerConnection.CONNECTING)
-      sub.requestNext(ServerConnection.AUTHENTICATING)
-      sub.requestNext(ServerConnection.ONLINE)
+      sub
+        .requestNext(ServerConnection.CONNECTING)
+        .requestNext(ServerConnection.AUTHENTICATING)
+        .requestNext(ServerConnection.ONLINE); ()
       LegacyMainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
-      sub.requestNext(ServerConnection.DISCONNECTING)
-      sub.requestNext(ServerConnection.AVAILABLE)
+      sub
+        .requestNext(ServerConnection.DISCONNECTING)
+        .requestNext(ServerConnection.AVAILABLE); ()
     }
     s"will admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in withServerConnectionStateTestProbe {
       sub =>
         val connectionRequestToken = new ServerConnection.ConnectionRequestToken
-        sub.requestNext(ServerConnection.AVAILABLE)
+        sub.requestNext(ServerConnection.AVAILABLE); ()
         LegacyMainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
-        sub.requestNext(ServerConnection.CONNECTING)
-        sub.requestNext(ServerConnection.AUTHENTICATING)
-        sub.requestNext(ServerConnection.ONLINE)
+        sub
+          .requestNext(ServerConnection.CONNECTING)
+          .requestNext(ServerConnection.AUTHENTICATING)
+          .requestNext(ServerConnection.ONLINE); ()
         inside(send(protocol.JoinZoneCommand(SentinelZone.id)).futureValue) {
           case protocol.JoinZoneResponse(zone, connectedClients) =>
             assert(zone === SentinelZone)
             assert(connectedClients === Set(serverConnection.clientKey))
         }
         LegacyMainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
-        sub.requestNext(ServerConnection.DISCONNECTING)
-        sub.requestNext(ServerConnection.AVAILABLE)
+        sub
+          .requestNext(ServerConnection.DISCONNECTING)
+          .requestNext(ServerConnection.AVAILABLE); ()
     }
   }
   "The JSON-RPC service" - {
     "will accept connections" in withLegacyServerConnectionStateTestProbe { sub =>
       val connectionRequestToken = new LegacyServerConnection.ConnectionRequestToken
-      sub.requestNext(LegacyServerConnection.AVAILABLE)
+      sub.requestNext(LegacyServerConnection.AVAILABLE); ()
       LegacyMainHandlerWrapper.post(() =>
         legacyServerConnection.requestConnection(connectionRequestToken, retry = false))
-      sub.requestNext(LegacyServerConnection.CONNECTING)
-      sub.requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
-      sub.requestNext(LegacyServerConnection.ONLINE)
+      sub
+        .requestNext(LegacyServerConnection.CONNECTING)
+        .requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
+        .requestNext(LegacyServerConnection.ONLINE); ()
       LegacyMainHandlerWrapper.post(() => legacyServerConnection.unrequestConnection(connectionRequestToken))
-      sub.requestNext(LegacyServerConnection.DISCONNECTING)
-      sub.requestNext(LegacyServerConnection.AVAILABLE)
+      sub
+        .requestNext(LegacyServerConnection.DISCONNECTING)
+        .requestNext(LegacyServerConnection.AVAILABLE); ()
     }
     s"will admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in withLegacyServerConnectionStateTestProbe {
       sub =>
         val connectionRequestToken = new LegacyServerConnection.ConnectionRequestToken
-        sub.requestNext(LegacyServerConnection.AVAILABLE)
+        sub.requestNext(LegacyServerConnection.AVAILABLE); ()
         LegacyMainHandlerWrapper.post(() =>
           legacyServerConnection.requestConnection(connectionRequestToken, retry = false))
-        sub.requestNext(LegacyServerConnection.CONNECTING)
-        sub.requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
-        sub.requestNext(LegacyServerConnection.ONLINE)
+        sub
+          .requestNext(LegacyServerConnection.CONNECTING)
+          .requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
+          .requestNext(LegacyServerConnection.ONLINE); ()
         inside(sendLegacy(protocol.legacy.JoinZoneCommand(SentinelZone.id)).futureValue) {
           case protocol.legacy.JoinZoneResponse(zone, connectedClients) =>
             assert(zone === SentinelZone)
             assert(connectedClients === Set(legacyServerConnection.clientKey))
         }
         LegacyMainHandlerWrapper.post(() => legacyServerConnection.unrequestConnection(connectionRequestToken))
-        sub.requestNext(LegacyServerConnection.DISCONNECTING)
-        sub.requestNext(LegacyServerConnection.AVAILABLE)
+        sub
+          .requestNext(LegacyServerConnection.DISCONNECTING)
+          .requestNext(LegacyServerConnection.AVAILABLE); ()
     }
   }
 }

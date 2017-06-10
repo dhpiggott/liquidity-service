@@ -135,7 +135,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       clientConnection,
       proto.ws.protocol.ServerMessage(message)
     )
-    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
+    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck); ()
   }
 
   private[this] def expectServerResponse(upstreamTestProbe: TestProbe): ServerResponse =

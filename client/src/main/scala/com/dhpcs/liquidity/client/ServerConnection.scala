@@ -66,14 +66,17 @@ object ServerConnection {
 
   object ResponseCallback {
     def apply(onError: => Unit): ResponseCallback = new ResponseCallback {
+
       override def onErrorResponse(error: ErrorResponse): Unit = onError
+      override def onSuccessResponse(success: SuccessResponse): Unit = ()
+
     }
   }
 
   trait ResponseCallback {
 
     def onErrorResponse(error: ErrorResponse): Unit
-    def onSuccessResponse(success: SuccessResponse): Unit = ()
+    def onSuccessResponse(success: SuccessResponse): Unit
 
   }
 

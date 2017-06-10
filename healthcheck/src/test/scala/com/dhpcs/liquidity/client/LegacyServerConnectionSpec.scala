@@ -146,8 +146,11 @@ class LegacyServerConnectionSpec
 
     private[this] val executor = Executors.newSingleThreadExecutor()
 
-    override def post(runnable: Runnable): Unit = executor.submit(runnable)
-    override def quit(): Unit                   = executor.shutdown()
+    override def post(runnable: Runnable): Unit = {
+      executor.submit(runnable); ()
+    }
+
+    override def quit(): Unit = executor.shutdown()
 
   }
 
@@ -206,13 +209,15 @@ class LegacyServerConnectionSpec
       .toMat(TestSink.probe[LegacyServerConnection.ConnectionState])(Keep.both)
       .run()
     val connectionStateListener = new ConnectionStateListener {
-      override def onConnectionStateChanged(connectionState: ConnectionState): Unit = queue.offer(connectionState)
+      override def onConnectionStateChanged(connectionState: ConnectionState): Unit = {
+        queue.offer(connectionState); ()
+      }
     }
     serverConnection.registerListener(connectionStateListener)
     try withFixture(test.toNoArgTest(sub))
     finally {
       serverConnection.unregisterListener(connectionStateListener)
-      sub.cancel()
+      sub.cancel(); ()
     }
   }
 

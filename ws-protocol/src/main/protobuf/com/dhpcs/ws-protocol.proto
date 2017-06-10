@@ -19,7 +19,7 @@ message ServerMessage {
     message Response {
         int64 correlation_id = 1;
         oneof response {
-            PingResponse ping_response = 2;
+            bytes ping_response = 2;
         }
     }
     oneof message {
@@ -34,7 +34,7 @@ message ClientMessage {
     message Command {
         int64 correlation_id = 1;
         oneof command {
-            PingCommand ping_command = 2;
+            bytes ping_command = 2;
         }
     }
     message Response {
@@ -68,13 +68,7 @@ message CompleteKeyOwnershipProof {
     bytes signature = 1;
 }
 
-message PingCommand {
-}
-
-message PingResponse {
-}
-
-// TODO: Eliminate these?
+// TODO: Consider removing all of the following and instead exposing the actor-protocol to clients
 
 message ZoneCommand {
     message CreateZoneCommand {
@@ -149,19 +143,11 @@ message ZoneResponse {
         dhpcs.liquidity.model.Zone zone = 1;
         repeated bytes connected_clients = 2;
     }
-    message QuitZoneResponse {
-    }
-    message ChangeZoneNameResponse {
-    }
     message CreateMemberResponse {
         dhpcs.liquidity.model.Member member = 1;
     }
-    message UpdateMemberResponse {
-    }
     message CreateAccountResponse {
         dhpcs.liquidity.model.Account account = 1;
-    }
-    message UpdateAccountResponse {
     }
     message AddTransactionResponse {
         dhpcs.liquidity.model.Transaction transaction = 1;
@@ -170,12 +156,12 @@ message ZoneResponse {
         ErrorResponse error_response = 1;
         CreateZoneResponse create_zone_response = 2;
         JoinZoneResponse join_zone_response = 3;
-        QuitZoneResponse quit_zone_response = 4;
-        ChangeZoneNameResponse change_zone_name_response = 5;
+        bytes quit_zone_response = 4;
+        bytes change_zone_name_response = 5;
         CreateMemberResponse create_member_response = 6;
-        UpdateMemberResponse update_member_response = 7;
+        bytes update_member_response = 7;
         CreateAccountResponse create_account_response = 8;
-        UpdateAccountResponse update_account_response = 9;
+        bytes update_account_response = 9;
         AddTransactionResponse add_transaction_response = 10;
     }
 }

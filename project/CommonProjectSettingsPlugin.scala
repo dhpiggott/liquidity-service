@@ -18,9 +18,7 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
           "-explaintypes",
           "-feature",
           "-unchecked",
-          // TODO: Reorganise the Protobuf containing modules such that _just_ the generated code can be excluded from
-          // all these checks, then enable fatal-warnings.
-          // "-Xfatal-warnings",
+          "-Xfatal-warnings",
           "-Xlint:adapted-args",
           "-Xlint:by-name-right-associative",
           "-Xlint:constant",

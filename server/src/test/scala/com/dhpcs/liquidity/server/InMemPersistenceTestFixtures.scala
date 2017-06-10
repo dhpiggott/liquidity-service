@@ -45,7 +45,7 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |}
      """.stripMargin).resolve()
 
-  protected[this] implicit val system = ActorSystem("liquidity", config)
+  protected[this] implicit val system: ActorSystem = ActorSystem("liquidity", config)
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

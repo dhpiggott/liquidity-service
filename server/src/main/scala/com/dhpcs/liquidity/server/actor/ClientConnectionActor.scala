@@ -323,7 +323,7 @@ class ClientConnectionActor(ip: RemoteAddress,
             clientCommand match {
               case PingCommand =>
                 proto.ws.protocol.ClientMessage.Command.Command.PingCommand(
-                  proto.ws.protocol.PingCommand()
+                  com.google.protobuf.ByteString.EMPTY
                 )
             }
           )

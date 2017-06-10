@@ -107,8 +107,8 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     inside(upstreamTestProbe.expectMsgType[proto.ws.protocol.ClientMessage].message) {
       case proto.ws.protocol.ClientMessage.Message.Command(protoCommand) =>
         inside(protoCommand.command) {
-          case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(protoPingCommand) =>
-            ProtoBinding[PingCommand.type, proto.ws.protocol.PingCommand].asScala(protoPingCommand)
+          case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
+            PingCommand
         }
     }
 

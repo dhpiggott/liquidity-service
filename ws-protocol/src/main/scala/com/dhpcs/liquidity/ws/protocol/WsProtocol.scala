@@ -2,8 +2,6 @@ package com.dhpcs.liquidity.ws.protocol
 
 import com.dhpcs.liquidity.model._
 
-// TODO: Eliminate these?
-
 sealed abstract class Message
 sealed abstract class ClientCommand      extends Message
 sealed abstract class ClientResponse     extends Message

@@ -64,7 +64,6 @@ lazy val wsProtocol = project
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
   .dependsOn(model)
-  // TODO: Restructure to avoid this
   .dependsOn(actorProtocol)
   .dependsOn(protoBinding)
   .dependsOn(model % "test->test")
@@ -77,7 +76,6 @@ lazy val wsLegacyProtocol = project
     name := "liquidity-ws-legacy-protocol"
   )
   .dependsOn(model)
-  // TODO: Restructure to avoid this
   .dependsOn(actorProtocol)
   .dependsOn(protoBinding)
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC3")

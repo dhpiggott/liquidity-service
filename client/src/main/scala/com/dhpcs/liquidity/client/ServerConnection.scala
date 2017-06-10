@@ -67,7 +67,7 @@ object ServerConnection {
   object ResponseCallback {
     def apply(onError: => Unit): ResponseCallback = new ResponseCallback {
 
-      override def onErrorResponse(error: ErrorResponse): Unit = onError
+      override def onErrorResponse(error: ErrorResponse): Unit       = onError
       override def onSuccessResponse(success: SuccessResponse): Unit = ()
 
     }
@@ -324,13 +324,13 @@ class ServerConnection(filesDir: File,
                   case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
                     sendServerMessage(
                       webSocket,
-                      proto.ws.protocol.ServerMessage.Message.Response(proto.ws.protocol.ServerMessage.Response(
-                        protoCommand.correlationId,
-                        proto.ws.protocol.ServerMessage.Response.Response.PingResponse(
-                          ProtoBinding[PingResponse.type, proto.ws.protocol.PingResponse]
-                            .asProto(PingResponse)
-                        )
-                      ))
+                      proto.ws.protocol.ServerMessage.Message.Response(
+                        proto.ws.protocol.ServerMessage.Response(
+                          protoCommand.correlationId,
+                          proto.ws.protocol.ServerMessage.Response.Response.PingResponse(
+                            com.google.protobuf.ByteString.EMPTY
+                          )
+                        ))
                     )
                 })
               case DisconnectingSubState =>

@@ -14,6 +14,18 @@ import scala.util.Random
 
 package object protocol {
 
+  implicit final val PingCommandProtoBinding: ProtoBinding[PingCommand.type, com.google.protobuf.ByteString] =
+    ProtoBinding.instance(
+      _ => com.google.protobuf.ByteString.EMPTY,
+      _ => PingCommand
+    )
+
+  implicit final val PingResponseProtoBinding: ProtoBinding[PingResponse.type, com.google.protobuf.ByteString] =
+    ProtoBinding.instance(
+      _ => com.google.protobuf.ByteString.EMPTY,
+      _ => PingResponse
+    )
+
   // The WS CreateZoneCommand type doesn't have a ZoneId. This is to ensure that only UUIDs generated on the _server_
   // side are used. This is where that generation happens.
   implicit final val ZoneValidatorMessageCreateZoneCommandProtoBinding
@@ -39,6 +51,30 @@ package object protocol {
         createZoneCommand.name,
         createZoneCommand.metadata
     )
+  )
+
+  implicit final val QuitZoneResponseProtoBinding
+    : ProtoBinding[QuitZoneResponse.type, com.google.protobuf.ByteString] = ProtoBinding.instance(
+    _ => com.google.protobuf.ByteString.EMPTY,
+    _ => QuitZoneResponse
+  )
+
+  implicit final val ChangeZoneNameResponseProtoBinding
+    : ProtoBinding[ChangeZoneNameResponse.type, com.google.protobuf.ByteString] = ProtoBinding.instance(
+    _ => com.google.protobuf.ByteString.EMPTY,
+    _ => ChangeZoneNameResponse
+  )
+
+  implicit final val UpdateMemberResponseProtoBinding
+    : ProtoBinding[UpdateMemberResponse.type, com.google.protobuf.ByteString] = ProtoBinding.instance(
+    _ => com.google.protobuf.ByteString.EMPTY,
+    _ => UpdateMemberResponse
+  )
+
+  implicit final val UpdateAccountResponseProtoBinding
+    : ProtoBinding[UpdateAccountResponse.type, com.google.protobuf.ByteString] = ProtoBinding.instance(
+    _ => com.google.protobuf.ByteString.EMPTY,
+    _ => UpdateAccountResponse
   )
 
   def createBeginKeyOwnershipProofMessage(publicKey: RSAPublicKey): proto.ws.protocol.BeginKeyOwnershipProof =

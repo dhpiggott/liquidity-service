@@ -525,9 +525,8 @@ sealed abstract class LiquidityServerSpec
     inside(sub.requestNext().message) {
       case proto.ws.protocol.ClientMessage.Message.Command(protoCommand) =>
         inside(protoCommand.command) {
-          case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(protoPingCommand) =>
-            ProtoBinding[protocol.PingCommand.type, proto.ws.protocol.PingCommand]
-              .asScala(protoPingCommand)
+          case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
+            PingCommand
         }
     }
 

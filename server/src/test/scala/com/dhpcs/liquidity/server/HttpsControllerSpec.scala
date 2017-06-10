@@ -13,7 +13,7 @@ import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.certgen.CertGen
-import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
+import com.dhpcs.liquidity.model.PublicKey
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.FreeSpec
 

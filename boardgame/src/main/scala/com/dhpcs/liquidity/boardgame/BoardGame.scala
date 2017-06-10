@@ -15,9 +15,11 @@ import scala.concurrent.Future
 object BoardGame {
 
   trait GameDatabase {
+
     def insertGame(zoneId: ZoneId, created: Long, expires: Long, name: String): Long
     def checkAndUpdateGame(zoneId: ZoneId, name: String): java.lang.Long
     def updateGameName(gameId: Long, name: String): Unit
+
   }
 
   sealed abstract class JoinState
@@ -34,10 +36,12 @@ object BoardGame {
   case object DISCONNECTING   extends JoinState
 
   sealed abstract class Player extends Serializable {
+
     def zoneId: ZoneId
     def member: Member
     def account: Account
     def isBanker: Boolean
+
   }
 
   sealed abstract class Identity extends Player
@@ -57,10 +61,12 @@ object BoardGame {
       extends Identity
 
   sealed abstract class Transfer extends Serializable {
+
     def creator: Either[(MemberId, Member), Player]
     def from: Either[(AccountId, Account), Player]
     def to: Either[(AccountId, Account), Player]
     def transaction: Transaction
+
   }
   final case class TransferWithCurrency(from: Either[(AccountId, Account), Player],
                                         to: Either[(AccountId, Account), Player],
@@ -74,6 +80,7 @@ object BoardGame {
   }
 
   trait GameActionListener {
+
     def onChangeGameNameError(name: Option[String]): Unit
     def onChangeIdentityNameError(name: Option[String]): Unit
     def onCreateIdentityAccountError(name: Option[String]): Unit
@@ -100,6 +107,7 @@ object BoardGame {
     def onTransfersChanged(changedTransfers: Iterable[TransferWithCurrency]): Unit
     def onTransfersInitialized(transfers: Iterable[TransferWithCurrency]): Unit
     def onTransfersUpdated(transfers: Map[TransactionId, TransferWithCurrency]): Unit
+
   }
 
   class JoinRequestToken

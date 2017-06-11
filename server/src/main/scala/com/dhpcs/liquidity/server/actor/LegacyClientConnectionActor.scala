@@ -13,9 +13,8 @@ import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, NumericCorrelationId, StringCorrelationId}
 import com.dhpcs.jsonrpc._
-import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.{ZoneValidatorMessage, _}
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
-import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import play.api.libs.json.{JsError, JsSuccess, Json}
@@ -203,31 +202,121 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
                   error = "Floating point correlation IDs are not supported",
                   correlationId = jsonRpcRequestMessage.id
                 )
-              case NumericCorrelationId(value) =>
-                command match {
-                  case zoneCommand: ZoneCommand =>
-                    handleZoneCommand(zoneCommand, value.toLongExact)
+              case numericCorrelationId: NumericCorrelationId =>
+                val (zoneId, zoneCommand) = command match {
+                  case CreateZoneCommand(equityOwnerPublicKey,
+                                         equityOwnerName,
+                                         equityOwnerMetadata,
+                                         equityAccountName,
+                                         equityAccountMetadata,
+                                         name,
+                                         metadata) =>
+                    ZoneId.generate -> ZoneValidatorMessage.CreateZoneCommand(equityOwnerPublicKey,
+                                                                              equityOwnerName,
+                                                                              equityOwnerMetadata,
+                                                                              equityAccountName,
+                                                                              equityAccountMetadata,
+                                                                              name,
+                                                                              metadata)
+                  case zoneCommand @ JoinZoneCommand(_) =>
+                    zoneCommand.zoneId -> ZoneValidatorMessage.JoinZoneCommand
+                  case zoneCommand @ QuitZoneCommand(_) =>
+                    zoneCommand.zoneId -> ZoneValidatorMessage.QuitZoneCommand
+                  case zoneCommand @ ChangeZoneNameCommand(_, name) =>
+                    zoneCommand.zoneId -> ZoneValidatorMessage.ChangeZoneNameCommand(name)
+                  case zoneCommand @ CreateMemberCommand(_, ownerPublicKey, name, metadata) =>
+                    zoneCommand.zoneId -> ZoneValidatorMessage.CreateMemberCommand(ownerPublicKey, name, metadata)
+                  case zoneCommand @ UpdateMemberCommand(_, member) =>
+                    zoneCommand.zoneId -> ZoneValidatorMessage.UpdateMemberCommand(member)
+                  case zoneCommand @ CreateAccountCommand(_, ownerMemberIds, name, metadata) =>
+                    zoneCommand.zoneId -> ZoneValidatorMessage.CreateAccountCommand(ownerMemberIds, name, metadata)
+                  case zoneCommand @ UpdateAccountCommand(_, account) =>
+                    zoneCommand.zoneId -> ZoneValidatorMessage.UpdateAccountCommand(account)
+                  case zoneCommand @ AddTransactionCommand(_, actingAs, from, to, value, description, metadata) =>
+                    zoneCommand.zoneId -> ZoneValidatorMessage.AddTransactionCommand(actingAs,
+                                                                                     from,
+                                                                                     to,
+                                                                                     value,
+                                                                                     description,
+                                                                                     metadata)
                 }
+                deliverZoneCommand(zoneId, zoneCommand, numericCorrelationId.value.toLongExact)
             }
         }
       case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
-        exactlyOnce(sequenceNumber, deliveryId)(
-          // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          // Converting it back to the WS type is what ensures we'll then end up generating a fresh ZoneId when we then
-          // convert it back again _from_ the WS type.
-          handleZoneCommand(ProtoBinding[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
-                            correlationId)
-        )
-      case ZoneResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
-        exactlyOnce(sequenceNumber, deliveryId)(
-          // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendResponse(ProtoBinding[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asScala(response), correlationId)
-        )
-      case ZoneNotificationWithIds(notification, sequenceNumber, deliveryId) =>
-        exactlyOnce(sequenceNumber, deliveryId)(
-          // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendNotification(ProtoBinding[ZoneNotification, ZoneValidatorMessage.ZoneNotification].asScala(notification))
-        )
+        exactlyOnce(sequenceNumber, deliveryId) {
+          val zoneId         = ZoneId.generate
+          val sequenceNumber = commandSequenceNumbers(zoneId)
+          commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+          deliver(zoneValidatorShardRegion.path) { deliveryId =>
+            pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+            EnvelopedZoneCommand(
+              zoneId,
+              createZoneCommand,
+              publicKey,
+              correlationId,
+              sequenceNumber,
+              deliveryId
+            )
+          }
+        }
+      case ZoneResponseWithIds(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
+        exactlyOnce(sequenceNumber, deliveryId) {
+          val response = zoneResponse match {
+            case ZoneValidatorMessage.EmptyZoneResponse =>
+              sys.error("Inconceivable")
+            case ZoneValidatorMessage.ErrorResponse(error) =>
+              ErrorResponse(error)
+            case successResponse: ZoneValidatorMessage.SuccessResponse =>
+              successResponse match {
+                case ZoneValidatorMessage.CreateZoneResponse(zone) =>
+                  CreateZoneResponse(zone)
+                case ZoneValidatorMessage.JoinZoneResponse(zone, connectedClients) =>
+                  JoinZoneResponse(zone, connectedClients)
+                case ZoneValidatorMessage.QuitZoneResponse =>
+                  QuitZoneResponse
+                case ZoneValidatorMessage.ChangeZoneNameResponse =>
+                  ChangeZoneNameResponse
+                case ZoneValidatorMessage.CreateMemberResponse(member) =>
+                  CreateMemberResponse(member)
+                case ZoneValidatorMessage.UpdateMemberResponse =>
+                  UpdateMemberResponse
+                case ZoneValidatorMessage.CreateAccountResponse(account) =>
+                  CreateAccountResponse(account)
+                case ZoneValidatorMessage.UpdateAccountResponse =>
+                  UpdateAccountResponse
+                case ZoneValidatorMessage.AddTransactionResponse(transaction) =>
+                  AddTransactionResponse(transaction)
+              }
+          }
+          sendResponse(response, correlationId)
+        }
+      case ZoneNotificationWithIds(zoneNotification, sequenceNumber, deliveryId) =>
+        exactlyOnce(sequenceNumber, deliveryId) {
+          val notification = zoneNotification match {
+            case ZoneValidatorMessage.EmptyZoneNotification =>
+              sys.error("Inconceivable")
+            case ZoneValidatorMessage.ClientJoinedZoneNotification(zoneId, _publicKey) =>
+              ClientJoinedZoneNotification(zoneId, _publicKey)
+            case ZoneValidatorMessage.ClientQuitZoneNotification(zoneId, _publicKey) =>
+              ClientQuitZoneNotification(zoneId, _publicKey)
+            case ZoneValidatorMessage.ZoneTerminatedNotification(zoneId) =>
+              ZoneTerminatedNotification(zoneId)
+            case ZoneValidatorMessage.ZoneNameChangedNotification(zoneId, name) =>
+              ZoneNameChangedNotification(zoneId, name)
+            case ZoneValidatorMessage.MemberCreatedNotification(zoneId, member) =>
+              MemberCreatedNotification(zoneId, member)
+            case ZoneValidatorMessage.MemberUpdatedNotification(zoneId, member) =>
+              MemberUpdatedNotification(zoneId, member)
+            case ZoneValidatorMessage.AccountCreatedNotification(zoneId, account) =>
+              AccountCreatedNotification(zoneId, account)
+            case ZoneValidatorMessage.AccountUpdatedNotification(zoneId, account) =>
+              AccountUpdatedNotification(zoneId, account)
+            case ZoneValidatorMessage.TransactionAddedNotification(zoneId, transaction) =>
+              TransactionAddedNotification(zoneId, transaction)
+          }
+          sendNotification(notification)
+        }
       case ZoneRestarted(zoneId) =>
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
           ZoneId(UUID.fromString(validator.path.name)) != zoneId)
@@ -260,17 +349,17 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
     case SendKeepAlive => sendNotification(KeepAliveNotification)
   }
 
-  private[this] def handleZoneCommand(zoneCommand: ZoneCommand, correlationId: Long) = {
-    // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-    val protoZoneCommand = ProtoBinding[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
-    val zoneId           = protoZoneCommand.zoneId
-    val sequenceNumber   = commandSequenceNumbers(zoneId)
+  private[this] def deliverZoneCommand(zoneId: ZoneId,
+                                       zoneCommand: ZoneValidatorMessage.ZoneCommand,
+                                       correlationId: Long) = {
+    val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      AuthenticatedZoneCommandWithIds(
+      EnvelopedZoneCommand(
+        zoneId,
+        zoneCommand,
         publicKey,
-        protoZoneCommand,
         correlationId,
         sequenceNumber,
         deliveryId
@@ -280,9 +369,8 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
 
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
     val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
-    if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
+    if (sequenceNumber <= nextExpectedMessageSequenceNumber)
       sender() ! MessageReceivedConfirmation(deliveryId)
-    }
     if (sequenceNumber == nextExpectedMessageSequenceNumber) {
       nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
       body
@@ -294,9 +382,6 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
 
   private[this] def sendResponse(response: Response, correlationId: Long): Unit =
     response match {
-      case EmptyZoneResponse =>
-        log.error("Received inconceivable EmptyZoneResponse! Stopping...")
-        context.stop(self)
       case ErrorResponse(error) =>
         sendErrorResponse(error, NumericCorrelationId(correlationId))
       case successResponse: SuccessResponse =>

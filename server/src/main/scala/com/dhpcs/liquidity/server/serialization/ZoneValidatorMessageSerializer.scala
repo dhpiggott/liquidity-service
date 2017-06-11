@@ -13,7 +13,7 @@ class ZoneValidatorMessageSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(
-        AnyRefProtoBinding[AuthenticatedZoneCommandWithIds, proto.actor.protocol.AuthenticatedZoneCommandWithIds],
+        AnyRefProtoBinding[EnvelopedZoneCommand, proto.actor.protocol.EnvelopedZoneCommand],
         AnyRefProtoBinding[ZoneCommandReceivedConfirmation, proto.actor.protocol.ZoneCommandReceivedConfirmation],
         AnyRefProtoBinding[ZoneAlreadyExists, proto.actor.protocol.ZoneAlreadyExists],
         AnyRefProtoBinding[ZoneRestarted, proto.actor.protocol.ZoneRestarted],

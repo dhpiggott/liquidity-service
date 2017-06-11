@@ -26,15 +26,13 @@ object ZoneValidatorActor {
   final val ShardTypeName = "zone-validator"
 
   val extractEntityId: ShardRegion.ExtractEntityId = {
-    case authenticatedCommandWithIds @ AuthenticatedZoneCommandWithIds(_, command: ZoneCommand, _, _, _) =>
-      (command.zoneId.id.toString, authenticatedCommandWithIds)
+    case envelopedZoneCommand: EnvelopedZoneCommand => (envelopedZoneCommand.zoneId.id.toString, envelopedZoneCommand)
   }
 
   private val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
-    case AuthenticatedZoneCommandWithIds(_, command: ZoneCommand, _, _, _) =>
-      (math.abs(command.zoneId.id.hashCode) % NumberOfShards).toString
+    case EnvelopedZoneCommand(zoneId, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
   }
 
   private final val RequiredOwnerKeySize = 2048
@@ -273,12 +271,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def waitForZone: Receive =
     publishStatus orElse messageReceivedConfirmation orElse waitForTimeout orElse {
-      case AuthenticatedZoneCommandWithIds(_, command, correlationId, sequenceNumber, deliveryId) =>
+      case EnvelopedZoneCommand(_, command, _, correlationId, sequenceNumber, deliveryId) =>
         passivationCountdownActor ! CommandReceivedEvent
         exactlyOnce(sequenceNumber, deliveryId) {
           command match {
             case CreateZoneCommand(
-                _,
                 equityOwnerPublicKey,
                 equityOwnerName,
                 equityOwnerMetadata,
@@ -341,7 +338,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def withZone: Receive =
     publishStatus orElse messageReceivedConfirmation orElse waitForTimeout orElse {
-      case AuthenticatedZoneCommandWithIds(publicKey, command, correlationId, sequenceNumber, deliveryId) =>
+      case EnvelopedZoneCommand(_, command, publicKey, correlationId, sequenceNumber, deliveryId) =>
         passivationCountdownActor ! CommandReceivedEvent
         exactlyOnce(sequenceNumber, deliveryId)(
           handleCommand(publicKey, command, correlationId)
@@ -411,7 +408,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) + deliveryId))
           ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId)
         }
-      case JoinZoneCommand(_) =>
+      case JoinZoneCommand =>
         if (state.clientConnections.contains(sender().path))
           deliverResponse(ErrorResponse("Zone already joined"), correlationId)
         else
@@ -425,7 +422,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             )
             self ! PublishStatus
           }
-      case QuitZoneCommand(_) =>
+      case QuitZoneCommand =>
         if (!state.clientConnections.contains(sender().path))
           deliverResponse(ErrorResponse("Zone not joined"), correlationId)
         else
@@ -436,7 +433,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             )
             self ! PublishStatus
           }
-      case ChangeZoneNameCommand(_, name) =>
+      case ChangeZoneNameCommand(name) =>
         checkTagAndMetadata(name, None) match {
           case Some(error) =>
             deliverResponse(ErrorResponse(error), correlationId)
@@ -456,7 +453,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               )
             }
         }
-      case CreateMemberCommand(_, ownerPublicKey, name, metadata) =>
+      case CreateMemberCommand(ownerPublicKey, name, metadata) =>
         checkOwnerPublicKey(ownerPublicKey).orElse(checkTagAndMetadata(name, metadata)) match {
           case Some(error) =>
             deliverResponse(ErrorResponse(error), correlationId)
@@ -484,7 +481,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               )
             }
         }
-      case UpdateMemberCommand(_, member) =>
+      case UpdateMemberCommand(member) =>
         checkCanModify(state.zone, member.id, publicKey)
           .orElse(checkOwnerPublicKey(member.ownerPublicKey))
           .orElse(checkTagAndMetadata(member.name, member.metadata)) match {
@@ -506,7 +503,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               )
             }
         }
-      case CreateAccountCommand(_, owners, name, metadata) =>
+      case CreateAccountCommand(owners, name, metadata) =>
         checkAccountOwners(state.zone, owners).orElse(checkTagAndMetadata(name, metadata)) match {
           case Some(error) =>
             deliverResponse(ErrorResponse(error), correlationId)
@@ -534,7 +531,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               )
             }
         }
-      case UpdateAccountCommand(_, account) =>
+      case UpdateAccountCommand(account) =>
         checkCanModify(state.zone, account.id, publicKey).orElse(
           checkAccountOwners(state.zone, account.ownerMemberIds)
             .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
@@ -556,7 +553,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               )
             }
         }
-      case AddTransactionCommand(_, actingAs, from, to, value, description, metadata) =>
+      case AddTransactionCommand(actingAs, from, to, value, description, metadata) =>
         checkCanModify(state.zone, from, actingAs, publicKey).orElse(
           checkTransaction(from, to, value, state.zone, state.balances)
             .orElse(checkTagAndMetadata(description, metadata))) match {

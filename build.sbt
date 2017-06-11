@@ -61,11 +61,11 @@ lazy val wsProtocol = project
     name := "liquidity-ws-protocol"
   )
   .settings(
-    PB.includePaths in Compile += file("model/src/main/protobuf")
+    PB.includePaths in Compile += file("model/src/main/protobuf"),
+    PB.includePaths in Compile += file("actor-protocol/src/main/protobuf")
   )
   .dependsOn(model)
   .dependsOn(actorProtocol)
-  .dependsOn(protoBinding)
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
@@ -76,8 +76,6 @@ lazy val wsLegacyProtocol = project
     name := "liquidity-ws-legacy-protocol"
   )
   .dependsOn(model)
-  .dependsOn(actorProtocol)
-  .dependsOn(protoBinding)
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC3")
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)

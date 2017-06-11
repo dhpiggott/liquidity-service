@@ -4,6 +4,7 @@ import java.util.UUID
 
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
+// TODO: Move all bindings into a ProtoBindings object
 package object model {
 
   final val KeySize = 2048

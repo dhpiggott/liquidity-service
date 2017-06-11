@@ -12,6 +12,7 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.{TestKit, TestProbe}
+import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
 import com.dhpcs.liquidity.model._
@@ -149,14 +150,16 @@ class ServerConnectionSpec
     port = akkaHttpPort
   )
 
-  private[this] def send(command: ServerCommand): Future[ServerResponse] = {
-    val promise = Promise[ServerResponse]
+  private[this] def sendCreateZoneCommand(
+      createZoneCommand: ZoneValidatorMessage.CreateZoneCommand): Future[ZoneValidatorMessage.ZoneResponse] = {
+    val promise = Promise[ZoneValidatorMessage.ZoneResponse]
     MainHandlerWrapper.post(
-      serverConnection.sendServerCommand(
-        command,
-        new ResponseCallback {
-          override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
-          override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
+      serverConnection.sendCreateZoneCommand(
+        createZoneCommand,
+        new ServerConnection.ResponseCallback {
+          override def onErrorResponse(error: ZoneValidatorMessage.ErrorResponse): Unit = promise.success(error)
+          override def onSuccessResponse(success: ZoneValidatorMessage.SuccessResponse): Unit =
+            promise.success(success)
         }
       ))
     promise.future
@@ -230,7 +233,7 @@ class ServerConnectionSpec
       sub.requestNext(AVAILABLE)
     }
     "will complete with a CreateZoneResponse when forwarding a CreateZoneCommand" in { sub =>
-      val createZoneCommand = CreateZoneCommand(
+      val createZoneCommand = ZoneValidatorMessage.CreateZoneCommand(
         equityOwnerPublicKey = serverConnection.clientKey,
         equityOwnerName = Some("Dave"),
         equityOwnerMetadata = None,
@@ -240,13 +243,16 @@ class ServerConnectionSpec
       )
       val created = System.currentTimeMillis
       val expires = created + 2.days.toMillis
-      val createZoneResponse = CreateZoneResponse(
+      val createZoneResponse = ZoneValidatorMessage.CreateZoneResponse(
         zone = Zone(
           id = ZoneId.generate,
           equityAccountId = AccountId(0),
-          members =
-            Map(MemberId(0)           -> Member(MemberId(0), ownerPublicKey = serverConnection.clientKey, name = Some("Dave"))),
-          accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
+          members = Map(
+            MemberId(0) -> Member(MemberId(0), ownerPublicKey = serverConnection.clientKey, name = Some("Dave"))
+          ),
+          accounts = Map(
+            AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
+          ),
           transactions = Map.empty,
           created,
           expires,
@@ -283,15 +289,16 @@ class ServerConnectionSpec
                                      completeKeyOwnershipProofMessage))
       }
       sub.requestNext(ONLINE)
-      val response = send(createZoneCommand)
+      val response = sendCreateZoneCommand(createZoneCommand)
       inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
         case proto.ws.protocol.ServerMessage.Message.Command(protoCommand) =>
           assert(protoCommand.correlationId === 0L)
           inside(protoCommand.command) {
-            case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
+            case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
               assert(
-                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                  .asScala(protoZoneCommand.zoneCommand) === createZoneCommand
+                ProtoBinding[ZoneValidatorMessage.CreateZoneCommand,
+                             proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+                  .asScala(protoCreateZoneCommand) === createZoneCommand
               )
           }
       }
@@ -301,8 +308,8 @@ class ServerConnectionSpec
           proto.ws.protocol.ClientMessage(
             proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
               correlationId = 0L,
-              proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.ws.protocol.ZoneResponse(
-                ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+              proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.actor.protocol.ZoneResponse(
+                ProtoBinding[ZoneValidatorMessage.ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
                   .asProto(createZoneResponse)
               ))
             ))),

@@ -11,6 +11,18 @@ package object protocol {
   final val ClientStatusTopic = "Client"
   final val ZoneStatusTopic   = "Zone"
 
+  implicit final val JoinZoneCommandProtoBinding: ProtoBinding[JoinZoneCommand.type, com.google.protobuf.ByteString] =
+    ProtoBinding.instance(
+      _ => com.google.protobuf.ByteString.EMPTY,
+      _ => JoinZoneCommand
+    )
+
+  implicit final val QuitZoneCommandProtoBinding: ProtoBinding[QuitZoneCommand.type, com.google.protobuf.ByteString] =
+    ProtoBinding.instance(
+      _ => com.google.protobuf.ByteString.EMPTY,
+      _ => QuitZoneCommand
+    )
+
   implicit final val QuitZoneResponseProtoBinding
     : ProtoBinding[QuitZoneResponse.type, com.google.protobuf.ByteString] = ProtoBinding.instance(
     _ => com.google.protobuf.ByteString.EMPTY,

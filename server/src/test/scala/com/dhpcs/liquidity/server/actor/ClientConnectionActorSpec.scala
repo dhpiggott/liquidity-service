@@ -43,7 +43,9 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     "will send a PingCommand when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
       upstreamTestProbe.within(3.5.seconds)(
-        assert(expectClientCommand(upstreamTestProbe) === PingCommand)
+        assert(
+          expectClientCommand(upstreamTestProbe) === proto.ws.protocol.ClientMessage.Command.Command
+            .PingCommand(com.google.protobuf.ByteString.EMPTY))
       )
     }
     "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
@@ -60,7 +62,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
         proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof(
           createCompleteKeyOwnershipProofMessage(ModelSpec.rsaPrivateKey, keyOwnershipProofNonce))
       )
-      val command = CreateZoneCommand(
+      val createZoneCommand = ZoneValidatorMessage.CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
         equityOwnerName = Some("Dave"),
         equityOwnerMetadata = None,
@@ -69,15 +71,15 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
         name = Some("Dave's Game")
       )
       val correlationId = 0L
-      sendServerCommand(sinkTestProbe, clientConnection)(command, correlationId)
-      val authenticatedZoneCommandWithIds =
-        zoneValidatorShardRegionTestProbe.expectMsgType[AuthenticatedZoneCommandWithIds]
-      assert(authenticatedZoneCommandWithIds.publicKey === publicKey)
-      assert(authenticatedZoneCommandWithIds.correlationId === correlationId)
-      assert(authenticatedZoneCommandWithIds.sequenceNumber === 1L)
-      assert(authenticatedZoneCommandWithIds.deliveryId === 1L)
-      val zoneId = authenticatedZoneCommandWithIds.command.zoneId
-      val result = CreateZoneResponse({
+      sendCreateZoneCommand(sinkTestProbe, clientConnection)(createZoneCommand, correlationId)
+      val envelopedZoneCommand =
+        zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedZoneCommand]
+      assert(envelopedZoneCommand.publicKey === publicKey)
+      assert(envelopedZoneCommand.correlationId === correlationId)
+      assert(envelopedZoneCommand.sequenceNumber === 1L)
+      assert(envelopedZoneCommand.deliveryId === 1L)
+      val zoneId = envelopedZoneCommand.zoneId
+      val result = ZoneValidatorMessage.CreateZoneResponse({
         val created = System.currentTimeMillis
         Zone(
           id = zoneId,
@@ -93,41 +95,29 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-        ZoneResponseWithIds(ProtoBinding[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asProto(result),
-                            correlationId,
-                            sequenceNumber = 1L,
-                            deliveryId = 1L)
+        ZoneResponseWithIds(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
       )
-      assert(expectServerResponse(upstreamTestProbe) === result)
+      assert(expectZoneResponse(upstreamTestProbe) === result)
     }
   }
 
-  private[this] def expectClientCommand(upstreamTestProbe: TestProbe): ClientCommand =
+  private[this] def expectClientCommand(
+      upstreamTestProbe: TestProbe): proto.ws.protocol.ClientMessage.Command.Command =
     inside(upstreamTestProbe.expectMsgType[proto.ws.protocol.ClientMessage].message) {
-      case proto.ws.protocol.ClientMessage.Message.Command(protoCommand) =>
-        inside(protoCommand.command) {
-          case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
-            PingCommand
-        }
+      case proto.ws.protocol.ClientMessage.Message.Command(proto.ws.protocol.ClientMessage.Command(_, protoCommand)) =>
+        protoCommand
     }
 
-  private[this] def sendServerCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(
-      serverCommand: ServerCommand,
+  private[this] def sendCreateZoneCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(
+      createZoneCommand: ZoneValidatorMessage.CreateZoneCommand,
       correlationId: Long): Unit =
     sendMessage(sinkTestProbe, clientConnection)(
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
-        serverCommand match {
-          case zoneCommand: ZoneCommand =>
-            proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(
-              proto.ws.protocol.ZoneCommand(
-                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                  .asProto(zoneCommand)
-              ))
-        }
-      ))
-    )
+        proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
+          ProtoBinding[ZoneValidatorMessage.CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+            .asProto(createZoneCommand))
+      )))
 
   private[this] def sendMessage(sinkTestProbe: TestProbe, clientConnection: ActorRef)(
       message: proto.ws.protocol.ServerMessage.Message): Unit = {
@@ -138,12 +128,12 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck); ()
   }
 
-  private[this] def expectServerResponse(upstreamTestProbe: TestProbe): ServerResponse =
+  private[this] def expectZoneResponse(upstreamTestProbe: TestProbe): ZoneValidatorMessage.ZoneResponse =
     inside(expectMessage(upstreamTestProbe)) {
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+            ProtoBinding[ZoneValidatorMessage.ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
               .asScala(protoZoneResponse.zoneResponse)
         }
     }

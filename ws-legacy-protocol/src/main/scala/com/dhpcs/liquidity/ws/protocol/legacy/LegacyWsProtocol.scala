@@ -112,7 +112,6 @@ sealed abstract class Response     extends Message
 sealed abstract class Notification extends Message
 
 sealed abstract class ZoneCommand extends Command
-case object EmptyZoneCommand      extends ZoneCommand
 final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                    equityOwnerName: Option[String],
                                    equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
@@ -192,7 +191,6 @@ object Command extends CommandCompanion[Command] {
 }
 
 sealed abstract class ZoneResponse                                              extends Response
-case object EmptyZoneResponse                                                   extends ZoneResponse
 final case class ErrorResponse(error: String)                                   extends ZoneResponse
 sealed abstract class SuccessResponse                                           extends ZoneResponse
 final case class CreateZoneResponse(zone: Zone)                                 extends SuccessResponse
@@ -219,14 +217,9 @@ object SuccessResponse extends ResponseCompanion[SuccessResponse] {
   )
 }
 
-final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Long]) extends Notification
-case object KeepAliveNotification                                                   extends Notification
-sealed abstract class ZoneNotification extends Notification {
-  def zoneId: ZoneId
-}
-case object EmptyZoneNotification extends ZoneNotification {
-  override def zoneId: ZoneId = sys.error("EmptyZoneNotification")
-}
+final case class SupportedVersionsNotification(compatibleVersionNumbers: Set[Long])     extends Notification
+case object KeepAliveNotification                                                       extends Notification
+sealed abstract class ZoneNotification                                                  extends Notification
 final case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey)     extends ZoneNotification
 final case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey)       extends ZoneNotification
 final case class ZoneTerminatedNotification(zoneId: ZoneId)                             extends ZoneNotification

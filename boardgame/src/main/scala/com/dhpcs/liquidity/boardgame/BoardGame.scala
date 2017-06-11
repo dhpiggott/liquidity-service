@@ -7,7 +7,6 @@ import com.dhpcs.liquidity.boardgame.BoardGame._
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.ws.protocol._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -328,45 +327,45 @@ class BoardGame private (serverConnection: ServerConnection,
     state.connectedClients.contains(publicKey)
 
   def changeGameName(name: String): Unit =
-    serverConnection.sendServerCommand(
-      ChangeZoneNameCommand(
-        zoneId.get,
+    serverConnection.sendZoneCommand(
+      zoneId.get,
+      ZoneValidatorMessage.ChangeZoneNameCommand(
         Some(name)
       ),
       responseCallback = ResponseCallback(gameActionListeners.foreach(_.onChangeGameNameError(Some(name))))
     )
 
   def createIdentity(name: String): Unit =
-    serverConnection.sendServerCommand(
-      CreateMemberCommand(
-        zoneId.get,
+    serverConnection.sendZoneCommand(
+      zoneId.get,
+      ZoneValidatorMessage.CreateMemberCommand(
         serverConnection.clientKey,
         Some(name)
       ),
       new ResponseCallback {
-        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
+        override def onErrorResponse(errorResponse: ZoneValidatorMessage.ErrorResponse): Unit =
           gameActionListeners.foreach(_.onCreateIdentityMemberError(Some(name)))
 
-        override def onSuccessResponse(successResponse: SuccessResponse): Unit = {
-          val createMemberResponse = successResponse.asInstanceOf[CreateMemberResponse]
+        override def onSuccessResponse(successResponse: ZoneValidatorMessage.SuccessResponse): Unit = {
+          val createMemberResponse = successResponse.asInstanceOf[ZoneValidatorMessage.CreateMemberResponse]
           createAccount(createMemberResponse.member)
         }
       }
     )
 
   def changeIdentityName(identity: Identity, name: String): Unit =
-    serverConnection.sendServerCommand(
-      UpdateMemberCommand(
-        zoneId.get,
+    serverConnection.sendZoneCommand(
+      zoneId.get,
+      ZoneValidatorMessage.UpdateMemberCommand(
         state.identities(identity.member.id).member.copy(name = Some(name))
       ),
       responseCallback = ResponseCallback(gameActionListeners.foreach(_.onChangeIdentityNameError(Some(name))))
     )
 
   def transferIdentity(identity: Identity, toPublicKey: PublicKey): Unit =
-    serverConnection.sendServerCommand(
-      UpdateMemberCommand(
-        zoneId.get,
+    serverConnection.sendZoneCommand(
+      zoneId.get,
+      ZoneValidatorMessage.UpdateMemberCommand(
         state.identities(identity.member.id).member.copy(ownerPublicKey = toPublicKey)
       ),
       responseCallback = ResponseCallback(gameActionListeners.foreach(_.onTransferIdentityError(identity.member.name)))
@@ -374,9 +373,9 @@ class BoardGame private (serverConnection: ServerConnection,
 
   def deleteIdentity(identity: Identity): Unit = {
     val member = state.identities(identity.member.id).member
-    serverConnection.sendServerCommand(
-      UpdateMemberCommand(
-        zoneId.get,
+    serverConnection.sendZoneCommand(
+      zoneId.get,
+      ZoneValidatorMessage.UpdateMemberCommand(
         member.copy(
           metadata = Some(
             member.metadata
@@ -392,9 +391,9 @@ class BoardGame private (serverConnection: ServerConnection,
 
   def restoreIdentity(identity: Identity): Unit = {
     val member = state.hiddenIdentities(identity.member.id).member
-    serverConnection.sendServerCommand(
-      UpdateMemberCommand(
-        zoneId.get,
+    serverConnection.sendZoneCommand(
+      zoneId.get,
+      ZoneValidatorMessage.UpdateMemberCommand(
         member.copy(
           metadata = member.metadata.map(
             metadata =>
@@ -410,9 +409,9 @@ class BoardGame private (serverConnection: ServerConnection,
   def transferToPlayer(actingAs: Identity, from: Identity, to: Seq[Player], value: BigDecimal): Unit =
     to.foreach(
       to =>
-        serverConnection.sendServerCommand(
-          AddTransactionCommand(
-            zoneId.get,
+        serverConnection.sendZoneCommand(
+          zoneId.get,
+          ZoneValidatorMessage.AddTransactionCommand(
             actingAs.member.id,
             from.account.id,
             to.account.id,
@@ -497,15 +496,14 @@ class BoardGame private (serverConnection: ServerConnection,
           state = null
           _joinState = BoardGame.QUITTING
           joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-          serverConnection.sendServerCommand(
-            QuitZoneCommand(
-              zoneId.get
-            ),
+          serverConnection.sendZoneCommand(
+            zoneId.get,
+            ZoneValidatorMessage.QuitZoneCommand,
             new ResponseCallback {
-              override def onErrorResponse(errorResponse: ErrorResponse): Unit =
+              override def onErrorResponse(errorResponse: ZoneValidatorMessage.ErrorResponse): Unit =
                 gameActionListeners.foreach(_.onQuitGameError())
 
-              override def onSuccessResponse(successResponse: SuccessResponse): Unit =
+              override def onSuccessResponse(successResponse: ZoneValidatorMessage.SuccessResponse): Unit =
                 if (joinRequestTokens.nonEmpty) {
                   state = null
                   _joinState = BoardGame.JOINING
@@ -581,7 +579,7 @@ class BoardGame private (serverConnection: ServerConnection,
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
   }
 
-  override def onZoneNotificationReceived(zoneNotification: ZoneNotification): Unit =
+  override def onZoneNotificationReceived(zoneNotification: ZoneValidatorMessage.ZoneNotification): Unit =
     if (_joinState == BoardGame.JOINED && zoneId.get == zoneNotification.zoneId) {
       def updatePlayersAndTransactions(): Unit = {
         val (updatedPlayers, updatedHiddenPlayers) = playersFromMembersAccounts(
@@ -632,8 +630,8 @@ class BoardGame private (serverConnection: ServerConnection,
         }
       }
       zoneNotification match {
-        case EmptyZoneNotification =>
-        case ClientJoinedZoneNotification(_, publicKey) =>
+        case ZoneValidatorMessage.EmptyZoneNotification =>
+        case ZoneValidatorMessage.ClientJoinedZoneNotification(_, publicKey) =>
           state.connectedClients = state.connectedClients + publicKey
           val (joinedPlayers, joinedHiddenPlayers) = playersFromMembersAccounts(
             zoneNotification.zoneId,
@@ -654,7 +652,7 @@ class BoardGame private (serverConnection: ServerConnection,
           }
           if (joinedHiddenPlayers.nonEmpty)
             state.hiddenPlayers = state.hiddenPlayers ++ joinedHiddenPlayers
-        case ClientQuitZoneNotification(_, publicKey) =>
+        case ZoneValidatorMessage.ClientQuitZoneNotification(_, publicKey) =>
           state.connectedClients = state.connectedClients - publicKey
           val (quitPlayers, quitHiddenPlayers) = playersFromMembersAccounts(
             zoneNotification.zoneId,
@@ -675,12 +673,12 @@ class BoardGame private (serverConnection: ServerConnection,
           }
           if (quitHiddenPlayers.nonEmpty)
             state.hiddenPlayers = state.hiddenPlayers ++ quitHiddenPlayers
-        case ZoneTerminatedNotification(_) =>
+        case ZoneValidatorMessage.ZoneTerminatedNotification(_) =>
           state = null
           _joinState = BoardGame.JOINING
           joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
           join(zoneNotification.zoneId)
-        case ZoneNameChangedNotification(_, name) =>
+        case ZoneValidatorMessage.ZoneNameChangedNotification(_, name) =>
           state.zone = state.zone.copy(name = name)
           gameActionListeners.foreach(_.onGameNameChanged(name))
           gameId.foreach(
@@ -690,11 +688,11 @@ class BoardGame private (serverConnection: ServerConnection,
               )
             }
           )
-        case MemberCreatedNotification(_, member) =>
+        case ZoneValidatorMessage.MemberCreatedNotification(_, member) =>
           state.zone = state.zone.copy(
             members = state.zone.members + (member.id -> member)
           )
-        case MemberUpdatedNotification(_, member) =>
+        case ZoneValidatorMessage.MemberUpdatedNotification(_, member) =>
           state.zone = state.zone.copy(
             members = state.zone.members + (member.id -> member)
           )
@@ -729,7 +727,7 @@ class BoardGame private (serverConnection: ServerConnection,
           if (updatedHiddenIdentities != state.hiddenIdentities)
             state.hiddenIdentities = updatedHiddenIdentities
           updatePlayersAndTransactions()
-        case AccountCreatedNotification(_, account) =>
+        case ZoneValidatorMessage.AccountCreatedNotification(_, account) =>
           state.zone = state.zone.copy(
             accounts = state.zone.accounts + (account.id -> account)
           )
@@ -777,7 +775,7 @@ class BoardGame private (serverConnection: ServerConnection,
           }
           if (createdHiddenPlayer.nonEmpty)
             state.hiddenPlayers = state.hiddenPlayers ++ createdHiddenPlayer
-        case AccountUpdatedNotification(_, account) =>
+        case ZoneValidatorMessage.AccountUpdatedNotification(_, account) =>
           state.zone = state.zone.copy(
             accounts = state.zone.accounts + (account.id -> account)
           )
@@ -800,7 +798,7 @@ class BoardGame private (serverConnection: ServerConnection,
           if (updatedHiddenIdentities != state.hiddenIdentities)
             state.hiddenIdentities = updatedHiddenIdentities
           updatePlayersAndTransactions()
-        case TransactionAddedNotification(_, transaction) =>
+        case ZoneValidatorMessage.TransactionAddedNotification(_, transaction) =>
           state.zone = state.zone.copy(
             transactions = state.zone.transactions + (transaction.id -> transaction)
           )
@@ -865,8 +863,8 @@ class BoardGame private (serverConnection: ServerConnection,
     }
 
   private[this] def createAndThenJoinZone(currency: Currency, name: String): Unit =
-    serverConnection.sendServerCommand(
-      CreateZoneCommand(
+    serverConnection.sendCreateZoneCommand(
+      ZoneValidatorMessage.CreateZoneCommand(
         serverConnection.clientKey,
         bankMemberName,
         None,
@@ -881,12 +879,12 @@ class BoardGame private (serverConnection: ServerConnection,
             )))
       ),
       new ResponseCallback {
-        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
+        override def onErrorResponse(errorResponse: ZoneValidatorMessage.ErrorResponse): Unit =
           gameActionListeners.foreach(_.onCreateGameError(Some(name)))
 
-        override def onSuccessResponse(successResponse: SuccessResponse): Unit =
+        override def onSuccessResponse(successResponse: ZoneValidatorMessage.SuccessResponse): Unit =
           if (_joinState == BoardGame.CREATING) {
-            val createZoneResponse = successResponse.asInstanceOf[CreateZoneResponse]
+            val createZoneResponse = successResponse.asInstanceOf[ZoneValidatorMessage.CreateZoneResponse]
             instances = instances + (createZoneResponse.zone.id -> BoardGame.this)
             zoneId = Some(createZoneResponse.zone.id)
             state = null
@@ -898,17 +896,16 @@ class BoardGame private (serverConnection: ServerConnection,
     )
 
   private[this] def join(zoneId: ZoneId): Unit =
-    serverConnection.sendServerCommand(
-      JoinZoneCommand(
-        zoneId
-      ),
+    serverConnection.sendZoneCommand(
+      zoneId,
+      ZoneValidatorMessage.JoinZoneCommand,
       new ResponseCallback {
-        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
+        override def onErrorResponse(errorResponse: ZoneValidatorMessage.ErrorResponse): Unit =
           gameActionListeners.foreach(_.onJoinGameError())
 
-        override def onSuccessResponse(successResponse: SuccessResponse): Unit =
+        override def onSuccessResponse(successResponse: ZoneValidatorMessage.SuccessResponse): Unit =
           if (_joinState == BoardGame.JOINING) {
-            val joinZoneResponse = successResponse.asInstanceOf[JoinZoneResponse]
+            val joinZoneResponse = successResponse.asInstanceOf[ZoneValidatorMessage.JoinZoneResponse]
             var balances         = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
             for (transaction <- joinZoneResponse.zone.transactions.values) {
               balances = balances +
@@ -1025,9 +1022,9 @@ class BoardGame private (serverConnection: ServerConnection,
     )
 
   private[this] def createAccount(ownerMember: Member): Unit =
-    serverConnection.sendServerCommand(
-      CreateAccountCommand(
-        zoneId.get,
+    serverConnection.sendZoneCommand(
+      zoneId.get,
+      ZoneValidatorMessage.CreateAccountCommand(
         Set(ownerMember.id)
       ),
       responseCallback =

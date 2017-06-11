@@ -9,7 +9,6 @@ import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc.JsonRpcResponseSuccessMessage
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
@@ -68,36 +67,33 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
       )
       val correlationId = 0L
       sendCommand(sinkTestProbe, clientConnection)(command, correlationId)
-      val authenticatedZoneCommandWithIds =
-        zoneValidatorShardRegionTestProbe.expectMsgType[AuthenticatedZoneCommandWithIds]
-      assert(authenticatedZoneCommandWithIds.publicKey === publicKey)
-      assert(authenticatedZoneCommandWithIds.correlationId === correlationId)
-      assert(authenticatedZoneCommandWithIds.sequenceNumber === 1L)
-      assert(authenticatedZoneCommandWithIds.deliveryId === 1L)
-      val zoneId = authenticatedZoneCommandWithIds.command.zoneId
-      val result = CreateZoneResponse({
-        val created = System.currentTimeMillis
-        Zone(
-          id = zoneId,
-          equityAccountId = AccountId(0),
-          members = Map(MemberId(0)   -> Member(MemberId(0), publicKey, name = Some("Dave"))),
-          accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
-          transactions = Map.empty,
-          created = created,
-          expires = created + 2.days.toMillis,
-          name = Some("Dave's Game"),
-          metadata = None
-        )
-      })
+      val envelopedZoneCommand =
+        zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedZoneCommand]
+      assert(envelopedZoneCommand.publicKey === publicKey)
+      assert(envelopedZoneCommand.correlationId === correlationId)
+      assert(envelopedZoneCommand.sequenceNumber === 1L)
+      assert(envelopedZoneCommand.deliveryId === 1L)
+      val zoneId  = envelopedZoneCommand.zoneId
+      val created = System.currentTimeMillis
+      val zone = Zone(
+        id = zoneId,
+        equityAccountId = AccountId(0),
+        members = Map(MemberId(0)   -> Member(MemberId(0), publicKey, name = Some("Dave"))),
+        accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
+        transactions = Map.empty,
+        created = created,
+        expires = created + 2.days.toMillis,
+        name = Some("Dave's Game"),
+        metadata = None
+      )
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-        ZoneResponseWithIds(ProtoBinding[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asProto(result),
+        ZoneResponseWithIds(ZoneValidatorMessage.CreateZoneResponse(zone),
                             correlationId,
                             sequenceNumber = 1L,
                             deliveryId = 1L)
       )
-      assert(expectResponse(upstreamTestProbe, "createZone") === result)
+      assert(expectResponse(upstreamTestProbe, "createZone") === CreateZoneResponse(zone))
     }
   }
 

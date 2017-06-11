@@ -30,10 +30,9 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       val correlationId                       = 0L
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe, zoneId)(
-        AuthenticatedZoneCommandWithIds(
-          publicKey,
+        EnvelopedZoneCommand(
+          zoneId,
           CreateZoneCommand(
-            zoneId,
             equityOwnerPublicKey = publicKey,
             equityOwnerName = Some("Dave"),
             equityOwnerMetadata = None,
@@ -41,6 +40,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
             equityAccountMetadata = None,
             name = Some("Dave's Game")
           ),
+          publicKey,
           correlationId,
           sequenceNumber,
           deliveryId = 1L
@@ -64,11 +64,10 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       val correlationId                       = 0L
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe, zoneId)(
-        AuthenticatedZoneCommandWithIds(
+        EnvelopedZoneCommand(
+          zoneId,
+          JoinZoneCommand,
           publicKey,
-          JoinZoneCommand(
-            zoneId
-          ),
           correlationId,
           sequenceNumber,
           deliveryId = 1L
@@ -88,9 +87,9 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
   }
 
   private[this] def send(clientConnectionTestProbe: TestProbe, zoneId: ZoneId)(
-      authenticatedCommandWithIds: AuthenticatedZoneCommandWithIds): Unit = {
-    val deliveryId = authenticatedCommandWithIds.deliveryId
-    send(clientConnectionTestProbe, message = authenticatedCommandWithIds, zoneId, deliveryId)
+      envelopedZoneCommand: EnvelopedZoneCommand): Unit = {
+    val deliveryId = envelopedZoneCommand.deliveryId
+    send(clientConnectionTestProbe, message = envelopedZoneCommand, zoneId, deliveryId)
   }
 
   private[this] def send(clientConnectionTestProbe: TestProbe, message: Any, zoneId: ZoneId, deliveryId: Long): Unit = {
@@ -111,6 +110,6 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       clientConnectionTestProbe.lastSender,
       MessageReceivedConfirmation(responseWithIds.deliveryId)
     )
-    responseWithIds.response
+    responseWithIds.zoneResponse
   }
 }

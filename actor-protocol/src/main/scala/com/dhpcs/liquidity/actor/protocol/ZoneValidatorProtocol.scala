@@ -3,17 +3,13 @@ package com.dhpcs.liquidity.actor.protocol
 import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.model._
 
+// TODO: Review whether these should still be namespaced in the companion
 object ZoneValidatorMessage {
 
-  sealed abstract class ZoneCommand {
-    def zoneId: ZoneId
-  }
+  sealed abstract class ZoneCommand
 
-  case object EmptyZoneCommand extends ZoneCommand {
-    override def zoneId: ZoneId = sys.error("EmptyZoneCommand")
-  }
-  final case class CreateZoneCommand(zoneId: ZoneId,
-                                     equityOwnerPublicKey: PublicKey,
+  case object EmptyZoneCommand extends ZoneCommand
+  final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                      equityOwnerName: Option[String],
                                      equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
                                      equityAccountName: Option[String],
@@ -21,29 +17,27 @@ object ZoneValidatorMessage {
                                      name: Option[String] = None,
                                      metadata: Option[com.google.protobuf.struct.Struct] = None)
       extends ZoneCommand
-  final case class JoinZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
-  final case class QuitZoneCommand(zoneId: ZoneId)                             extends ZoneCommand
-  final case class ChangeZoneNameCommand(zoneId: ZoneId, name: Option[String]) extends ZoneCommand
-  final case class CreateMemberCommand(zoneId: ZoneId,
-                                       ownerPublicKey: PublicKey,
+  final case object JoinZoneCommand                            extends ZoneCommand
+  final case object QuitZoneCommand                            extends ZoneCommand
+  final case class ChangeZoneNameCommand(name: Option[String]) extends ZoneCommand
+  final case class CreateMemberCommand(ownerPublicKey: PublicKey,
                                        name: Option[String] = None,
                                        metadata: Option[com.google.protobuf.struct.Struct] = None)
       extends ZoneCommand
-  final case class UpdateMemberCommand(zoneId: ZoneId, member: Member) extends ZoneCommand
-  final case class CreateAccountCommand(zoneId: ZoneId,
-                                        ownerMemberIds: Set[MemberId],
+  final case class UpdateMemberCommand(member: Member) extends ZoneCommand
+  final case class CreateAccountCommand(ownerMemberIds: Set[MemberId],
                                         name: Option[String] = None,
                                         metadata: Option[com.google.protobuf.struct.Struct] = None)
       extends ZoneCommand
-  final case class UpdateAccountCommand(zoneId: ZoneId, account: Account) extends ZoneCommand
-  final case class AddTransactionCommand(zoneId: ZoneId,
-                                         actingAs: MemberId,
+  final case class UpdateAccountCommand(account: Account) extends ZoneCommand
+  final case class AddTransactionCommand(actingAs: MemberId,
                                          from: AccountId,
                                          to: AccountId,
                                          value: BigDecimal,
                                          description: Option[String] = None,
                                          metadata: Option[com.google.protobuf.struct.Struct] = None)
       extends ZoneCommand {
+    // TODO: Move all validation into ZoneValidatorActor
     require(value >= 0)
   }
 
@@ -84,11 +78,12 @@ object ZoneValidatorMessage {
 
 sealed abstract class ZoneValidatorMessage extends Serializable
 
-final case class AuthenticatedZoneCommandWithIds(publicKey: PublicKey,
-                                                 command: ZoneCommand,
-                                                 correlationId: Long,
-                                                 sequenceNumber: Long,
-                                                 deliveryId: Long)
+final case class EnvelopedZoneCommand(zoneId: ZoneId,
+                                      zoneCommand: ZoneCommand,
+                                      publicKey: PublicKey,
+                                      correlationId: Long,
+                                      sequenceNumber: Long,
+                                      deliveryId: Long)
     extends ZoneValidatorMessage
 
 final case class ZoneCommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
@@ -101,13 +96,15 @@ final case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
 
 final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
-final case class ZoneResponseWithIds(response: ZoneResponse,
+// TODO: Rename as EnvelopedZoneResponse, move ZoneId into it
+final case class ZoneResponseWithIds(zoneResponse: ZoneResponse,
                                      correlationId: Long,
                                      sequenceNumber: Long,
                                      deliveryId: Long)
     extends ZoneValidatorMessage
 
-final case class ZoneNotificationWithIds(notification: ZoneNotification, sequenceNumber: Long, deliveryId: Long)
+// TODO: Rename as EnvelopedZoneNotification
+final case class ZoneNotificationWithIds(zoneNotification: ZoneNotification, sequenceNumber: Long, deliveryId: Long)
     extends ZoneValidatorMessage
 
 final case class ActiveZoneSummary(zoneId: ZoneId,

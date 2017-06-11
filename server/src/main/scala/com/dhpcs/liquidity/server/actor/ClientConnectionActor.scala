@@ -12,6 +12,7 @@ import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.util.ByteString
+import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
@@ -168,9 +169,7 @@ class ClientConnectionActor(ip: RemoteAddress,
           case proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof(protoBeginKeyOwnershipProof) =>
             val protoKeyOwnershipProofNonce = createKeyOwnershipNonceMessage()
             sendClientMessage(
-              proto.ws.protocol.ClientMessage(
-                proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(protoKeyOwnershipProofNonce)
-              )
+              proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(protoKeyOwnershipProofNonce)
             )
             context.become(
               waitingForCompleteKeyOwnershipProof(protoBeginKeyOwnershipProof, protoKeyOwnershipProofNonce))
@@ -218,10 +217,34 @@ class ClientConnectionActor(ip: RemoteAddress,
           case proto.ws.protocol.ServerMessage.Message.Command(protoCommand) =>
             protoCommand.command match {
               case proto.ws.protocol.ServerMessage.Command.Command.Empty =>
-              case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(protoZoneCommand) =>
-                val zoneCommand = ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                  .asScala(protoZoneCommand.zoneCommand)
-                handleZoneCommand(publicKey, zoneCommand, protoCommand.correlationId)
+              case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
+                val createZoneCommand = ProtoBinding[ZoneValidatorMessage.CreateZoneCommand,
+                                                     proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+                  .asScala(protoCreateZoneCommand)
+                handleZoneCommand(
+                  zoneId = ZoneId.generate,
+                  createZoneCommand,
+                  publicKey,
+                  protoCommand.correlationId
+                )
+              case proto.ws.protocol.ServerMessage.Command.Command.EnvelopedZoneCommand(
+                  proto.ws.protocol.ServerMessage.Command.EnvelopedZoneCommand(zoneId, protoZoneCommand)
+                  ) =>
+                val zoneCommand =
+                  ProtoBinding[ZoneValidatorMessage.ZoneCommand, Option[proto.actor.protocol.ZoneCommand]]
+                    .asScala(protoZoneCommand)
+                zoneCommand match {
+                  case _: CreateZoneCommand =>
+                    log.warning(s"Stopping due to receipt of illegally enveloped CreateZoneCommand")
+                    context.stop(self)
+                  case _ =>
+                    handleZoneCommand(
+                      zoneId = ZoneId(UUID.fromString(zoneId)),
+                      zoneCommand,
+                      publicKey,
+                      protoCommand.correlationId
+                    )
+                }
             }
           case proto.ws.protocol.ServerMessage.Message.Response(protoResponse) =>
             protoResponse.response match {
@@ -233,24 +256,15 @@ class ClientConnectionActor(ip: RemoteAddress,
         }
       case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
-          // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          // Converting it back to the WS type is what ensures we'll then end up generating a fresh ZoneId when we then
-          // convert it back again _from_ the WS type.
-          handleZoneCommand(publicKey,
-                            ProtoBinding[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asScala(createZoneCommand),
-                            correlationId)
+          handleZoneCommand(zoneId = ZoneId.generate, createZoneCommand, publicKey, correlationId)
         )
-      case ZoneResponseWithIds(response, correlationId, sequenceNumber, deliveryId) =>
+      case ZoneResponseWithIds(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
-          // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendServerResponse(ProtoBinding[ZoneResponse, ZoneValidatorMessage.ZoneResponse].asScala(response),
-                             correlationId)
+          sendZoneResponse(correlationId, zoneResponse)
         )
-      case ZoneNotificationWithIds(notification, sequenceNumber, deliveryId) =>
+      case ZoneNotificationWithIds(zoneNotification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
-          // asScala perhaps isn't the best name; we're just converting from the ZoneValidatorActor protocol equivalent.
-          sendClientNotification(
-            ProtoBinding[ZoneNotification, ZoneValidatorMessage.ZoneNotification].asScala(notification))
+          sendZoneNotification(zoneNotification)
         )
       case ZoneRestarted(zoneId) =>
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
@@ -258,7 +272,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         commandSequenceNumbers = commandSequenceNumbers - zoneId
         pendingDeliveries(zoneId).foreach(confirmDelivery)
         pendingDeliveries = pendingDeliveries - zoneId
-        sendClientNotification(ZoneTerminatedNotification(zoneId))
+        sendZoneNotification(ZoneValidatorMessage.ZoneTerminatedNotification(zoneId))
     }
 
   override def receiveRecover: Receive = Actor.emptyBehavior
@@ -282,20 +296,27 @@ class ClientConnectionActor(ip: RemoteAddress,
   }
 
   private[this] def sendPingCommand: Receive = {
-    case SendPingCommand => sendClientCommand(PingCommand, correlationId = -1)
+    case SendPingCommand =>
+      sendClientMessage(
+        proto.ws.protocol.ClientMessage.Message.Command(
+          proto.ws.protocol.ClientMessage.Command(
+            correlationId = -1,
+            command = proto.ws.protocol.ClientMessage.Command.Command.PingCommand(com.google.protobuf.ByteString.EMPTY)
+          )))
   }
 
-  private[this] def handleZoneCommand(publicKey: PublicKey, zoneCommand: ZoneCommand, correlationId: Long) = {
-    // asProto perhaps isn't the best name; we're just converting to the ZoneValidatorActor protocol equivalent.
-    val protoZoneCommand = ProtoBinding[ZoneCommand, ZoneValidatorMessage.ZoneCommand].asProto(zoneCommand)
-    val zoneId           = protoZoneCommand.zoneId
-    val sequenceNumber   = commandSequenceNumbers(zoneId)
+  private[this] def handleZoneCommand(zoneId: ZoneId,
+                                      zoneCommand: ZoneValidatorMessage.ZoneCommand,
+                                      publicKey: PublicKey,
+                                      correlationId: Long) = {
+    val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      AuthenticatedZoneCommandWithIds(
+      EnvelopedZoneCommand(
+        zoneId,
+        zoneCommand,
         publicKey,
-        protoZoneCommand,
         correlationId,
         sequenceNumber,
         deliveryId
@@ -305,74 +326,35 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
     val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
-    if (sequenceNumber <= nextExpectedMessageSequenceNumber) {
+    if (sequenceNumber <= nextExpectedMessageSequenceNumber)
       sender() ! MessageReceivedConfirmation(deliveryId)
-    }
     if (sequenceNumber == nextExpectedMessageSequenceNumber) {
       nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers + (sender() -> (sequenceNumber + 1))
       body
     }
   }
 
-  private[this] def sendClientCommand(clientCommand: ClientCommand, correlationId: Long): Unit =
+  private[this] def sendZoneResponse(correlationId: Long, zoneResponse: ZoneValidatorMessage.ZoneResponse): Unit =
     sendClientMessage(
-      proto.ws.protocol.ClientMessage(
-        proto.ws.protocol.ClientMessage.Message.Command(
-          proto.ws.protocol.ClientMessage.Command(
-            correlationId,
-            clientCommand match {
-              case PingCommand =>
-                proto.ws.protocol.ClientMessage.Command.Command.PingCommand(
-                  com.google.protobuf.ByteString.EMPTY
-                )
-            }
-          )
+      proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
+        correlationId,
+        proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
+          ProtoBinding[ZoneValidatorMessage.ZoneResponse, proto.actor.protocol.ZoneResponse].asProto(zoneResponse)
         )
-      )
-    )
+      )))
 
-  private[this] def sendClientNotification(clientNotification: ClientNotification): Unit =
+  private[this] def sendZoneNotification(zoneNotification: ZoneValidatorMessage.ZoneNotification): Unit =
     sendClientMessage(
-      proto.ws.protocol.ClientMessage(
-        proto.ws.protocol.ClientMessage.Message.Notification(
-          proto.ws.protocol.ClientMessage.Notification(
-            clientNotification match {
-              case zoneNotification: ZoneNotification =>
-                proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotification(
-                  proto.ws.protocol.ZoneNotification(
-                    ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
-                      .asProto(zoneNotification)
-                  )
-                )
+      proto.ws.protocol.ClientMessage.Message.Notification(
+        proto.ws.protocol.ClientMessage.Notification(
+          proto.ws.protocol.ClientMessage.Notification.Notification
+            .ZoneNotification(
+              ProtoBinding[ZoneValidatorMessage.ZoneNotification, proto.actor.protocol.ZoneNotification]
+                .asProto(zoneNotification)
+            ))))
 
-            }
-          )
-        )
-      )
-    )
-
-  private[this] def sendServerResponse(serverResponse: ServerResponse, correlationId: Long): Unit =
-    sendClientMessage(
-      proto.ws.protocol.ClientMessage(
-        proto.ws.protocol.ClientMessage.Message.Response(
-          proto.ws.protocol.ClientMessage.Response(
-            correlationId,
-            serverResponse match {
-              case zoneResponse: ZoneResponse =>
-                proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
-                  proto.ws.protocol.ZoneResponse(
-                    ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
-                      .asProto(zoneResponse)
-                  )
-                )
-            }
-          )
-        )
-      )
-    )
-
-  private[this] def sendClientMessage(clientMessage: proto.ws.protocol.ClientMessage): Unit = {
-    upstream ! clientMessage
+  private[this] def sendClientMessage(clientMessage: proto.ws.protocol.ClientMessage.Message): Unit = {
+    upstream ! proto.ws.protocol.ClientMessage(clientMessage)
     pingGeneratorActor ! FrameSentEvent
   }
 }

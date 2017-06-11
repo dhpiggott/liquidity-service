@@ -11,6 +11,7 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
+import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
 import com.dhpcs.liquidity.client.LegacyServerConnection
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
@@ -198,21 +199,25 @@ class LiquidityHealthcheck(scheme: Option[String],
     legacyPort
   )
 
-  private[this] def send(command: protocol.ServerCommand): Future[protocol.ServerResponse] = {
-    val promise = Promise[protocol.ServerResponse]
+  private[this] def sendZoneCommand(
+      zoneId: ZoneId,
+      zoneCommand: ZoneValidatorMessage.ZoneCommand): Future[ZoneValidatorMessage.ZoneResponse] = {
+    val promise = Promise[ZoneValidatorMessage.ZoneResponse]
     MainHandlerWrapper.post(
       () =>
-        serverConnection.sendServerCommand(
-          command,
+        serverConnection.sendZoneCommand(
+          zoneId,
+          zoneCommand,
           new ServerConnection.ResponseCallback {
-            override def onErrorResponse(error: protocol.ErrorResponse): Unit       = promise.success(error)
-            override def onSuccessResponse(success: protocol.SuccessResponse): Unit = promise.success(success)
+            override def onErrorResponse(error: ZoneValidatorMessage.ErrorResponse): Unit = promise.success(error)
+            override def onSuccessResponse(success: ZoneValidatorMessage.SuccessResponse): Unit =
+              promise.success(success)
           }
       ))
     promise.future
   }
 
-  private[this] def sendLegacy(command: protocol.legacy.Command): Future[protocol.legacy.Response] = {
+  private[this] def sendLegacyZoneCommand(command: protocol.legacy.Command): Future[protocol.legacy.Response] = {
     val promise = Promise[protocol.legacy.Response]
     LegacyMainHandlerWrapper.post(
       () =>
@@ -291,8 +296,8 @@ class LiquidityHealthcheck(scheme: Option[String],
         .requestNext(ServerConnection.DISCONNECTING)
         .requestNext(ServerConnection.AVAILABLE); ()
     }
-    s"will admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in withServerConnectionStateTestProbe {
-      sub =>
+    s"will admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in
+      withServerConnectionStateTestProbe { sub =>
         val connectionRequestToken = new ServerConnection.ConnectionRequestToken
         sub.requestNext(ServerConnection.AVAILABLE); ()
         LegacyMainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
@@ -300,8 +305,8 @@ class LiquidityHealthcheck(scheme: Option[String],
           .requestNext(ServerConnection.CONNECTING)
           .requestNext(ServerConnection.AUTHENTICATING)
           .requestNext(ServerConnection.ONLINE); ()
-        inside(send(protocol.JoinZoneCommand(SentinelZone.id)).futureValue) {
-          case protocol.JoinZoneResponse(zone, connectedClients) =>
+        inside(sendZoneCommand(SentinelZone.id, ZoneValidatorMessage.JoinZoneCommand).futureValue) {
+          case ZoneValidatorMessage.JoinZoneResponse(zone, connectedClients) =>
             assert(zone === SentinelZone)
             assert(connectedClients === Set(serverConnection.clientKey))
         }
@@ -309,7 +314,7 @@ class LiquidityHealthcheck(scheme: Option[String],
         sub
           .requestNext(ServerConnection.DISCONNECTING)
           .requestNext(ServerConnection.AVAILABLE); ()
-    }
+      }
   }
   "The JSON-RPC service" - {
     "will accept connections" in withLegacyServerConnectionStateTestProbe { sub =>
@@ -336,7 +341,7 @@ class LiquidityHealthcheck(scheme: Option[String],
           .requestNext(LegacyServerConnection.CONNECTING)
           .requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
           .requestNext(LegacyServerConnection.ONLINE); ()
-        inside(sendLegacy(protocol.legacy.JoinZoneCommand(SentinelZone.id)).futureValue) {
+        inside(sendLegacyZoneCommand(protocol.legacy.JoinZoneCommand(SentinelZone.id)).futureValue) {
           case protocol.legacy.JoinZoneResponse(zone, connectedClients) =>
             assert(zone === SentinelZone)
             assert(connectedClients === Set(legacyServerConnection.clientKey))

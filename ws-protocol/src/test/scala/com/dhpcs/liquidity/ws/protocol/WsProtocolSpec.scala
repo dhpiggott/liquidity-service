@@ -2,43 +2,9 @@ package com.dhpcs.liquidity.ws.protocol
 
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.proto.binding.ProtoBinding
-import com.dhpcs.liquidity.ws.protocol.WsProtocolSpec._
 import org.scalatest.FreeSpec
 
 import scala.util.Random
-
-object WsProtocolSpec {
-
-  val createZoneCommand = CreateZoneCommand(
-    equityOwnerPublicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded),
-    equityOwnerName = Some("Bank"),
-    equityOwnerMetadata = None,
-    equityAccountName = Some("Bank"),
-    equityAccountMetadata = None,
-    name = Some("Dave's zone"),
-    metadata = Some(
-      com.google.protobuf.struct.Struct(
-        Map(
-          "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
-        )))
-  )
-
-  val createZoneCommandProto = proto.ws.protocol.ZoneCommand.CreateZoneCommand(
-    equityOwnerPublicKey = com.google.protobuf.ByteString.copyFrom(ModelSpec.rsaPublicKey.getEncoded),
-    equityOwnerName = Some("Bank"),
-    equityOwnerMetadata = None,
-    equityAccountName = Some("Bank"),
-    equityAccountMetadata = None,
-    name = Some("Dave's zone"),
-    metadata = Some(
-      com.google.protobuf.struct.Struct(
-        Map(
-          "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
-        )))
-  )
-
-}
 
 class WsProtocolSpec extends FreeSpec {
 
@@ -70,16 +36,5 @@ class WsProtocolSpec extends FreeSpec {
                                   keyOwnershipProofNonceMessage,
                                   completeKeyOwnershipProofMessage))
     }
-  }
-
-  "A CreateZoneCommand" - {
-    s"will convert to $createZoneCommandProto" in assert(
-      ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand]
-        .asProto(createZoneCommand) === createZoneCommandProto
-    )
-    s"will convert from $createZoneCommand" in assert(
-      ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand]
-        .asScala(createZoneCommandProto) === createZoneCommand
-    )
   }
 }

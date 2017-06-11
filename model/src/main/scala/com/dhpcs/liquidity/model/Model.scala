@@ -36,6 +36,7 @@ final case class Transaction(id: TransactionId,
                              created: Long,
                              description: Option[String] = None,
                              metadata: Option[com.google.protobuf.struct.Struct] = None) {
+  // TODO: Move all validation into ZoneValidatorActor
   require(value >= 0)
   require(created >= 0)
 }
@@ -55,6 +56,7 @@ final case class Zone(id: ZoneId,
                       expires: Long,
                       name: Option[String] = None,
                       metadata: Option[com.google.protobuf.struct.Struct] = None) {
+  // TODO: Move all validation into ZoneValidatorActor
   require(created >= 0)
   require(expires >= 0)
 }

@@ -3,6 +3,7 @@ package com.dhpcs.liquidity.client
 import java.io.{File, IOException}
 import javax.net.ssl._
 
+import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
@@ -59,7 +60,7 @@ object ServerConnection {
   }
 
   trait NotificationReceiptListener {
-    def onZoneNotificationReceived(notification: ZoneNotification): Unit
+    def onZoneNotificationReceived(notification: ZoneValidatorMessage.ZoneNotification): Unit
   }
 
   class ConnectionRequestToken
@@ -67,16 +68,17 @@ object ServerConnection {
   object ResponseCallback {
     def apply(onError: => Unit): ResponseCallback = new ResponseCallback {
 
-      override def onErrorResponse(error: ErrorResponse): Unit       = onError
-      override def onSuccessResponse(success: SuccessResponse): Unit = ()
+      override def onErrorResponse(error: ZoneValidatorMessage.ErrorResponse): Unit       = onError
+      override def onSuccessResponse(success: ZoneValidatorMessage.SuccessResponse): Unit = ()
 
     }
   }
 
+  // TODO: Swap for returning Futures?
   trait ResponseCallback {
 
-    def onErrorResponse(error: ErrorResponse): Unit
-    def onSuccessResponse(success: SuccessResponse): Unit
+    def onErrorResponse(error: ZoneValidatorMessage.ErrorResponse): Unit
+    def onSuccessResponse(success: ZoneValidatorMessage.SuccessResponse): Unit
 
   }
 
@@ -189,35 +191,36 @@ class ServerConnection(filesDir: File,
       connect()
   }
 
-  def sendServerCommand(serverCommand: ServerCommand, responseCallback: ResponseCallback): Unit = state match {
-    case _: IdleState =>
-      sys.error("Not connected")
-    case activeState: ActiveState =>
-      activeState.handlerWrapper.post(activeState.subState match {
-        case _: ConnectingSubState | DisconnectingSubState =>
-          sys.error(s"Not connected")
-        case _: AuthenticatingSubState =>
-          sys.error("Authenticating")
-        case OnlineSubState(webSocket) =>
-          val correlationId = nextCorrelationId
-          nextCorrelationId = nextCorrelationId + 1
-          sendServerMessage(
-            webSocket,
-            proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
-              correlationId,
-              serverCommand match {
-                case zoneCommand: ZoneCommand =>
-                  proto.ws.protocol.ServerMessage.Command.Command.ZoneCommand(
-                    proto.ws.protocol.ZoneCommand(
-                      ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand.ZoneCommand]
-                        .asProto(zoneCommand)
-                    ))
-              }
-            )),
-            onSuccess = () => pendingRequests = pendingRequests + (correlationId -> responseCallback)
+  def sendCreateZoneCommand(createZoneCommand: ZoneValidatorMessage.CreateZoneCommand,
+                            responseCallback: ResponseCallback): Unit =
+    sendCommand(
+      correlationId =>
+        proto.ws.protocol.ServerMessage.Command(
+          correlationId,
+          proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
+            ProtoBinding[ZoneValidatorMessage.CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+              .asProto(createZoneCommand)
           )
-      })
-  }
+      ),
+      responseCallback
+    )
+
+  def sendZoneCommand(zoneId: ZoneId,
+                      zoneCommand: ZoneValidatorMessage.ZoneCommand,
+                      responseCallback: ResponseCallback): Unit =
+    sendCommand(
+      correlationId =>
+        proto.ws.protocol.ServerMessage.Command(
+          correlationId,
+          proto.ws.protocol.ServerMessage.Command.Command.EnvelopedZoneCommand(
+            proto.ws.protocol.ServerMessage.Command.EnvelopedZoneCommand(
+              zoneId.id.toString,
+              Some(ProtoBinding[ZoneValidatorMessage.ZoneCommand, proto.actor.protocol.ZoneCommand]
+                .asProto(zoneCommand))
+            ))
+      ),
+      responseCallback
+    )
 
   def unrequestConnection(token: ConnectionRequestToken): Unit =
     if (connectRequestTokens.contains(token)) {
@@ -351,14 +354,15 @@ class ServerConnection(filesDir: File,
                       case proto.ws.protocol.ClientMessage.Response.Response.Empty =>
                         sys.error("Empty or unsupported response")
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-                        val zoneResponse = ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse]
+                        val zoneResponse = ProtoBinding[ZoneValidatorMessage.ZoneResponse,
+                                                        proto.actor.protocol.ZoneResponse.ZoneResponse]
                           .asScala(protoZoneResponse.zoneResponse)
                         zoneResponse match {
-                          case EmptyZoneResponse =>
+                          case ZoneValidatorMessage.EmptyZoneResponse =>
                             sys.error("Empty or unsupported zone response")
-                          case errorResponse: ErrorResponse =>
+                          case errorResponse: ZoneValidatorMessage.ErrorResponse =>
                             mainHandlerWrapper.post(responseCallback.onErrorResponse(errorResponse))
-                          case successResponse: SuccessResponse =>
+                          case successResponse: ZoneValidatorMessage.SuccessResponse =>
                             mainHandlerWrapper.post(responseCallback.onSuccessResponse(successResponse))
                         }
                     }
@@ -370,7 +374,8 @@ class ServerConnection(filesDir: File,
               case proto.ws.protocol.ClientMessage.Notification.Notification.Empty =>
               case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotification(protoZoneNotification) =>
                 val zoneNotification =
-                  ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification.ZoneNotification]
+                  ProtoBinding[ZoneValidatorMessage.ZoneNotification,
+                               proto.actor.protocol.ZoneNotification.ZoneNotification]
                     .asScala(protoZoneNotification.zoneNotification)
                 activeState.subState match {
                   case _: ConnectingSubState =>
@@ -502,6 +507,27 @@ class ServerConnection(filesDir: File,
           }
       }
     }
+  }
+
+  private[this] def sendCommand(command: Long => proto.ws.protocol.ServerMessage.Command,
+                                responseCallback: ResponseCallback): Unit = state match {
+    case _: IdleState =>
+      sys.error("Not connected")
+    case activeState: ActiveState =>
+      activeState.handlerWrapper.post(activeState.subState match {
+        case _: ConnectingSubState | DisconnectingSubState =>
+          sys.error(s"Not connected")
+        case _: AuthenticatingSubState =>
+          sys.error("Authenticating")
+        case OnlineSubState(webSocket) =>
+          val correlationId = nextCorrelationId
+          nextCorrelationId = nextCorrelationId + 1
+          sendServerMessage(
+            webSocket,
+            proto.ws.protocol.ServerMessage.Message.Command(command(correlationId)),
+            onSuccess = () => pendingRequests = pendingRequests + (correlationId -> responseCallback)
+          )
+      })
   }
 
   private[this] def sendServerMessage(webSocket: WebSocket,

@@ -15,31 +15,27 @@ object LegacyModelFormats {
 
   object ValueFormat {
     def apply[A, B: Format](apply: B => A, unapply: A => B): Format[A] = Format(
-      Reads(
-        json => Reads.of[B].reads(json).map(apply(_))
-      ),
-      Writes(
-        a => Writes.of[B].writes(unapply(a))
-      )
+      Reads.of[B].map(apply),
+      Writes.of[B].contramap(unapply)
     )
   }
 
-  implicit final val PublicKeyFormat: Format[PublicKey] = ValueFormat[PublicKey, String](
+  implicit final lazy val PublicKeyFormat: Format[PublicKey] = ValueFormat[PublicKey, String](
     publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64)),
     publicKey => publicKey.value.base64)
 
-  implicit final val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Long](MemberId, _.id)
+  implicit final lazy val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Long](MemberId, _.id)
 
-  implicit final val MemberFormat: Format[Member] = Json.format[Member]
+  implicit final lazy val MemberFormat: Format[Member] = Json.format[Member]
 
-  implicit final val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Long](AccountId, _.id)
+  implicit final lazy val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Long](AccountId, _.id)
 
-  implicit final val AccountFormat: Format[Account] = Json.format[Account]
+  implicit final lazy val AccountFormat: Format[Account] = Json.format[Account]
 
-  implicit final val TransactionIdFormat: Format[TransactionId] =
+  implicit final lazy val TransactionIdFormat: Format[TransactionId] =
     ValueFormat[TransactionId, Long](TransactionId, _.id)
 
-  implicit final val TransactionFormat: Format[Transaction] = (
+  implicit final lazy val TransactionFormat: Format[Transaction] = (
     (JsPath \ "id").format[TransactionId] and
       (JsPath \ "from").format[AccountId] and
       (JsPath \ "to").format[AccountId] and
@@ -71,9 +67,9 @@ object LegacyModelFormats {
        transaction.metadata)
   )
 
-  implicit final val ZoneIdFormat: Format[ZoneId] = ValueFormat[ZoneId, UUID](ZoneId(_), _.id)
+  implicit final lazy val ZoneIdFormat: Format[ZoneId] = ValueFormat[ZoneId, UUID](ZoneId(_), _.id)
 
-  implicit final val ZoneFormat: Format[Zone] = (
+  implicit final lazy val ZoneFormat: Format[Zone] = (
     (JsPath \ "id").format[ZoneId] and
       (JsPath \ "equityAccountId").format[AccountId] and
       (JsPath \ "members").format[Seq[Member]] and
@@ -153,7 +149,7 @@ final case class AddTransactionCommand(zoneId: ZoneId,
 
 object Command extends CommandCompanion[Command] {
 
-  private final val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
+  private final lazy val AddTransactionCommandFormat: Format[AddTransactionCommand] = (
     (JsPath \ "zoneId").format[ZoneId] and
       (JsPath \ "actingAs").format[MemberId] and
       (JsPath \ "from").format[AccountId] and
@@ -182,7 +178,7 @@ object Command extends CommandCompanion[Command] {
        addTransactionCommand.metadata)
   )
 
-  override final val CommandFormats = MessageFormats(
+  override final lazy val CommandFormats = MessageFormats(
     "createZone"     -> Json.format[CreateZoneCommand],
     "joinZone"       -> Json.format[JoinZoneCommand],
     "quitZone"       -> Json.format[QuitZoneCommand],
@@ -210,7 +206,7 @@ case object UpdateAccountResponse                                               
 final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
 
 object SuccessResponse extends ResponseCompanion[SuccessResponse] {
-  override final val ResponseFormats = MessageFormats(
+  override final lazy val ResponseFormats = MessageFormats(
     "createZone"     -> Json.format[CreateZoneResponse],
     "joinZone"       -> Json.format[JoinZoneResponse],
     "quitZone"       -> objectFormat(QuitZoneResponse),
@@ -242,7 +238,7 @@ final case class AccountUpdatedNotification(zoneId: ZoneId, account: Account)   
 final case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
 
 object Notification extends NotificationCompanion[Notification] {
-  override final val NotificationFormats = MessageFormats(
+  override final lazy val NotificationFormats = MessageFormats(
     "supportedVersions" -> Json.format[SupportedVersionsNotification],
     "keepAlive"         -> objectFormat(KeepAliveNotification),
     "clientJoinedZone"  -> Json.format[ClientJoinedZoneNotification],

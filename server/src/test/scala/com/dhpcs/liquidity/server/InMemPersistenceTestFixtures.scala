@@ -36,6 +36,7 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |    metrics.enabled = off
        |    roles = ["zone-host", "client-relay"]
        |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
+       |    jmx.multi-mbeans-in-same-jvm = on
        |  }
        |  extensions += "akka.persistence.Persistence"
        |  persistence.journal {

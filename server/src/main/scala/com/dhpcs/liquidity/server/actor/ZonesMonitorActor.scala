@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, NoSerializationVerificationNeeded, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import akka.pattern.pipe
@@ -31,12 +31,13 @@ object ZonesMonitorActor {
   case object GetActiveZonesSummary
 
   final case class ActiveZonesSummary(activeZoneSummaries: Set[ActiveZoneSummary])
+      extends NoSerializationVerificationNeeded
 
-  case object GetZoneCount
+  case object GetZoneCount extends NoSerializationVerificationNeeded
 
-  final case class ZoneCount(count: Int)
+  final case class ZoneCount(count: Int) extends NoSerializationVerificationNeeded
 
-  private case object PublishStatus
+  private case object PublishStatus extends NoSerializationVerificationNeeded
 
 }
 
@@ -60,9 +61,8 @@ class ZonesMonitorActor(zoneCount: () => Future[Int]) extends Actor with ActorLo
     case PublishStatus =>
       log.info(s"${activeZoneSummaries.size} zones are active")
     case activeZoneSummary: ActiveZoneSummary =>
-      if (!activeZoneSummaries.contains(sender())) {
+      if (!activeZoneSummaries.contains(sender()))
         context.watch(sender())
-      }
       activeZoneSummaries = activeZoneSummaries + (sender() -> activeZoneSummary)
     case GetZoneCount =>
       val requester = sender()

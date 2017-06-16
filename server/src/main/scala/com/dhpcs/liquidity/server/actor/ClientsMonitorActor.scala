@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, NoSerializationVerificationNeeded, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import com.dhpcs.liquidity.actor.protocol._
@@ -13,10 +13,11 @@ object ClientsMonitorActor {
   def props: Props = Props[ClientsMonitorActor]
 
   final case class ActiveClientsSummary(activeClientSummaries: Seq[ActiveClientSummary])
+      extends NoSerializationVerificationNeeded
 
-  case object GetActiveClientsSummary
+  case object GetActiveClientsSummary extends NoSerializationVerificationNeeded
 
-  private case object PublishStatus
+  private case object PublishStatus extends NoSerializationVerificationNeeded
 
 }
 
@@ -40,9 +41,8 @@ class ClientsMonitorActor extends Actor with ActorLogging {
     case PublishStatus =>
       log.info(s"${activeClientSummaries.size} clients are active")
     case activeClientSummary: ActiveClientSummary =>
-      if (!activeClientSummaries.contains(sender())) {
+      if (!activeClientSummaries.contains(sender()))
         context.watch(sender())
-      }
       activeClientSummaries = activeClientSummaries + (sender() -> activeClientSummary)
     case GetActiveClientsSummary =>
       sender() ! ActiveClientsSummary(activeClientSummaries.values.toSeq)

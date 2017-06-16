@@ -57,17 +57,19 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    provider = "akka.cluster.ClusterActorRefProvider"
        |    serializers {
        |      zone-event = "com.dhpcs.liquidity.server.serialization.ZoneEventSerializer"
-       |      client-connection-protocol = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
        |      zone-validator-protocol = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
+       |      client-connection-protocol = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
        |    }
        |    serialization-bindings {
        |      "com.dhpcs.liquidity.persistence.ZoneEvent" = zone-event
-       |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
        |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
+       |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
+       |      "com.dhpcs.liquidity.proto.ws.protocol.ServerMessage" = proto
+       |      "com.dhpcs.liquidity.proto.ws.protocol.ClientMessage" = proto
        |    }
        |    allow-java-serialization = on
        |    serialize-messages = on
-       |    serialize-creators = off
+       |    serialize-creators = on
        |  }
        |  cluster {
        |    http.management.port = $clusterHttpManagementPort

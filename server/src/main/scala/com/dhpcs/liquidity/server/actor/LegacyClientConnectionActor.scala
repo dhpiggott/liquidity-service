@@ -100,18 +100,18 @@ object LegacyClientConnectionActor {
   final case class WrappedNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
       extends WrappedResponseOrNotification
 
-  case object ActorSinkInit
-  case object ActorSinkAck
+  case object ActorSinkInit extends NoSerializationVerificationNeeded
+  case object ActorSinkAck  extends NoSerializationVerificationNeeded
 
-  private case object PublishStatus
+  private case object PublishStatus extends NoSerializationVerificationNeeded
 
   private object KeepAliveGeneratorActor {
 
     def props(keepAliveInterval: FiniteDuration): Props = Props(classOf[KeepAliveGeneratorActor], keepAliveInterval)
 
-    case object FrameReceivedEvent
-    case object FrameSentEvent
-    case object SendKeepAlive
+    case object FrameReceivedEvent extends NoSerializationVerificationNeeded
+    case object FrameSentEvent     extends NoSerializationVerificationNeeded
+    case object SendKeepAlive      extends NoSerializationVerificationNeeded
 
   }
 

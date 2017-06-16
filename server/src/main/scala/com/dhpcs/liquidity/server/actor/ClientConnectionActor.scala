@@ -84,18 +84,18 @@ object ClientConnectionActor {
     )
   }
 
-  case object ActorSinkInit
-  case object ActorSinkAck
+  case object ActorSinkInit extends NoSerializationVerificationNeeded
+  case object ActorSinkAck  extends NoSerializationVerificationNeeded
 
-  private case object PublishStatus
+  private case object PublishStatus extends NoSerializationVerificationNeeded
 
   private object PingGeneratorActor {
 
     def props(pingInterval: FiniteDuration): Props = Props(classOf[PingGeneratorActor], pingInterval)
 
-    case object FrameReceivedEvent
-    case object FrameSentEvent
-    case object SendPingCommand
+    case object FrameReceivedEvent extends NoSerializationVerificationNeeded
+    case object FrameSentEvent     extends NoSerializationVerificationNeeded
+    case object SendPingCommand    extends NoSerializationVerificationNeeded
 
   }
 

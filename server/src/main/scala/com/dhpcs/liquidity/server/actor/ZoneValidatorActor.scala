@@ -5,7 +5,7 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, ActorPath, ActorRef, Deploy, PoisonPill, Props, ReceiveTimeout, Terminated}
+import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
@@ -100,16 +100,16 @@ object ZoneValidatorActor {
     }
   }
 
-  private case object PublishStatus
+  private case object PublishStatus extends NoSerializationVerificationNeeded
 
   private object PassivationCountdownActor {
 
     def props: Props = Props[PassivationCountdownActor]
 
-    case object CommandReceivedEvent
-    case object RequestPassivate
-    case object Start
-    case object Stop
+    case object CommandReceivedEvent extends NoSerializationVerificationNeeded
+    case object RequestPassivate     extends NoSerializationVerificationNeeded
+    case object Start                extends NoSerializationVerificationNeeded
+    case object Stop                 extends NoSerializationVerificationNeeded
 
     private final val PassivationTimeout = 2.minutes
 

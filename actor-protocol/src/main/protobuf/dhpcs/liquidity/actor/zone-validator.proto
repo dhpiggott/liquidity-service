@@ -93,7 +93,6 @@ message ZoneResponse {
     }
 }
 
-// TODO: Create Envelope with ZoneId
 message ZoneNotification {
     message ClientJoinedZoneNotification {
         string zone_id = 1;
@@ -168,15 +167,14 @@ message ZoneRestarted {
     string zone_id = 1;
 }
 
-// TODO: Rename as EnvelopedZoneResponse
-message ZoneResponseWithIds {
+message EnvelopedZoneResponse {
     ZoneResponse response = 1;
     int64 correlation_id = 2;
     int64 sequence_number = 3;
     int64 delivery_id = 4;
 }
 
-// TODO: Rename as EnvelopedZoneNotification
+// TODO: Rename as EnvelopedZoneNotification, move ZoneId into it
 message ZoneNotificationWithIds {
     ZoneNotification notification = 1;
     int64 sequence_number = 2;

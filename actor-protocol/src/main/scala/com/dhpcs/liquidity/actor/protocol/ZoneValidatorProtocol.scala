@@ -96,14 +96,12 @@ final case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
 
 final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
-// TODO: Rename as EnvelopedZoneResponse, move ZoneId into it
-final case class ZoneResponseWithIds(zoneResponse: ZoneResponse,
-                                     correlationId: Long,
-                                     sequenceNumber: Long,
-                                     deliveryId: Long)
+final case class EnvelopedZoneResponse(zoneResponse: ZoneResponse,
+                                       correlationId: Long,
+                                       sequenceNumber: Long,
+                                       deliveryId: Long)
     extends ZoneValidatorMessage
 
-// TODO: Rename as EnvelopedZoneNotification
 final case class ZoneNotificationWithIds(zoneNotification: ZoneNotification, sequenceNumber: Long, deliveryId: Long)
     extends ZoneValidatorMessage
 

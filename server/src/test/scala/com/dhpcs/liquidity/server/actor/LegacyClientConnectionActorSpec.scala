@@ -88,10 +88,10 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
       )
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        ZoneResponseWithIds(ZoneValidatorMessage.CreateZoneResponse(zone),
-                            correlationId,
-                            sequenceNumber = 1L,
-                            deliveryId = 1L)
+        EnvelopedZoneResponse(ZoneValidatorMessage.CreateZoneResponse(zone),
+                              correlationId,
+                              sequenceNumber = 1L,
+                              deliveryId = 1L)
       )
       assert(expectResponse(upstreamTestProbe, "createZone") === CreateZoneResponse(zone))
     }

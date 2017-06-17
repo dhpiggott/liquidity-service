@@ -260,7 +260,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
             )
           }
         }
-      case ZoneResponseWithIds(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
+      case EnvelopedZoneResponse(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           val response = zoneResponse match {
             case ZoneValidatorMessage.EmptyZoneResponse =>

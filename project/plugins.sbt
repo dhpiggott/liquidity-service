@@ -1,4 +1,4 @@
-libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.0-pre4"
+libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.0-pre5"
 
 addSbtPlugin("com.thesamet"     % "sbt-protoc"          % "0.99.8")
 addSbtPlugin("com.geirsson"     % "sbt-scalafmt"        % "0.6.8")

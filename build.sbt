@@ -1,3 +1,5 @@
+import sbt.Keys.dependencyOverrides
+
 lazy val protobufSettings = Seq(
   PB.targets in Compile := Seq(
     scalapb.gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value
@@ -125,7 +127,8 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-persistence"            % "2.5.2",
       "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.2",
       "com.typesafe.akka"          %% "akka-http"                   % "10.0.7",
-      "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final"
+      "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
+      "com.google.protobuf"        % "protobuf-java"                % "3.3.1"
     ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.2",
@@ -141,7 +144,7 @@ lazy val server = project
       "io.netty"               % "netty-transport-native-epoll"  % "4.1.11.Final" classifier "linux-x86_64",
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
       "com.typesafe.akka"      %% "akka-http"                    % "10.0.7",
-      "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.0"
+      "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.1"
     )
   )
   .dependsOn(model % "test->test")

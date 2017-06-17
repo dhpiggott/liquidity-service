@@ -141,7 +141,7 @@ lazy val server = project
       "com.typesafe.akka"      %% "akka-persistence"             % "2.5.2",
       "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.2",
       "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.54",
-      "io.netty"               % "netty-transport-native-epoll"  % "4.1.11.Final" classifier "linux-x86_64",
+      "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
       "com.typesafe.akka"      %% "akka-http"                    % "10.0.7",
       "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.1"

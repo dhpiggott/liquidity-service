@@ -174,8 +174,8 @@ message EnvelopedZoneResponse {
     int64 delivery_id = 4;
 }
 
-// TODO: Rename as EnvelopedZoneNotification, move ZoneId into it
-message ZoneNotificationWithIds {
+// TODO: Move ZoneId into it
+message EnvelopedZoneNotification {
     ZoneNotification notification = 1;
     int64 sequence_number = 2;
     int64 delivery_id = 3;

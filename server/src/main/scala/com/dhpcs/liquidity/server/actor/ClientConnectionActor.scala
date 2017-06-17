@@ -262,7 +262,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         exactlyOnce(sequenceNumber, deliveryId)(
           sendZoneResponse(correlationId, zoneResponse)
         )
-      case ZoneNotificationWithIds(zoneNotification, sequenceNumber, deliveryId) =>
+      case EnvelopedZoneNotification(zoneNotification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           sendZoneNotification(zoneNotification)
         )

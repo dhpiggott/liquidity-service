@@ -102,7 +102,7 @@ final case class EnvelopedZoneResponse(zoneResponse: ZoneResponse,
                                        deliveryId: Long)
     extends ZoneValidatorMessage
 
-final case class ZoneNotificationWithIds(zoneNotification: ZoneNotification, sequenceNumber: Long, deliveryId: Long)
+final case class EnvelopedZoneNotification(zoneNotification: ZoneNotification, sequenceNumber: Long, deliveryId: Long)
     extends ZoneValidatorMessage
 
 final case class ActiveZoneSummary(zoneId: ZoneId,

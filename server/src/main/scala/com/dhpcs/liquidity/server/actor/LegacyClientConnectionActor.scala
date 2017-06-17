@@ -291,7 +291,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           }
           sendResponse(response, correlationId)
         }
-      case ZoneNotificationWithIds(zoneNotification, sequenceNumber, deliveryId) =>
+      case EnvelopedZoneNotification(zoneNotification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           val notification = zoneNotification match {
             case ZoneValidatorMessage.EmptyZoneNotification =>

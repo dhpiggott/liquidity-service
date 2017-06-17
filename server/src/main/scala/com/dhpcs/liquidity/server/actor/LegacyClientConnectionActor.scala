@@ -291,28 +291,28 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           }
           sendResponse(response, correlationId)
         }
-      case EnvelopedZoneNotification(zoneNotification, sequenceNumber, deliveryId) =>
+      case EnvelopedZoneNotification(zoneId, zoneNotification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           val notification = zoneNotification match {
             case ZoneValidatorMessage.EmptyZoneNotification =>
               sys.error("Inconceivable")
-            case ZoneValidatorMessage.ClientJoinedZoneNotification(zoneId, _publicKey) =>
+            case ZoneValidatorMessage.ClientJoinedZoneNotification(_publicKey) =>
               ClientJoinedZoneNotification(zoneId, _publicKey)
-            case ZoneValidatorMessage.ClientQuitZoneNotification(zoneId, _publicKey) =>
+            case ZoneValidatorMessage.ClientQuitZoneNotification(_publicKey) =>
               ClientQuitZoneNotification(zoneId, _publicKey)
-            case ZoneValidatorMessage.ZoneTerminatedNotification(zoneId) =>
+            case ZoneValidatorMessage.ZoneTerminatedNotification =>
               ZoneTerminatedNotification(zoneId)
-            case ZoneValidatorMessage.ZoneNameChangedNotification(zoneId, name) =>
+            case ZoneValidatorMessage.ZoneNameChangedNotification(name) =>
               ZoneNameChangedNotification(zoneId, name)
-            case ZoneValidatorMessage.MemberCreatedNotification(zoneId, member) =>
+            case ZoneValidatorMessage.MemberCreatedNotification(member) =>
               MemberCreatedNotification(zoneId, member)
-            case ZoneValidatorMessage.MemberUpdatedNotification(zoneId, member) =>
+            case ZoneValidatorMessage.MemberUpdatedNotification(member) =>
               MemberUpdatedNotification(zoneId, member)
-            case ZoneValidatorMessage.AccountCreatedNotification(zoneId, account) =>
+            case ZoneValidatorMessage.AccountCreatedNotification(account) =>
               AccountCreatedNotification(zoneId, account)
-            case ZoneValidatorMessage.AccountUpdatedNotification(zoneId, account) =>
+            case ZoneValidatorMessage.AccountUpdatedNotification(account) =>
               AccountUpdatedNotification(zoneId, account)
-            case ZoneValidatorMessage.TransactionAddedNotification(zoneId, transaction) =>
+            case ZoneValidatorMessage.TransactionAddedNotification(transaction) =>
               TransactionAddedNotification(zoneId, transaction)
           }
           sendNotification(notification)

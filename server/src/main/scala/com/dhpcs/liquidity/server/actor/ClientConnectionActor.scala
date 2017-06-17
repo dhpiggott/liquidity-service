@@ -262,9 +262,9 @@ class ClientConnectionActor(ip: RemoteAddress,
         exactlyOnce(sequenceNumber, deliveryId)(
           sendZoneResponse(correlationId, zoneResponse)
         )
-      case EnvelopedZoneNotification(zoneNotification, sequenceNumber, deliveryId) =>
+      case EnvelopedZoneNotification(zoneId, zoneNotification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
-          sendZoneNotification(zoneNotification)
+          sendZoneNotification(zoneId, zoneNotification)
         )
       case ZoneRestarted(zoneId) =>
         nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
@@ -272,7 +272,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         commandSequenceNumbers = commandSequenceNumbers - zoneId
         pendingDeliveries(zoneId).foreach(confirmDelivery)
         pendingDeliveries = pendingDeliveries - zoneId
-        sendZoneNotification(ZoneValidatorMessage.ZoneTerminatedNotification(zoneId))
+        sendZoneNotification(zoneId, ZoneValidatorMessage.ZoneTerminatedNotification)
     }
 
   override def receiveRecover: Receive = Actor.emptyBehavior
@@ -343,15 +343,19 @@ class ClientConnectionActor(ip: RemoteAddress,
         )
       )))
 
-  private[this] def sendZoneNotification(zoneNotification: ZoneValidatorMessage.ZoneNotification): Unit =
+  private[this] def sendZoneNotification(zoneId: ZoneId,
+                                         zoneNotification: ZoneValidatorMessage.ZoneNotification): Unit =
     sendClientMessage(
       proto.ws.protocol.ClientMessage.Message.Notification(
         proto.ws.protocol.ClientMessage.Notification(
           proto.ws.protocol.ClientMessage.Notification.Notification
-            .ZoneNotification(
-              ProtoBinding[ZoneValidatorMessage.ZoneNotification, proto.actor.protocol.ZoneNotification]
-                .asProto(zoneNotification)
-            ))))
+            .EnvelopedZoneNotification(
+              proto.ws.protocol.ClientMessage.Notification.EnvelopedZoneNotification(
+                zoneId.id.toString,
+                Some(ProtoBinding[ZoneValidatorMessage.ZoneNotification, proto.actor.protocol.ZoneNotification]
+                  .asProto(zoneNotification))
+              ))
+        )))
 
   private[this] def sendClientMessage(clientMessage: proto.ws.protocol.ClientMessage.Message): Unit = {
     upstream ! proto.ws.protocol.ClientMessage(clientMessage)

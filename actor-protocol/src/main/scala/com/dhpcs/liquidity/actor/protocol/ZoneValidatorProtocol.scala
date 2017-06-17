@@ -57,22 +57,18 @@ object ZoneValidatorMessage {
   case object UpdateAccountResponse                                               extends SuccessResponse
   final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
 
-  sealed abstract class ZoneNotification {
-    def zoneId: ZoneId
-  }
+  sealed abstract class ZoneNotification
 
-  case object EmptyZoneNotification extends ZoneNotification {
-    override def zoneId: ZoneId = sys.error("EmptyZoneNotification")
-  }
-  final case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey)     extends ZoneNotification
-  final case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey)       extends ZoneNotification
-  final case class ZoneTerminatedNotification(zoneId: ZoneId)                             extends ZoneNotification
-  final case class ZoneNameChangedNotification(zoneId: ZoneId, name: Option[String])      extends ZoneNotification
-  final case class MemberCreatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
-  final case class MemberUpdatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
-  final case class AccountCreatedNotification(zoneId: ZoneId, account: Account)           extends ZoneNotification
-  final case class AccountUpdatedNotification(zoneId: ZoneId, account: Account)           extends ZoneNotification
-  final case class TransactionAddedNotification(zoneId: ZoneId, transaction: Transaction) extends ZoneNotification
+  case object EmptyZoneNotification                                       extends ZoneNotification
+  final case class ClientJoinedZoneNotification(publicKey: PublicKey)     extends ZoneNotification
+  final case class ClientQuitZoneNotification(publicKey: PublicKey)       extends ZoneNotification
+  case object ZoneTerminatedNotification                                  extends ZoneNotification
+  final case class ZoneNameChangedNotification(name: Option[String])      extends ZoneNotification
+  final case class MemberCreatedNotification(member: Member)              extends ZoneNotification
+  final case class MemberUpdatedNotification(member: Member)              extends ZoneNotification
+  final case class AccountCreatedNotification(account: Account)           extends ZoneNotification
+  final case class AccountUpdatedNotification(account: Account)           extends ZoneNotification
+  final case class TransactionAddedNotification(transaction: Transaction) extends ZoneNotification
 
 }
 
@@ -102,7 +98,10 @@ final case class EnvelopedZoneResponse(zoneResponse: ZoneResponse,
                                        deliveryId: Long)
     extends ZoneValidatorMessage
 
-final case class EnvelopedZoneNotification(zoneNotification: ZoneNotification, sequenceNumber: Long, deliveryId: Long)
+final case class EnvelopedZoneNotification(zoneId: ZoneId,
+                                           zoneNotification: ZoneNotification,
+                                           sequenceNumber: Long,
+                                           deliveryId: Long)
     extends ZoneValidatorMessage
 
 final case class ActiveZoneSummary(zoneId: ZoneId,

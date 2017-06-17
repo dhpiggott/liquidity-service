@@ -25,8 +25,12 @@ message ClientMessage {
         }
     }
     message Notification {
+        message EnvelopedZoneNotification {
+            string zone_id = 1;
+            dhpcs.liquidity.actor.protocol.ZoneNotification zone_notification = 2;
+        }
         oneof notification {
-            dhpcs.liquidity.actor.protocol.ZoneNotification zone_notification = 1;
+            EnvelopedZoneNotification enveloped_zone_notification = 1;
         }
     }
     oneof message {

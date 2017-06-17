@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.client
 
 import java.io.{File, IOException}
+import java.util.UUID
 import javax.net.ssl._
 
 import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
@@ -60,7 +61,7 @@ object ServerConnection {
   }
 
   trait NotificationReceiptListener {
-    def onZoneNotificationReceived(notification: ZoneValidatorMessage.ZoneNotification): Unit
+    def onZoneNotificationReceived(zoneId: ZoneId, notification: ZoneValidatorMessage.ZoneNotification): Unit
   }
 
   class ConnectionRequestToken
@@ -372,11 +373,14 @@ class ServerConnection(filesDir: File,
           case proto.ws.protocol.ClientMessage.Message.Notification(protoNotification) =>
             activeState.handlerWrapper.post(protoNotification.notification match {
               case proto.ws.protocol.ClientMessage.Notification.Notification.Empty =>
-              case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotification(protoZoneNotification) =>
+              case proto.ws.protocol.ClientMessage.Notification.Notification.EnvelopedZoneNotification(
+                  proto.ws.protocol.ClientMessage.Notification.EnvelopedZoneNotification(
+                    zoneId,
+                    protoZoneNotification
+                  )) =>
                 val zoneNotification =
-                  ProtoBinding[ZoneValidatorMessage.ZoneNotification,
-                               proto.actor.protocol.ZoneNotification.ZoneNotification]
-                    .asScala(protoZoneNotification.zoneNotification)
+                  ProtoBinding[ZoneValidatorMessage.ZoneNotification, Option[proto.actor.protocol.ZoneNotification]]
+                    .asScala(protoZoneNotification)
                 activeState.subState match {
                   case _: ConnectingSubState =>
                     sys.error("Not connected")
@@ -386,7 +390,7 @@ class ServerConnection(filesDir: File,
                     activeState.handlerWrapper.post(
                       mainHandlerWrapper.post(
                         notificationReceiptListeners.foreach(
-                          _.onZoneNotificationReceived(zoneNotification)
+                          _.onZoneNotificationReceived(ZoneId(UUID.fromString(zoneId)), zoneNotification)
                         )))
                   case DisconnectingSubState =>
                 }

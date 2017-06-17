@@ -95,44 +95,33 @@ message ZoneResponse {
 
 message ZoneNotification {
     message ClientJoinedZoneNotification {
-        string zone_id = 1;
-        bytes public_key = 2;
+        bytes public_key = 1;
     }
     message ClientQuitZoneNotification {
-        string zone_id = 1;
-        bytes public_key = 2;
-    }
-    message ZoneTerminatedNotification {
-        string zone_id = 1;
+        bytes public_key = 1;
     }
     message ZoneNameChangedNotification {
-        string zone_id = 1;
-        google.protobuf.StringValue name = 2;
+        google.protobuf.StringValue name = 1;
     }
     message MemberCreatedNotification {
-        string zone_id = 1;
-        dhpcs.liquidity.model.Member member = 2;
+        dhpcs.liquidity.model.Member member = 1;
     }
     message MemberUpdatedNotification {
-        string zone_id = 1;
-        dhpcs.liquidity.model.Member member = 2;
+        dhpcs.liquidity.model.Member member = 1;
     }
     message AccountCreatedNotification {
-        string zone_id = 1;
-        dhpcs.liquidity.model.Account account = 2;
+        dhpcs.liquidity.model.Account account = 1;
     }
     message AccountUpdatedNotification {
-        string zone_id = 1;
-        dhpcs.liquidity.model.Account account = 2;
+        dhpcs.liquidity.model.Account account = 1;
     }
     message TransactionAddedNotification {
-        string zone_id = 1;
-        dhpcs.liquidity.model.Transaction transaction = 2;
+        dhpcs.liquidity.model.Transaction transaction = 1;
     }
     oneof zone_notification {
         ClientJoinedZoneNotification client_joined_zone_notification = 1;
         ClientQuitZoneNotification client_quit_zone_notification = 2;
-        ZoneTerminatedNotification zone_terminated_notification = 3;
+        bytes zone_terminated_notification = 3;
         ZoneNameChangedNotification zone_name_changed_notification = 4;
         MemberCreatedNotification member_created_notification = 5;
         MemberUpdatedNotification member_updated_notification = 6;
@@ -174,11 +163,11 @@ message EnvelopedZoneResponse {
     int64 delivery_id = 4;
 }
 
-// TODO: Move ZoneId into it
 message EnvelopedZoneNotification {
-    ZoneNotification notification = 1;
-    int64 sequence_number = 2;
-    int64 delivery_id = 3;
+    string zone_id = 1;
+    ZoneNotification notification = 2;
+    int64 sequence_number = 3;
+    int64 delivery_id = 4;
 }
 
 message ActiveZoneSummary {

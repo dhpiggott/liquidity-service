@@ -579,11 +579,12 @@ class BoardGame private (serverConnection: ServerConnection,
       joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
   }
 
-  override def onZoneNotificationReceived(zoneNotification: ZoneValidatorMessage.ZoneNotification): Unit =
-    if (_joinState == BoardGame.JOINED && zoneId.get == zoneNotification.zoneId) {
+  override def onZoneNotificationReceived(notificationZoneId: ZoneId,
+                                          zoneNotification: ZoneValidatorMessage.ZoneNotification): Unit =
+    if (_joinState == BoardGame.JOINED && zoneId.get == notificationZoneId) {
       def updatePlayersAndTransactions(): Unit = {
         val (updatedPlayers, updatedHiddenPlayers) = playersFromMembersAccounts(
-          zoneNotification.zoneId,
+          notificationZoneId,
           state.memberIdsToAccountIds,
           state.zone.accounts,
           state.balances,
@@ -631,10 +632,10 @@ class BoardGame private (serverConnection: ServerConnection,
       }
       zoneNotification match {
         case ZoneValidatorMessage.EmptyZoneNotification =>
-        case ZoneValidatorMessage.ClientJoinedZoneNotification(_, publicKey) =>
+        case ZoneValidatorMessage.ClientJoinedZoneNotification(publicKey) =>
           state.connectedClients = state.connectedClients + publicKey
           val (joinedPlayers, joinedHiddenPlayers) = playersFromMembersAccounts(
-            zoneNotification.zoneId,
+            notificationZoneId,
             state.memberIdsToAccountIds.filterKeys(
               state.zone.members(_).ownerPublicKey == publicKey
             ),
@@ -652,10 +653,10 @@ class BoardGame private (serverConnection: ServerConnection,
           }
           if (joinedHiddenPlayers.nonEmpty)
             state.hiddenPlayers = state.hiddenPlayers ++ joinedHiddenPlayers
-        case ZoneValidatorMessage.ClientQuitZoneNotification(_, publicKey) =>
+        case ZoneValidatorMessage.ClientQuitZoneNotification(publicKey) =>
           state.connectedClients = state.connectedClients - publicKey
           val (quitPlayers, quitHiddenPlayers) = playersFromMembersAccounts(
-            zoneNotification.zoneId,
+            notificationZoneId,
             state.memberIdsToAccountIds.filterKeys(
               state.zone.members(_).ownerPublicKey == publicKey
             ),
@@ -673,12 +674,12 @@ class BoardGame private (serverConnection: ServerConnection,
           }
           if (quitHiddenPlayers.nonEmpty)
             state.hiddenPlayers = state.hiddenPlayers ++ quitHiddenPlayers
-        case ZoneValidatorMessage.ZoneTerminatedNotification(_) =>
+        case ZoneValidatorMessage.ZoneTerminatedNotification =>
           state = null
           _joinState = BoardGame.JOINING
           joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-          join(zoneNotification.zoneId)
-        case ZoneValidatorMessage.ZoneNameChangedNotification(_, name) =>
+          join(notificationZoneId)
+        case ZoneValidatorMessage.ZoneNameChangedNotification(name) =>
           state.zone = state.zone.copy(name = name)
           gameActionListeners.foreach(_.onGameNameChanged(name))
           gameId.foreach(
@@ -688,16 +689,16 @@ class BoardGame private (serverConnection: ServerConnection,
               )
             }
           )
-        case ZoneValidatorMessage.MemberCreatedNotification(_, member) =>
+        case ZoneValidatorMessage.MemberCreatedNotification(member) =>
           state.zone = state.zone.copy(
             members = state.zone.members + (member.id -> member)
           )
-        case ZoneValidatorMessage.MemberUpdatedNotification(_, member) =>
+        case ZoneValidatorMessage.MemberUpdatedNotification(member) =>
           state.zone = state.zone.copy(
             members = state.zone.members + (member.id -> member)
           )
           val (updatedIdentities, updatedHiddenIdentities) = identitiesFromMembersAccounts(
-            zoneNotification.zoneId,
+            notificationZoneId,
             state.memberIdsToAccountIds,
             state.zone.accounts,
             state.balances,
@@ -727,7 +728,7 @@ class BoardGame private (serverConnection: ServerConnection,
           if (updatedHiddenIdentities != state.hiddenIdentities)
             state.hiddenIdentities = updatedHiddenIdentities
           updatePlayersAndTransactions()
-        case ZoneValidatorMessage.AccountCreatedNotification(_, account) =>
+        case ZoneValidatorMessage.AccountCreatedNotification(account) =>
           state.zone = state.zone.copy(
             accounts = state.zone.accounts + (account.id -> account)
           )
@@ -740,7 +741,7 @@ class BoardGame private (serverConnection: ServerConnection,
           state.accountIdsToMemberIds = state.accountIdsToMemberIds ++
             createdMembersAccounts.map(_.swap)
           val (createdIdentity, createdHiddenIdentity) = identitiesFromMembersAccounts(
-            zoneNotification.zoneId,
+            notificationZoneId,
             createdMembersAccounts,
             state.zone.accounts,
             state.balances,
@@ -759,7 +760,7 @@ class BoardGame private (serverConnection: ServerConnection,
           if (createdHiddenIdentity.nonEmpty)
             state.hiddenIdentities = state.hiddenIdentities ++ createdHiddenIdentity
           val (createdPlayer, createdHiddenPlayer) = playersFromMembersAccounts(
-            zoneNotification.zoneId,
+            notificationZoneId,
             createdMembersAccounts,
             state.zone.accounts,
             state.balances,
@@ -775,14 +776,14 @@ class BoardGame private (serverConnection: ServerConnection,
           }
           if (createdHiddenPlayer.nonEmpty)
             state.hiddenPlayers = state.hiddenPlayers ++ createdHiddenPlayer
-        case ZoneValidatorMessage.AccountUpdatedNotification(_, account) =>
+        case ZoneValidatorMessage.AccountUpdatedNotification(account) =>
           state.zone = state.zone.copy(
             accounts = state.zone.accounts + (account.id -> account)
           )
           state.memberIdsToAccountIds = membersAccountsFromAccounts(state.zone.accounts)
           state.accountIdsToMemberIds = state.memberIdsToAccountIds.map(_.swap)
           val (updatedIdentities, updatedHiddenIdentities) = identitiesFromMembersAccounts(
-            zoneNotification.zoneId,
+            notificationZoneId,
             state.memberIdsToAccountIds,
             state.zone.accounts,
             state.balances,
@@ -798,7 +799,7 @@ class BoardGame private (serverConnection: ServerConnection,
           if (updatedHiddenIdentities != state.hiddenIdentities)
             state.hiddenIdentities = updatedHiddenIdentities
           updatePlayersAndTransactions()
-        case ZoneValidatorMessage.TransactionAddedNotification(_, transaction) =>
+        case ZoneValidatorMessage.TransactionAddedNotification(transaction) =>
           state.zone = state.zone.copy(
             transactions = state.zone.transactions + (transaction.id -> transaction)
           )
@@ -812,7 +813,7 @@ class BoardGame private (serverConnection: ServerConnection,
             )
           )
           val (changedIdentities, changedHiddenIdentities) = identitiesFromMembersAccounts(
-            zoneNotification.zoneId,
+            notificationZoneId,
             changedMembersAccounts,
             state.zone.accounts,
             state.balances,
@@ -828,7 +829,7 @@ class BoardGame private (serverConnection: ServerConnection,
           if (changedHiddenIdentities.nonEmpty)
             state.hiddenIdentities = state.hiddenIdentities ++ changedHiddenIdentities
           val (changedPlayers, changedHiddenPlayers) = playersFromMembersAccounts(
-            zoneNotification.zoneId,
+            notificationZoneId,
             changedMembersAccounts,
             state.zone.accounts,
             state.balances,

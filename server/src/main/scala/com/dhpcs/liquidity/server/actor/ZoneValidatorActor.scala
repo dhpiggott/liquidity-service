@@ -447,7 +447,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               self ! PublishStatus
               deliverNotification(
                 ZoneNameChangedNotification(
-                  zoneId,
                   zoneNameChangedEvent.name
                 )
               )
@@ -475,7 +474,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               self ! PublishStatus
               deliverNotification(
                 MemberCreatedNotification(
-                  zoneId,
                   memberCreatedEvent.member
                 )
               )
@@ -497,7 +495,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               self ! PublishStatus
               deliverNotification(
                 MemberUpdatedNotification(
-                  zoneId,
                   memberUpdatedEvent.member
                 )
               )
@@ -525,7 +522,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               self ! PublishStatus
               deliverNotification(
                 AccountCreatedNotification(
-                  zoneId,
                   accountCreatedEvent.account
                 )
               )
@@ -547,7 +543,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               self ! PublishStatus
               deliverNotification(
                 AccountUpdatedNotification(
-                  zoneId,
                   accountUpdatedEvent.account
                 )
               )
@@ -582,7 +577,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               self ! PublishStatus
               deliverNotification(
                 TransactionAddedNotification(
-                  zoneId,
                   transactionAddedEvent.transaction
                 )
               )
@@ -601,7 +595,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       updateState(zoneJoinedEvent)
       onStateUpdate(state)
       if (!wasAlreadyPresent)
-        deliverNotification(ClientJoinedZoneNotification(zoneId, zoneJoinedEvent.publicKey))
+        deliverNotification(ClientJoinedZoneNotification(zoneJoinedEvent.publicKey))
     }
 
   private[this] def handleQuit(clientConnection: ActorRef)(onStateUpdate: => Unit): Unit =
@@ -613,7 +607,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       onStateUpdate
       val isStillPresent = state.clientConnections.values.exists(_ == publicKey)
       if (!isStillPresent)
-        deliverNotification(ClientQuitZoneNotification(zoneId, publicKey))
+        deliverNotification(ClientQuitZoneNotification(publicKey))
       context.unwatch(clientConnection)
       if (state.clientConnections.isEmpty)
         passivationCountdownActor ! Start
@@ -645,7 +639,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
       deliver(clientConnection) { deliveryId =>
         pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(clientConnection) + deliveryId))
-        EnvelopedZoneNotification(notification, sequenceNumber, deliveryId)
+        EnvelopedZoneNotification(zoneId, notification, sequenceNumber, deliveryId)
       }
     }
   }

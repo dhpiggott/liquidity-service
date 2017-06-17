@@ -47,4 +47,11 @@ package object protocol {
     _ => UpdateAccountResponse
   )
 
+  implicit final val ZoneTerminatedNotificationProtoBinding
+    : ProtoBinding[ZoneTerminatedNotification.type, com.google.protobuf.ByteString] =
+    ProtoBinding.instance(
+      _ => com.google.protobuf.ByteString.EMPTY,
+      _ => ZoneTerminatedNotification
+    )
+
 }

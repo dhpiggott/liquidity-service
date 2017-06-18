@@ -28,7 +28,7 @@ class WsProtocolSpec extends FreeSpec {
         createKeyOwnershipNonceMessage()
       val invalidSignature = new Array[Byte](256)
       Random.nextBytes(invalidSignature)
-      val completeKeyOwnershipProofMessage = proto.ws.protocol.CompleteKeyOwnershipProof(
+      val completeKeyOwnershipProofMessage = proto.ws.protocol.ServerMessage.CompleteKeyOwnershipProof(
         com.google.protobuf.ByteString.copyFrom(invalidSignature)
       )
       assert(

@@ -11,24 +11,24 @@ import scala.util.Random
 
 package object protocol {
 
-  def createBeginKeyOwnershipProofMessage(publicKey: RSAPublicKey): proto.ws.protocol.BeginKeyOwnershipProof =
-    proto.ws.protocol.BeginKeyOwnershipProof(
+  def createBeginKeyOwnershipProofMessage(publicKey: RSAPublicKey): proto.ws.protocol.ServerMessage.BeginKeyOwnershipProof =
+    proto.ws.protocol.ServerMessage.BeginKeyOwnershipProof(
       com.google.protobuf.ByteString.copyFrom(publicKey.getEncoded)
     )
 
-  def createKeyOwnershipNonceMessage(): proto.ws.protocol.KeyOwnershipProofNonce = {
+  def createKeyOwnershipNonceMessage(): proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce = {
     val nonce = new Array[Byte](KeySize / 8)
     Random.nextBytes(nonce)
-    proto.ws.protocol.KeyOwnershipProofNonce(
+    proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce(
       com.google.protobuf.ByteString.copyFrom(nonce)
     )
   }
 
   def createCompleteKeyOwnershipProofMessage(privateKey: RSAPrivateKey,
-                                             keyOwnershipProofNonceMessage: proto.ws.protocol.KeyOwnershipProofNonce)
-    : proto.ws.protocol.CompleteKeyOwnershipProof = {
+                                             keyOwnershipProofNonceMessage: proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce)
+    : proto.ws.protocol.ServerMessage.CompleteKeyOwnershipProof = {
     val nonce = keyOwnershipProofNonceMessage.nonce.toByteArray
-    proto.ws.protocol.CompleteKeyOwnershipProof(
+    proto.ws.protocol.ServerMessage.CompleteKeyOwnershipProof(
       com.google.protobuf.ByteString.copyFrom(
         signMessage(privateKey)(nonce)
       )
@@ -42,9 +42,9 @@ package object protocol {
     s.sign
   }
 
-  def isValidKeyOwnershipProof(beginKeyOwnershipProof: proto.ws.protocol.BeginKeyOwnershipProof,
-                               keyOwnershipProofNonce: proto.ws.protocol.KeyOwnershipProofNonce,
-                               completeKeyOwnershipProof: proto.ws.protocol.CompleteKeyOwnershipProof): Boolean = {
+  def isValidKeyOwnershipProof(beginKeyOwnershipProof: proto.ws.protocol.ServerMessage.BeginKeyOwnershipProof,
+                               keyOwnershipProofNonce: proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce,
+                               completeKeyOwnershipProof: proto.ws.protocol.ServerMessage.CompleteKeyOwnershipProof): Boolean = {
     val publicKey = KeyFactory
       .getInstance("RSA")
       .generatePublic(new X509EncodedKeySpec(beginKeyOwnershipProof.publicKey.toByteArray))

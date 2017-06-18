@@ -177,8 +177,8 @@ class ClientConnectionActor(ip: RemoteAddress,
     }
 
   private[this] def waitingForCompleteKeyOwnershipProof(
-      beginKeyOwnershipProofMessage: proto.ws.protocol.BeginKeyOwnershipProof,
-      keyOwnershipProofNonceMessage: proto.ws.protocol.KeyOwnershipProofNonce): Receive =
+      beginKeyOwnershipProofMessage: proto.ws.protocol.ServerMessage.BeginKeyOwnershipProof,
+      keyOwnershipProofNonceMessage: proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce): Receive =
     publishStatus(maybePublicKey = None) orElse sendPingCommand orElse {
       case serverMessage: proto.ws.protocol.ServerMessage =>
         sender() ! ActorSinkAck

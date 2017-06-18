@@ -6,12 +6,10 @@ option java_package = "com.dhpcs.liquidity.proto.ws.protocol";
 
 import "dhpcs/liquidity/actor/zone-validator.proto";
 
-// TODO: Nest
-message KeyOwnershipProofNonce {
-    bytes nonce = 1;
-}
-
 message ClientMessage {
+    message KeyOwnershipProofNonce {
+        bytes nonce = 1;
+    }
     message Command {
         int64 correlation_id = 1;
         oneof command {
@@ -41,16 +39,14 @@ message ClientMessage {
     }
 }
 
-// TODO: Nest
-// TODO: Merge?
-message BeginKeyOwnershipProof {
-    bytes public_key = 1;
-}
-message CompleteKeyOwnershipProof {
-    bytes signature = 1;
-}
-
 message ServerMessage {
+    // TODO: Merge?
+    message BeginKeyOwnershipProof {
+        bytes public_key = 1;
+    }
+    message CompleteKeyOwnershipProof {
+        bytes signature = 1;
+    }
     message Command {
         message EnvelopedZoneCommand {
             string zone_id = 1;

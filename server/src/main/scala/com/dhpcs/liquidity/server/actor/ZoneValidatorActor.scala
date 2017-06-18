@@ -216,6 +216,8 @@ object ZoneValidatorActor {
       Some(s"Invalid transaction destination account: $to")
     else if (to == from)
       Some(s"Invalid reflexive transaction (source: $from, destination: $to)")
+    else if (value.compare(0) == -1)
+      Some(s"Invalid transaction value ($value)")
     else {
       val updatedSourceBalance = balances(from) - value
       if (updatedSourceBalance < 0 && from != zone.equityAccountId)

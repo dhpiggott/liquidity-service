@@ -106,6 +106,7 @@ object LegacyModelFormats {
 
 }
 
+// TODO: Namespace all messages in the companion
 sealed abstract class Message
 sealed abstract class Command      extends Message
 sealed abstract class Response     extends Message

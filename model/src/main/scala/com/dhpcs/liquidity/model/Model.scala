@@ -35,11 +35,7 @@ final case class Transaction(id: TransactionId,
                              creator: MemberId,
                              created: Long,
                              description: Option[String] = None,
-                             metadata: Option[com.google.protobuf.struct.Struct] = None) {
-  // TODO: Move all validation into ZoneValidatorActor
-  require(value >= 0)
-  require(created >= 0)
-}
+                             metadata: Option[com.google.protobuf.struct.Struct] = None)
 
 final case class ZoneId(id: UUID)
 
@@ -55,8 +51,4 @@ final case class Zone(id: ZoneId,
                       created: Long,
                       expires: Long,
                       name: Option[String] = None,
-                      metadata: Option[com.google.protobuf.struct.Struct] = None) {
-  // TODO: Move all validation into ZoneValidatorActor
-  require(created >= 0)
-  require(expires >= 0)
-}
+                      metadata: Option[com.google.protobuf.struct.Struct] = None)

@@ -60,6 +60,7 @@ message ZoneCommand {
 }
 
 message ZoneResponse {
+    // TODO: Improve
     message ErrorResponse {
         string error = 1;
     }

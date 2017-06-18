@@ -36,10 +36,7 @@ object ZoneValidatorMessage {
                                          value: BigDecimal,
                                          description: Option[String] = None,
                                          metadata: Option[com.google.protobuf.struct.Struct] = None)
-      extends ZoneCommand {
-    // TODO: Move all validation into ZoneValidatorActor
-    require(value >= 0)
-  }
+      extends ZoneCommand
 
   sealed abstract class ZoneResponse
 

@@ -7,7 +7,7 @@ option java_package = "com.dhpcs.liquidity.proto.ws.protocol";
 import "dhpcs/liquidity/actor/zone-validator.proto";
 
 message ClientMessage {
-    message KeyOwnershipProofNonce {
+    message KeyOwnershipChallenge {
         bytes nonce = 1;
     }
     message Command {
@@ -32,7 +32,7 @@ message ClientMessage {
         }
     }
     oneof message {
-        KeyOwnershipProofNonce key_ownership_proof_nonce = 1;
+        KeyOwnershipChallenge key_ownership_challenge = 1;
         Command command = 2;
         Response response = 3;
         Notification notification = 4;
@@ -40,12 +40,9 @@ message ClientMessage {
 }
 
 message ServerMessage {
-    // TODO: Merge?
-    message BeginKeyOwnershipProof {
+    message KeyOwnershipProof {
         bytes public_key = 1;
-    }
-    message CompleteKeyOwnershipProof {
-        bytes signature = 1;
+        bytes signature = 2;
     }
     message Command {
         message EnvelopedZoneCommand {
@@ -65,9 +62,8 @@ message ServerMessage {
         }
     }
     oneof message {
-        BeginKeyOwnershipProof begin_key_ownership_proof = 1;
-        CompleteKeyOwnershipProof complete_key_ownership_proof = 2;
-        Command command = 3;
-        Response response = 4;
+        KeyOwnershipProof key_ownership_proof = 1;
+        Command command = 2;
+        Response response = 3;
     }
 }

@@ -11,24 +11,21 @@ import scala.util.Random
 
 package object protocol {
 
-  def createBeginKeyOwnershipProofMessage(publicKey: RSAPublicKey): proto.ws.protocol.ServerMessage.BeginKeyOwnershipProof =
-    proto.ws.protocol.ServerMessage.BeginKeyOwnershipProof(
-      com.google.protobuf.ByteString.copyFrom(publicKey.getEncoded)
-    )
-
-  def createKeyOwnershipNonceMessage(): proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce = {
+  def createKeyOwnershipChallengeMessage(): proto.ws.protocol.ClientMessage.KeyOwnershipChallenge = {
     val nonce = new Array[Byte](KeySize / 8)
     Random.nextBytes(nonce)
-    proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce(
+    proto.ws.protocol.ClientMessage.KeyOwnershipChallenge(
       com.google.protobuf.ByteString.copyFrom(nonce)
     )
   }
 
-  def createCompleteKeyOwnershipProofMessage(privateKey: RSAPrivateKey,
-                                             keyOwnershipProofNonceMessage: proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce)
-    : proto.ws.protocol.ServerMessage.CompleteKeyOwnershipProof = {
-    val nonce = keyOwnershipProofNonceMessage.nonce.toByteArray
-    proto.ws.protocol.ServerMessage.CompleteKeyOwnershipProof(
+  def createKeyOwnershipProof(publicKey: RSAPublicKey,
+                              privateKey: RSAPrivateKey,
+                              keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge)
+    : proto.ws.protocol.ServerMessage.KeyOwnershipProof = {
+    val nonce = keyOwnershipChallenge.nonce.toByteArray
+    proto.ws.protocol.ServerMessage.KeyOwnershipProof(
+      com.google.protobuf.ByteString.copyFrom(publicKey.getEncoded),
       com.google.protobuf.ByteString.copyFrom(
         signMessage(privateKey)(nonce)
       )
@@ -42,15 +39,14 @@ package object protocol {
     s.sign
   }
 
-  def isValidKeyOwnershipProof(beginKeyOwnershipProof: proto.ws.protocol.ServerMessage.BeginKeyOwnershipProof,
-                               keyOwnershipProofNonce: proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce,
-                               completeKeyOwnershipProof: proto.ws.protocol.ServerMessage.CompleteKeyOwnershipProof): Boolean = {
+  def isValidKeyOwnershipProof(keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge,
+                               keyOwnershipProof: proto.ws.protocol.ServerMessage.KeyOwnershipProof): Boolean = {
     val publicKey = KeyFactory
       .getInstance("RSA")
-      .generatePublic(new X509EncodedKeySpec(beginKeyOwnershipProof.publicKey.toByteArray))
+      .generatePublic(new X509EncodedKeySpec(keyOwnershipProof.publicKey.toByteArray))
       .asInstanceOf[RSAPublicKey]
-    val nonce     = keyOwnershipProofNonce.nonce.toByteArray
-    val signature = completeKeyOwnershipProof.signature.toByteArray
+    val nonce     = keyOwnershipChallenge.nonce.toByteArray
+    val signature = keyOwnershipProof.signature.toByteArray
     isValidMessageSignature(publicKey)(nonce, signature)
   }
 

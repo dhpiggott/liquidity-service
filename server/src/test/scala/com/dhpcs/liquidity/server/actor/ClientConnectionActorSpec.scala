@@ -42,6 +42,9 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
   "A ClientConnectionActor" - {
     "will send a PingCommand when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
+      inside(expectMessage(upstreamTestProbe)) {
+        case proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge(_) => ()
+      }
       upstreamTestProbe.within(3.5.seconds)(
         assert(
           expectClientCommand(upstreamTestProbe) === proto.ws.protocol.ClientMessage.Command.Command
@@ -50,17 +53,13 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     }
     "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
-      sendMessage(sinkTestProbe, clientConnection)(
-        proto.ws.protocol.ServerMessage.Message
-          .BeginKeyOwnershipProof(createBeginKeyOwnershipProofMessage(ModelSpec.rsaPublicKey))
-      )
-      val keyOwnershipProofNonce = inside(expectMessage(upstreamTestProbe)) {
-        case proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(protoKeyOwnershipProofNonce) =>
-          protoKeyOwnershipProofNonce
+      val keyOwnershipChallenge = inside(expectMessage(upstreamTestProbe)) {
+        case keyOwnershipChallenge: proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge =>
+          keyOwnershipChallenge.value
       }
       sendMessage(sinkTestProbe, clientConnection)(
-        proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof(
-          createCompleteKeyOwnershipProofMessage(ModelSpec.rsaPrivateKey, keyOwnershipProofNonce))
+        proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
+          createKeyOwnershipProof(ModelSpec.rsaPublicKey, ModelSpec.rsaPrivateKey, keyOwnershipChallenge))
       )
       val createZoneCommand = ZoneValidatorMessage.CreateZoneCommand(
         equityOwnerPublicKey = publicKey,

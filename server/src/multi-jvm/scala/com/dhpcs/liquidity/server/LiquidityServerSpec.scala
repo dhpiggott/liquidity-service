@@ -448,17 +448,13 @@ sealed abstract class LiquidityServerSpec
       wsClientFlow,
       clientHttpsConnectionContext
     )
-    sendProtobufMessage(pub)(
-      proto.ws.protocol.ServerMessage.Message
-        .BeginKeyOwnershipProof(createBeginKeyOwnershipProofMessage(rsaPublicKey))
-    )
-    val keyOwnershipProofNonce = inside(expectProtobufMessage(sub)) {
-      case proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(protoKeyOwnershipProofNonce) =>
-        protoKeyOwnershipProofNonce
+    val keyOwnershipChallenge = inside(expectProtobufMessage(sub)) {
+      case keyOwnershipChallenge: proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge =>
+        keyOwnershipChallenge.value
     }
     sendProtobufMessage(pub)(
       proto.ws.protocol.ServerMessage.Message
-        .CompleteKeyOwnershipProof(createCompleteKeyOwnershipProofMessage(rsaPrivateKey, keyOwnershipProofNonce))
+        .KeyOwnershipProof(createKeyOwnershipProof(rsaPublicKey, rsaPrivateKey, keyOwnershipChallenge))
     )
     try test(sub, pub)
     finally {

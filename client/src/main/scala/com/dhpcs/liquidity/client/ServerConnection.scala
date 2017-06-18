@@ -304,11 +304,13 @@ class ServerConnection(filesDir: File,
       case activeState: ActiveState =>
         clientMessage.message match {
           case proto.ws.protocol.ClientMessage.Message.Empty =>
-          case proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(protoKeyOwnershipProofNonce) =>
+          case proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge(keyOwnershipChallenge) =>
             sendServerMessage(
               webSocket,
-              proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof(
-                createCompleteKeyOwnershipProofMessage(clientKeyStore.rsaPrivateKey, protoKeyOwnershipProofNonce)
+              proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
+                createKeyOwnershipProof(clientKeyStore.rsaPublicKey,
+                                        clientKeyStore.rsaPrivateKey,
+                                        keyOwnershipChallenge)
               )
             )
             activeState.handlerWrapper.post {
@@ -408,12 +410,6 @@ class ServerConnection(filesDir: File,
           case _: ConnectedSubState | DisconnectingSubState =>
             sys.error("Not connecting")
           case _: ConnectingSubState =>
-            sendServerMessage(
-              webSocket,
-              proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof(
-                createBeginKeyOwnershipProofMessage(clientKeyStore.rsaPublicKey)
-              )
-            )
             activeState.subState = AuthenticatingSubState(webSocket)
             mainHandlerWrapper.post {
               _connectionState = AUTHENTICATING

@@ -151,55 +151,32 @@ class ClientConnectionActor(ip: RemoteAddress,
     publishStatus(maybePublicKey = None) orElse sendPingCommand orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
-        context.become(waitingForBeginKeyOwnershipProof)
+        val keyOwnershipChallenge = createKeyOwnershipChallengeMessage()
+        sendClientMessage(proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge(keyOwnershipChallenge))
+        context.become(waitingForKeyOwnershipProof(keyOwnershipChallenge))
     }
 
-  private[this] def waitingForBeginKeyOwnershipProof: Receive =
+  private[this] def waitingForKeyOwnershipProof(
+      keyOwnershipChallengeMessage: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge): Receive =
     publishStatus(maybePublicKey = None) orElse sendPingCommand orElse {
       case serverMessage: proto.ws.protocol.ServerMessage =>
         sender() ! ActorSinkAck
         pingGeneratorActor ! FrameReceivedEvent
         serverMessage.message match {
           case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
-              _: proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof |
-              _: proto.ws.protocol.ServerMessage.Message.Command |
-              _: proto.ws.protocol.ServerMessage.Message.Response) =>
-            log.warning(s"Stopping due to unexpected message; required BeginKeyOwnershipProof but received $other")
-            context.stop(self)
-          case proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof(protoBeginKeyOwnershipProof) =>
-            val protoKeyOwnershipProofNonce = createKeyOwnershipNonceMessage()
-            sendClientMessage(
-              proto.ws.protocol.ClientMessage.Message.KeyOwnershipProofNonce(protoKeyOwnershipProofNonce)
-            )
-            context.become(
-              waitingForCompleteKeyOwnershipProof(protoBeginKeyOwnershipProof, protoKeyOwnershipProofNonce))
-        }
-    }
-
-  private[this] def waitingForCompleteKeyOwnershipProof(
-      beginKeyOwnershipProofMessage: proto.ws.protocol.ServerMessage.BeginKeyOwnershipProof,
-      keyOwnershipProofNonceMessage: proto.ws.protocol.ClientMessage.KeyOwnershipProofNonce): Receive =
-    publishStatus(maybePublicKey = None) orElse sendPingCommand orElse {
-      case serverMessage: proto.ws.protocol.ServerMessage =>
-        sender() ! ActorSinkAck
-        pingGeneratorActor ! FrameReceivedEvent
-        serverMessage.message match {
-          case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
-              _: proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof |
               _: proto.ws.protocol.ServerMessage.Message.Command |
               _: proto.ws.protocol.ServerMessage.Message.Response) =>
             log.warning(s"Stopping due to unexpected message; required CompleteKeyOwnershipProof but received $other")
             context.stop(self)
-          case proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof(completeKeyOwnershipProofMessage) =>
-            if (!isValidKeyOwnershipProof(beginKeyOwnershipProofMessage,
-                                          keyOwnershipProofNonceMessage,
-                                          completeKeyOwnershipProofMessage)) {
+          case proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(keyOwnershipProofMessage) =>
+            val publicKey = PublicKey(keyOwnershipProofMessage.publicKey.toByteArray)
+            if (!isValidKeyOwnershipProof(keyOwnershipChallengeMessage, keyOwnershipProofMessage)) {
               log.warning(
-                s"Stopping due to invalid key ownership proof for public key $beginKeyOwnershipProofMessage " +
-                  s"and nonce $keyOwnershipProofNonceMessage; received signature was $completeKeyOwnershipProofMessage")
+                s"Stopping due to invalid key ownership proof for public key with fingerprint " +
+                  s"${publicKey.fingerprint}.")
               context.stop(self)
             } else
-              context.become(receiveActorSinkMessages(PublicKey(beginKeyOwnershipProofMessage.publicKey.toByteArray)))
+              context.become(receiveActorSinkMessages(publicKey))
         }
     }
 
@@ -210,8 +187,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         pingGeneratorActor ! FrameReceivedEvent
         serverMessage.message match {
           case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
-              _: proto.ws.protocol.ServerMessage.Message.BeginKeyOwnershipProof |
-              _: proto.ws.protocol.ServerMessage.Message.CompleteKeyOwnershipProof) =>
+              _: proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof) =>
             log.warning(s"Stopping due to unexpected message; required Command or Response but received $other")
             context.stop(self)
           case proto.ws.protocol.ServerMessage.Message.Command(protoCommand) =>

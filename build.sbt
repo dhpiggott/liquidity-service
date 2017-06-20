@@ -126,7 +126,7 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-stream-testkit"         % "2.5.3",
       "com.typesafe.akka"          %% "akka-persistence"            % "2.5.3",
       "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.3",
-      "com.typesafe.akka"          %% "akka-http"                   % "10.0.7",
+      "com.typesafe.akka"          %% "akka-http"                   % "10.0.8",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.3.1"
     ),
@@ -143,7 +143,7 @@ lazy val server = project
       "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.54",
       "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
-      "com.typesafe.akka"      %% "akka-http"                    % "10.0.7",
+      "com.typesafe.akka"      %% "akka-http"                    % "10.0.8",
       "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.1"
     )
   )
@@ -151,7 +151,7 @@ lazy val server = project
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
     "org.scalatest"     %% "scalatest"           % "3.0.3"  % Test,
-    "com.typesafe.akka" %% "akka-http-testkit"   % "10.0.7" % Test,
+    "com.typesafe.akka" %% "akka-http-testkit"   % "10.0.8" % Test,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.3"  % Test
   ))
   .configs(MultiJvm)

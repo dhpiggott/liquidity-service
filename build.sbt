@@ -78,7 +78,7 @@ lazy val wsLegacyProtocol = project
     name := "liquidity-ws-legacy-protocol"
   )
   .dependsOn(model)
-  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0-RC3")
+  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0.0")
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 

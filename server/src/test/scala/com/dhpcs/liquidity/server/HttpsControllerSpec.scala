@@ -48,7 +48,7 @@ class HttpsControllerSpec extends FreeSpec with HttpsController with ScalatestRo
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
-  "A LiquidityController" - (
+  "The HttpsController" - (
     "will accept legacy WebSocket connections" in {
       val wsProbe = WSProbe()
       WS("/ws", wsProbe.flow)

@@ -24,7 +24,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
-  "A LiquidityController" - {
+  "The HttpController" - {
     "will provide version information" in {
       val getRequest = RequestBuilding.Get("/version")
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {

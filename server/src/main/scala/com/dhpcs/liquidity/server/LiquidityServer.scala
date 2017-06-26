@@ -34,7 +34,7 @@ import org.json4s.{JObject, JValue}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 object LiquidityServer {
 
@@ -65,7 +65,7 @@ object LiquidityServer {
     implicit val system      = ActorSystem("liquidity")
     implicit val mat         = ActorMaterializer()
     val readJournal          = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
-    implicit val ec          = ExecutionContext.global
+    implicit val ec           = system.dispatcher
     val futureAnalyticsStore = readJournal.session.underlying().flatMap(CassandraAnalyticsStore(config)(_, ec))
     val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
       Console.err.println("Exiting due to stream failure")
@@ -147,7 +147,7 @@ class LiquidityServer(config: Config,
     extends HttpController
     with HttpsController {
 
-  import system.dispatcher
+  private[this] implicit val ec = system.dispatcher
 
   private[this] val clientsMonitorActor = system.actorOf(
     ClientsMonitorActor.props.withDeploy(Deploy.local),

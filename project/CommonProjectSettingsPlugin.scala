@@ -1,3 +1,4 @@
+import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys._
 import sbt.Keys._
 import sbt._
 import scoverage.ScoverageKeys._
@@ -61,6 +62,11 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
     conflictManager := ConflictManager.strict
   )
 
+  private lazy val testSettings = Seq(
+    testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"),
+    testOptions in MultiJvm += Tests.Argument(TestFrameworks.ScalaTest, "-oDF")
+  )
+
   private lazy val coverageSettings = Seq(
     coverageExcludedFiles := ".*/target/.*"
   )
@@ -74,6 +80,7 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
   override def projectSettings: Seq[Setting[_]] =
     scalaSettings ++
       resolverSettings ++
+      testSettings ++
       coverageSettings ++
       addCommandAlias("validate", ";scalafmtTest; test; multi-jvm:test") ++
       publishSettings

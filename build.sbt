@@ -1,5 +1,3 @@
-import sbt.Keys.dependencyOverrides
-
 lazy val protobufSettings = Seq(
   PB.targets in Compile := Seq(
     scalapb.gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value

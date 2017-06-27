@@ -1,6 +1,5 @@
 package com.dhpcs.liquidity.server.actor
 
-import akka.actor.Deploy
 import akka.testkit.TestProbe
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
@@ -11,7 +10,7 @@ class ClientsMonitorActorSpec extends FreeSpec with InMemPersistenceTestFixtures
   "A ClientsMonitorActor" - {
     "will provide a summary of the active clients" in {
       val testProbe      = TestProbe()
-      val clientsMonitor = system.actorOf(ClientsMonitorActor.props.withDeploy(Deploy.local), "clients-monitor")
+      val clientsMonitor = system.actorOf(ClientsMonitorActor.props, "clients-monitor")
       try {
         testProbe.send(
           clientsMonitor,

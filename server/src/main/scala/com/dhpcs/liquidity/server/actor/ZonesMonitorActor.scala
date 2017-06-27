@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, ActorRef, NoSerializationVerificationNeeded, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import akka.pattern.pipe
@@ -18,7 +18,7 @@ import scala.concurrent.duration._
 
 object ZonesMonitorActor {
 
-  def props(zoneCount: () => Future[Int]): Props = Props(classOf[ZonesMonitorActor], zoneCount)
+  def props(zoneCount: () => Future[Int]): Props = Props(new ZonesMonitorActor(zoneCount))
 
   def zoneCount(readJournal: ReadJournal with CurrentPersistenceIdsQuery)(implicit mat: Materializer): Future[Int] =
     readJournal.currentPersistenceIds
@@ -31,13 +31,12 @@ object ZonesMonitorActor {
   case object GetActiveZonesSummary
 
   final case class ActiveZonesSummary(activeZoneSummaries: Set[ActiveZoneSummary])
-      extends NoSerializationVerificationNeeded
 
-  case object GetZoneCount extends NoSerializationVerificationNeeded
+  case object GetZoneCount
 
-  final case class ZoneCount(count: Int) extends NoSerializationVerificationNeeded
+  final case class ZoneCount(count: Int)
 
-  private case object PublishStatus extends NoSerializationVerificationNeeded
+  private case object PublishStatus
 
 }
 

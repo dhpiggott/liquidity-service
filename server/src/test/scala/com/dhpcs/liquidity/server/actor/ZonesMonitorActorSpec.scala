@@ -1,6 +1,5 @@
 package com.dhpcs.liquidity.server.actor
 
-import akka.actor.Deploy
 import akka.testkit.TestProbe
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.{GetZoneCount, ZoneCount}
@@ -14,7 +13,7 @@ class ZonesMonitorActorSpec extends FreeSpec with InMemPersistenceTestFixtures {
     "will provide a count of the number of zones" in {
       val testProbe = TestProbe()
       val zonesMonitor =
-        system.actorOf(ZonesMonitorActor.props(() => Future.successful(0)).withDeploy(Deploy.local), "zones-monitor")
+        system.actorOf(ZonesMonitorActor.props(() => Future.successful(0)), "zones-monitor")
       try {
         testProbe.send(
           zonesMonitor,

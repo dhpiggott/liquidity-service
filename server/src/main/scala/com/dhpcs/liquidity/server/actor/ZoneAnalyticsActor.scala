@@ -21,7 +21,7 @@ object ZoneAnalyticsActor {
   def props(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
             futureAnalyticsStore: Future[CassandraAnalyticsStore],
             streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer): Props =
-    Props(classOf[ZoneAnalyticsActor], readJournal, futureAnalyticsStore, streamFailureHandler, mat)
+    Props(new ZoneAnalyticsActor(readJournal, futureAnalyticsStore, streamFailureHandler, mat))
 
   final val ShardTypeName = "zone-analytics"
 

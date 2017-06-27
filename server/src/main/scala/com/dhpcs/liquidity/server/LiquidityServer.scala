@@ -4,7 +4,7 @@ import java.security.KeyStore
 import java.security.cert.{CertificateException, X509Certificate}
 import javax.net.ssl._
 
-import akka.actor.{ActorPath, ActorRef, ActorSystem, CoordinatedShutdown, Deploy, PoisonPill}
+import akka.actor.{ActorPath, ActorRef, ActorSystem, CoordinatedShutdown, PoisonPill}
 import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
@@ -33,8 +33,8 @@ import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
 import org.json4s.{JObject, JValue}
 
 import scala.collection.immutable.Seq
-import scala.concurrent.duration._
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 object LiquidityServer {
 
@@ -65,7 +65,7 @@ object LiquidityServer {
     implicit val system      = ActorSystem("liquidity")
     implicit val mat         = ActorMaterializer()
     val readJournal          = PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
-    implicit val ec           = system.dispatcher
+    implicit val ec          = system.dispatcher
     val futureAnalyticsStore = readJournal.session.underlying().flatMap(CassandraAnalyticsStore(config)(_, ec))
     val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
       Console.err.println("Exiting due to stream failure")
@@ -150,11 +150,11 @@ class LiquidityServer(config: Config,
   private[this] implicit val ec = system.dispatcher
 
   private[this] val clientsMonitorActor = system.actorOf(
-    ClientsMonitorActor.props.withDeploy(Deploy.local),
+    ClientsMonitorActor.props,
     "clients-monitor"
   )
   private[this] val zonesMonitorActor = system.actorOf(
-    ZonesMonitorActor.props(() => ZonesMonitorActor.zoneCount(readJournal)).withDeploy(Deploy.local),
+    ZonesMonitorActor.props(() => ZonesMonitorActor.zoneCount(readJournal)),
     "zones-monitor"
   )
 

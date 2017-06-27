@@ -28,9 +28,7 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |      "com.dhpcs.liquidity.proto.ws.protocol.ServerMessage" = proto
        |      "com.dhpcs.liquidity.proto.ws.protocol.ClientMessage" = proto
        |    }
-       |    allow-java-serialization = on
-       |    serialize-messages = on
-       |    serialize-creators = on
+       |    allow-java-serialization = off
        |  }
        |  remote.netty.tcp.port = $akkaRemotingPort
        |  cluster {

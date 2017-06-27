@@ -63,7 +63,7 @@ object ClientConnectionActor {
         factory.actorOf(
           Props(new Actor {
             val flowActor: ActorRef =
-              context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local)))
+              context.watch(context.actorOf(props(outActor)))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive: Receive = {
               case _: Status.Success | _: Status.Failure =>
@@ -74,7 +74,7 @@ object ClientConnectionActor {
               case other =>
                 flowActor.forward(other)
             }
-          }).withDeploy(Deploy.local)
+          })
         ),
         onInitMessage = ActorSinkInit,
         ackMessage = ActorSinkAck,
@@ -84,18 +84,18 @@ object ClientConnectionActor {
     )
   }
 
-  case object ActorSinkInit extends NoSerializationVerificationNeeded
-  case object ActorSinkAck  extends NoSerializationVerificationNeeded
+  case object ActorSinkInit
+  case object ActorSinkAck
 
-  private case object PublishStatus extends NoSerializationVerificationNeeded
+  private case object PublishStatus
 
   private object PingGeneratorActor {
 
-    def props(pingInterval: FiniteDuration): Props = Props(classOf[PingGeneratorActor], pingInterval)
+    def props(pingInterval: FiniteDuration): Props = Props(new PingGeneratorActor(pingInterval))
 
-    case object FrameReceivedEvent extends NoSerializationVerificationNeeded
-    case object FrameSentEvent     extends NoSerializationVerificationNeeded
-    case object SendPingCommand    extends NoSerializationVerificationNeeded
+    case object FrameReceivedEvent
+    case object FrameSentEvent
+    case object SendPingCommand
 
   }
 
@@ -126,7 +126,7 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] val mediator          = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
   private[this] val pingGeneratorActor =
-    context.actorOf(PingGeneratorActor.props(pingInterval).withDeploy(Deploy.local))
+    context.actorOf(PingGeneratorActor.props(pingInterval))
 
   private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)

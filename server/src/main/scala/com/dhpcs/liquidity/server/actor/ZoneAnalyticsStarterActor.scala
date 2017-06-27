@@ -18,7 +18,7 @@ object ZoneAnalyticsStarterActor {
   def props(readJournal: ReadJournal with CurrentPersistenceIdsQuery with PersistenceIdsQuery,
             zoneAnalyticsShardRegion: ActorRef,
             streamFailureHandler: PartialFunction[Throwable, Unit])(implicit mat: Materializer): Props =
-    Props(classOf[ZoneAnalyticsStarterActor], readJournal, zoneAnalyticsShardRegion, streamFailureHandler, mat)
+    Props(new ZoneAnalyticsStarterActor(readJournal, zoneAnalyticsShardRegion, streamFailureHandler, mat))
 }
 
 class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistenceIdsQuery with PersistenceIdsQuery,

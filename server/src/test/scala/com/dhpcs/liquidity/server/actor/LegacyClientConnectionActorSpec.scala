@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.actor
 
 import java.net.InetAddress
 
-import akka.actor.{ActorRef, Deploy}
+import akka.actor.ActorRef
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
@@ -32,7 +32,6 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
       LegacyClientConnectionActor
         .props(ip, publicKey, zoneValidatorShardRegionTestProbe.ref, keepAliveInterval = 3.seconds)(
           upstreamTestProbe.ref)
-        .withDeploy(Deploy.local)
     )
     sinkTestProbe.send(clientConnection, LegacyClientConnectionActor.ActorSinkInit)
     sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck)

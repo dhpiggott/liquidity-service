@@ -67,9 +67,7 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |      "com.dhpcs.liquidity.proto.ws.protocol.ServerMessage" = proto
        |      "com.dhpcs.liquidity.proto.ws.protocol.ClientMessage" = proto
        |    }
-       |    allow-java-serialization = on
-       |    serialize-messages = on
-       |    serialize-creators = on
+       |    allow-java-serialization = off
        |  }
        |  cluster {
        |    http.management.port = $clusterHttpManagementPort

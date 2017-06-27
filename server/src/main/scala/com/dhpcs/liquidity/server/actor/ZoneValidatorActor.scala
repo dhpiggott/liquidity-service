@@ -100,16 +100,16 @@ object ZoneValidatorActor {
     }
   }
 
-  private case object PublishStatus extends NoSerializationVerificationNeeded
+  private case object PublishStatus
 
   private object PassivationCountdownActor {
 
     def props: Props = Props[PassivationCountdownActor]
 
-    case object CommandReceivedEvent extends NoSerializationVerificationNeeded
-    case object RequestPassivate     extends NoSerializationVerificationNeeded
-    case object Start                extends NoSerializationVerificationNeeded
-    case object Stop                 extends NoSerializationVerificationNeeded
+    case object CommandReceivedEvent
+    case object RequestPassivate
+    case object Start
+    case object Stop
 
     private final val PassivationTimeout = 2.minutes
 
@@ -235,7 +235,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] val mediator          = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
   private[this] val passivationCountdownActor =
-    context.actorOf(PassivationCountdownActor.props.withDeploy(Deploy.local))
+    context.actorOf(PassivationCountdownActor.props)
 
   private[this] val zoneId = ZoneId(UUID.fromString(self.path.name))
 

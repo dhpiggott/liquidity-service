@@ -68,7 +68,7 @@ object LegacyClientConnectionActor {
         factory.actorOf(
           Props(new Actor {
             val flowActor: ActorRef =
-              context.watch(context.actorOf(props(outActor).withDeploy(Deploy.local)))
+              context.watch(context.actorOf(props(outActor)))
             override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
             override def receive: Receive = {
               case _: Status.Success | _: Status.Failure =>
@@ -79,7 +79,7 @@ object LegacyClientConnectionActor {
               case other =>
                 flowActor.forward(other)
             }
-          }).withDeploy(Deploy.local)
+          })
         ),
         onInitMessage = ActorSinkInit,
         ackMessage = ActorSinkAck,
@@ -92,26 +92,25 @@ object LegacyClientConnectionActor {
   final val Topic = "Client"
 
   final case class WrappedCommand(jsonRpcRequestMessage: JsonRpcRequestMessage)
-      extends NoSerializationVerificationNeeded
 
-  sealed abstract class WrappedResponseOrNotification extends NoSerializationVerificationNeeded
+  sealed abstract class WrappedResponseOrNotification
   final case class WrappedResponse(jsonRpcResponseMessage: JsonRpcResponseMessage)
       extends WrappedResponseOrNotification
   final case class WrappedNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
       extends WrappedResponseOrNotification
 
-  case object ActorSinkInit extends NoSerializationVerificationNeeded
-  case object ActorSinkAck  extends NoSerializationVerificationNeeded
+  case object ActorSinkInit
+  case object ActorSinkAck
 
-  private case object PublishStatus extends NoSerializationVerificationNeeded
+  private case object PublishStatus
 
   private object KeepAliveGeneratorActor {
 
-    def props(keepAliveInterval: FiniteDuration): Props = Props(classOf[KeepAliveGeneratorActor], keepAliveInterval)
+    def props(keepAliveInterval: FiniteDuration): Props = Props(new KeepAliveGeneratorActor(keepAliveInterval))
 
-    case object FrameReceivedEvent extends NoSerializationVerificationNeeded
-    case object FrameSentEvent     extends NoSerializationVerificationNeeded
-    case object SendKeepAlive      extends NoSerializationVerificationNeeded
+    case object FrameReceivedEvent
+    case object FrameSentEvent
+    case object SendKeepAlive
 
   }
 
@@ -143,7 +142,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   private[this] val mediator          = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
   private[this] val keepAliveGeneratorActor =
-    context.actorOf(KeepAliveGeneratorActor.props(keepAliveInterval).withDeploy(Deploy.local))
+    context.actorOf(KeepAliveGeneratorActor.props(keepAliveInterval))
 
   private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)

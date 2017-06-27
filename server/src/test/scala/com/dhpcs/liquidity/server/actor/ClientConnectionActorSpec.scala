@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.actor
 
 import java.net.InetAddress
 
-import akka.actor.{ActorRef, Deploy}
+import akka.actor.ActorRef
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import com.dhpcs.liquidity.actor.protocol._
@@ -29,7 +29,6 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     val clientConnection = system.actorOf(
       ClientConnectionActor
         .props(ip, zoneValidatorShardRegionTestProbe.ref, pingInterval = 3.seconds)(upstreamTestProbe.ref)
-        .withDeploy(Deploy.local)
     )
     sinkTestProbe.send(clientConnection, ClientConnectionActor.ActorSinkInit)
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)

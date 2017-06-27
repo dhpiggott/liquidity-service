@@ -34,6 +34,7 @@ import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor._
 import com.dhpcs.liquidity.ws.protocol
 import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
 import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.OptionValues._
@@ -329,30 +330,30 @@ sealed abstract class LiquidityServerSpec
       "will send a SupportedVersionsNotification when connected" in withJsonRpcWsTestProbes { (sub, _) =>
         sub.within(5.seconds)(
           assert(
-            expectJsonRpcNotification(sub) === protocol.legacy.SupportedVersionsNotification(
+            expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
               protocol.legacy.CompatibleVersionNumbers))
         ); ()
       }
       "will send a KeepAliveNotification when left idle" in withJsonRpcWsTestProbes { (sub, _) =>
         sub.within(5.seconds)(
           assert(
-            expectJsonRpcNotification(sub) === protocol.legacy.SupportedVersionsNotification(
+            expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
               protocol.legacy.CompatibleVersionNumbers))
         )
         sub.within(3.5.seconds)(
-          assert(expectJsonRpcNotification(sub) === protocol.legacy.KeepAliveNotification)
+          assert(expectJsonRpcNotification(sub) === LegacyWsProtocol.KeepAliveNotification)
         ); ()
       }
       "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withJsonRpcWsTestProbes {
         (sub, pub) =>
           sub.within(5.seconds)(
             assert(
-              expectJsonRpcNotification(sub) === protocol.legacy.SupportedVersionsNotification(
+              expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
                 protocol.legacy.CompatibleVersionNumbers))
           )
           val correlationId = 0L
           sendJsonRpcCommand(pub)(
-            protocol.legacy.CreateZoneCommand(
+            LegacyWsProtocol.CreateZoneCommand(
               equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
               equityOwnerName = Some("Dave"),
               equityOwnerMetadata = None,
@@ -363,7 +364,7 @@ sealed abstract class LiquidityServerSpec
             correlationId
           )
           inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
-            case protocol.legacy.CreateZoneResponse(zone) =>
+            case LegacyWsProtocol.CreateZoneResponse(zone) =>
               assert(zone.equityAccountId === AccountId(0))
               assert(
                 zone.members(MemberId(0)) === Member(MemberId(0),
@@ -381,12 +382,12 @@ sealed abstract class LiquidityServerSpec
       "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withJsonRpcWsTestProbes { (sub, pub) =>
         sub.within(5.seconds)(
           assert(
-            expectJsonRpcNotification(sub) === protocol.legacy.SupportedVersionsNotification(
+            expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
               protocol.legacy.CompatibleVersionNumbers))
         )
         val correlationId = 0L
         sendJsonRpcCommand(pub)(
-          protocol.legacy.CreateZoneCommand(
+          LegacyWsProtocol.CreateZoneCommand(
             equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
             equityOwnerName = Some("Dave"),
             equityOwnerMetadata = None,
@@ -397,7 +398,7 @@ sealed abstract class LiquidityServerSpec
           correlationId
         )
         val zone = inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
-          case createZoneResponse: protocol.legacy.CreateZoneResponse =>
+          case createZoneResponse: LegacyWsProtocol.CreateZoneResponse =>
             val zone = createZoneResponse.zone
             assert(zone.equityAccountId === AccountId(0))
             assert(
@@ -414,11 +415,11 @@ sealed abstract class LiquidityServerSpec
             zone
         }
         sendJsonRpcCommand(pub)(
-          protocol.legacy.JoinZoneCommand(zone.id),
+          LegacyWsProtocol.JoinZoneCommand(zone.id),
           correlationId
         )
         inside(expectJsonRpcResponse(sub, correlationId, "joinZone")) {
-          case joinZoneResponse: protocol.legacy.JoinZoneResponse =>
+          case joinZoneResponse: LegacyWsProtocol.JoinZoneResponse =>
             assert(joinZoneResponse.zone === zone)
             assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
         }; ()
@@ -581,32 +582,32 @@ sealed abstract class LiquidityServerSpec
 
   private[this] def expectJsonRpcNotification(
       sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification])
-    : protocol.legacy.Notification = {
+    : LegacyWsProtocol.Notification = {
     sub.request(1)
     sub.expectNextPF {
       case LegacyClientConnectionActor.WrappedNotification(jsonRpcNotificationMessage) =>
-        protocol.legacy.Notification.read(jsonRpcNotificationMessage).asOpt.value
+        LegacyWsProtocol.Notification.read(jsonRpcNotificationMessage).asOpt.value
     }
   }
 
   private[this] def sendJsonRpcCommand(pub: TestPublisher.Probe[LegacyClientConnectionActor.WrappedCommand])(
-      command: protocol.legacy.Command,
+      command: LegacyWsProtocol.Command,
       correlationId: Long): Unit = {
     pub.sendNext(
       LegacyClientConnectionActor.WrappedCommand(
-        protocol.legacy.Command.write(command, id = NumericCorrelationId(correlationId))
+        LegacyWsProtocol.Command.write(command, id = NumericCorrelationId(correlationId))
       )); ()
   }
 
   private[this] def expectJsonRpcResponse(
       sub: TestSubscriber.Probe[LegacyClientConnectionActor.WrappedResponseOrNotification],
       expectedCorrelationId: Long,
-      method: String): protocol.legacy.Response = {
+      method: String): LegacyWsProtocol.Response = {
     sub.request(1)
     sub.expectNextPF {
       case LegacyClientConnectionActor.WrappedResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
         assert(jsonRpcResponseSuccessMessage.id === NumericCorrelationId(expectedCorrelationId))
-        protocol.legacy.SuccessResponse.read(jsonRpcResponseSuccessMessage, method).asOpt.value
+        LegacyWsProtocol.SuccessResponse.read(jsonRpcResponseSuccessMessage, method).asOpt.value
     }
   }
 }

@@ -16,7 +16,7 @@ import com.dhpcs.liquidity.client.LegacyServerConnection
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.ws.protocol
+import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
 import okio.ByteString
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -217,15 +217,15 @@ class LiquidityHealthcheck(scheme: Option[String],
     promise.future
   }
 
-  private[this] def sendLegacyZoneCommand(command: protocol.legacy.Command): Future[protocol.legacy.Response] = {
-    val promise = Promise[protocol.legacy.Response]
+  private[this] def sendLegacyZoneCommand(command: LegacyWsProtocol.Command): Future[LegacyWsProtocol.Response] = {
+    val promise = Promise[LegacyWsProtocol.Response]
     LegacyMainHandlerWrapper.post(
       () =>
         legacyServerConnection.sendCommand(
           command,
           new LegacyServerConnection.ResponseCallback {
-            override def onErrorResponse(error: protocol.legacy.ErrorResponse): Unit       = promise.success(error)
-            override def onSuccessResponse(success: protocol.legacy.SuccessResponse): Unit = promise.success(success)
+            override def onErrorResponse(error: LegacyWsProtocol.ErrorResponse): Unit       = promise.success(error)
+            override def onSuccessResponse(success: LegacyWsProtocol.SuccessResponse): Unit = promise.success(success)
           }
       ))
     promise.future
@@ -341,8 +341,8 @@ class LiquidityHealthcheck(scheme: Option[String],
           .requestNext(LegacyServerConnection.CONNECTING)
           .requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
           .requestNext(LegacyServerConnection.ONLINE); ()
-        inside(sendLegacyZoneCommand(protocol.legacy.JoinZoneCommand(SentinelZone.id)).futureValue) {
-          case protocol.legacy.JoinZoneResponse(zone, connectedClients) =>
+        inside(sendLegacyZoneCommand(LegacyWsProtocol.JoinZoneCommand(SentinelZone.id)).futureValue) {
+          case LegacyWsProtocol.JoinZoneResponse(zone, connectedClients) =>
             assert(zone === SentinelZone)
             assert(connectedClients === Set(legacyServerConnection.clientKey))
         }

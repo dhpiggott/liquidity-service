@@ -60,15 +60,15 @@ object LegacyServerConnection {
   }
 
   trait NotificationReceiptListener {
-    def onZoneNotificationReceived(notification: ZoneNotification): Unit
+    def onZoneNotificationReceived(notification: LegacyWsProtocol.ZoneNotification): Unit
   }
 
   class ConnectionRequestToken
 
   trait ResponseCallback {
 
-    def onErrorResponse(error: ErrorResponse): Unit
-    def onSuccessResponse(success: SuccessResponse): Unit
+    def onErrorResponse(error: LegacyWsProtocol.ErrorResponse): Unit
+    def onSuccessResponse(success: LegacyWsProtocol.SuccessResponse): Unit
 
   }
 
@@ -209,7 +209,7 @@ class LegacyServerConnection(filesDir: File,
       connect()
   }
 
-  def sendCommand(command: Command, responseCallback: ResponseCallback): Unit = state match {
+  def sendCommand(command: LegacyWsProtocol.Command, responseCallback: ResponseCallback): Unit = state match {
     case _: IdleState =>
       sys.error("Not connected")
     case activeState: ActiveState =>
@@ -222,7 +222,7 @@ class LegacyServerConnection(filesDir: File,
           case onlineSubState: OnlineSubState =>
             val correlationId = NumericCorrelationId(nextCorrelationId)
             nextCorrelationId = nextCorrelationId + 1
-            val jsonRpcRequestMessage = Command.write(command, correlationId)
+            val jsonRpcRequestMessage = LegacyWsProtocol.Command.write(command, correlationId)
             try {
               onlineSubState.webSocket.send(
                 Json.stringify(Json.toJson(jsonRpcRequestMessage))
@@ -329,12 +329,12 @@ class LegacyServerConnection(filesDir: File,
           jsonRpcMessage match {
             case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
               activeState.handlerWrapper.post(() =>
-                Notification.read(jsonRpcNotificationMessage) match {
+                LegacyWsProtocol.Notification.read(jsonRpcNotificationMessage) match {
                   case JsError(errors) =>
                     sys.error(s"Invalid Notification: $errors")
                   case JsSuccess(value, _) =>
                     value match {
-                      case SupportedVersionsNotification(compatibleVersionNumbers) =>
+                      case LegacyWsProtocol.SupportedVersionsNotification(compatibleVersionNumbers) =>
                         activeState.subState match {
                           case _: ConnectingSubState =>
                             sys.error("Not connected")
@@ -355,7 +355,7 @@ class LegacyServerConnection(filesDir: File,
                               }
                           case DisconnectingSubState =>
                         }
-                      case KeepAliveNotification =>
+                      case LegacyWsProtocol.KeepAliveNotification =>
                         activeState.subState match {
                           case _: ConnectingSubState =>
                             sys.error("Not connected")
@@ -364,7 +364,7 @@ class LegacyServerConnection(filesDir: File,
                           case _: OnlineSubState     =>
                           case DisconnectingSubState =>
                         }
-                      case zoneNotification: ZoneNotification =>
+                      case zoneNotification: LegacyWsProtocol.ZoneNotification =>
                         activeState.subState match {
                           case _: ConnectingSubState =>
                             sys.error("Not connected")
@@ -407,9 +407,9 @@ class LegacyServerConnection(filesDir: File,
                                   mainHandlerWrapper.post(
                                     () =>
                                       pendingRequest.callback.onErrorResponse(
-                                        ErrorResponse(jsonRpcResponseErrorMessage.message)))
+                                        LegacyWsProtocol.ErrorResponse(jsonRpcResponseErrorMessage.message)))
                                 case jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage =>
-                                  SuccessResponse
+                                  LegacyWsProtocol.SuccessResponse
                                     .read(jsonRpcResponseSuccessMessage, pendingRequest.requestMessage.method) match {
                                     case JsError(errors) =>
                                       sys.error(s"Invalid Response: $errors")

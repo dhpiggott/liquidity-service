@@ -176,15 +176,17 @@ class LegacyServerConnectionSpec
     port = akkaHttpPort
   )
 
-  private[this] def send(command: Command): Future[Response] = {
-    val promise = Promise[Response]
+  private[this] def send(command: LegacyWsProtocol.Command): Future[LegacyWsProtocol.Response] = {
+    val promise = Promise[LegacyWsProtocol.Response]
     MainHandlerWrapper.post(
       () =>
         serverConnection.sendCommand(
           command,
           new ResponseCallback {
-            override def onErrorResponse(errorResponse: ErrorResponse): Unit       = promise.success(errorResponse)
-            override def onSuccessResponse(successResponse: SuccessResponse): Unit = promise.success(successResponse)
+            override def onErrorResponse(errorResponse: LegacyWsProtocol.ErrorResponse): Unit =
+              promise.success(errorResponse)
+            override def onSuccessResponse(successResponse: LegacyWsProtocol.SuccessResponse): Unit =
+              promise.success(successResponse)
           }
       ))
     promise.future
@@ -232,7 +234,9 @@ class LegacyServerConnectionSpec
       clientConnectionActorTestProbe
         .sender()
         .tell(
-          WrappedNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
+          WrappedNotification(
+            LegacyWsProtocol.Notification.write(
+              LegacyWsProtocol.SupportedVersionsNotification(CompatibleVersionNumbers))),
           sender = clientConnectionActorTestProbe.ref
         )
       sub.requestNext(ONLINE)
@@ -241,7 +245,7 @@ class LegacyServerConnectionSpec
       sub.requestNext(AVAILABLE)
     }
     "will complete with a CreateZoneResponse when forwarding a CreateZoneCommand" in { sub =>
-      val createZoneCommand = CreateZoneCommand(
+      val createZoneCommand = LegacyWsProtocol.CreateZoneCommand(
         equityOwnerPublicKey = serverConnection.clientKey,
         equityOwnerName = Some("Dave"),
         equityOwnerMetadata = None,
@@ -251,7 +255,7 @@ class LegacyServerConnectionSpec
       )
       val created = System.currentTimeMillis
       val expires = created + 2.days.toMillis
-      val createZoneResponse = CreateZoneResponse(
+      val createZoneResponse = LegacyWsProtocol.CreateZoneResponse(
         zone = Zone(
           id = ZoneId.generate,
           equityAccountId = AccountId(0),
@@ -276,19 +280,21 @@ class LegacyServerConnectionSpec
       clientConnectionActorTestProbe
         .sender()
         .tell(
-          WrappedNotification(Notification.write(SupportedVersionsNotification(CompatibleVersionNumbers))),
+          WrappedNotification(
+            LegacyWsProtocol.Notification.write(
+              LegacyWsProtocol.SupportedVersionsNotification(CompatibleVersionNumbers))),
           sender = clientConnectionActorTestProbe.ref
         )
       sub.requestNext(ONLINE)
       val response              = send(createZoneCommand)
       val jsonRpcRequestMessage = clientConnectionActorTestProbe.expectMsgType[WrappedCommand].jsonRpcRequestMessage
       assert(jsonRpcRequestMessage.id === NumericCorrelationId(0))
-      assert(Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
+      assert(LegacyWsProtocol.Command.read(jsonRpcRequestMessage).asOpt.value === createZoneCommand)
       clientConnectionActorTestProbe
         .sender()
         .tell(
           WrappedResponse(
-            SuccessResponse.write(createZoneResponse, jsonRpcRequestMessage.id)
+            LegacyWsProtocol.SuccessResponse.write(createZoneResponse, jsonRpcRequestMessage.id)
           ),
           sender = clientConnectionActorTestProbe.ref
         )

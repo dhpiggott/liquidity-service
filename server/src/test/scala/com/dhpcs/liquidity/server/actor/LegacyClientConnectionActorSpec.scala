@@ -44,19 +44,25 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
   "A LegacyClientConnectionActor" - {
     "will send a SupportedVersionsNotification when connected" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
+      assert(
+        expectNotification(upstreamTestProbe) === LegacyWsProtocol.SupportedVersionsNotification(
+          CompatibleVersionNumbers))
     }
     "will send a KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
-      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
+      assert(
+        expectNotification(upstreamTestProbe) === LegacyWsProtocol.SupportedVersionsNotification(
+          CompatibleVersionNumbers))
       upstreamTestProbe.within(3.5.seconds)(
-        assert(expectNotification(upstreamTestProbe) === KeepAliveNotification)
+        assert(expectNotification(upstreamTestProbe) === LegacyWsProtocol.KeepAliveNotification)
       )
     }
     "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
-      assert(expectNotification(upstreamTestProbe) === SupportedVersionsNotification(CompatibleVersionNumbers))
-      val command = CreateZoneCommand(
+      assert(
+        expectNotification(upstreamTestProbe) === LegacyWsProtocol.SupportedVersionsNotification(
+          CompatibleVersionNumbers))
+      val command = LegacyWsProtocol.CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
         equityOwnerName = Some("Dave"),
         equityOwnerMetadata = None,
@@ -92,29 +98,30 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
                               sequenceNumber = 1L,
                               deliveryId = 1L)
       )
-      assert(expectResponse(upstreamTestProbe, "createZone") === CreateZoneResponse(zone))
+      assert(expectResponse(upstreamTestProbe, "createZone") === LegacyWsProtocol.CreateZoneResponse(zone))
     }
   }
 
-  private[this] def expectNotification(upstreamTestProbe: TestProbe): Notification =
+  private[this] def expectNotification(upstreamTestProbe: TestProbe): LegacyWsProtocol.Notification =
     upstreamTestProbe.expectMsgPF() {
       case WrappedNotification(jsonRpcNotificationMessage) =>
-        Notification.read(jsonRpcNotificationMessage).asOpt.value
+        LegacyWsProtocol.Notification.read(jsonRpcNotificationMessage).asOpt.value
     }
 
-  private[this] def sendCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: Command,
-                                                                                      correlationId: Long): Unit = {
+  private[this] def sendCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(
+      command: LegacyWsProtocol.Command,
+      correlationId: Long): Unit = {
     sinkTestProbe.send(
       clientConnection,
-      WrappedCommand(Command.write(command, id = NumericCorrelationId(correlationId)))
+      WrappedCommand(LegacyWsProtocol.Command.write(command, id = NumericCorrelationId(correlationId)))
     )
     sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck); ()
   }
 
-  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): Response =
+  private[this] def expectResponse(upstreamTestProbe: TestProbe, method: String): LegacyWsProtocol.Response =
     upstreamTestProbe.expectMsgPF() {
       case WrappedResponse(jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage) =>
-        SuccessResponse.read(jsonRpcResponseSuccessMessage, method).asOpt.value
+        LegacyWsProtocol.SuccessResponse.read(jsonRpcResponseSuccessMessage, method).asOpt.value
     }
 
 }

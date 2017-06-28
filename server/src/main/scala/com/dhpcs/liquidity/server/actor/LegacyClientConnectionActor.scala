@@ -13,7 +13,7 @@ import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, NumericCorrelationId, StringCorrelationId}
 import com.dhpcs.jsonrpc._
-import com.dhpcs.liquidity.actor.protocol.{ZoneValidatorMessage, _}
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
@@ -210,27 +210,27 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
                                                           equityAccountMetadata,
                                                           name,
                                                           metadata) =>
-                    ZoneId.generate -> ZoneValidatorMessage.CreateZoneCommand(equityOwnerPublicKey,
-                                                                              equityOwnerName,
-                                                                              equityOwnerMetadata,
-                                                                              equityAccountName,
-                                                                              equityAccountMetadata,
-                                                                              name,
-                                                                              metadata)
+                    ZoneId.generate -> CreateZoneCommand(equityOwnerPublicKey,
+                                                         equityOwnerName,
+                                                         equityOwnerMetadata,
+                                                         equityAccountName,
+                                                         equityAccountMetadata,
+                                                         name,
+                                                         metadata)
                   case zoneCommand @ LegacyWsProtocol.JoinZoneCommand(_) =>
-                    zoneCommand.zoneId -> ZoneValidatorMessage.JoinZoneCommand
+                    zoneCommand.zoneId -> JoinZoneCommand
                   case zoneCommand @ LegacyWsProtocol.QuitZoneCommand(_) =>
-                    zoneCommand.zoneId -> ZoneValidatorMessage.QuitZoneCommand
+                    zoneCommand.zoneId -> QuitZoneCommand
                   case zoneCommand @ LegacyWsProtocol.ChangeZoneNameCommand(_, name) =>
-                    zoneCommand.zoneId -> ZoneValidatorMessage.ChangeZoneNameCommand(name)
+                    zoneCommand.zoneId -> ChangeZoneNameCommand(name)
                   case zoneCommand @ LegacyWsProtocol.CreateMemberCommand(_, ownerPublicKey, name, metadata) =>
-                    zoneCommand.zoneId -> ZoneValidatorMessage.CreateMemberCommand(ownerPublicKey, name, metadata)
+                    zoneCommand.zoneId -> CreateMemberCommand(ownerPublicKey, name, metadata)
                   case zoneCommand @ LegacyWsProtocol.UpdateMemberCommand(_, member) =>
-                    zoneCommand.zoneId -> ZoneValidatorMessage.UpdateMemberCommand(member)
+                    zoneCommand.zoneId -> UpdateMemberCommand(member)
                   case zoneCommand @ LegacyWsProtocol.CreateAccountCommand(_, ownerMemberIds, name, metadata) =>
-                    zoneCommand.zoneId -> ZoneValidatorMessage.CreateAccountCommand(ownerMemberIds, name, metadata)
+                    zoneCommand.zoneId -> CreateAccountCommand(ownerMemberIds, name, metadata)
                   case zoneCommand @ LegacyWsProtocol.UpdateAccountCommand(_, account) =>
-                    zoneCommand.zoneId -> ZoneValidatorMessage.UpdateAccountCommand(account)
+                    zoneCommand.zoneId -> UpdateAccountCommand(account)
                   case zoneCommand @ LegacyWsProtocol.AddTransactionCommand(_,
                                                                             actingAs,
                                                                             from,
@@ -238,12 +238,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
                                                                             value,
                                                                             description,
                                                                             metadata) =>
-                    zoneCommand.zoneId -> ZoneValidatorMessage.AddTransactionCommand(actingAs,
-                                                                                     from,
-                                                                                     to,
-                                                                                     value,
-                                                                                     description,
-                                                                                     metadata)
+                    zoneCommand.zoneId -> AddTransactionCommand(actingAs, from, to, value, description, metadata)
                 }
                 deliverZoneCommand(zoneId, zoneCommand, numericCorrelationId.value.toLongExact)
             }
@@ -268,29 +263,29 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
       case EnvelopedZoneResponse(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           val response = zoneResponse match {
-            case ZoneValidatorMessage.EmptyZoneResponse =>
+            case EmptyZoneResponse =>
               sys.error("Inconceivable")
-            case ZoneValidatorMessage.ErrorResponse(error) =>
+            case ErrorResponse(error) =>
               LegacyWsProtocol.ErrorResponse(error)
-            case successResponse: ZoneValidatorMessage.SuccessResponse =>
+            case successResponse: SuccessResponse =>
               successResponse match {
-                case ZoneValidatorMessage.CreateZoneResponse(zone) =>
+                case CreateZoneResponse(zone) =>
                   LegacyWsProtocol.CreateZoneResponse(zone)
-                case ZoneValidatorMessage.JoinZoneResponse(zone, connectedClients) =>
+                case JoinZoneResponse(zone, connectedClients) =>
                   LegacyWsProtocol.JoinZoneResponse(zone, connectedClients)
-                case ZoneValidatorMessage.QuitZoneResponse =>
+                case QuitZoneResponse =>
                   LegacyWsProtocol.QuitZoneResponse
-                case ZoneValidatorMessage.ChangeZoneNameResponse =>
+                case ChangeZoneNameResponse =>
                   LegacyWsProtocol.ChangeZoneNameResponse
-                case ZoneValidatorMessage.CreateMemberResponse(member) =>
+                case CreateMemberResponse(member) =>
                   LegacyWsProtocol.CreateMemberResponse(member)
-                case ZoneValidatorMessage.UpdateMemberResponse =>
+                case UpdateMemberResponse =>
                   LegacyWsProtocol.UpdateMemberResponse
-                case ZoneValidatorMessage.CreateAccountResponse(account) =>
+                case CreateAccountResponse(account) =>
                   LegacyWsProtocol.CreateAccountResponse(account)
-                case ZoneValidatorMessage.UpdateAccountResponse =>
+                case UpdateAccountResponse =>
                   LegacyWsProtocol.UpdateAccountResponse
-                case ZoneValidatorMessage.AddTransactionResponse(transaction) =>
+                case AddTransactionResponse(transaction) =>
                   LegacyWsProtocol.AddTransactionResponse(transaction)
               }
           }
@@ -299,25 +294,25 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
       case EnvelopedZoneNotification(zoneId, zoneNotification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           val notification = zoneNotification match {
-            case ZoneValidatorMessage.EmptyZoneNotification =>
+            case EmptyZoneNotification =>
               sys.error("Inconceivable")
-            case ZoneValidatorMessage.ClientJoinedZoneNotification(_publicKey) =>
+            case ClientJoinedZoneNotification(_publicKey) =>
               LegacyWsProtocol.ClientJoinedZoneNotification(zoneId, _publicKey)
-            case ZoneValidatorMessage.ClientQuitZoneNotification(_publicKey) =>
+            case ClientQuitZoneNotification(_publicKey) =>
               LegacyWsProtocol.ClientQuitZoneNotification(zoneId, _publicKey)
-            case ZoneValidatorMessage.ZoneTerminatedNotification =>
+            case ZoneTerminatedNotification =>
               LegacyWsProtocol.ZoneTerminatedNotification(zoneId)
-            case ZoneValidatorMessage.ZoneNameChangedNotification(name) =>
+            case ZoneNameChangedNotification(name) =>
               LegacyWsProtocol.ZoneNameChangedNotification(zoneId, name)
-            case ZoneValidatorMessage.MemberCreatedNotification(member) =>
+            case MemberCreatedNotification(member) =>
               LegacyWsProtocol.MemberCreatedNotification(zoneId, member)
-            case ZoneValidatorMessage.MemberUpdatedNotification(member) =>
+            case MemberUpdatedNotification(member) =>
               LegacyWsProtocol.MemberUpdatedNotification(zoneId, member)
-            case ZoneValidatorMessage.AccountCreatedNotification(account) =>
+            case AccountCreatedNotification(account) =>
               LegacyWsProtocol.AccountCreatedNotification(zoneId, account)
-            case ZoneValidatorMessage.AccountUpdatedNotification(account) =>
+            case AccountUpdatedNotification(account) =>
               LegacyWsProtocol.AccountUpdatedNotification(zoneId, account)
-            case ZoneValidatorMessage.TransactionAddedNotification(transaction) =>
+            case TransactionAddedNotification(transaction) =>
               LegacyWsProtocol.TransactionAddedNotification(zoneId, transaction)
           }
           sendNotification(notification)
@@ -354,9 +349,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
     case SendKeepAlive => sendNotification(LegacyWsProtocol.KeepAliveNotification)
   }
 
-  private[this] def deliverZoneCommand(zoneId: ZoneId,
-                                       zoneCommand: ZoneValidatorMessage.ZoneCommand,
-                                       correlationId: Long) = {
+  private[this] def deliverZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand, correlationId: Long) = {
     val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>

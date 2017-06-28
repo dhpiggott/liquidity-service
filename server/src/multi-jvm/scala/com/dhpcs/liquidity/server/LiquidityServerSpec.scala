@@ -26,7 +26,7 @@ import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import akka.util.ByteString
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc._
-import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
@@ -258,7 +258,7 @@ sealed abstract class LiquidityServerSpec
         (sub, pub) =>
           val correlationId = 0L
           sendProtobufCreateZoneCommand(pub)(
-            ZoneValidatorMessage.CreateZoneCommand(
+            CreateZoneCommand(
               equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
               equityOwnerName = Some("Dave"),
               equityOwnerMetadata = None,
@@ -269,7 +269,7 @@ sealed abstract class LiquidityServerSpec
             correlationId
           )
           inside(expectProtobufZoneResponse(sub, correlationId)) {
-            case ZoneValidatorMessage.CreateZoneResponse(zone) =>
+            case CreateZoneResponse(zone) =>
               assert(zone.equityAccountId === AccountId(0))
               assert(
                 zone.members(MemberId(0)) === Member(MemberId(0),
@@ -287,7 +287,7 @@ sealed abstract class LiquidityServerSpec
       "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withProtobufWsTestProbes { (sub, pub) =>
         val correlationId = 0L
         sendProtobufCreateZoneCommand(pub)(
-          ZoneValidatorMessage.CreateZoneCommand(
+          CreateZoneCommand(
             equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
             equityOwnerName = Some("Dave"),
             equityOwnerMetadata = None,
@@ -298,7 +298,7 @@ sealed abstract class LiquidityServerSpec
           correlationId
         )
         val zone = inside(expectProtobufZoneResponse(sub, correlationId)) {
-          case createZoneResponse: ZoneValidatorMessage.CreateZoneResponse =>
+          case createZoneResponse: CreateZoneResponse =>
             val zone = createZoneResponse.zone
             assert(zone.equityAccountId === AccountId(0))
             assert(
@@ -316,11 +316,11 @@ sealed abstract class LiquidityServerSpec
         }
         sendProtobufZoneCommand(pub)(
           zone.id,
-          ZoneValidatorMessage.JoinZoneCommand,
+          JoinZoneCommand,
           correlationId
         )
         inside(expectProtobufZoneResponse(sub, correlationId)) {
-          case joinZoneResponse: ZoneValidatorMessage.JoinZoneResponse =>
+          case joinZoneResponse: JoinZoneResponse =>
             assert(joinZoneResponse.zone === zone)
             assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
         }; ()
@@ -531,20 +531,20 @@ sealed abstract class LiquidityServerSpec
     }
 
   private[this] def sendProtobufCreateZoneCommand(pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
-      createZoneCommand: ZoneValidatorMessage.CreateZoneCommand,
+      createZoneCommand: CreateZoneCommand,
       correlationId: Long): Unit =
     sendProtobufMessage(pub)(
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-          ProtoBinding[ZoneValidatorMessage.CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+          ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
             .asProto(createZoneCommand)
         )
       )))
 
   private[this] def sendProtobufZoneCommand(pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
       zoneId: ZoneId,
-      zoneCommand: ZoneValidatorMessage.ZoneCommand,
+      zoneCommand: ZoneCommand,
       correlationId: Long): Unit =
     sendProtobufMessage(pub)(
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
@@ -553,7 +553,7 @@ sealed abstract class LiquidityServerSpec
           proto.ws.protocol.ServerMessage.Command.EnvelopedZoneCommand(
             zoneId.id.toString,
             Some(
-              ProtoBinding[ZoneValidatorMessage.ZoneCommand, proto.actor.protocol.ZoneCommand].asProto(zoneCommand)
+              ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand].asProto(zoneCommand)
             )))
       )))
 
@@ -565,13 +565,13 @@ sealed abstract class LiquidityServerSpec
   }
 
   private[this] def expectProtobufZoneResponse(sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-                                               expectedCorrelationId: Long): ZoneValidatorMessage.ZoneResponse =
+                                               expectedCorrelationId: Long): ZoneResponse =
     inside(expectProtobufMessage(sub)) {
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         assert(protoResponse.correlationId == expectedCorrelationId)
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneValidatorMessage.ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
+            ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
               .asScala(protoZoneResponse.zoneResponse)
         }
     }

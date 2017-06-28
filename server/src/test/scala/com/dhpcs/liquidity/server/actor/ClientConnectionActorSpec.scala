@@ -60,7 +60,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
         proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
           createKeyOwnershipProof(ModelSpec.rsaPublicKey, ModelSpec.rsaPrivateKey, keyOwnershipChallenge))
       )
-      val createZoneCommand = ZoneValidatorMessage.CreateZoneCommand(
+      val createZoneCommand = CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
         equityOwnerName = Some("Dave"),
         equityOwnerMetadata = None,
@@ -77,7 +77,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       assert(envelopedZoneCommand.sequenceNumber === 1L)
       assert(envelopedZoneCommand.deliveryId === 1L)
       val zoneId = envelopedZoneCommand.zoneId
-      val result = ZoneValidatorMessage.CreateZoneResponse({
+      val result = CreateZoneResponse({
         val created = System.currentTimeMillis
         Zone(
           id = zoneId,
@@ -107,13 +107,13 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     }
 
   private[this] def sendCreateZoneCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(
-      createZoneCommand: ZoneValidatorMessage.CreateZoneCommand,
+      createZoneCommand: CreateZoneCommand,
       correlationId: Long): Unit =
     sendMessage(sinkTestProbe, clientConnection)(
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-          ProtoBinding[ZoneValidatorMessage.CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+          ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
             .asProto(createZoneCommand))
       )))
 
@@ -126,12 +126,12 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck); ()
   }
 
-  private[this] def expectZoneResponse(upstreamTestProbe: TestProbe): ZoneValidatorMessage.ZoneResponse =
+  private[this] def expectZoneResponse(upstreamTestProbe: TestProbe): ZoneResponse =
     inside(expectMessage(upstreamTestProbe)) {
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneValidatorMessage.ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
+            ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
               .asScala(protoZoneResponse.zoneResponse)
         }
     }

@@ -1,73 +1,67 @@
 package com.dhpcs.liquidity.actor.protocol
 
-import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.model._
 
-// TODO: Review whether these should still be namespaced in the companion
-object ZoneValidatorMessage {
+sealed abstract class ZoneCommand
 
-  sealed abstract class ZoneCommand
-
-  case object EmptyZoneCommand extends ZoneCommand
-  final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
-                                     equityOwnerName: Option[String],
-                                     equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
-                                     equityAccountName: Option[String],
-                                     equityAccountMetadata: Option[com.google.protobuf.struct.Struct],
+case object EmptyZoneCommand extends ZoneCommand
+final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
+                                   equityOwnerName: Option[String],
+                                   equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
+                                   equityAccountName: Option[String],
+                                   equityAccountMetadata: Option[com.google.protobuf.struct.Struct],
+                                   name: Option[String] = None,
+                                   metadata: Option[com.google.protobuf.struct.Struct] = None)
+    extends ZoneCommand
+case object JoinZoneCommand                                  extends ZoneCommand
+case object QuitZoneCommand                                  extends ZoneCommand
+final case class ChangeZoneNameCommand(name: Option[String]) extends ZoneCommand
+final case class CreateMemberCommand(ownerPublicKey: PublicKey,
                                      name: Option[String] = None,
                                      metadata: Option[com.google.protobuf.struct.Struct] = None)
-      extends ZoneCommand
-  final case object JoinZoneCommand                            extends ZoneCommand
-  final case object QuitZoneCommand                            extends ZoneCommand
-  final case class ChangeZoneNameCommand(name: Option[String]) extends ZoneCommand
-  final case class CreateMemberCommand(ownerPublicKey: PublicKey,
-                                       name: Option[String] = None,
+    extends ZoneCommand
+final case class UpdateMemberCommand(member: Member) extends ZoneCommand
+final case class CreateAccountCommand(ownerMemberIds: Set[MemberId],
+                                      name: Option[String] = None,
+                                      metadata: Option[com.google.protobuf.struct.Struct] = None)
+    extends ZoneCommand
+final case class UpdateAccountCommand(account: Account) extends ZoneCommand
+final case class AddTransactionCommand(actingAs: MemberId,
+                                       from: AccountId,
+                                       to: AccountId,
+                                       value: BigDecimal,
+                                       description: Option[String] = None,
                                        metadata: Option[com.google.protobuf.struct.Struct] = None)
-      extends ZoneCommand
-  final case class UpdateMemberCommand(member: Member) extends ZoneCommand
-  final case class CreateAccountCommand(ownerMemberIds: Set[MemberId],
-                                        name: Option[String] = None,
-                                        metadata: Option[com.google.protobuf.struct.Struct] = None)
-      extends ZoneCommand
-  final case class UpdateAccountCommand(account: Account) extends ZoneCommand
-  final case class AddTransactionCommand(actingAs: MemberId,
-                                         from: AccountId,
-                                         to: AccountId,
-                                         value: BigDecimal,
-                                         description: Option[String] = None,
-                                         metadata: Option[com.google.protobuf.struct.Struct] = None)
-      extends ZoneCommand
+    extends ZoneCommand
 
-  sealed abstract class ZoneResponse
+sealed abstract class ZoneResponse
 
-  case object EmptyZoneResponse                 extends ZoneResponse
-  final case class ErrorResponse(error: String) extends ZoneResponse
-  sealed abstract class SuccessResponse         extends ZoneResponse
+case object EmptyZoneResponse                 extends ZoneResponse
+final case class ErrorResponse(error: String) extends ZoneResponse
+sealed abstract class SuccessResponse         extends ZoneResponse
 
-  final case class CreateZoneResponse(zone: Zone)                                 extends SuccessResponse
-  final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends SuccessResponse
-  case object QuitZoneResponse                                                    extends SuccessResponse
-  case object ChangeZoneNameResponse                                              extends SuccessResponse
-  final case class CreateMemberResponse(member: Member)                           extends SuccessResponse
-  case object UpdateMemberResponse                                                extends SuccessResponse
-  final case class CreateAccountResponse(account: Account)                        extends SuccessResponse
-  case object UpdateAccountResponse                                               extends SuccessResponse
-  final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
+final case class CreateZoneResponse(zone: Zone)                                 extends SuccessResponse
+final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends SuccessResponse
+case object QuitZoneResponse                                                    extends SuccessResponse
+case object ChangeZoneNameResponse                                              extends SuccessResponse
+final case class CreateMemberResponse(member: Member)                           extends SuccessResponse
+case object UpdateMemberResponse                                                extends SuccessResponse
+final case class CreateAccountResponse(account: Account)                        extends SuccessResponse
+case object UpdateAccountResponse                                               extends SuccessResponse
+final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
 
-  sealed abstract class ZoneNotification
+sealed abstract class ZoneNotification
 
-  case object EmptyZoneNotification                                       extends ZoneNotification
-  final case class ClientJoinedZoneNotification(publicKey: PublicKey)     extends ZoneNotification
-  final case class ClientQuitZoneNotification(publicKey: PublicKey)       extends ZoneNotification
-  case object ZoneTerminatedNotification                                  extends ZoneNotification
-  final case class ZoneNameChangedNotification(name: Option[String])      extends ZoneNotification
-  final case class MemberCreatedNotification(member: Member)              extends ZoneNotification
-  final case class MemberUpdatedNotification(member: Member)              extends ZoneNotification
-  final case class AccountCreatedNotification(account: Account)           extends ZoneNotification
-  final case class AccountUpdatedNotification(account: Account)           extends ZoneNotification
-  final case class TransactionAddedNotification(transaction: Transaction) extends ZoneNotification
-
-}
+case object EmptyZoneNotification                                       extends ZoneNotification
+final case class ClientJoinedZoneNotification(publicKey: PublicKey)     extends ZoneNotification
+final case class ClientQuitZoneNotification(publicKey: PublicKey)       extends ZoneNotification
+case object ZoneTerminatedNotification                                  extends ZoneNotification
+final case class ZoneNameChangedNotification(name: Option[String])      extends ZoneNotification
+final case class MemberCreatedNotification(member: Member)              extends ZoneNotification
+final case class MemberUpdatedNotification(member: Member)              extends ZoneNotification
+final case class AccountCreatedNotification(account: Account)           extends ZoneNotification
+final case class AccountUpdatedNotification(account: Account)           extends ZoneNotification
+final case class TransactionAddedNotification(transaction: Transaction) extends ZoneNotification
 
 sealed abstract class ZoneValidatorMessage extends Serializable
 

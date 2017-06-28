@@ -12,7 +12,7 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.{TestKit, TestProbe}
-import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
 import com.dhpcs.liquidity.model._
@@ -150,15 +150,14 @@ class ServerConnectionSpec
     port = akkaHttpPort
   )
 
-  private[this] def sendCreateZoneCommand(
-      createZoneCommand: ZoneValidatorMessage.CreateZoneCommand): Future[ZoneValidatorMessage.ZoneResponse] = {
-    val promise = Promise[ZoneValidatorMessage.ZoneResponse]
+  private[this] def sendCreateZoneCommand(createZoneCommand: CreateZoneCommand): Future[ZoneResponse] = {
+    val promise = Promise[ZoneResponse]
     MainHandlerWrapper.post(
       serverConnection.sendCreateZoneCommand(
         createZoneCommand,
         new ServerConnection.ResponseCallback {
-          override def onErrorResponse(error: ZoneValidatorMessage.ErrorResponse): Unit = promise.success(error)
-          override def onSuccessResponse(success: ZoneValidatorMessage.SuccessResponse): Unit =
+          override def onErrorResponse(error: ErrorResponse): Unit = promise.success(error)
+          override def onSuccessResponse(success: SuccessResponse): Unit =
             promise.success(success)
         }
       ))
@@ -222,7 +221,7 @@ class ServerConnectionSpec
       sub.requestNext(AVAILABLE)
     }
     "will complete with a CreateZoneResponse when forwarding a CreateZoneCommand" in { sub =>
-      val createZoneCommand = ZoneValidatorMessage.CreateZoneCommand(
+      val createZoneCommand = CreateZoneCommand(
         equityOwnerPublicKey = serverConnection.clientKey,
         equityOwnerName = Some("Dave"),
         equityOwnerMetadata = None,
@@ -232,7 +231,7 @@ class ServerConnectionSpec
       )
       val created = System.currentTimeMillis
       val expires = created + 2.days.toMillis
-      val createZoneResponse = ZoneValidatorMessage.CreateZoneResponse(
+      val createZoneResponse = CreateZoneResponse(
         zone = Zone(
           id = ZoneId.generate,
           equityAccountId = AccountId(0),
@@ -274,8 +273,7 @@ class ServerConnectionSpec
           inside(protoCommand.command) {
             case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
               assert(
-                ProtoBinding[ZoneValidatorMessage.CreateZoneCommand,
-                             proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+                ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
                   .asScala(protoCreateZoneCommand) === createZoneCommand
               )
           }
@@ -287,7 +285,7 @@ class ServerConnectionSpec
             proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
               correlationId = 0L,
               proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.actor.protocol.ZoneResponse(
-                ProtoBinding[ZoneValidatorMessage.ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
+                ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
                   .asProto(createZoneResponse)
               ))
             ))),

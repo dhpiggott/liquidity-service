@@ -11,7 +11,7 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
-import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.client.LegacyServerConnection
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
@@ -199,18 +199,16 @@ class LiquidityHealthcheck(scheme: Option[String],
     legacyPort
   )
 
-  private[this] def sendZoneCommand(
-      zoneId: ZoneId,
-      zoneCommand: ZoneValidatorMessage.ZoneCommand): Future[ZoneValidatorMessage.ZoneResponse] = {
-    val promise = Promise[ZoneValidatorMessage.ZoneResponse]
+  private[this] def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand): Future[ZoneResponse] = {
+    val promise = Promise[ZoneResponse]
     MainHandlerWrapper.post(
       () =>
         serverConnection.sendZoneCommand(
           zoneId,
           zoneCommand,
           new ServerConnection.ResponseCallback {
-            override def onErrorResponse(error: ZoneValidatorMessage.ErrorResponse): Unit = promise.success(error)
-            override def onSuccessResponse(success: ZoneValidatorMessage.SuccessResponse): Unit =
+            override def onErrorResponse(error: ErrorResponse): Unit = promise.success(error)
+            override def onSuccessResponse(success: SuccessResponse): Unit =
               promise.success(success)
           }
       ))
@@ -305,8 +303,8 @@ class LiquidityHealthcheck(scheme: Option[String],
           .requestNext(ServerConnection.CONNECTING)
           .requestNext(ServerConnection.AUTHENTICATING)
           .requestNext(ServerConnection.ONLINE); ()
-        inside(sendZoneCommand(SentinelZone.id, ZoneValidatorMessage.JoinZoneCommand).futureValue) {
-          case ZoneValidatorMessage.JoinZoneResponse(zone, connectedClients) =>
+        inside(sendZoneCommand(SentinelZone.id, JoinZoneCommand).futureValue) {
+          case JoinZoneResponse(zone, connectedClients) =>
             assert(zone === SentinelZone)
             assert(connectedClients === Set(serverConnection.clientKey))
         }

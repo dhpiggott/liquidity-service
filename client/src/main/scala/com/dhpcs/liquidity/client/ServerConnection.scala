@@ -4,7 +4,7 @@ import java.io.{File, IOException}
 import java.util.UUID
 import javax.net.ssl._
 
-import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
@@ -61,7 +61,7 @@ object ServerConnection {
   }
 
   trait NotificationReceiptListener {
-    def onZoneNotificationReceived(zoneId: ZoneId, notification: ZoneValidatorMessage.ZoneNotification): Unit
+    def onZoneNotificationReceived(zoneId: ZoneId, notification: ZoneNotification): Unit
   }
 
   class ConnectionRequestToken
@@ -69,8 +69,8 @@ object ServerConnection {
   object ResponseCallback {
     def apply(onError: => Unit): ResponseCallback = new ResponseCallback {
 
-      override def onErrorResponse(error: ZoneValidatorMessage.ErrorResponse): Unit       = onError
-      override def onSuccessResponse(success: ZoneValidatorMessage.SuccessResponse): Unit = ()
+      override def onErrorResponse(error: ErrorResponse): Unit       = onError
+      override def onSuccessResponse(success: SuccessResponse): Unit = ()
 
     }
   }
@@ -78,8 +78,8 @@ object ServerConnection {
   // TODO: Swap for returning Futures?
   trait ResponseCallback {
 
-    def onErrorResponse(error: ZoneValidatorMessage.ErrorResponse): Unit
-    def onSuccessResponse(success: ZoneValidatorMessage.SuccessResponse): Unit
+    def onErrorResponse(error: ErrorResponse): Unit
+    def onSuccessResponse(success: SuccessResponse): Unit
 
   }
 
@@ -192,23 +192,20 @@ class ServerConnection(filesDir: File,
       connect()
   }
 
-  def sendCreateZoneCommand(createZoneCommand: ZoneValidatorMessage.CreateZoneCommand,
-                            responseCallback: ResponseCallback): Unit =
+  def sendCreateZoneCommand(createZoneCommand: CreateZoneCommand, responseCallback: ResponseCallback): Unit =
     sendCommand(
       correlationId =>
         proto.ws.protocol.ServerMessage.Command(
           correlationId,
           proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-            ProtoBinding[ZoneValidatorMessage.CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+            ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
               .asProto(createZoneCommand)
           )
       ),
       responseCallback
     )
 
-  def sendZoneCommand(zoneId: ZoneId,
-                      zoneCommand: ZoneValidatorMessage.ZoneCommand,
-                      responseCallback: ResponseCallback): Unit =
+  def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand, responseCallback: ResponseCallback): Unit =
     sendCommand(
       correlationId =>
         proto.ws.protocol.ServerMessage.Command(
@@ -216,7 +213,7 @@ class ServerConnection(filesDir: File,
           proto.ws.protocol.ServerMessage.Command.Command.EnvelopedZoneCommand(
             proto.ws.protocol.ServerMessage.Command.EnvelopedZoneCommand(
               zoneId.id.toString,
-              Some(ProtoBinding[ZoneValidatorMessage.ZoneCommand, proto.actor.protocol.ZoneCommand]
+              Some(ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand]
                 .asProto(zoneCommand))
             ))
       ),
@@ -357,15 +354,14 @@ class ServerConnection(filesDir: File,
                       case proto.ws.protocol.ClientMessage.Response.Response.Empty =>
                         sys.error("Empty or unsupported response")
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-                        val zoneResponse = ProtoBinding[ZoneValidatorMessage.ZoneResponse,
-                                                        proto.actor.protocol.ZoneResponse.ZoneResponse]
+                        val zoneResponse = ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
                           .asScala(protoZoneResponse.zoneResponse)
                         zoneResponse match {
-                          case ZoneValidatorMessage.EmptyZoneResponse =>
+                          case EmptyZoneResponse =>
                             sys.error("Empty or unsupported zone response")
-                          case errorResponse: ZoneValidatorMessage.ErrorResponse =>
+                          case errorResponse: ErrorResponse =>
                             mainHandlerWrapper.post(responseCallback.onErrorResponse(errorResponse))
-                          case successResponse: ZoneValidatorMessage.SuccessResponse =>
+                          case successResponse: SuccessResponse =>
                             mainHandlerWrapper.post(responseCallback.onSuccessResponse(successResponse))
                         }
                     }
@@ -381,7 +377,7 @@ class ServerConnection(filesDir: File,
                     protoZoneNotification
                   )) =>
                 val zoneNotification =
-                  ProtoBinding[ZoneValidatorMessage.ZoneNotification, Option[proto.actor.protocol.ZoneNotification]]
+                  ProtoBinding[ZoneNotification, Option[proto.actor.protocol.ZoneNotification]]
                     .asScala(protoZoneNotification)
                 activeState.subState match {
                   case _: ConnectingSubState =>

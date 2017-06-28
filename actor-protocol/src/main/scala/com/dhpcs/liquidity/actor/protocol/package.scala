@@ -1,6 +1,5 @@
 package com.dhpcs.liquidity.actor
 
-import com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage._
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
 package object protocol {

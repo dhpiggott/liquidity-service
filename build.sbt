@@ -126,7 +126,8 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.3",
       "com.typesafe.akka"          %% "akka-http"                   % "10.0.9",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
-      "com.google.protobuf"        % "protobuf-java"                % "3.3.1"
+      "com.google.protobuf"        % "protobuf-java"                % "3.3.1",
+      "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.0"
     ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.3",

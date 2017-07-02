@@ -62,6 +62,15 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
     conflictManager := ConflictManager.strict
   )
 
+  private lazy val scalafmtSettings = Seq(
+    commands += Command.args("scalafmt", "Run scalafmt cli,") {
+      case (_state, args) =>
+        val Right(scalafmt) = org.scalafmt.bootstrap.ScalafmtBootstrap.fromVersion("1.0.0-RC4")
+        scalafmt.main("--non-interactive" +: args.toArray)
+        _state
+    }
+  )
+
   private lazy val testSettings = Seq(
     testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"),
     testOptions in MultiJvm += Tests.Argument(TestFrameworks.ScalaTest, "-oDF")
@@ -80,9 +89,10 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
   override def projectSettings: Seq[Setting[_]] =
     scalaSettings ++
       resolverSettings ++
+      scalafmtSettings ++
       testSettings ++
       coverageSettings ++
-      addCommandAlias("validate", ";scalafmtTest; test; multi-jvm:test") ++
+      addCommandAlias("validate", ";scalafmt --test; test; multi-jvm:test") ++
       publishSettings
 
 }

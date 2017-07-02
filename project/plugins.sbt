@@ -1,7 +1,8 @@
-libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.0"
+libraryDependencies += "com.geirsson" %% "scalafmt-bootstrap" % "0.6.6"
 
-addSbtPlugin("com.thesamet"     % "sbt-protoc"          % "0.99.9")
-addSbtPlugin("com.geirsson"     % "sbt-scalafmt"        % "0.6.8")
+libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.0"
+addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.9")
+
 addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm"       % "0.3.11")
 addSbtPlugin("org.scoverage"    % "sbt-scoverage"       % "1.5.0")
 addSbtPlugin("com.dwijnand"     % "sbt-dynver"          % "1.3.0")

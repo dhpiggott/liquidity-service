@@ -250,25 +250,6 @@ class LiquidityServer(config: Config,
             }
             .toList)
       )
-    def clusterShardingStatus(clusterShardingStats: ShardRegion.ClusterShardingStats): JObject =
-      JObject(
-        "count" -> JInt(clusterShardingStats.regions.size),
-        "regions" -> JObject(
-          clusterShardingStats.regions.toSeq
-            .sortBy { case (address, _) => address }
-            .map {
-              case (address, shardRegionStats) =>
-                address.toString ->
-                  JObject(shardRegionStats.stats.toSeq
-                    .sortBy { case (shardId, _) => shardId }
-                    .map {
-                      case (shardId, entityCount) =>
-                        shardId -> JInt(entityCount)
-                    }
-                    .toList)
-            }
-            .toList)
-      )
     implicit val askTimeout = Timeout(5.seconds)
     for {
       activeClientsSummary <- (clientsMonitorActor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
@@ -276,15 +257,12 @@ class LiquidityServer(config: Config,
       totalZonesCount      <- (zonesMonitorActor ? GetZoneCount).mapTo[ZoneCount]
       shardRegionState <- (zoneValidatorShardRegion ? ShardRegion.GetShardRegionState)
         .mapTo[ShardRegion.CurrentShardRegionState]
-      clusterShardingStats <- (zoneValidatorShardRegion ? ShardRegion.GetClusterShardingStats(askTimeout.duration))
-        .mapTo[ShardRegion.ClusterShardingStats]
     } yield
       JObject(
         "clients"         -> clientsStatus(activeClientsSummary),
         "totalZonesCount" -> JInt(totalZonesCount.count),
         "activeZones"     -> activeZonesStatus(activeZonesSummary),
-        "shardRegions"    -> shardRegionStatus(shardRegionState),
-        "clusterSharding" -> clusterShardingStatus(clusterShardingStats)
+        "shardRegions"    -> shardRegionStatus(shardRegionState)
       )
   }
 

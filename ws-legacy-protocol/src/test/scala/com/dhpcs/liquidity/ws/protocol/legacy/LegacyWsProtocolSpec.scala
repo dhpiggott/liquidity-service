@@ -403,9 +403,10 @@ object LegacyWsProtocolSpec {
             1433611420487L,
             1433611420487L,
             Some("Dave's zone"),
-            Some(com.google.protobuf.struct.Struct(Map(
-              "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
-            )))
+            Some(
+              com.google.protobuf.struct.Struct(Map(
+                "currency" -> com.google.protobuf.struct.Value(com.google.protobuf.struct.Value.Kind.StringValue("GBP"))
+              )))
           )
           val zoneJson = Json.parse(
             s"""

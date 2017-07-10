@@ -65,7 +65,7 @@ object CommonProjectSettingsPlugin extends AutoPlugin {
   private lazy val scalafmtSettings = Seq(
     commands += Command.args("scalafmt", "Run scalafmt cli,") {
       case (_state, args) =>
-        val Right(scalafmt) = org.scalafmt.bootstrap.ScalafmtBootstrap.fromVersion("1.0.0-RC4")
+        val Right(scalafmt) = org.scalafmt.bootstrap.ScalafmtBootstrap.fromVersion("1.1.0")
         scalafmt.main("--non-interactive" +: args.toArray)
         _state
     }

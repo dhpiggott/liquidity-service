@@ -99,8 +99,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
     }
   }
 
-  private[this] def expectClientCommand(
-      upstreamTestProbe: TestProbe): proto.ws.protocol.ClientMessage.Command.Command =
+  private[this] def expectClientCommand(upstreamTestProbe: TestProbe): proto.ws.protocol.ClientMessage.Command.Command =
     inside(upstreamTestProbe.expectMsgType[proto.ws.protocol.ClientMessage].message) {
       case proto.ws.protocol.ClientMessage.Message.Command(proto.ws.protocol.ClientMessage.Command(_, protoCommand)) =>
         protoCommand

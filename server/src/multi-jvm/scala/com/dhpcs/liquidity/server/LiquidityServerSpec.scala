@@ -344,40 +344,39 @@ sealed abstract class LiquidityServerSpec
           assert(expectJsonRpcNotification(sub) === LegacyWsProtocol.KeepAliveNotification)
         ); ()
       }
-      "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withJsonRpcWsTestProbes {
-        (sub, pub) =>
-          sub.within(5.seconds)(
+      "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withJsonRpcWsTestProbes { (sub, pub) =>
+        sub.within(5.seconds)(
+          assert(
+            expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
+              protocol.legacy.CompatibleVersionNumbers))
+        )
+        val correlationId = 0L
+        sendJsonRpcCommand(pub)(
+          LegacyWsProtocol.CreateZoneCommand(
+            equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
+            equityOwnerName = Some("Dave"),
+            equityOwnerMetadata = None,
+            equityAccountName = None,
+            equityAccountMetadata = None,
+            name = Some("Dave's Game")
+          ),
+          correlationId
+        )
+        inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
+          case LegacyWsProtocol.CreateZoneResponse(zone) =>
+            assert(zone.equityAccountId === AccountId(0))
             assert(
-              expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
-                protocol.legacy.CompatibleVersionNumbers))
-          )
-          val correlationId = 0L
-          sendJsonRpcCommand(pub)(
-            LegacyWsProtocol.CreateZoneCommand(
-              equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
-              equityOwnerName = Some("Dave"),
-              equityOwnerMetadata = None,
-              equityAccountName = None,
-              equityAccountMetadata = None,
-              name = Some("Dave's Game")
-            ),
-            correlationId
-          )
-          inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
-            case LegacyWsProtocol.CreateZoneResponse(zone) =>
-              assert(zone.equityAccountId === AccountId(0))
-              assert(
-                zone.members(MemberId(0)) === Member(MemberId(0),
-                                                     PublicKey(rsaPublicKey.getEncoded),
-                                                     name = Some("Dave")))
-              assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
-              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
-              assert(
-                zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 500L))
-              assert(zone.transactions === Map.empty)
-              assert(zone.name === Some("Dave's Game"))
-              assert(zone.metadata === None)
-          }; ()
+              zone.members(MemberId(0)) === Member(MemberId(0),
+                                                   PublicKey(rsaPublicKey.getEncoded),
+                                                   name = Some("Dave")))
+            assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+            assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
+            assert(
+              zone.expires === Spread(pivot = Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli, tolerance = 500L))
+            assert(zone.transactions === Map.empty)
+            assert(zone.name === Some("Dave's Game"))
+            assert(zone.metadata === None)
+        }; ()
       }
       "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withJsonRpcWsTestProbes { (sub, pub) =>
         sub.within(5.seconds)(
@@ -496,8 +495,7 @@ sealed abstract class LiquidityServerSpec
       serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
     )
 
-  private final val JsonRpcInFlow
-    : Flow[WsMessage, LegacyClientConnectionActor.WrappedResponseOrNotification, NotUsed] =
+  private final val JsonRpcInFlow: Flow[WsMessage, LegacyClientConnectionActor.WrappedResponseOrNotification, NotUsed] =
     Flow[WsMessage].flatMapConcat(
       wsMessage =>
         for (jsonString <- wsMessage.asTextMessage match {

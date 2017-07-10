@@ -94,8 +94,7 @@ object LegacyClientConnectionActor {
   final case class WrappedCommand(jsonRpcRequestMessage: JsonRpcRequestMessage)
 
   sealed abstract class WrappedResponseOrNotification
-  final case class WrappedResponse(jsonRpcResponseMessage: JsonRpcResponseMessage)
-      extends WrappedResponseOrNotification
+  final case class WrappedResponse(jsonRpcResponseMessage: JsonRpcResponseMessage) extends WrappedResponseOrNotification
   final case class WrappedNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
       extends WrappedResponseOrNotification
 

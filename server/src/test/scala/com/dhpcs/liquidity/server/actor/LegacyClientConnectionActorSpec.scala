@@ -105,9 +105,8 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
         LegacyWsProtocol.Notification.read(jsonRpcNotificationMessage).asOpt.value
     }
 
-  private[this] def sendCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(
-      command: LegacyWsProtocol.Command,
-      correlationId: Long): Unit = {
+  private[this] def sendCommand(sinkTestProbe: TestProbe, clientConnection: ActorRef)(command: LegacyWsProtocol.Command,
+                                                                                      correlationId: Long): Unit = {
     sinkTestProbe.send(
       clientConnection,
       WrappedCommand(LegacyWsProtocol.Command.write(command, id = NumericCorrelationId(correlationId)))

@@ -22,11 +22,11 @@ package object protocol {
       _ => QuitZoneCommand
     )
 
-  implicit final val QuitZoneResponseProtoBinding
-    : ProtoBinding[QuitZoneResponse.type, com.google.protobuf.ByteString] = ProtoBinding.instance(
-    _ => com.google.protobuf.ByteString.EMPTY,
-    _ => QuitZoneResponse
-  )
+  implicit final val QuitZoneResponseProtoBinding: ProtoBinding[QuitZoneResponse.type, com.google.protobuf.ByteString] =
+    ProtoBinding.instance(
+      _ => com.google.protobuf.ByteString.EMPTY,
+      _ => QuitZoneResponse
+    )
 
   implicit final val ChangeZoneNameResponseProtoBinding
     : ProtoBinding[ChangeZoneNameResponse.type, com.google.protobuf.ByteString] = ProtoBinding.instance(

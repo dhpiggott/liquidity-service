@@ -414,8 +414,7 @@ class LegacyServerConnection(filesDir: File,
                                     case JsError(errors) =>
                                       sys.error(s"Invalid Response: $errors")
                                     case JsSuccess(response, _) =>
-                                      mainHandlerWrapper.post(() =>
-                                        pendingRequest.callback.onSuccessResponse(response))
+                                      mainHandlerWrapper.post(() => pendingRequest.callback.onSuccessResponse(response))
                                   }
                               }
                         })

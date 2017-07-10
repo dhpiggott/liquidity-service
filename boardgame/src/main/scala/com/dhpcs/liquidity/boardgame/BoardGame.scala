@@ -1027,8 +1027,7 @@ class BoardGame private (serverConnection: ServerConnection,
       CreateAccountCommand(
         Set(ownerMember.id)
       ),
-      responseCallback =
-        ResponseCallback(gameActionListeners.foreach(_.onCreateIdentityAccountError(ownerMember.name)))
+      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onCreateIdentityAccountError(ownerMember.name)))
     )
 
 }

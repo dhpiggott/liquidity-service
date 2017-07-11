@@ -1,7 +1,5 @@
 package com.dhpcs.liquidity.server
 
-import java.net.InetAddress
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
@@ -30,11 +28,14 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |    }
        |    allow-java-serialization = off
        |  }
-       |  remote.netty.tcp.port = $akkaRemotingPort
+       |  remote.netty.tcp {
+       |    hostname = "localhost"
+       |    port = $akkaRemotingPort
+       |  }
        |  cluster {
        |    metrics.enabled = off
        |    roles = ["zone-host", "client-relay"]
-       |    seed-nodes = ["akka.tcp://liquidity@${InetAddress.getLocalHost.getHostAddress}:$akkaRemotingPort"]
+       |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
        |    jmx.multi-mbeans-in-same-jvm = on
        |  }
        |  extensions += "akka.persistence.Persistence"

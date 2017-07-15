@@ -1,5 +1,7 @@
 package com.dhpcs.liquidity.proto.binding
 
+import cats.data.Validated.{Invalid, Valid}
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import shapeless._
 
 import scala.reflect.ClassTag
@@ -15,6 +17,32 @@ object ProtoBinding extends LowPriorityImplicits {
 
   implicit def identityProtoBinding[A]: ProtoBinding[A, A] = ProtoBinding.instance(identity, identity)
 
+  implicit def nonEmptyListBinding[S, PV, PW](
+      implicit pwGen: Lazy[Generic.Aux[PW, Seq[PV] :: HNil]],
+      vBinding: Lazy[ProtoBinding[S, PV]]
+  ): ProtoBinding[NonEmptyList[S], PW] = new ProtoBinding[NonEmptyList[S], PW] {
+    override def asProto(nonEmptyList: NonEmptyList[S]): PW =
+      pwGen.value.from(nonEmptyList.toList.map(vBinding.value.asProto) :: HNil)
+    override def asScala(p: PW): NonEmptyList[S] =
+      NonEmptyList.fromListUnsafe(pwGen.value.to(p).head.toList.map(vBinding.value.asScala))
+  }
+
+  implicit def validatedNelProtoBinding[SE, SA, PEW, PA, PW, PEmpty](
+      implicit pwGen: Lazy[Generic.Aux[PW, PEmpty :+: PEW :+: PA :+: CNil]],
+      eBinding: Lazy[ProtoBinding[NonEmptyList[SE], PEW]],
+      aBinding: Lazy[ProtoBinding[SA, PA]]
+  ): ProtoBinding[ValidatedNel[SE, SA], PW] = new ProtoBinding[ValidatedNel[SE, SA], PW] {
+    override def asProto(validated: ValidatedNel[SE, SA]): PW = validated match {
+      case Invalid(e) => pwGen.value.from(Inr(Inl(eBinding.value.asProto(e))))
+      case Valid(a)   => pwGen.value.from(Inr(Inr(Inl(aBinding.value.asProto(a)))))
+    }
+    override def asScala(p: PW): ValidatedNel[SE, SA] = pwGen.value.to(p) match {
+      case Inl(_)            => sys.error("Empty or unsupported result")
+      case Inr(Inl(errors))  => Validated.invalid(eBinding.value.asScala(errors))
+      case Inr(Inr(Inl(pv))) => Validated.valid(aBinding.value.asScala(pv))
+      case Inr(Inr(Inr(_)))  => sys.error("Inconceivable")
+    }
+  }
 }
 
 trait ProtoBinding[S, P] {

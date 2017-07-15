@@ -12,6 +12,7 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.{TestKit, TestProbe}
+import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
@@ -155,11 +156,7 @@ class ServerConnectionSpec
     MainHandlerWrapper.post(
       serverConnection.sendCreateZoneCommand(
         createZoneCommand,
-        new ServerConnection.ResponseCallback {
-          override def onErrorResponse(error: ErrorResponse): Unit = promise.success(error)
-          override def onSuccessResponse(success: SuccessResponse): Unit =
-            promise.success(success)
-        }
+        promise.success _
       ))
     promise.future
   }
@@ -232,20 +229,21 @@ class ServerConnectionSpec
       val created = System.currentTimeMillis
       val expires = created + 2.days.toMillis
       val createZoneResponse = CreateZoneResponse(
-        zone = Zone(
-          id = ZoneId.generate,
-          equityAccountId = AccountId(0),
-          members = Map(
-            MemberId(0) -> Member(MemberId(0), ownerPublicKey = serverConnection.clientKey, name = Some("Dave"))
-          ),
-          accounts = Map(
-            AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
-          ),
-          transactions = Map.empty,
-          created,
-          expires,
-          name = Some("Dave's Game")
-        )
+        Validated.valid(
+          Zone(
+            id = ZoneId.generate,
+            equityAccountId = AccountId(0),
+            members = Map(
+              MemberId(0) -> Member(MemberId(0), ownerPublicKey = serverConnection.clientKey, name = Some("Dave"))
+            ),
+            accounts = Map(
+              AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
+            ),
+            transactions = Map.empty,
+            created,
+            expires,
+            name = Some("Dave's Game")
+          ))
       )
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)

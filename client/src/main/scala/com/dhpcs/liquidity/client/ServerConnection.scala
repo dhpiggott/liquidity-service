@@ -66,21 +66,9 @@ object ServerConnection {
 
   class ConnectionRequestToken
 
-  object ResponseCallback {
-    def apply(onError: => Unit): ResponseCallback = new ResponseCallback {
-
-      override def onErrorResponse(error: ErrorResponse): Unit       = onError
-      override def onSuccessResponse(success: SuccessResponse): Unit = ()
-
-    }
-  }
-
-  // TODO: Swap for returning Futures?
+  // TODO: Swap for returning Future
   trait ResponseCallback {
-
-    def onErrorResponse(error: ErrorResponse): Unit
-    def onSuccessResponse(success: SuccessResponse): Unit
-
+    def onZoneResponse(zoneResponse: ZoneResponse): Unit
   }
 
   private sealed abstract class State
@@ -356,14 +344,7 @@ class ServerConnection(filesDir: File,
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
                         val zoneResponse = ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
                           .asScala(protoZoneResponse.zoneResponse)
-                        zoneResponse match {
-                          case EmptyZoneResponse =>
-                            sys.error("Empty or unsupported zone response")
-                          case errorResponse: ErrorResponse =>
-                            mainHandlerWrapper.post(responseCallback.onErrorResponse(errorResponse))
-                          case successResponse: SuccessResponse =>
-                            mainHandlerWrapper.post(responseCallback.onSuccessResponse(successResponse))
-                        }
+                        mainHandlerWrapper.post(responseCallback.onZoneResponse(zoneResponse))
                     }
                 })
               case DisconnectingSubState =>

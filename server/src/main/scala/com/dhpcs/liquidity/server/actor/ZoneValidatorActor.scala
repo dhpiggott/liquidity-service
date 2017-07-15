@@ -11,6 +11,7 @@ import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
+import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
@@ -276,6 +277,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         passivationCountdownActor ! CommandReceivedEvent
         exactlyOnce(sequenceNumber, deliveryId) {
           command match {
+            case EmptyZoneCommand => ()
             case CreateZoneCommand(
                 equityOwnerPublicKey,
                 equityOwnerName,
@@ -289,7 +291,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                 .orElse(checkTagAndMetadata(equityAccountName, equityAccountMetadata))
                 .orElse(checkTagAndMetadata(name, metadata)) match {
                 case Some(error) =>
-                  deliverResponse(ErrorResponse(error), correlationId)
+                  deliverResponse(CreateZoneResponse(
+                                    Validated.invalidNel(
+                                      ZoneResponse.Error(
+                                        code = 0,
+                                        description = error
+                                      )
+                                    )),
+                                  correlationId)
                 case None =>
                   val equityOwner = Member(
                     MemberId(0),
@@ -324,15 +333,86 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                     updateState(zoneCreatedEvent)
                     deliverResponse(
                       CreateZoneResponse(
-                        zoneCreatedEvent.zone
-                      ),
+                        Validated.valid(
+                          zoneCreatedEvent.zone
+                        )),
                       correlationId
                     )
                     self ! PublishStatus
                   }
               }
-            case _ =>
-              deliverResponse(ErrorResponse("Zone does not exist"), correlationId)
+            case JoinZoneCommand =>
+              deliverResponse(
+                JoinZoneResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                  )
+                ),
+                correlationId
+              )
+            case QuitZoneCommand =>
+              deliverResponse(
+                QuitZoneResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                  )
+                ),
+                correlationId
+              )
+            case ChangeZoneNameCommand(_) =>
+              deliverResponse(
+                ChangeZoneNameResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                  )
+                ),
+                correlationId
+              )
+            case CreateMemberCommand(_, _, _) =>
+              deliverResponse(
+                CreateMemberResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                  )
+                ),
+                correlationId
+              )
+            case UpdateMemberCommand(_) =>
+              deliverResponse(
+                UpdateMemberResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                  )
+                ),
+                correlationId
+              )
+            case CreateAccountCommand(_, _, _) =>
+              deliverResponse(
+                CreateAccountResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                  )
+                ),
+                correlationId
+              )
+            case UpdateAccountCommand(_) =>
+              deliverResponse(
+                UpdateAccountResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                  )
+                ),
+                correlationId
+              )
+            case AddTransactionCommand(_, _, _, _, _, _) =>
+              deliverResponse(
+                AddTransactionResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                  )
+                ),
+                correlationId
+              )
           }
         }
     }
@@ -401,7 +481,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   private[this] def handleCommand(publicKey: PublicKey, command: ZoneCommand, correlationId: Long): Unit =
     command match {
-      case EmptyZoneCommand =>
+      case EmptyZoneCommand => ()
       case createZoneCommand: CreateZoneCommand =>
         val sequenceNumber = messageSequenceNumbers(sender().path)
         messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))
@@ -411,25 +491,43 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         }
       case JoinZoneCommand =>
         if (state.clientConnections.contains(sender().path))
-          deliverResponse(ErrorResponse("Zone already joined"), correlationId)
+          deliverResponse(
+            JoinZoneResponse(
+              Validated.invalidNel(
+                ZoneResponse.Error(code = 0, description = "Zone already joined")
+              )
+            ),
+            correlationId
+          )
         else
           handleJoin(sender(), publicKey) { state =>
             deliverResponse(
               JoinZoneResponse(
-                state.zone,
-                state.clientConnections.values.toSet
-              ),
+                Validated.valid(
+                  (
+                    state.zone,
+                    state.clientConnections.values.toSet
+                  ))),
               correlationId
             )
             self ! PublishStatus
           }
       case QuitZoneCommand =>
         if (!state.clientConnections.contains(sender().path))
-          deliverResponse(ErrorResponse("Zone not joined"), correlationId)
+          deliverResponse(
+            QuitZoneResponse(
+              Validated.invalidNel(
+                ZoneResponse.Error(code = 0, description = "Zone not joined")
+              )
+            ),
+            correlationId
+          )
         else
           handleQuit(sender()) {
             deliverResponse(
-              QuitZoneResponse,
+              QuitZoneResponse(
+                Validated.valid(())
+              ),
               correlationId
             )
             self ! PublishStatus
@@ -437,12 +535,21 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       case ChangeZoneNameCommand(name) =>
         checkTagAndMetadata(name, None) match {
           case Some(error) =>
-            deliverResponse(ErrorResponse(error), correlationId)
+            deliverResponse(
+              ChangeZoneNameResponse(
+                Validated.invalidNel(
+                  ZoneResponse.Error(code = 0, description = error)
+                )
+              ),
+              correlationId
+            )
           case None =>
             persist(ZoneNameChangedEvent(System.currentTimeMillis, name)) { zoneNameChangedEvent =>
               updateState(zoneNameChangedEvent)
               deliverResponse(
-                ChangeZoneNameResponse,
+                ChangeZoneNameResponse(
+                  Validated.valid(())
+                ),
                 correlationId
               )
               self ! PublishStatus
@@ -456,7 +563,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       case CreateMemberCommand(ownerPublicKey, name, metadata) =>
         checkOwnerPublicKey(ownerPublicKey).orElse(checkTagAndMetadata(name, metadata)) match {
           case Some(error) =>
-            deliverResponse(ErrorResponse(error), correlationId)
+            deliverResponse(
+              CreateMemberResponse(
+                Validated.invalidNel(
+                  ZoneResponse.Error(code = 0, description = error)
+                )
+              ),
+              correlationId
+            )
           case None =>
             val member = Member(
               MemberId(state.zone.members.size.toLong),
@@ -468,7 +582,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               updateState(memberCreatedEvent)
               deliverResponse(
                 CreateMemberResponse(
-                  memberCreatedEvent.member
+                  Validated.valid(
+                    memberCreatedEvent.member
+                  )
                 ),
                 correlationId
               )
@@ -485,12 +601,21 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           .orElse(checkOwnerPublicKey(member.ownerPublicKey))
           .orElse(checkTagAndMetadata(member.name, member.metadata)) match {
           case Some(error) =>
-            deliverResponse(ErrorResponse(error), correlationId)
+            deliverResponse(
+              UpdateMemberResponse(
+                Validated.invalidNel(
+                  ZoneResponse.Error(code = 0, description = error)
+                )
+              ),
+              correlationId
+            )
           case None =>
             persist(MemberUpdatedEvent(System.currentTimeMillis, member)) { memberUpdatedEvent =>
               updateState(memberUpdatedEvent)
               deliverResponse(
-                UpdateMemberResponse,
+                UpdateMemberResponse(
+                  Validated.valid(())
+                ),
                 correlationId
               )
               self ! PublishStatus
@@ -504,7 +629,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       case CreateAccountCommand(owners, name, metadata) =>
         checkAccountOwners(state.zone, owners).orElse(checkTagAndMetadata(name, metadata)) match {
           case Some(error) =>
-            deliverResponse(ErrorResponse(error), correlationId)
+            deliverResponse(
+              CreateAccountResponse(
+                Validated.invalidNel(
+                  ZoneResponse.Error(code = 0, description = error)
+                )
+              ),
+              correlationId
+            )
           case None =>
             val account = Account(
               AccountId(state.zone.accounts.size.toLong),
@@ -516,7 +648,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               updateState(accountCreatedEvent)
               deliverResponse(
                 CreateAccountResponse(
-                  accountCreatedEvent.account
+                  Validated.valid(
+                    accountCreatedEvent.account
+                  )
                 ),
                 correlationId
               )
@@ -533,12 +667,21 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           checkAccountOwners(state.zone, account.ownerMemberIds)
             .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
           case Some(error) =>
-            deliverResponse(ErrorResponse(error), correlationId)
+            deliverResponse(
+              UpdateAccountResponse(
+                Validated.invalidNel(
+                  ZoneResponse.Error(code = 0, description = error)
+                )
+              ),
+              correlationId
+            )
           case None =>
             persist(AccountUpdatedEvent(System.currentTimeMillis, account)) { accountUpdatedEvent =>
               updateState(accountUpdatedEvent)
               deliverResponse(
-                UpdateAccountResponse,
+                UpdateAccountResponse(
+                  Validated.valid(())
+                ),
                 correlationId
               )
               self ! PublishStatus
@@ -554,7 +697,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           checkTransaction(from, to, value, state.zone, state.balances)
             .orElse(checkTagAndMetadata(description, metadata))) match {
           case Some(error) =>
-            deliverResponse(ErrorResponse(error), correlationId)
+            deliverResponse(
+              AddTransactionResponse(
+                Validated.invalidNel(
+                  ZoneResponse.Error(code = 0, description = error)
+                )
+              ),
+              correlationId
+            )
           case None =>
             val created = System.currentTimeMillis
             val transaction = Transaction(
@@ -571,7 +721,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               updateState(transactionAddedEvent)
               deliverResponse(
                 AddTransactionResponse(
-                  transactionAddedEvent.transaction
+                  Validated.valid(
+                    transactionAddedEvent.transaction
+                  )
                 ),
                 correlationId
               )

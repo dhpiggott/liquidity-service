@@ -60,37 +60,93 @@ message ZoneCommand {
 }
 
 message ZoneResponse {
-    // TODO: Improve
-    message ErrorResponse {
-        string error = 1;
+    message Errors {
+        message Error {
+            int32 code = 1;
+            string description = 2;
+        }
+        repeated Error errors = 1;
     }
     message CreateZoneResponse {
-        dhpcs.liquidity.model.Zone zone = 1;
+        message Success {
+            dhpcs.liquidity.model.Zone zone = 1;
+        }
+        oneof result {
+            Errors errors = 1;
+            Success success = 2;
+        }
     }
     message JoinZoneResponse {
-        dhpcs.liquidity.model.Zone zone = 1;
-        repeated bytes connected_clients = 2;
+        message Success {
+            dhpcs.liquidity.model.Zone zone = 1;
+            repeated bytes connected_clients = 2;
+        }
+        oneof result {
+            Errors errors = 1;
+            Success success = 2;
+        }
+    }
+    message QuitZoneResponse {
+        oneof result {
+            Errors errors = 1;
+            bytes success = 2;
+        }
+    }
+    message ChangeZoneNameResponse {
+        oneof result {
+            Errors errors = 1;
+            bytes success = 2;
+        }
     }
     message CreateMemberResponse {
-        dhpcs.liquidity.model.Member member = 1;
+        message Success {
+            dhpcs.liquidity.model.Member member = 1;
+        }
+        oneof result {
+            Errors errors = 1;
+            Success success = 2;
+        }
+    }
+    message UpdateMemberResponse {
+        oneof result {
+            Errors errors = 1;
+            bytes success = 2;
+        }
     }
     message CreateAccountResponse {
-        dhpcs.liquidity.model.Account account = 1;
+        message Success {
+            dhpcs.liquidity.model.Account account = 1;
+        }
+        oneof result {
+            Errors errors = 1;
+            Success success = 2;
+        }
+    }
+    message UpdateAccountResponse {
+        oneof result {
+            Errors errors = 1;
+            bytes success = 2;
+        }
     }
     message AddTransactionResponse {
-        dhpcs.liquidity.model.Transaction transaction = 1;
+        message Success {
+            dhpcs.liquidity.model.Transaction transaction = 1;
+        }
+        oneof result {
+            Errors errors = 1;
+            Success success = 2;
+        }
     }
     oneof zone_response {
-        ErrorResponse error_response = 1;
-        CreateZoneResponse create_zone_response = 2;
-        JoinZoneResponse join_zone_response = 3;
-        bytes quit_zone_response = 4;
-        bytes change_zone_name_response = 5;
-        CreateMemberResponse create_member_response = 6;
-        bytes update_member_response = 7;
-        CreateAccountResponse create_account_response = 8;
-        bytes update_account_response = 9;
-        AddTransactionResponse add_transaction_response = 10;
+        CreateZoneResponse create_zone_response = 1;
+        JoinZoneResponse join_zone_response = 2;
+        QuitZoneResponse quit_zone_response = 3;
+        ChangeZoneNameResponse change_zone_name_response = 4;
+        CreateMemberResponse create_member_response = 5;
+        UpdateMemberResponse update_member_response = 6;
+        CreateAccountResponse create_account_response = 7;
+        UpdateAccountResponse update_account_response = 8;
+        AddTransactionResponse add_transaction_response = 9;
     }
 }
 

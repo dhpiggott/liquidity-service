@@ -5,6 +5,7 @@ import java.net.InetAddress
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
+import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
@@ -79,17 +80,18 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       val zoneId = envelopedZoneCommand.zoneId
       val result = CreateZoneResponse({
         val created = System.currentTimeMillis
-        Zone(
-          id = zoneId,
-          equityAccountId = AccountId(0),
-          members = Map(MemberId(0)   -> Member(MemberId(0), publicKey, name = Some("Dave"))),
-          accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
-          transactions = Map.empty,
-          created = created,
-          expires = created + 2.days.toMillis,
-          name = Some("Dave's Game"),
-          metadata = None
-        )
+        Validated.valid(
+          Zone(
+            id = zoneId,
+            equityAccountId = AccountId(0),
+            members = Map(MemberId(0)   -> Member(MemberId(0), publicKey, name = Some("Dave"))),
+            accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
+            transactions = Map.empty,
+            created = created,
+            expires = created + 2.days.toMillis,
+            name = Some("Dave's Game"),
+            metadata = None
+          ))
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,

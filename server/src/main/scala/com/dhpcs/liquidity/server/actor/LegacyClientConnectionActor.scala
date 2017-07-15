@@ -11,6 +11,8 @@ import akka.http.scaladsl.model.ws.{TextMessage, Message => WsMessage}
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
+import cats.data.Validated.{Invalid, Valid}
+import cats.data.ValidatedNel
 import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, NumericCorrelationId, StringCorrelationId}
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.actor.protocol._
@@ -261,32 +263,33 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
         }
       case EnvelopedZoneResponse(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId) {
+          def toLegacyResponse[A, B <: LegacyWsProtocol.SuccessResponse](
+              validated: ValidatedNel[ZoneResponse.Error, A])(successResponse: A => B): LegacyWsProtocol.ZoneResponse =
+            validated match {
+              case Invalid(e) => LegacyWsProtocol.ErrorResponse(e.map(_.description).toList.mkString(","))
+              case Valid(a)   => successResponse(a)
+            }
           val response = zoneResponse match {
             case EmptyZoneResponse =>
               sys.error("Inconceivable")
-            case ErrorResponse(error) =>
-              LegacyWsProtocol.ErrorResponse(error)
-            case successResponse: SuccessResponse =>
-              successResponse match {
-                case CreateZoneResponse(zone) =>
-                  LegacyWsProtocol.CreateZoneResponse(zone)
-                case JoinZoneResponse(zone, connectedClients) =>
-                  LegacyWsProtocol.JoinZoneResponse(zone, connectedClients)
-                case QuitZoneResponse =>
-                  LegacyWsProtocol.QuitZoneResponse
-                case ChangeZoneNameResponse =>
-                  LegacyWsProtocol.ChangeZoneNameResponse
-                case CreateMemberResponse(member) =>
-                  LegacyWsProtocol.CreateMemberResponse(member)
-                case UpdateMemberResponse =>
-                  LegacyWsProtocol.UpdateMemberResponse
-                case CreateAccountResponse(account) =>
-                  LegacyWsProtocol.CreateAccountResponse(account)
-                case UpdateAccountResponse =>
-                  LegacyWsProtocol.UpdateAccountResponse
-                case AddTransactionResponse(transaction) =>
-                  LegacyWsProtocol.AddTransactionResponse(transaction)
-              }
+            case CreateZoneResponse(result) =>
+              toLegacyResponse(result)(LegacyWsProtocol.CreateZoneResponse)
+            case JoinZoneResponse(result) =>
+              toLegacyResponse(result)(LegacyWsProtocol.JoinZoneResponse.tupled)
+            case QuitZoneResponse(result) =>
+              toLegacyResponse(result)(_ => LegacyWsProtocol.QuitZoneResponse)
+            case ChangeZoneNameResponse(result) =>
+              toLegacyResponse(result)(_ => LegacyWsProtocol.ChangeZoneNameResponse)
+            case CreateMemberResponse(result) =>
+              toLegacyResponse(result)(LegacyWsProtocol.CreateMemberResponse)
+            case UpdateMemberResponse(result) =>
+              toLegacyResponse(result)(_ => LegacyWsProtocol.UpdateMemberResponse)
+            case CreateAccountResponse(result) =>
+              toLegacyResponse(result)(LegacyWsProtocol.CreateAccountResponse)
+            case UpdateAccountResponse(result) =>
+              toLegacyResponse(result)(_ => LegacyWsProtocol.UpdateAccountResponse)
+            case AddTransactionResponse(result) =>
+              toLegacyResponse(result)(LegacyWsProtocol.AddTransactionResponse)
           }
           sendResponse(response, correlationId)
         }

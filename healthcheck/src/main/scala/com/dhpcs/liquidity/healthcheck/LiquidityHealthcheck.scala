@@ -11,6 +11,7 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
+import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.client.LegacyServerConnection
 import com.dhpcs.liquidity.client.ServerConnection
@@ -206,11 +207,7 @@ class LiquidityHealthcheck(scheme: Option[String],
         serverConnection.sendZoneCommand(
           zoneId,
           zoneCommand,
-          new ServerConnection.ResponseCallback {
-            override def onErrorResponse(error: ErrorResponse): Unit = promise.success(error)
-            override def onSuccessResponse(success: SuccessResponse): Unit =
-              promise.success(success)
-          }
+          promise.success _
       ))
     promise.future
   }
@@ -304,7 +301,7 @@ class LiquidityHealthcheck(scheme: Option[String],
           .requestNext(ServerConnection.AUTHENTICATING)
           .requestNext(ServerConnection.ONLINE); ()
         inside(sendZoneCommand(SentinelZone.id, JoinZoneCommand).futureValue) {
-          case JoinZoneResponse(zone, connectedClients) =>
+          case JoinZoneResponse(Validated.Valid((zone, connectedClients))) =>
             assert(zone === SentinelZone)
             assert(connectedClients === Set(serverConnection.clientKey))
         }

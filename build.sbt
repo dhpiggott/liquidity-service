@@ -13,7 +13,11 @@ lazy val protoBinding = project
   .settings(
     name := "liquidity-proto-binding"
   )
-  .settings(libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.2")
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.chuusai"   %% "shapeless" % "2.3.2",
+      "org.typelevel" %% "cats"      % "0.9.0"
+    ))
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val model = project

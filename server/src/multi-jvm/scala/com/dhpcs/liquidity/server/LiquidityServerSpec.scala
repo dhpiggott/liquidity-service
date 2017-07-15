@@ -24,6 +24,7 @@ import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
 import akka.util.ByteString
+import cats.data.Validated
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.actor.protocol._
@@ -269,7 +270,7 @@ sealed abstract class LiquidityServerSpec
             correlationId
           )
           inside(expectProtobufZoneResponse(sub, correlationId)) {
-            case CreateZoneResponse(zone) =>
+            case CreateZoneResponse(Validated.Valid(zone)) =>
               assert(zone.equityAccountId === AccountId(0))
               assert(
                 zone.members(MemberId(0)) === Member(MemberId(0),
@@ -298,8 +299,7 @@ sealed abstract class LiquidityServerSpec
           correlationId
         )
         val zone = inside(expectProtobufZoneResponse(sub, correlationId)) {
-          case createZoneResponse: CreateZoneResponse =>
-            val zone = createZoneResponse.zone
+          case CreateZoneResponse(Validated.Valid(zone)) =>
             assert(zone.equityAccountId === AccountId(0))
             assert(
               zone.members(MemberId(0)) === Member(MemberId(0),
@@ -320,9 +320,8 @@ sealed abstract class LiquidityServerSpec
           correlationId
         )
         inside(expectProtobufZoneResponse(sub, correlationId)) {
-          case joinZoneResponse: JoinZoneResponse =>
-            assert(joinZoneResponse.zone === zone)
-            assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
+          case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
+            assert(zoneAndConnectedClients === ((zone, Set(PublicKey(rsaPublicKey.getEncoded)))))
         }; ()
       }
     }

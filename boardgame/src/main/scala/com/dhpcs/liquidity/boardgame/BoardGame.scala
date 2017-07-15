@@ -2,6 +2,7 @@ package com.dhpcs.liquidity.boardgame
 
 import java.util.Currency
 
+import cats.data.Validated.{Invalid, Valid}
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.boardgame.BoardGame._
 import com.dhpcs.liquidity.client.ServerConnection
@@ -332,7 +333,14 @@ class BoardGame private (serverConnection: ServerConnection,
       ChangeZoneNameCommand(
         Some(name)
       ),
-      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onChangeGameNameError(Some(name))))
+      new ResponseCallback {
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+          zoneResponse.asInstanceOf[ChangeZoneNameResponse].result match {
+            case Invalid(_) =>
+              gameActionListeners.foreach(_.onChangeGameNameError(Some(name)))
+            case Valid(_) => ()
+          }
+      }
     )
 
   def createIdentity(name: String): Unit =
@@ -343,13 +351,13 @@ class BoardGame private (serverConnection: ServerConnection,
         Some(name)
       ),
       new ResponseCallback {
-        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
-          gameActionListeners.foreach(_.onCreateIdentityMemberError(Some(name)))
-
-        override def onSuccessResponse(successResponse: SuccessResponse): Unit = {
-          val createMemberResponse = successResponse.asInstanceOf[CreateMemberResponse]
-          createAccount(createMemberResponse.member)
-        }
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+          zoneResponse.asInstanceOf[CreateMemberResponse].result match {
+            case Invalid(_) =>
+              gameActionListeners.foreach(_.onCreateIdentityMemberError(Some(name)))
+            case Valid(member) =>
+              createAccount(member)
+          }
       }
     )
 
@@ -359,7 +367,14 @@ class BoardGame private (serverConnection: ServerConnection,
       UpdateMemberCommand(
         state.identities(identity.member.id).member.copy(name = Some(name))
       ),
-      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onChangeIdentityNameError(Some(name))))
+      new ResponseCallback {
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+          zoneResponse.asInstanceOf[UpdateMemberResponse].result match {
+            case Invalid(_) =>
+              gameActionListeners.foreach(_.onChangeIdentityNameError(Some(name)))
+            case Valid(_) => ()
+          }
+      }
     )
 
   def transferIdentity(identity: Identity, toPublicKey: PublicKey): Unit =
@@ -368,7 +383,14 @@ class BoardGame private (serverConnection: ServerConnection,
       UpdateMemberCommand(
         state.identities(identity.member.id).member.copy(ownerPublicKey = toPublicKey)
       ),
-      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onTransferIdentityError(identity.member.name)))
+      new ResponseCallback {
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+          zoneResponse.asInstanceOf[UpdateMemberResponse].result match {
+            case Invalid(_) =>
+              gameActionListeners.foreach(_.onTransferIdentityError(identity.member.name))
+            case Valid(_) => ()
+          }
+      }
     )
 
   def deleteIdentity(identity: Identity): Unit = {
@@ -385,7 +407,14 @@ class BoardGame private (serverConnection: ServerConnection,
           )
         )
       ),
-      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onDeleteIdentityError(member.name)))
+      new ResponseCallback {
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+          zoneResponse.asInstanceOf[UpdateMemberResponse].result match {
+            case Invalid(_) =>
+              gameActionListeners.foreach(_.onDeleteIdentityError(member.name))
+            case Valid(_) => ()
+          }
+      }
     )
   }
 
@@ -402,7 +431,14 @@ class BoardGame private (serverConnection: ServerConnection,
             ))
         )
       ),
-      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onRestoreIdentityError(member.name)))
+      new ResponseCallback {
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+          zoneResponse.asInstanceOf[UpdateMemberResponse].result match {
+            case Invalid(_) =>
+              gameActionListeners.foreach(_.onRestoreIdentityError(member.name))
+            case Valid(_) => ()
+          }
+      }
     )
   }
 
@@ -417,7 +453,14 @@ class BoardGame private (serverConnection: ServerConnection,
             to.account.id,
             value
           ),
-          responseCallback = ResponseCallback(gameActionListeners.foreach(_.onTransferToPlayerError(to.member.name)))
+          new ResponseCallback {
+            override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+              zoneResponse.asInstanceOf[AddTransactionResponse].result match {
+                case Invalid(_) =>
+                  gameActionListeners.foreach(_.onTransferToPlayerError(to.member.name))
+                case Valid(_) => ()
+              }
+          }
       ))
 
   def registerListener(listener: JoinStateListener): Unit =
@@ -500,16 +543,19 @@ class BoardGame private (serverConnection: ServerConnection,
             zoneId.get,
             QuitZoneCommand,
             new ResponseCallback {
-              override def onErrorResponse(errorResponse: ErrorResponse): Unit =
-                gameActionListeners.foreach(_.onQuitGameError())
-
-              override def onSuccessResponse(successResponse: SuccessResponse): Unit =
-                if (joinRequestTokens.nonEmpty) {
-                  state = null
-                  _joinState = BoardGame.JOINING
-                  joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-                  join(zoneId.get)
-                } else serverConnection.unrequestConnection(connectionRequestToken)
+              override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+                zoneResponse.asInstanceOf[QuitZoneResponse].result match {
+                  case Invalid(_) =>
+                    gameActionListeners.foreach(_.onQuitGameError())
+                  case Valid(_) =>
+                    ()
+                    if (joinRequestTokens.nonEmpty) {
+                      state = null
+                      _joinState = BoardGame.JOINING
+                      joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
+                      join(zoneId.get)
+                    } else serverConnection.unrequestConnection(connectionRequestToken)
+                }
             }
           )
         }
@@ -879,18 +925,19 @@ class BoardGame private (serverConnection: ServerConnection,
             )))
       ),
       new ResponseCallback {
-        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
-          gameActionListeners.foreach(_.onCreateGameError(Some(name)))
-
-        override def onSuccessResponse(successResponse: SuccessResponse): Unit =
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
           if (_joinState == BoardGame.CREATING) {
-            val createZoneResponse = successResponse.asInstanceOf[CreateZoneResponse]
-            instances = instances + (createZoneResponse.zone.id -> BoardGame.this)
-            zoneId = Some(createZoneResponse.zone.id)
-            state = null
-            _joinState = BoardGame.JOINING
-            joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-            join(createZoneResponse.zone.id)
+            zoneResponse.asInstanceOf[CreateZoneResponse].result match {
+              case Invalid(_) =>
+                gameActionListeners.foreach(_.onCreateGameError(Some(name)))
+              case Valid(zone) =>
+                instances = instances + (zone.id -> BoardGame.this)
+                zoneId = Some(zone.id)
+                state = null
+                _joinState = BoardGame.JOINING
+                joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
+                join(zone.id)
+            }
           }
       }
     )
@@ -900,123 +947,124 @@ class BoardGame private (serverConnection: ServerConnection,
       zoneId,
       JoinZoneCommand,
       new ResponseCallback {
-        override def onErrorResponse(errorResponse: ErrorResponse): Unit =
-          gameActionListeners.foreach(_.onJoinGameError())
-
-        override def onSuccessResponse(successResponse: SuccessResponse): Unit =
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
           if (_joinState == BoardGame.JOINING) {
-            val joinZoneResponse = successResponse.asInstanceOf[JoinZoneResponse]
-            var balances         = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
-            for (transaction <- joinZoneResponse.zone.transactions.values) {
-              balances = balances +
-                (transaction.from -> (balances(transaction.from) - transaction.value)) +
-                (transaction.to   -> (balances(transaction.to) + transaction.value))
-            }
-            val currency = currencyFromMetadata(joinZoneResponse.zone.metadata)
-            val memberIdsToAccountIds = membersAccountsFromAccounts(
-              joinZoneResponse.zone.accounts
-            )
-            val accountIdsToMemberIds = memberIdsToAccountIds.map(_.swap)
-            val (identities, hiddenIdentities) = identitiesFromMembersAccounts(
-              zoneId,
-              memberIdsToAccountIds,
-              joinZoneResponse.zone.accounts,
-              balances,
-              currency,
-              joinZoneResponse.zone.members,
-              joinZoneResponse.zone.equityAccountId,
-              serverConnection.clientKey
-            )
-            val (players, hiddenPlayers) = playersFromMembersAccounts(
-              zoneId,
-              memberIdsToAccountIds,
-              joinZoneResponse.zone.accounts,
-              balances,
-              currency,
-              joinZoneResponse.zone.members,
-              joinZoneResponse.zone.equityAccountId,
-              joinZoneResponse.connectedClients
-            )
-            val transfers = transfersFromTransactions(
-              joinZoneResponse.zone.transactions,
-              currency,
-              accountIdsToMemberIds,
-              players ++ hiddenPlayers,
-              joinZoneResponse.zone.accounts,
-              joinZoneResponse.zone.members
-            )
-            state = new State(
-              joinZoneResponse.zone,
-              joinZoneResponse.connectedClients,
-              balances,
-              currency,
-              memberIdsToAccountIds,
-              accountIdsToMemberIds,
-              identities,
-              hiddenIdentities,
-              players,
-              hiddenPlayers,
-              transfers
-            )
-            _joinState = BoardGame.JOINED
-            joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-            gameActionListeners.foreach(_.onGameNameChanged(joinZoneResponse.zone.name))
-            gameActionListeners.foreach(_.onIdentitiesUpdated(identities))
-            gameActionListeners.foreach(_.onPlayersInitialized(players.values))
-            gameActionListeners.foreach(_.onPlayersUpdated(players))
-            gameActionListeners.foreach(_.onTransfersInitialized(transfers.values))
-            gameActionListeners.foreach(_.onTransfersUpdated(transfers))
-            val partiallyCreatedIdentities = joinZoneResponse.zone.members.collect {
-              case (memberId, member)
-                  if serverConnection.clientKey == member.ownerPublicKey
-                    && !joinZoneResponse.zone.accounts.values.exists(_.ownerMemberIds == Set(memberId)) =>
-                member
-            }
-            partiallyCreatedIdentities.foreach(createAccount)
-
-            // Since we must only prompt for a required identity if none exist yet and since having one or more
-            // partially created identities implies that gameId would be set, we can proceed here without checking that
-            // partiallyCreatedIdentityIds is non empty.
-            //
-            // The second condition isn't usually of significance but exists to prevent incorrectly prompting for an
-            // identity if a user rejoins a game by scanning its code again rather than by clicking its list item.
-            if (gameId.isEmpty && !(identities ++ hiddenIdentities).values.exists(
-                  _.account.id != joinZoneResponse.zone.equityAccountId
-                )) {
-              gameActionListeners.foreach(_.onIdentityRequired())
-            }
-
-            // We don't set gameId until now as it also indicates above whether we've prompted for the required
-            // identity - which we must do at most once.
-            if (gameId.isEmpty)
-              gameId = Some(
-                Future(
-                  // This is in case a user rejoins a game by scanning its code again rather than by clicking its list
-                  // item - in such cases we mustn't attempt to insert an entry as that would silently fail (as it
-                  // happens on the Future's worker thread), but we may need to update the existing entries name.
-                  Option(
-                    gameDatabase.checkAndUpdateGame(
-                      zoneId,
-                      joinZoneResponse.zone.name.orNull
-                    )).map(_.toLong).getOrElse {
-                    gameDatabase.insertGame(
-                      zoneId,
-                      joinZoneResponse.zone.created,
-                      joinZoneResponse.zone.expires,
-                      joinZoneResponse.zone.name.orNull
-                    )
-                  }
+            zoneResponse.asInstanceOf[JoinZoneResponse].result match {
+              case Invalid(_) =>
+                gameActionListeners.foreach(_.onJoinGameError())
+              case Valid((zone, connectedClients)) =>
+                var balances = Map.empty[AccountId, BigDecimal].withDefaultValue(BigDecimal(0))
+                for (transaction <- zone.transactions.values) {
+                  balances = balances +
+                    (transaction.from -> (balances(transaction.from) - transaction.value)) +
+                    (transaction.to   -> (balances(transaction.to) + transaction.value))
+                }
+                val currency = currencyFromMetadata(zone.metadata)
+                val memberIdsToAccountIds = membersAccountsFromAccounts(
+                  zone.accounts
                 )
-              )
-            else
-              for (gameId <- gameId)
-                gameId.foreach(
-                  _ =>
+                val accountIdsToMemberIds = memberIdsToAccountIds.map(_.swap)
+                val (identities, hiddenIdentities) = identitiesFromMembersAccounts(
+                  zoneId,
+                  memberIdsToAccountIds,
+                  zone.accounts,
+                  balances,
+                  currency,
+                  zone.members,
+                  zone.equityAccountId,
+                  serverConnection.clientKey
+                )
+                val (players, hiddenPlayers) = playersFromMembersAccounts(
+                  zoneId,
+                  memberIdsToAccountIds,
+                  zone.accounts,
+                  balances,
+                  currency,
+                  zone.members,
+                  zone.equityAccountId,
+                  connectedClients
+                )
+                val transfers = transfersFromTransactions(
+                  zone.transactions,
+                  currency,
+                  accountIdsToMemberIds,
+                  players ++ hiddenPlayers,
+                  zone.accounts,
+                  zone.members
+                )
+                state = new State(
+                  zone,
+                  connectedClients,
+                  balances,
+                  currency,
+                  memberIdsToAccountIds,
+                  accountIdsToMemberIds,
+                  identities,
+                  hiddenIdentities,
+                  players,
+                  hiddenPlayers,
+                  transfers
+                )
+                _joinState = BoardGame.JOINED
+                joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
+                gameActionListeners.foreach(_.onGameNameChanged(zone.name))
+                gameActionListeners.foreach(_.onIdentitiesUpdated(identities))
+                gameActionListeners.foreach(_.onPlayersInitialized(players.values))
+                gameActionListeners.foreach(_.onPlayersUpdated(players))
+                gameActionListeners.foreach(_.onTransfersInitialized(transfers.values))
+                gameActionListeners.foreach(_.onTransfersUpdated(transfers))
+                val partiallyCreatedIdentities = zone.members.collect {
+                  case (memberId, member)
+                      if serverConnection.clientKey == member.ownerPublicKey
+                        && !zone.accounts.values.exists(_.ownerMemberIds == Set(memberId)) =>
+                    member
+                }
+                partiallyCreatedIdentities.foreach(createAccount)
+
+                // Since we must only prompt for a required identity if none exist yet and since having one or more
+                // partially created identities implies that gameId would be set, we can proceed here without checking that
+                // partiallyCreatedIdentityIds is non empty.
+                //
+                // The second condition isn't usually of significance but exists to prevent incorrectly prompting for an
+                // identity if a user rejoins a game by scanning its code again rather than by clicking its list item.
+                if (gameId.isEmpty && !(identities ++ hiddenIdentities).values.exists(
+                      _.account.id != zone.equityAccountId
+                    )) {
+                  gameActionListeners.foreach(_.onIdentityRequired())
+                }
+
+                // We don't set gameId until now as it also indicates above whether we've prompted for the required
+                // identity - which we must do at most once.
+                if (gameId.isEmpty)
+                  gameId = Some(
                     Future(
-                      gameDatabase.checkAndUpdateGame(
-                        zoneId,
-                        joinZoneResponse.zone.name.orNull
-                      )))
+                      // This is in case a user rejoins a game by scanning its code again rather than by clicking its list
+                      // item - in such cases we mustn't attempt to insert an entry as that would silently fail (as it
+                      // happens on the Future's worker thread), but we may need to update the existing entries name.
+                      Option(
+                        gameDatabase.checkAndUpdateGame(
+                          zoneId,
+                          zone.name.orNull
+                        )).map(_.toLong).getOrElse {
+                        gameDatabase.insertGame(
+                          zoneId,
+                          zone.created,
+                          zone.expires,
+                          zone.name.orNull
+                        )
+                      }
+                    )
+                  )
+                else
+                  for (gameId <- gameId)
+                    gameId.foreach(
+                      _ =>
+                        Future(
+                          gameDatabase.checkAndUpdateGame(
+                            zoneId,
+                            zone.name.orNull
+                          )))
+            }
           }
       }
     )
@@ -1027,7 +1075,14 @@ class BoardGame private (serverConnection: ServerConnection,
       CreateAccountCommand(
         Set(ownerMember.id)
       ),
-      responseCallback = ResponseCallback(gameActionListeners.foreach(_.onCreateIdentityAccountError(ownerMember.name)))
+      new ResponseCallback {
+        override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
+          zoneResponse.asInstanceOf[CreateAccountResponse].result match {
+            case Invalid(_) =>
+              gameActionListeners.foreach(_.onCreateIdentityAccountError(ownerMember.name))
+            case Valid(_) => ()
+          }
+      }
     )
 
 }

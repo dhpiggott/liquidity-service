@@ -5,6 +5,7 @@ import java.time.temporal.ChronoUnit
 
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
+import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
@@ -46,7 +47,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
         )
       )
       inside(expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
-        case CreateZoneResponse(zone) =>
+        case CreateZoneResponse(Validated.Valid(zone)) =>
           assert(zone.equityAccountId === AccountId(0))
           assert(zone.members(MemberId(0)) === Member(MemberId(0), publicKey, name = Some("Dave")))
           assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
@@ -57,7 +58,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
           assert(zone.metadata === None)
       }
     }
-    "will reply with an ErrorResponse when sending a JoinZoneCommand and no zone has been created" in {
+    "will reply with an Error when sending a JoinZoneCommand and no zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = 0L
       val sequenceNumber                      = 1L
@@ -72,8 +73,13 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
         )
       )
       assert(
-        expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber) === ErrorResponse(
-          "Zone does not exist")
+        expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber) === JoinZoneResponse(
+          Validated.invalidNel(
+            ZoneResponse.Error(
+              code = 0,
+              description = "Zone does not exist"
+            )
+          ))
       )
     }
   }

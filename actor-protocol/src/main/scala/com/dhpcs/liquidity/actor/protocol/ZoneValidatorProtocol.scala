@@ -1,9 +1,9 @@
 package com.dhpcs.liquidity.actor.protocol
 
+import cats.data.ValidatedNel
 import com.dhpcs.liquidity.model._
 
 sealed abstract class ZoneCommand
-
 case object EmptyZoneCommand extends ZoneCommand
 final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                    equityOwnerName: Option[String],
@@ -34,24 +34,23 @@ final case class AddTransactionCommand(actingAs: MemberId,
                                        metadata: Option[com.google.protobuf.struct.Struct] = None)
     extends ZoneCommand
 
+object ZoneResponse {
+  final case class Error(code: Int, description: String)
+}
+
 sealed abstract class ZoneResponse
-
-case object EmptyZoneResponse                 extends ZoneResponse
-final case class ErrorResponse(error: String) extends ZoneResponse
-sealed abstract class SuccessResponse         extends ZoneResponse
-
-final case class CreateZoneResponse(zone: Zone)                                 extends SuccessResponse
-final case class JoinZoneResponse(zone: Zone, connectedClients: Set[PublicKey]) extends SuccessResponse
-case object QuitZoneResponse                                                    extends SuccessResponse
-case object ChangeZoneNameResponse                                              extends SuccessResponse
-final case class CreateMemberResponse(member: Member)                           extends SuccessResponse
-case object UpdateMemberResponse                                                extends SuccessResponse
-final case class CreateAccountResponse(account: Account)                        extends SuccessResponse
-case object UpdateAccountResponse                                               extends SuccessResponse
-final case class AddTransactionResponse(transaction: Transaction)               extends SuccessResponse
+case object EmptyZoneResponse                                                                       extends ZoneResponse
+final case class CreateZoneResponse(result: ValidatedNel[ZoneResponse.Error, (Zone)])               extends ZoneResponse
+final case class JoinZoneResponse(result: ValidatedNel[ZoneResponse.Error, (Zone, Set[PublicKey])]) extends ZoneResponse
+final case class QuitZoneResponse(result: ValidatedNel[ZoneResponse.Error, Unit])                   extends ZoneResponse
+final case class ChangeZoneNameResponse(result: ValidatedNel[ZoneResponse.Error, Unit])             extends ZoneResponse
+final case class CreateMemberResponse(result: ValidatedNel[ZoneResponse.Error, (Member)])           extends ZoneResponse
+final case class UpdateMemberResponse(result: ValidatedNel[ZoneResponse.Error, Unit])               extends ZoneResponse
+final case class CreateAccountResponse(result: ValidatedNel[ZoneResponse.Error, (Account)])         extends ZoneResponse
+final case class UpdateAccountResponse(result: ValidatedNel[ZoneResponse.Error, Unit])              extends ZoneResponse
+final case class AddTransactionResponse(result: ValidatedNel[ZoneResponse.Error, (Transaction)])    extends ZoneResponse
 
 sealed abstract class ZoneNotification
-
 case object EmptyZoneNotification                                       extends ZoneNotification
 final case class ClientJoinedZoneNotification(publicKey: PublicKey)     extends ZoneNotification
 final case class ClientQuitZoneNotification(publicKey: PublicKey)       extends ZoneNotification
@@ -65,6 +64,7 @@ final case class TransactionAddedNotification(transaction: Transaction) extends 
 
 sealed abstract class ZoneValidatorMessage extends Serializable
 
+// TODO: Rename as ZoneCommandEnvelope
 final case class EnvelopedZoneCommand(zoneId: ZoneId,
                                       zoneCommand: ZoneCommand,
                                       publicKey: PublicKey,
@@ -83,12 +83,14 @@ final case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
 
 final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
+// TODO: Rename as ZoneResponseEnvelope
 final case class EnvelopedZoneResponse(zoneResponse: ZoneResponse,
                                        correlationId: Long,
                                        sequenceNumber: Long,
                                        deliveryId: Long)
     extends ZoneValidatorMessage
 
+// TODO: Rename as ZoneNotificationEnvelope
 final case class EnvelopedZoneNotification(zoneId: ZoneId,
                                            zoneNotification: ZoneNotification,
                                            sequenceNumber: Long,

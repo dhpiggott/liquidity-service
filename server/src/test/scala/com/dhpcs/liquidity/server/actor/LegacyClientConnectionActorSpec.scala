@@ -5,6 +5,7 @@ import java.net.InetAddress
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
+import cats.data.Validated
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc.JsonRpcResponseSuccessMessage
 import com.dhpcs.liquidity.actor.protocol._
@@ -93,7 +94,10 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersist
       )
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        EnvelopedZoneResponse(CreateZoneResponse(zone), correlationId, sequenceNumber = 1L, deliveryId = 1L)
+        EnvelopedZoneResponse(CreateZoneResponse(Validated.valid(zone)),
+                              correlationId,
+                              sequenceNumber = 1L,
+                              deliveryId = 1L)
       )
       assert(expectResponse(upstreamTestProbe, "createZone") === LegacyWsProtocol.CreateZoneResponse(zone))
     }

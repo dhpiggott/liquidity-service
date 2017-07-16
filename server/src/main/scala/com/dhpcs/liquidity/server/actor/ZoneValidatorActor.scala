@@ -39,14 +39,14 @@ object ZoneValidatorActor {
 
   private val ZoneLifetime = 2.days
 
-  private final case class State(zone: Zone = null,
-                                 balances: Map[AccountId, BigDecimal] = Map.empty.withDefaultValue(BigDecimal(0)),
-                                 clientConnections: Map[ActorPath, PublicKey] = Map.empty[ActorPath, PublicKey]) {
+  private final case class State(zone: Option[Zone],
+                                 balances: Map[AccountId, BigDecimal],
+                                 clientConnections: Map[ActorPath, PublicKey]) {
 
     def updated(zoneEvent: ZoneEvent): State = zoneEvent match {
       case zoneCreatedEvent: ZoneCreatedEvent =>
         copy(
-          zone = zoneCreatedEvent.zone
+          zone = Some(zoneCreatedEvent.zone)
         )
       case ZoneJoinedEvent(_, clientConnectionActorPath, publicKey) =>
         copy(
@@ -58,33 +58,38 @@ object ZoneValidatorActor {
         )
       case ZoneNameChangedEvent(_, name) =>
         copy(
-          zone = zone.copy(
-            name = name
-          )
+          zone = zone.map(
+            _.copy(
+              name = name
+            ))
         )
       case MemberCreatedEvent(_, member) =>
         copy(
-          zone = zone.copy(
-            members = zone.members + (member.id -> member)
-          )
+          zone = zone.map(
+            _.copy(
+              members = zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
+            ))
         )
       case MemberUpdatedEvent(_, member) =>
         copy(
-          zone = zone.copy(
-            members = zone.members + (member.id -> member)
-          )
+          zone = zone.map(
+            _.copy(
+              members = zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
+            ))
         )
       case AccountCreatedEvent(_, account) =>
         copy(
-          zone = zone.copy(
-            accounts = zone.accounts + (account.id -> account)
-          )
+          zone = zone.map(
+            _.copy(
+              accounts = zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
+            ))
         )
       case AccountUpdatedEvent(_, account) =>
         copy(
-          zone = zone.copy(
-            accounts = zone.accounts + (account.id -> account)
-          )
+          zone = zone.map(
+            _.copy(
+              accounts = zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
+            ))
         )
       case TransactionAddedEvent(_, transaction) =>
         val updatedSourceBalance      = balances(transaction.from) - transaction.value
@@ -93,9 +98,10 @@ object ZoneValidatorActor {
           balances = balances +
             (transaction.from -> updatedSourceBalance) +
             (transaction.to   -> updatedDestinationBalance),
-          zone = zone.copy(
-            transactions = zone.transactions + (transaction.id -> transaction)
-          )
+          zone = zone.map(
+            _.copy(
+              transactions = zone.map(_.transactions).getOrElse(Map.empty) + (transaction.id -> transaction)
+            ))
         )
     }
   }
@@ -232,14 +238,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   import ZoneValidatorActor.PassivationCountdownActor._
   import context.dispatcher
 
-  private[this] val mediator          = DistributedPubSub(context.system).mediator
-  private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
-  private[this] val passivationCountdownActor =
-    context.actorOf(PassivationCountdownActor.props)
+  private[this] val mediator                  = DistributedPubSub(context.system).mediator
+  private[this] val publishStatusTick         = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
+  private[this] val passivationCountdownActor = context.actorOf(PassivationCountdownActor.props)
 
   private[this] val zoneId = ZoneId(UUID.fromString(self.path.name))
 
-  private[this] var state = State()
+  private[this] var state =
+    State(zone = None, balances = Map.empty.withDefaultValue(BigDecimal(0)), clientConnections = Map.empty)
 
   private[this] var nextExpectedCommandSequenceNumbers = Map.empty[ActorPath, Long].withDefaultValue(1L)
   private[this] var messageSequenceNumbers             = Map.empty[ActorPath, Long].withDefaultValue(1L)
@@ -247,18 +253,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   override def persistenceId: String = zoneId.persistenceId
 
-  override def preStart(): Unit = {
-    super.preStart()
-    log.info("Started")
-  }
-
   override def postStop(): Unit = {
     publishStatusTick.cancel()
     super.postStop()
-    log.info("Stopped")
   }
-
-  override def receiveCommand: Receive = waitForZone
 
   override def receiveRecover: Receive = {
     case zoneEvent: ZoneEvent =>
@@ -271,203 +269,45 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       )
   }
 
-  private[this] def waitForZone: Receive =
-    publishStatus orElse messageReceivedConfirmation orElse waitForTimeout orElse {
-      case EnvelopedZoneCommand(_, command, _, correlationId, sequenceNumber, deliveryId) =>
-        passivationCountdownActor ! CommandReceivedEvent
-        exactlyOnce(sequenceNumber, deliveryId) {
-          command match {
-            case EmptyZoneCommand => ()
-            case CreateZoneCommand(
-                equityOwnerPublicKey,
-                equityOwnerName,
-                equityOwnerMetadata,
-                equityAccountName,
-                equityAccountMetadata,
-                name,
-                metadata
-                ) =>
-              checkTagAndMetadata(equityOwnerName, equityOwnerMetadata)
-                .orElse(checkTagAndMetadata(equityAccountName, equityAccountMetadata))
-                .orElse(checkTagAndMetadata(name, metadata)) match {
-                case Some(error) =>
-                  deliverResponse(CreateZoneResponse(
-                                    Validated.invalidNel(
-                                      ZoneResponse.Error(
-                                        code = 0,
-                                        description = error
-                                      )
-                                    )),
-                                  correlationId)
-                case None =>
-                  val equityOwner = Member(
-                    MemberId(0),
-                    equityOwnerPublicKey,
-                    equityOwnerName,
-                    equityOwnerMetadata
-                  )
-                  val equityAccount = Account(
-                    AccountId(0),
-                    Set(equityOwner.id),
-                    equityAccountName,
-                    equityAccountMetadata
-                  )
-                  val created = System.currentTimeMillis
-                  val expires = created + ZoneLifetime.toMillis
-                  val zone = Zone(
-                    zoneId,
-                    equityAccount.id,
-                    Map(
-                      equityOwner.id -> equityOwner
-                    ),
-                    Map(
-                      equityAccount.id -> equityAccount
-                    ),
-                    Map.empty,
-                    created,
-                    expires,
-                    name,
-                    metadata
-                  )
-                  persist(ZoneCreatedEvent(created, zone)) { zoneCreatedEvent =>
-                    updateState(zoneCreatedEvent)
-                    deliverResponse(
-                      CreateZoneResponse(
-                        Validated.valid(
-                          zoneCreatedEvent.zone
-                        )),
-                      correlationId
-                    )
-                    self ! PublishStatus
-                  }
-              }
-            case JoinZoneCommand =>
-              deliverResponse(
-                JoinZoneResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                  )
-                ),
-                correlationId
-              )
-            case QuitZoneCommand =>
-              deliverResponse(
-                QuitZoneResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                  )
-                ),
-                correlationId
-              )
-            case ChangeZoneNameCommand(_) =>
-              deliverResponse(
-                ChangeZoneNameResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                  )
-                ),
-                correlationId
-              )
-            case CreateMemberCommand(_, _, _) =>
-              deliverResponse(
-                CreateMemberResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                  )
-                ),
-                correlationId
-              )
-            case UpdateMemberCommand(_) =>
-              deliverResponse(
-                UpdateMemberResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                  )
-                ),
-                correlationId
-              )
-            case CreateAccountCommand(_, _, _) =>
-              deliverResponse(
-                CreateAccountResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                  )
-                ),
-                correlationId
-              )
-            case UpdateAccountCommand(_) =>
-              deliverResponse(
-                UpdateAccountResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                  )
-                ),
-                correlationId
-              )
-            case AddTransactionCommand(_, _, _, _, _, _) =>
-              deliverResponse(
-                AddTransactionResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                  )
-                ),
-                correlationId
-              )
-          }
-        }
-    }
-
-  private[this] def withZone: Receive =
-    publishStatus orElse messageReceivedConfirmation orElse waitForTimeout orElse {
-      case EnvelopedZoneCommand(_, command, publicKey, correlationId, sequenceNumber, deliveryId) =>
-        passivationCountdownActor ! CommandReceivedEvent
-        exactlyOnce(sequenceNumber, deliveryId)(
-          handleCommand(publicKey, command, correlationId)
-        )
-      case Terminated(clientConnection) =>
-        handleQuit(clientConnection) {
-          self ! PublishStatus
-        }
-        nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers - clientConnection.path
-        messageSequenceNumbers = messageSequenceNumbers - clientConnection.path
-        pendingDeliveries(clientConnection.path).foreach(confirmDelivery)
-        pendingDeliveries = pendingDeliveries - clientConnection.path
-    }
-
-  private[this] def updateState(zoneEvent: ZoneEvent): Unit = {
-    state = state.updated(zoneEvent)
-    if (zoneEvent.isInstanceOf[ZoneCreatedEvent])
-      context.become(withZone)
-  }
-
-  private[this] def publishStatus: Receive = {
+  override def receiveCommand: Receive = {
     case PublishStatus =>
-      if (state.zone != null)
-        mediator ! Publish(
-          ZoneStatusTopic,
-          ActiveZoneSummary(
-            zoneId,
-            state.zone.metadata,
-            state.zone.members.values.toSet,
-            state.zone.accounts.values.toSet,
-            state.zone.transactions.values.toSet,
-            state.clientConnections.values.toSet
-          )
-        )
-  }
-
-  private[this] def messageReceivedConfirmation: Receive = {
+      state.zone.foreach(
+        zone =>
+          mediator ! Publish(
+            ZoneStatusTopic,
+            ActiveZoneSummary(
+              zoneId,
+              zone.metadata,
+              zone.members.values.toSet,
+              zone.accounts.values.toSet,
+              zone.transactions.values.toSet,
+              state.clientConnections.values.toSet
+            )
+        ))
     case MessageReceivedConfirmation(deliveryId) =>
       confirmDelivery(deliveryId)
       pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) - deliveryId))
       if (pendingDeliveries(sender().path).isEmpty)
         pendingDeliveries = pendingDeliveries - sender().path
-  }
-
-  private[this] def waitForTimeout: Receive = {
     case RequestPassivate =>
       context.parent ! Passivate(stopMessage = PoisonPill)
+    case EnvelopedZoneCommand(_, command, publicKey, correlationId, sequenceNumber, deliveryId) =>
+      passivationCountdownActor ! CommandReceivedEvent
+      exactlyOnce(sequenceNumber, deliveryId)(
+        handleCommand(publicKey, command, correlationId)
+      )
+    case Terminated(clientConnection) =>
+      handleQuit(clientConnection) {
+        self ! PublishStatus
+      }
+      nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers - clientConnection.path
+      messageSequenceNumbers = messageSequenceNumbers - clientConnection.path
+      pendingDeliveries(clientConnection.path).foreach(confirmDelivery)
+      pendingDeliveries = pendingDeliveries - clientConnection.path
   }
+
+  private[this] def updateState(zoneEvent: ZoneEvent): Unit =
+    state = state.updated(zoneEvent)
 
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
     val nextExpectedCommandSequenceNumber = nextExpectedCommandSequenceNumbers(sender().path)
@@ -482,257 +322,422 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] def handleCommand(publicKey: PublicKey, command: ZoneCommand, correlationId: Long): Unit =
     command match {
       case EmptyZoneCommand => ()
-      case createZoneCommand: CreateZoneCommand =>
-        val sequenceNumber = messageSequenceNumbers(sender().path)
-        messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))
-        deliver(sender().path) { deliveryId =>
-          pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) + deliveryId))
-          ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId)
+      case createZoneCommand @ CreateZoneCommand(
+            equityOwnerPublicKey,
+            equityOwnerName,
+            equityOwnerMetadata,
+            equityAccountName,
+            equityAccountMetadata,
+            name,
+            metadata
+          ) =>
+        state.zone match {
+          case Some(_) =>
+            val sequenceNumber = messageSequenceNumbers(sender().path)
+            messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))
+            deliver(sender().path) { deliveryId =>
+              pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) + deliveryId))
+              ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId)
+            }
+          case None =>
+            checkTagAndMetadata(equityOwnerName, equityOwnerMetadata)
+              .orElse(checkTagAndMetadata(equityAccountName, equityAccountMetadata))
+              .orElse(checkTagAndMetadata(name, metadata)) match {
+              case Some(error) =>
+                deliverResponse(
+                  CreateZoneResponse(
+                    Validated.invalidNel(
+                      // TODO: Extract all errors as constants and make each one have a unique code
+                      ZoneResponse.Error(
+                        code = 0,
+                        description = error
+                      )
+                    )),
+                  correlationId
+                )
+              case None =>
+                val equityOwner = Member(
+                  MemberId(0),
+                  equityOwnerPublicKey,
+                  equityOwnerName,
+                  equityOwnerMetadata
+                )
+                val equityAccount = Account(
+                  AccountId(0),
+                  Set(equityOwner.id),
+                  equityAccountName,
+                  equityAccountMetadata
+                )
+                val created = System.currentTimeMillis
+                val expires = created + ZoneLifetime.toMillis
+                val zone = Zone(
+                  zoneId,
+                  equityAccount.id,
+                  Map(
+                    equityOwner.id -> equityOwner
+                  ),
+                  Map(
+                    equityAccount.id -> equityAccount
+                  ),
+                  Map.empty,
+                  created,
+                  expires,
+                  name,
+                  metadata
+                )
+                persist(ZoneCreatedEvent(created, zone)) { zoneCreatedEvent =>
+                  updateState(zoneCreatedEvent)
+                  deliverResponse(
+                    CreateZoneResponse(
+                      Validated.valid(
+                        zoneCreatedEvent.zone
+                      )),
+                    correlationId
+                  )
+                  self ! PublishStatus
+                }
+            }
         }
       case JoinZoneCommand =>
-        if (state.clientConnections.contains(sender().path))
-          deliverResponse(
-            JoinZoneResponse(
-              Validated.invalidNel(
-                ZoneResponse.Error(code = 0, description = "Zone already joined")
-              )
-            ),
-            correlationId
-          )
-        else
-          handleJoin(sender(), publicKey) { state =>
+        state.zone match {
+          case None =>
             deliverResponse(
               JoinZoneResponse(
-                Validated.valid(
-                  (
-                    state.zone,
-                    state.clientConnections.values.toSet
-                  ))),
-              correlationId
-            )
-            self ! PublishStatus
-          }
-      case QuitZoneCommand =>
-        if (!state.clientConnections.contains(sender().path))
-          deliverResponse(
-            QuitZoneResponse(
-              Validated.invalidNel(
-                ZoneResponse.Error(code = 0, description = "Zone not joined")
-              )
-            ),
-            correlationId
-          )
-        else
-          handleQuit(sender()) {
-            deliverResponse(
-              QuitZoneResponse(
-                Validated.valid(())
+                Validated.invalidNel(
+                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                )
               ),
               correlationId
             )
-            self ! PublishStatus
-          }
+          case Some(zone) =>
+            if (state.clientConnections.contains(sender().path))
+              deliverResponse(
+                JoinZoneResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone already joined")
+                  )
+                ),
+                correlationId
+              )
+            else
+              handleJoin(sender(), publicKey) { state =>
+                deliverResponse(
+                  JoinZoneResponse(
+                    Validated.valid(
+                      (
+                        zone,
+                        state.clientConnections.values.toSet
+                      ))),
+                  correlationId
+                )
+                self ! PublishStatus
+              }
+        }
+      case QuitZoneCommand =>
+        state.zone match {
+          case None =>
+            deliverResponse(
+              QuitZoneResponse(
+                Validated.invalidNel(
+                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
+                )
+              ),
+              correlationId
+            )
+          case Some(_) =>
+            if (!state.clientConnections.contains(sender().path))
+              deliverResponse(
+                QuitZoneResponse(
+                  Validated.invalidNel(
+                    ZoneResponse.Error(code = 0, description = "Zone not joined")
+                  )
+                ),
+                correlationId
+              )
+            else
+              handleQuit(sender()) {
+                deliverResponse(
+                  QuitZoneResponse(
+                    Validated.valid(())
+                  ),
+                  correlationId
+                )
+                self ! PublishStatus
+              }
+        }
       case ChangeZoneNameCommand(name) =>
-        checkTagAndMetadata(name, None) match {
-          case Some(error) =>
+        state.zone match {
+          case None =>
             deliverResponse(
               ChangeZoneNameResponse(
                 Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = error)
+                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
                 )
               ),
               correlationId
             )
-          case None =>
-            persist(ZoneNameChangedEvent(System.currentTimeMillis, name)) { zoneNameChangedEvent =>
-              updateState(zoneNameChangedEvent)
-              deliverResponse(
-                ChangeZoneNameResponse(
-                  Validated.valid(())
-                ),
-                correlationId
-              )
-              self ! PublishStatus
-              deliverNotification(
-                ZoneNameChangedNotification(
-                  zoneNameChangedEvent.name
+          case Some(_) =>
+            checkTagAndMetadata(name, None) match {
+              case Some(error) =>
+                deliverResponse(
+                  ChangeZoneNameResponse(
+                    Validated.invalidNel(
+                      ZoneResponse.Error(code = 0, description = error)
+                    )
+                  ),
+                  correlationId
                 )
-              )
+              case None =>
+                persist(ZoneNameChangedEvent(System.currentTimeMillis, name)) { zoneNameChangedEvent =>
+                  updateState(zoneNameChangedEvent)
+                  deliverResponse(
+                    ChangeZoneNameResponse(
+                      Validated.valid(())
+                    ),
+                    correlationId
+                  )
+                  self ! PublishStatus
+                  deliverNotification(
+                    ZoneNameChangedNotification(
+                      zoneNameChangedEvent.name
+                    )
+                  )
+                }
             }
         }
       case CreateMemberCommand(ownerPublicKey, name, metadata) =>
-        checkOwnerPublicKey(ownerPublicKey).orElse(checkTagAndMetadata(name, metadata)) match {
-          case Some(error) =>
+        state.zone match {
+          case None =>
             deliverResponse(
               CreateMemberResponse(
                 Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = error)
+                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
                 )
               ),
               correlationId
             )
-          case None =>
-            val member = Member(
-              MemberId(state.zone.members.size.toLong),
-              ownerPublicKey,
-              name,
-              metadata
-            )
-            persist(MemberCreatedEvent(System.currentTimeMillis, member)) { memberCreatedEvent =>
-              updateState(memberCreatedEvent)
-              deliverResponse(
-                CreateMemberResponse(
-                  Validated.valid(
-                    memberCreatedEvent.member
-                  )
-                ),
-                correlationId
-              )
-              self ! PublishStatus
-              deliverNotification(
-                MemberCreatedNotification(
-                  memberCreatedEvent.member
+          case Some(zone) =>
+            checkOwnerPublicKey(ownerPublicKey).orElse(checkTagAndMetadata(name, metadata)) match {
+              case Some(error) =>
+                deliverResponse(
+                  CreateMemberResponse(
+                    Validated.invalidNel(
+                      ZoneResponse.Error(code = 0, description = error)
+                    )
+                  ),
+                  correlationId
                 )
-              )
+              case None =>
+                val member = Member(
+                  MemberId(zone.members.size.toLong),
+                  ownerPublicKey,
+                  name,
+                  metadata
+                )
+                persist(MemberCreatedEvent(System.currentTimeMillis, member)) { memberCreatedEvent =>
+                  updateState(memberCreatedEvent)
+                  deliverResponse(
+                    CreateMemberResponse(
+                      Validated.valid(
+                        memberCreatedEvent.member
+                      )
+                    ),
+                    correlationId
+                  )
+                  self ! PublishStatus
+                  deliverNotification(
+                    MemberCreatedNotification(
+                      memberCreatedEvent.member
+                    )
+                  )
+                }
             }
         }
       case UpdateMemberCommand(member) =>
-        checkCanModify(state.zone, member.id, publicKey)
-          .orElse(checkOwnerPublicKey(member.ownerPublicKey))
-          .orElse(checkTagAndMetadata(member.name, member.metadata)) match {
-          case Some(error) =>
+        state.zone match {
+          case None =>
             deliverResponse(
               UpdateMemberResponse(
                 Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = error)
+                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
                 )
               ),
               correlationId
             )
-          case None =>
-            persist(MemberUpdatedEvent(System.currentTimeMillis, member)) { memberUpdatedEvent =>
-              updateState(memberUpdatedEvent)
-              deliverResponse(
-                UpdateMemberResponse(
-                  Validated.valid(())
-                ),
-                correlationId
-              )
-              self ! PublishStatus
-              deliverNotification(
-                MemberUpdatedNotification(
-                  memberUpdatedEvent.member
+          case Some(zone) =>
+            checkCanModify(zone, member.id, publicKey)
+              .orElse(checkOwnerPublicKey(member.ownerPublicKey))
+              .orElse(checkTagAndMetadata(member.name, member.metadata)) match {
+              case Some(error) =>
+                deliverResponse(
+                  UpdateMemberResponse(
+                    Validated.invalidNel(
+                      ZoneResponse.Error(code = 0, description = error)
+                    )
+                  ),
+                  correlationId
                 )
-              )
+              case None =>
+                persist(MemberUpdatedEvent(System.currentTimeMillis, member)) { memberUpdatedEvent =>
+                  updateState(memberUpdatedEvent)
+                  deliverResponse(
+                    UpdateMemberResponse(
+                      Validated.valid(())
+                    ),
+                    correlationId
+                  )
+                  self ! PublishStatus
+                  deliverNotification(
+                    MemberUpdatedNotification(
+                      memberUpdatedEvent.member
+                    )
+                  )
+                }
             }
         }
       case CreateAccountCommand(owners, name, metadata) =>
-        checkAccountOwners(state.zone, owners).orElse(checkTagAndMetadata(name, metadata)) match {
-          case Some(error) =>
+        state.zone match {
+          case None =>
             deliverResponse(
               CreateAccountResponse(
                 Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = error)
+                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
                 )
               ),
               correlationId
             )
-          case None =>
-            val account = Account(
-              AccountId(state.zone.accounts.size.toLong),
-              owners,
-              name,
-              metadata
-            )
-            persist(AccountCreatedEvent(System.currentTimeMillis, account)) { accountCreatedEvent =>
-              updateState(accountCreatedEvent)
-              deliverResponse(
-                CreateAccountResponse(
-                  Validated.valid(
-                    accountCreatedEvent.account
-                  )
-                ),
-                correlationId
-              )
-              self ! PublishStatus
-              deliverNotification(
-                AccountCreatedNotification(
-                  accountCreatedEvent.account
+          case Some(zone) =>
+            checkAccountOwners(zone, owners).orElse(checkTagAndMetadata(name, metadata)) match {
+              case Some(error) =>
+                deliverResponse(
+                  CreateAccountResponse(
+                    Validated.invalidNel(
+                      ZoneResponse.Error(code = 0, description = error)
+                    )
+                  ),
+                  correlationId
                 )
-              )
+              case None =>
+                val account = Account(
+                  AccountId(zone.accounts.size.toLong),
+                  owners,
+                  name,
+                  metadata
+                )
+                persist(AccountCreatedEvent(System.currentTimeMillis, account)) { accountCreatedEvent =>
+                  updateState(accountCreatedEvent)
+                  deliverResponse(
+                    CreateAccountResponse(
+                      Validated.valid(
+                        accountCreatedEvent.account
+                      )
+                    ),
+                    correlationId
+                  )
+                  self ! PublishStatus
+                  deliverNotification(
+                    AccountCreatedNotification(
+                      accountCreatedEvent.account
+                    )
+                  )
+                }
             }
         }
       case UpdateAccountCommand(account) =>
-        checkCanModify(state.zone, account.id, publicKey).orElse(
-          checkAccountOwners(state.zone, account.ownerMemberIds)
-            .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
-          case Some(error) =>
+        state.zone match {
+          case None =>
             deliverResponse(
               UpdateAccountResponse(
                 Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = error)
+                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
                 )
               ),
               correlationId
             )
-          case None =>
-            persist(AccountUpdatedEvent(System.currentTimeMillis, account)) { accountUpdatedEvent =>
-              updateState(accountUpdatedEvent)
-              deliverResponse(
-                UpdateAccountResponse(
-                  Validated.valid(())
-                ),
-                correlationId
-              )
-              self ! PublishStatus
-              deliverNotification(
-                AccountUpdatedNotification(
-                  accountUpdatedEvent.account
+          case Some(zone) =>
+            checkCanModify(zone, account.id, publicKey).orElse(
+              checkAccountOwners(zone, account.ownerMemberIds)
+                .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
+              case Some(error) =>
+                deliverResponse(
+                  UpdateAccountResponse(
+                    Validated.invalidNel(
+                      ZoneResponse.Error(code = 0, description = error)
+                    )
+                  ),
+                  correlationId
                 )
-              )
+              case None =>
+                persist(AccountUpdatedEvent(System.currentTimeMillis, account)) { accountUpdatedEvent =>
+                  updateState(accountUpdatedEvent)
+                  deliverResponse(
+                    UpdateAccountResponse(
+                      Validated.valid(())
+                    ),
+                    correlationId
+                  )
+                  self ! PublishStatus
+                  deliverNotification(
+                    AccountUpdatedNotification(
+                      accountUpdatedEvent.account
+                    )
+                  )
+                }
             }
         }
       case AddTransactionCommand(actingAs, from, to, value, description, metadata) =>
-        checkCanModify(state.zone, from, actingAs, publicKey).orElse(
-          checkTransaction(from, to, value, state.zone, state.balances)
-            .orElse(checkTagAndMetadata(description, metadata))) match {
-          case Some(error) =>
+        state.zone match {
+          case None =>
             deliverResponse(
               AddTransactionResponse(
                 Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = error)
+                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
                 )
               ),
               correlationId
             )
-          case None =>
-            val created = System.currentTimeMillis
-            val transaction = Transaction(
-              TransactionId(state.zone.transactions.size.toLong),
-              from,
-              to,
-              value,
-              actingAs,
-              created,
-              description,
-              metadata
-            )
-            persist(TransactionAddedEvent(created, transaction)) { transactionAddedEvent =>
-              updateState(transactionAddedEvent)
-              deliverResponse(
-                AddTransactionResponse(
-                  Validated.valid(
-                    transactionAddedEvent.transaction
-                  )
-                ),
-                correlationId
-              )
-              self ! PublishStatus
-              deliverNotification(
-                TransactionAddedNotification(
-                  transactionAddedEvent.transaction
+          case Some(zone) =>
+            checkCanModify(zone, from, actingAs, publicKey).orElse(
+              checkTransaction(from, to, value, zone, state.balances)
+                .orElse(checkTagAndMetadata(description, metadata))) match {
+              case Some(error) =>
+                deliverResponse(
+                  AddTransactionResponse(
+                    Validated.invalidNel(
+                      ZoneResponse.Error(code = 0, description = error)
+                    )
+                  ),
+                  correlationId
                 )
-              )
+              case None =>
+                val created = System.currentTimeMillis
+                val transaction = Transaction(
+                  TransactionId(zone.transactions.size.toLong),
+                  from,
+                  to,
+                  value,
+                  actingAs,
+                  created,
+                  description,
+                  metadata
+                )
+                persist(TransactionAddedEvent(created, transaction)) { transactionAddedEvent =>
+                  updateState(transactionAddedEvent)
+                  deliverResponse(
+                    AddTransactionResponse(
+                      Validated.valid(
+                        transactionAddedEvent.transaction
+                      )
+                    ),
+                    correlationId
+                  )
+                  self ! PublishStatus
+                  deliverNotification(
+                    TransactionAddedNotification(
+                      transactionAddedEvent.transaction
+                    )
+                  )
+                }
             }
         }
     }

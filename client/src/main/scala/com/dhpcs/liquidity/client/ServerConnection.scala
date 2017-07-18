@@ -353,8 +353,8 @@ class ServerConnection(filesDir: File,
           case proto.ws.protocol.ClientMessage.Message.Notification(protoNotification) =>
             activeState.handlerWrapper.post(protoNotification.notification match {
               case proto.ws.protocol.ClientMessage.Notification.Notification.Empty =>
-              case proto.ws.protocol.ClientMessage.Notification.Notification.EnvelopedZoneNotification(
-                  proto.ws.protocol.ClientMessage.Notification.EnvelopedZoneNotification(
+              case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotificationEnvelope(
+                  proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(
                     zoneId,
                     protoZoneNotification
                   )) =>

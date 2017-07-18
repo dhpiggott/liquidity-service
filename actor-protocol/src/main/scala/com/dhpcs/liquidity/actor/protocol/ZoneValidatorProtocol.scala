@@ -88,11 +88,10 @@ final case class ZoneResponseEnvelope(zoneResponse: ZoneResponse,
                                       deliveryId: Long)
     extends ZoneValidatorMessage
 
-// TODO: Rename as ZoneNotificationEnvelope
-final case class EnvelopedZoneNotification(zoneId: ZoneId,
-                                           zoneNotification: ZoneNotification,
-                                           sequenceNumber: Long,
-                                           deliveryId: Long)
+final case class ZoneNotificationEnvelope(zoneId: ZoneId,
+                                          zoneNotification: ZoneNotification,
+                                          sequenceNumber: Long,
+                                          deliveryId: Long)
     extends ZoneValidatorMessage
 
 final case class ActiveZoneSummary(zoneId: ZoneId,

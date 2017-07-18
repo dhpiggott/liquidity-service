@@ -237,7 +237,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         exactlyOnce(sequenceNumber, deliveryId)(
           sendZoneResponse(correlationId, zoneResponse)
         )
-      case EnvelopedZoneNotification(zoneId, zoneNotification, sequenceNumber, deliveryId) =>
+      case ZoneNotificationEnvelope(zoneId, zoneNotification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           sendZoneNotification(zoneId, zoneNotification)
         )
@@ -323,8 +323,8 @@ class ClientConnectionActor(ip: RemoteAddress,
       proto.ws.protocol.ClientMessage.Message.Notification(
         proto.ws.protocol.ClientMessage.Notification(
           proto.ws.protocol.ClientMessage.Notification.Notification
-            .EnvelopedZoneNotification(
-              proto.ws.protocol.ClientMessage.Notification.EnvelopedZoneNotification(
+            .ZoneNotificationEnvelope(
+              proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(
                 zoneId.id.toString,
                 Some(ProtoBinding[ZoneNotification, proto.actor.protocol.ZoneNotification]
                   .asProto(zoneNotification))

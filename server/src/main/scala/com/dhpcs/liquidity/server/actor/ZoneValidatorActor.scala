@@ -797,7 +797,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
       deliver(clientConnection) { deliveryId =>
         pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(clientConnection) + deliveryId))
-        EnvelopedZoneNotification(zoneId, notification, sequenceNumber, deliveryId)
+        ZoneNotificationEnvelope(zoneId, notification, sequenceNumber, deliveryId)
       }
     }
   }

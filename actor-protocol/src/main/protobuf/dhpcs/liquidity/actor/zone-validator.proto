@@ -220,7 +220,7 @@ message ZoneResponseEnvelope {
     int64 delivery_id = 4;
 }
 
-message EnvelopedZoneNotification {
+message ZoneNotificationEnvelope {
     string zone_id = 1;
     ZoneNotification notification = 2;
     int64 sequence_number = 3;

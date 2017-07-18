@@ -95,7 +95,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        EnvelopedZoneResponse(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
+        ZoneResponseEnvelope(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
       )
       assert(expectZoneResponse(upstreamTestProbe) === result)
     }

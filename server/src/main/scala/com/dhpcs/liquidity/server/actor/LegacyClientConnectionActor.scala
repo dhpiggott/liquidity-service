@@ -261,7 +261,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
             )
           }
         }
-      case EnvelopedZoneResponse(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
+      case ZoneResponseEnvelope(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           def toLegacyResponse[A, B <: LegacyWsProtocol.SuccessResponse](
               validated: ValidatedNel[ZoneResponse.Error, A])(successResponse: A => B): LegacyWsProtocol.ZoneResponse =

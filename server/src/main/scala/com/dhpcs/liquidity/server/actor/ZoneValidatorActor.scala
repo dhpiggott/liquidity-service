@@ -774,7 +774,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit =
     deliverResponse {
       case (sequenceNumber, deliveryId) =>
-        EnvelopedZoneResponse(
+        ZoneResponseEnvelope(
           response,
           correlationId,
           sequenceNumber,

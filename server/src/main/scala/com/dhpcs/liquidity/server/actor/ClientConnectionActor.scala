@@ -233,7 +233,7 @@ class ClientConnectionActor(ip: RemoteAddress,
         exactlyOnce(sequenceNumber, deliveryId)(
           handleZoneCommand(zoneId = ZoneId.generate, createZoneCommand, publicKey, correlationId)
         )
-      case EnvelopedZoneResponse(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
+      case ZoneResponseEnvelope(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           sendZoneResponse(correlationId, zoneResponse)
         )

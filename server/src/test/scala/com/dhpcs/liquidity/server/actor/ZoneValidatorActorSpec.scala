@@ -107,7 +107,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
   private[this] def expectResponse(clientConnectionTestProbe: TestProbe,
                                    correlationId: Long,
                                    sequenceNumber: Long): ZoneResponse = {
-    val responseWithIds = clientConnectionTestProbe.expectMsgType[EnvelopedZoneResponse]
+    val responseWithIds = clientConnectionTestProbe.expectMsgType[ZoneResponseEnvelope]
     assert(responseWithIds.correlationId === correlationId)
     assert(responseWithIds.sequenceNumber === sequenceNumber)
     clientConnectionTestProbe.send(

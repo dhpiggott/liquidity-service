@@ -213,7 +213,7 @@ message ZoneRestarted {
     string zone_id = 1;
 }
 
-message EnvelopedZoneResponse {
+message ZoneResponseEnvelope {
     ZoneResponse response = 1;
     int64 correlation_id = 2;
     int64 sequence_number = 3;

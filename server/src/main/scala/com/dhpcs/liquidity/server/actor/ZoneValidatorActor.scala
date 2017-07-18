@@ -26,13 +26,13 @@ object ZoneValidatorActor {
   final val ShardTypeName = "zone-validator"
 
   val extractEntityId: ShardRegion.ExtractEntityId = {
-    case envelopedZoneCommand: EnvelopedZoneCommand => (envelopedZoneCommand.zoneId.id.toString, envelopedZoneCommand)
+    case zoneCommandEnvelope: ZoneCommandEnvelope => (zoneCommandEnvelope.zoneId.id.toString, zoneCommandEnvelope)
   }
 
   private val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
-    case EnvelopedZoneCommand(zoneId, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
+    case ZoneCommandEnvelope(zoneId, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
   }
 
   private final val RequiredOwnerKeySize = 2048
@@ -291,7 +291,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         pendingDeliveries = pendingDeliveries - sender().path
     case RequestPassivate =>
       context.parent ! Passivate(stopMessage = PoisonPill)
-    case EnvelopedZoneCommand(_, command, publicKey, correlationId, sequenceNumber, deliveryId) =>
+    case ZoneCommandEnvelope(_, command, publicKey, correlationId, sequenceNumber, deliveryId) =>
       passivationCountdownActor ! CommandReceivedEvent
       exactlyOnce(sequenceNumber, deliveryId)(
         handleCommand(publicKey, command, correlationId)

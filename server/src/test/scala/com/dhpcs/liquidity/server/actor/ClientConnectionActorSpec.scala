@@ -71,13 +71,13 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTe
       )
       val correlationId = 0L
       sendCreateZoneCommand(sinkTestProbe, clientConnection)(createZoneCommand, correlationId)
-      val envelopedZoneCommand =
-        zoneValidatorShardRegionTestProbe.expectMsgType[EnvelopedZoneCommand]
-      assert(envelopedZoneCommand.publicKey === publicKey)
-      assert(envelopedZoneCommand.correlationId === correlationId)
-      assert(envelopedZoneCommand.sequenceNumber === 1L)
-      assert(envelopedZoneCommand.deliveryId === 1L)
-      val zoneId = envelopedZoneCommand.zoneId
+      val zoneCommandEnvelope =
+        zoneValidatorShardRegionTestProbe.expectMsgType[ZoneCommandEnvelope]
+      assert(zoneCommandEnvelope.publicKey === publicKey)
+      assert(zoneCommandEnvelope.correlationId === correlationId)
+      assert(zoneCommandEnvelope.sequenceNumber === 1L)
+      assert(zoneCommandEnvelope.deliveryId === 1L)
+      val zoneId = zoneCommandEnvelope.zoneId
       val result = CreateZoneResponse({
         val created = System.currentTimeMillis
         Validated.valid(

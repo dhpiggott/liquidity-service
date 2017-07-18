@@ -30,7 +30,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       val correlationId                       = 0L
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe, zoneId)(
-        EnvelopedZoneCommand(
+        ZoneCommandEnvelope(
           zoneId,
           CreateZoneCommand(
             equityOwnerPublicKey = publicKey,
@@ -63,7 +63,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
       val correlationId                       = 0L
       val sequenceNumber                      = 1L
       send(clientConnectionTestProbe, zoneId)(
-        EnvelopedZoneCommand(
+        ZoneCommandEnvelope(
           zoneId,
           JoinZoneCommand,
           publicKey,
@@ -91,9 +91,9 @@ class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures 
   }
 
   private[this] def send(clientConnectionTestProbe: TestProbe, zoneId: ZoneId)(
-      envelopedZoneCommand: EnvelopedZoneCommand): Unit = {
-    val deliveryId = envelopedZoneCommand.deliveryId
-    send(clientConnectionTestProbe, message = envelopedZoneCommand, zoneId, deliveryId)
+      zoneCommandEnvelope: ZoneCommandEnvelope): Unit = {
+    val deliveryId = zoneCommandEnvelope.deliveryId
+    send(clientConnectionTestProbe, message = zoneCommandEnvelope, zoneId, deliveryId)
   }
 
   private[this] def send(clientConnectionTestProbe: TestProbe, message: Any, zoneId: ZoneId, deliveryId: Long): Unit = {

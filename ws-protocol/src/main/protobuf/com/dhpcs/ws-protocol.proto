@@ -45,14 +45,14 @@ message ServerMessage {
         bytes signature = 2;
     }
     message Command {
-        message EnvelopedZoneCommand {
+        message ZoneCommandEnvelope {
             string zone_id = 1;
             dhpcs.liquidity.actor.protocol.ZoneCommand zone_command = 2;
         }
         int64 correlation_id = 1;
         oneof command {
             dhpcs.liquidity.actor.protocol.ZoneCommand.CreateZoneCommand create_zone_command = 2;
-            EnvelopedZoneCommand enveloped_zone_command = 3;
+            ZoneCommandEnvelope zone_command_envelope = 3;
         }
     }
     message Response {

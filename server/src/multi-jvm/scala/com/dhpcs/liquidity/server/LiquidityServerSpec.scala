@@ -548,8 +548,8 @@ sealed abstract class LiquidityServerSpec
     sendProtobufMessage(pub)(
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
-        proto.ws.protocol.ServerMessage.Command.Command.EnvelopedZoneCommand(
-          proto.ws.protocol.ServerMessage.Command.EnvelopedZoneCommand(
+        proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
+          proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
             zoneId.id.toString,
             Some(
               ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand].asProto(zoneCommand)

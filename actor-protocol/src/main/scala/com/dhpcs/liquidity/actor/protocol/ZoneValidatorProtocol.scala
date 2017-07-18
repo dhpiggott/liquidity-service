@@ -64,13 +64,12 @@ final case class TransactionAddedNotification(transaction: Transaction) extends 
 
 sealed abstract class ZoneValidatorMessage extends Serializable
 
-// TODO: Rename as ZoneCommandEnvelope
-final case class EnvelopedZoneCommand(zoneId: ZoneId,
-                                      zoneCommand: ZoneCommand,
-                                      publicKey: PublicKey,
-                                      correlationId: Long,
-                                      sequenceNumber: Long,
-                                      deliveryId: Long)
+final case class ZoneCommandEnvelope(zoneId: ZoneId,
+                                     zoneCommand: ZoneCommand,
+                                     publicKey: PublicKey,
+                                     correlationId: Long,
+                                     sequenceNumber: Long,
+                                     deliveryId: Long)
     extends ZoneValidatorMessage
 
 final case class ZoneCommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage

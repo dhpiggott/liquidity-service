@@ -251,7 +251,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
           deliver(zoneValidatorShardRegion.path) { deliveryId =>
             pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-            EnvelopedZoneCommand(
+            ZoneCommandEnvelope(
               zoneId,
               createZoneCommand,
               publicKey,
@@ -356,7 +356,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      EnvelopedZoneCommand(
+      ZoneCommandEnvelope(
         zoneId,
         zoneCommand,
         publicKey,

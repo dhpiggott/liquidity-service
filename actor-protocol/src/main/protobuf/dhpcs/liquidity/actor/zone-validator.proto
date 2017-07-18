@@ -188,7 +188,7 @@ message ZoneNotification {
     }
 }
 
-message EnvelopedZoneCommand {
+message ZoneCommandEnvelope {
     string zone_id = 1;
     ZoneCommand command = 2;
     bytes public_key = 3;

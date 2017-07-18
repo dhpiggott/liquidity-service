@@ -202,8 +202,8 @@ class ClientConnectionActor(ip: RemoteAddress,
                   publicKey,
                   protoCommand.correlationId
                 )
-              case proto.ws.protocol.ServerMessage.Command.Command.EnvelopedZoneCommand(
-                  proto.ws.protocol.ServerMessage.Command.EnvelopedZoneCommand(zoneId, protoZoneCommand)
+              case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
+                  proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(zoneId, protoZoneCommand)
                   ) =>
                 val zoneCommand =
                   ProtoBinding[ZoneCommand, Option[proto.actor.protocol.ZoneCommand]]
@@ -288,7 +288,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      EnvelopedZoneCommand(
+      ZoneCommandEnvelope(
         zoneId,
         zoneCommand,
         publicKey,

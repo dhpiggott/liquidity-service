@@ -503,9 +503,11 @@ sealed abstract class LiquidityServerSpec
              })
           yield
             Json.parse(jsonString).as[JsonRpcMessage] match {
-              case _: JsonRpcRequestMessage       => sys.error("Received JsonRpcRequestMessage")
-              case _: JsonRpcRequestMessageBatch  => sys.error("Received JsonRpcRequestMessageBatch")
-              case _: JsonRpcResponseMessageBatch => sys.error("Received JsonRpcResponseMessageBatch")
+              case _: JsonRpcRequestMessage => throw new IllegalArgumentException("Received JsonRpcRequestMessage")
+              case _: JsonRpcRequestMessageBatch =>
+                throw new IllegalArgumentException("Received JsonRpcRequestMessageBatch")
+              case _: JsonRpcResponseMessageBatch =>
+                throw new IllegalArgumentException("Received JsonRpcResponseMessageBatch")
               case jsonRpcResponseMessage: JsonRpcResponseMessage =>
                 LegacyClientConnectionActor.WrappedResponse(jsonRpcResponseMessage)
               case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>

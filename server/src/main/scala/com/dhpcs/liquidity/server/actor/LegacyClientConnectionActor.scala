@@ -271,7 +271,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
             }
           val response = zoneResponse match {
             case EmptyZoneResponse =>
-              sys.error("Inconceivable")
+              throw new IllegalArgumentException("Inconceivable")
             case CreateZoneResponse(result) =>
               toLegacyResponse(result)(LegacyWsProtocol.CreateZoneResponse)
             case JoinZoneResponse(result) =>
@@ -297,7 +297,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
         exactlyOnce(sequenceNumber, deliveryId) {
           val notification = zoneNotification match {
             case EmptyZoneNotification =>
-              sys.error("Inconceivable")
+              throw new IllegalArgumentException("Inconceivable")
             case ClientJoinedZoneNotification(_publicKey) =>
               LegacyWsProtocol.ClientJoinedZoneNotification(zoneId, _publicKey)
             case ClientQuitZoneNotification(_publicKey) =>

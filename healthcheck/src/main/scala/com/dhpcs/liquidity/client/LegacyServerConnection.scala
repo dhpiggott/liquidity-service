@@ -211,14 +211,14 @@ class LegacyServerConnection(filesDir: File,
 
   def sendCommand(command: LegacyWsProtocol.Command, responseCallback: ResponseCallback): Unit = state match {
     case _: IdleState =>
-      sys.error("Not connected")
+      throw new IllegalStateException("Not connected")
     case activeState: ActiveState =>
       activeState.handlerWrapper.post(() =>
         activeState.subState match {
           case _: ConnectingSubState | DisconnectingSubState =>
-            sys.error(s"Not connected")
+            throw new IllegalStateException(s"Not connected")
           case _: WaitingForVersionCheckSubState =>
-            sys.error("Waiting for version check")
+            throw new IllegalStateException("Waiting for version check")
           case onlineSubState: OnlineSubState =>
             val correlationId = NumericCorrelationId(nextCorrelationId)
             nextCorrelationId = nextCorrelationId + 1
@@ -278,12 +278,12 @@ class LegacyServerConnection(filesDir: File,
     mainHandlerWrapper.post(() =>
       state match {
         case _: IdleState =>
-          sys.error("Already disconnected")
+          throw new IllegalStateException("Already disconnected")
         case activeState: ActiveState =>
           activeState.handlerWrapper.post(() =>
             activeState.subState match {
               case _: ConnectingSubState =>
-                sys.error("Not connected or disconnecting")
+                throw new IllegalStateException("Not connected or disconnecting")
               case _: WaitingForVersionCheckSubState =>
                 doClose(activeState.handlerWrapper, UnsupportedVersion)
               case _: OnlineSubState =>
@@ -297,7 +297,7 @@ class LegacyServerConnection(filesDir: File,
     mainHandlerWrapper.post(() =>
       state match {
         case _: IdleState =>
-          sys.error("Already disconnected")
+          throw new IllegalStateException("Already disconnected")
         case activeState: ActiveState =>
           activeState.handlerWrapper.post(() =>
             activeState.subState match {
@@ -324,22 +324,22 @@ class LegacyServerConnection(filesDir: File,
     mainHandlerWrapper.post(() =>
       state match {
         case _: IdleState =>
-          sys.error("Not connected")
+          throw new IllegalStateException("Not connected")
         case activeState: ActiveState =>
           jsonRpcMessage match {
             case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
               activeState.handlerWrapper.post(() =>
                 LegacyWsProtocol.Notification.read(jsonRpcNotificationMessage) match {
                   case JsError(errors) =>
-                    sys.error(s"Invalid Notification: $errors")
+                    throw new IllegalStateException(s"Invalid Notification: $errors")
                   case JsSuccess(value, _) =>
                     value match {
                       case LegacyWsProtocol.SupportedVersionsNotification(compatibleVersionNumbers) =>
                         activeState.subState match {
                           case _: ConnectingSubState =>
-                            sys.error("Not connected")
+                            throw new IllegalStateException("Not connected")
                           case _: OnlineSubState =>
-                            sys.error("Already online")
+                            throw new IllegalStateException("Already online")
                           case _: WaitingForVersionCheckSubState =>
                             if (!compatibleVersionNumbers.contains(VersionNumber))
                               mainHandlerWrapper.post(() => disconnect(1001))
@@ -358,18 +358,18 @@ class LegacyServerConnection(filesDir: File,
                       case LegacyWsProtocol.KeepAliveNotification =>
                         activeState.subState match {
                           case _: ConnectingSubState =>
-                            sys.error("Not connected")
+                            throw new IllegalStateException("Not connected")
                           case _: WaitingForVersionCheckSubState =>
-                            sys.error("Waiting for version check")
+                            throw new IllegalStateException("Waiting for version check")
                           case _: OnlineSubState     =>
                           case DisconnectingSubState =>
                         }
                       case zoneNotification: LegacyWsProtocol.ZoneNotification =>
                         activeState.subState match {
                           case _: ConnectingSubState =>
-                            sys.error("Not connected")
+                            throw new IllegalStateException("Not connected")
                           case _: WaitingForVersionCheckSubState =>
-                            sys.error("Waiting for version check")
+                            throw new IllegalStateException("Waiting for version check")
                           case _: OnlineSubState =>
                             activeState.handlerWrapper.post(
                               () =>
@@ -386,20 +386,22 @@ class LegacyServerConnection(filesDir: File,
               activeState.handlerWrapper.post(() =>
                 activeState.subState match {
                   case _: ConnectingSubState =>
-                    sys.error("Not connected")
+                    throw new IllegalStateException("Not connected")
                   case _: WaitingForVersionCheckSubState =>
-                    sys.error("Waiting for version check")
+                    throw new IllegalStateException("Waiting for version check")
                   case _: OnlineSubState =>
                     jsonRpcResponseMessage.id match {
                       case NoCorrelationId =>
-                        sys.error(s"JSON-RPC message ID missing, jsonRpcResponseMessage=$jsonRpcResponseMessage")
+                        throw new IllegalStateException(
+                          s"JSON-RPC message ID missing, jsonRpcResponseMessage=$jsonRpcResponseMessage")
                       case StringCorrelationId(value) =>
-                        sys.error(s"JSON-RPC message ID was not a number, id=$value")
+                        throw new IllegalStateException(s"JSON-RPC message ID was not a number, id=$value")
                       case NumericCorrelationId(value) =>
                         activeState.handlerWrapper.post(() =>
                           pendingRequests.get(value) match {
                             case None =>
-                              sys.error(s"No pending request exists with commandIdentifier=$value")
+                              throw new IllegalStateException(
+                                s"No pending request exists with commandIdentifier=$value")
                             case Some(pendingRequest) =>
                               pendingRequests = pendingRequests - value
                               jsonRpcResponseMessage match {
@@ -412,7 +414,7 @@ class LegacyServerConnection(filesDir: File,
                                   LegacyWsProtocol.SuccessResponse
                                     .read(jsonRpcResponseSuccessMessage, pendingRequest.requestMessage.method) match {
                                     case JsError(errors) =>
-                                      sys.error(s"Invalid Response: $errors")
+                                      throw new IllegalStateException(s"Invalid Response: $errors")
                                     case JsSuccess(response, _) =>
                                       mainHandlerWrapper.post(() => pendingRequest.callback.onSuccessResponse(response))
                                   }
@@ -425,11 +427,11 @@ class LegacyServerConnection(filesDir: File,
               activeState.handlerWrapper.post(() =>
                 activeState.subState match {
                   case _: ConnectingSubState =>
-                    sys.error("Not connected")
+                    throw new IllegalStateException("Not connected")
                   case _: WaitingForVersionCheckSubState =>
-                    sys.error("Waiting for version check")
+                    throw new IllegalStateException("Waiting for version check")
                   case _: OnlineSubState =>
-                    sys.error(s"Received $jsonRpcMessage")
+                    throw new IllegalStateException(s"Received $jsonRpcMessage")
                   case DisconnectingSubState =>
               })
           }
@@ -440,12 +442,12 @@ class LegacyServerConnection(filesDir: File,
     mainHandlerWrapper.post(() =>
       state match {
         case _: IdleState =>
-          sys.error("Not connecting")
+          throw new IllegalStateException("Not connecting")
         case activeState: ActiveState =>
           activeState.handlerWrapper.post(() =>
             activeState.subState match {
               case _: ConnectedSubState | DisconnectingSubState =>
-                sys.error("Not connecting")
+                throw new IllegalStateException("Not connecting")
               case _: ConnectingSubState =>
                 activeState.subState = WaitingForVersionCheckSubState(webSocket)
                 mainHandlerWrapper.post { () =>
@@ -457,21 +459,21 @@ class LegacyServerConnection(filesDir: File,
 
   private[this] def connect(): Unit = state match {
     case _: ActiveState =>
-      sys.error("Already connecting/connected/disconnecting")
+      throw new IllegalStateException("Already connecting/connected/disconnecting")
     case UnavailableIdleState =>
-      sys.error("Connection unavailable")
+      throw new IllegalStateException("Connection unavailable")
     case AvailableIdleState | GeneralFailureIdleState | TlsErrorIdleState | UnsupportedVersionIdleState =>
       doOpen()
   }
 
   private[this] def disconnect(code: Int): Unit = state match {
     case _: IdleState =>
-      sys.error("Already disconnected")
+      throw new IllegalStateException("Already disconnected")
     case activeState: ActiveState =>
       activeState.handlerWrapper.post(() =>
         activeState.subState match {
           case DisconnectingSubState =>
-            sys.error("Already disconnecting")
+            throw new IllegalStateException("Already disconnecting")
           case ConnectingSubState(webSocket) =>
             activeState.subState = DisconnectingSubState
             mainHandlerWrapper.post { () =>

@@ -53,7 +53,7 @@ abstract class ProtoBindingBackedSerializer(system: ExtendedActorSystem,
 
   override def manifest(o: AnyRef): String =
     scalaClassToProtoBinding
-      .getOrElse(o.getClass, sys.error(s"No ProtoBinding registered for [${o.getClass}]"))
+      .getOrElse(o.getClass, throw new IllegalArgumentException(s"No ProtoBinding registered for [${o.getClass}]"))
       .protoClassTag
       .runtimeClass
       .getName
@@ -61,7 +61,7 @@ abstract class ProtoBindingBackedSerializer(system: ExtendedActorSystem,
   override def toBinary(o: AnyRef): Array[Byte] =
     protobufSerializer.toBinary(
       scalaClassToProtoBinding
-        .getOrElse(o.getClass, sys.error(s"No ProtoBinding registered for [${o.getClass}]"))
+        .getOrElse(o.getClass, throw new IllegalArgumentException(s"No ProtoBinding registered for [${o.getClass}]"))
         .anyRefScalaAsAnyRefProto(o)
     )
 
@@ -82,7 +82,7 @@ abstract class ProtoBindingBackedSerializer(system: ExtendedActorSystem,
         cachedProtoClass
     }
     protoClassToProtoBinding
-      .getOrElse(protoClass, sys.error(s"No ProtoBinding registered for [$protoClass]"))
+      .getOrElse(protoClass, throw new IllegalArgumentException(s"No ProtoBinding registered for [$protoClass]"))
       .anyRefProtoAsAnyRefScala(
         protobufSerializer.fromBinary(bytes, Some(protoClass))
       )

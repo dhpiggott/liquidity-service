@@ -70,7 +70,7 @@ object LiquidityServer {
     val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
       Console.err.println("Exiting due to stream failure")
       t.printStackTrace(Console.err)
-      sys.exit(1)
+      System.exit(1)
     }
     val clusterHttpManagement = ClusterHttpManagement(Cluster(system))
     clusterHttpManagement.start()

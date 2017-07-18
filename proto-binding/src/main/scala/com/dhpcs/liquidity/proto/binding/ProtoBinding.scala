@@ -37,10 +37,10 @@ object ProtoBinding extends LowPriorityImplicits {
       case Valid(a)   => pwGen.value.from(Inr(Inr(Inl(aBinding.value.asProto(a)))))
     }
     override def asScala(p: PW): ValidatedNel[SE, SA] = pwGen.value.to(p) match {
-      case Inl(_)            => sys.error("Empty or unsupported result")
+      case Inl(_)            => throw new IllegalArgumentException("Empty or unsupported result")
       case Inr(Inl(errors))  => Validated.invalid(eBinding.value.asScala(errors))
       case Inr(Inr(Inl(pv))) => Validated.valid(aBinding.value.asScala(pv))
-      case Inr(Inr(Inr(_)))  => sys.error("Inconceivable")
+      case Inr(Inr(Inr(_)))  => throw new IllegalArgumentException("Inconceivable")
     }
   }
 }

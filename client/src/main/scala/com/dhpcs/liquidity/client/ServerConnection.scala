@@ -248,11 +248,11 @@ class ServerConnection(filesDir: File,
   override def onClosed(webSocket: WebSocket, code: Int, reason: String): Unit =
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
-        sys.error("Already disconnected")
+        throw new IllegalStateException("Already disconnected")
       case activeState: ActiveState =>
         activeState.handlerWrapper.post(activeState.subState match {
           case _: ConnectingSubState =>
-            sys.error("Not connected or disconnecting")
+            throw new IllegalStateException("Not connected or disconnecting")
           case _: AuthenticatingSubState | _: OnlineSubState =>
             doClose(activeState.handlerWrapper, ServerDisconnect)
           case DisconnectingSubState =>
@@ -263,7 +263,7 @@ class ServerConnection(filesDir: File,
   override def onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response): Unit =
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
-        sys.error("Already disconnected")
+        throw new IllegalStateException("Already disconnected")
       case activeState: ActiveState =>
         activeState.handlerWrapper.post(activeState.subState match {
           case DisconnectingSubState =>
@@ -285,7 +285,7 @@ class ServerConnection(filesDir: File,
     val clientMessage = proto.ws.protocol.ClientMessage.parseFrom(bytes.toByteArray)
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
-        sys.error("Not connected")
+        throw new IllegalStateException("Not connected")
       case activeState: ActiveState =>
         clientMessage.message match {
           case proto.ws.protocol.ClientMessage.Message.Empty =>
@@ -308,7 +308,7 @@ class ServerConnection(filesDir: File,
           case proto.ws.protocol.ClientMessage.Message.Command(protoCommand) =>
             activeState.handlerWrapper.post(activeState.subState match {
               case _: ConnectingSubState =>
-                sys.error("Not connected")
+                throw new IllegalStateException("Not connected")
               case _: AuthenticatingSubState | _: OnlineSubState =>
                 activeState.handlerWrapper.post(protoCommand.command match {
                   case proto.ws.protocol.ClientMessage.Command.Command.Empty =>
@@ -329,18 +329,19 @@ class ServerConnection(filesDir: File,
           case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
             activeState.handlerWrapper.post(activeState.subState match {
               case _: ConnectingSubState =>
-                sys.error("Not connected")
+                throw new IllegalStateException("Not connected")
               case _: AuthenticatingSubState =>
-                sys.error("Authenticating")
+                throw new IllegalStateException("Authenticating")
               case _: OnlineSubState =>
                 activeState.handlerWrapper.post(pendingRequests.get(protoResponse.correlationId) match {
                   case None =>
-                    sys.error(s"No pending request exists with correlationId=${protoResponse.correlationId}")
+                    throw new IllegalStateException(
+                      s"No pending request exists with correlationId=${protoResponse.correlationId}")
                   case Some(responseCallback) =>
                     pendingRequests = pendingRequests - protoResponse.correlationId
                     protoResponse.response match {
                       case proto.ws.protocol.ClientMessage.Response.Response.Empty =>
-                        sys.error("Empty or unsupported response")
+                        throw new IllegalStateException("Empty or unsupported response")
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
                         val zoneResponse = ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
                           .asScala(protoZoneResponse.zoneResponse)
@@ -362,9 +363,9 @@ class ServerConnection(filesDir: File,
                     .asScala(protoZoneNotification)
                 activeState.subState match {
                   case _: ConnectingSubState =>
-                    sys.error("Not connected")
+                    throw new IllegalStateException("Not connected")
                   case _: AuthenticatingSubState =>
-                    sys.error("Authenticating")
+                    throw new IllegalStateException("Authenticating")
                   case _: OnlineSubState =>
                     activeState.handlerWrapper.post(
                       mainHandlerWrapper.post(
@@ -381,11 +382,11 @@ class ServerConnection(filesDir: File,
   override def onOpen(webSocket: WebSocket, response: okhttp3.Response): Unit =
     mainHandlerWrapper.post(state match {
       case _: IdleState =>
-        sys.error("Not connecting")
+        throw new IllegalStateException("Not connecting")
       case activeState: ActiveState =>
         activeState.handlerWrapper.post(activeState.subState match {
           case _: ConnectedSubState | DisconnectingSubState =>
-            sys.error("Not connecting")
+            throw new IllegalStateException("Not connecting")
           case _: ConnectingSubState =>
             activeState.subState = AuthenticatingSubState(webSocket)
             mainHandlerWrapper.post {
@@ -397,20 +398,20 @@ class ServerConnection(filesDir: File,
 
   private[this] def connect(): Unit = state match {
     case _: ActiveState =>
-      sys.error("Already connecting/connected/disconnecting")
+      throw new IllegalStateException("Already connecting/connected/disconnecting")
     case UnavailableIdleState =>
-      sys.error("Connection unavailable")
+      throw new IllegalStateException("Connection unavailable")
     case AvailableIdleState | GeneralFailureIdleState | TlsErrorIdleState =>
       doOpen()
   }
 
   private[this] def disconnect(code: Int): Unit = state match {
     case _: IdleState =>
-      sys.error("Already disconnected")
+      throw new IllegalStateException("Already disconnected")
     case activeState: ActiveState =>
       activeState.handlerWrapper.post(activeState.subState match {
         case DisconnectingSubState =>
-          sys.error("Already disconnecting")
+          throw new IllegalStateException("Already disconnecting")
         case ConnectingSubState(webSocket) =>
           activeState.subState = DisconnectingSubState
           mainHandlerWrapper.post {
@@ -489,13 +490,13 @@ class ServerConnection(filesDir: File,
   private[this] def sendCommand(command: Long => proto.ws.protocol.ServerMessage.Command,
                                 responseCallback: ResponseCallback): Unit = state match {
     case _: IdleState =>
-      sys.error("Not connected")
+      throw new IllegalStateException("Not connected")
     case activeState: ActiveState =>
       activeState.handlerWrapper.post(activeState.subState match {
         case _: ConnectingSubState | DisconnectingSubState =>
-          sys.error(s"Not connected")
+          throw new IllegalStateException(s"Not connected")
         case _: AuthenticatingSubState =>
-          sys.error("Authenticating")
+          throw new IllegalStateException("Authenticating")
         case OnlineSubState(webSocket) =>
           val correlationId = nextCorrelationId
           nextCorrelationId = nextCorrelationId + 1

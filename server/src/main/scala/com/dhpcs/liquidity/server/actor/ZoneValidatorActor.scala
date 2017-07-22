@@ -11,13 +11,17 @@ import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
-import cats.data.Validated
+import cats.data.Validated.{Invalid, Valid}
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
+import cats.instances.set._
+import cats.syntax.cartesian._
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActor._
 
 import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 object ZoneValidatorActor {
 
@@ -35,7 +39,7 @@ object ZoneValidatorActor {
     case ZoneCommandEnvelope(zoneId, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
   }
 
-  private final val RequiredOwnerKeySize = 2048
+  private final val RequiredPublicKeySize = 2048
 
   private val ZoneLifetime = 2.days
 
@@ -129,108 +133,153 @@ object ZoneValidatorActor {
 
     override def receive: Receive = {
       case ReceiveTimeout       => context.parent ! RequestPassivate
-      case CommandReceivedEvent =>
+      case CommandReceivedEvent => ()
       case Start                => context.setReceiveTimeout(PassivationTimeout)
       case Stop                 => context.setReceiveTimeout(Duration.Undefined)
     }
   }
 
-  private def checkAccountOwners(zone: Zone, owners: Set[MemberId]): Option[String] = {
-    val invalidAccountOwners = owners -- zone.members.keys
-    if (invalidAccountOwners.nonEmpty)
-      Some(s"Invalid account owners: $invalidAccountOwners")
-    else
-      None
+  // TODO: Extract all errors as constants and make each one have a unique code
+  private def validatePublicKey(publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
+    Try(
+      KeyFactory
+        .getInstance("RSA")
+        .generatePublic(new X509EncodedKeySpec(publicKey.value.toByteArray))
+        .asInstanceOf[RSAPublicKey]) match {
+      case Failure(_: InvalidKeySpecException) =>
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Invalid public key type."))
+      case Failure(_) =>
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Invalid public key."))
+      case Success(value) if value.getModulus.bitLength() != RequiredPublicKeySize =>
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Invalid public key length."))
+      case Success(_) =>
+        Validated.valid(publicKey)
+    }
+
+  private def validateOwners(zone: Zone, owners: Set[MemberId]): ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
+    def validateOwner(owner: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
+      if (!zone.members.contains(owner))
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = s"Invalid owner ID: ${owner.id}."))
+      else
+        Validated.valid(owner)
+    owners
+      .map(validateOwner)
+      .foldLeft(Validated.valid[NonEmptyList[ZoneResponse.Error], Set[MemberId]](Set.empty))(
+        (validatedOwnerIds, validatedOwnerId) => validatedOwnerIds.combine(validatedOwnerId.map(Set(_))))
   }
 
-  private def checkCanModify(zone: Zone, memberId: MemberId, publicKey: PublicKey): Option[String] =
+  private def validateCanUpdateMember(zone: Zone,
+                                      memberId: MemberId,
+                                      publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.members.get(memberId) match {
-      case None => Some("Member does not exist")
-      case Some(member) =>
-        if (publicKey != member.ownerPublicKey)
-          Some("Client's public key does not match Member's public key")
-        else
-          None
+      case None =>
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Member does not exist."))
+      // TODO: Allow multiple member owners
+      case Some(member) if publicKey != member.ownerPublicKey =>
+        Validated.invalidNel(
+          ZoneResponse.Error(code = 0, description = "Client public key does not match public key of actingAs."))
+      case _ =>
+        Validated.valid(())
     }
 
-  private def checkCanModify(zone: Zone, accountId: AccountId, publicKey: PublicKey): Option[String] =
+  private def validateCanUpdateAccount(zone: Zone,
+                                       accountId: AccountId,
+                                       // TODO: Add actingAs
+                                       publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.accounts.get(accountId) match {
-      case None => Some("Account does not exist")
-      case Some(account) =>
-        if (!account.ownerMemberIds.exists(
-              memberId => zone.members.get(memberId).exists(publicKey == _.ownerPublicKey)))
-          Some("Client's public key does not match that of any account owner member")
-        else
-          None
+      case None =>
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Account does not exist."))
+      case Some(account)
+          if !account.ownerMemberIds.exists(
+            memberId => zone.members.get(memberId).exists(publicKey == _.ownerPublicKey)) =>
+        Validated.invalidNel(
+          ZoneResponse.Error(code = 0, description = "Client public key does not match that of any account owner."))
+      case _ =>
+        Validated.valid(())
     }
 
-  private def checkCanModify(zone: Zone,
-                             accountId: AccountId,
-                             actingAs: MemberId,
-                             publicKey: PublicKey): Option[String] =
+  private def validateCanDebitAccount(zone: Zone,
+                                      accountId: AccountId,
+                                      actingAs: MemberId,
+                                      publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.accounts.get(accountId) match {
-      case None => Some("Account does not exist")
-      case Some(account) =>
-        if (!account.ownerMemberIds.contains(actingAs))
-          Some("Member is not an account owner")
-        else
-          zone.members.get(actingAs) match {
-            case None => Some("Member does not exist")
-            case Some(member) =>
-              if (publicKey != member.ownerPublicKey)
-                Some("Client's public key does not match Member's public key")
-              else
-                None
-          }
+      case None =>
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Account does not exist."))
+      case Some(account) if !account.ownerMemberIds.contains(actingAs) =>
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Member is not an account owner."))
+      case _ =>
+        zone.members.get(actingAs) match {
+          case None =>
+            Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Member does not exist."))
+          case Some(member) if publicKey != member.ownerPublicKey =>
+            Validated.invalidNel(
+              ZoneResponse.Error(code = 0, description = "Client public key does not match public key of actingAs."))
+          case _ =>
+            Validated.valid(())
+        }
     }
 
-  private def checkOwnerPublicKey(ownerPublicKey: PublicKey): Option[String] =
-    try if (KeyFactory
-              .getInstance("RSA")
-              .generatePublic(new X509EncodedKeySpec(ownerPublicKey.value.toByteArray))
-              .asInstanceOf[RSAPublicKey]
-              .getModulus
-              .bitLength != RequiredOwnerKeySize)
-      Some("Invalid owner public key length")
-    else
-      None
-    catch {
-      case _: InvalidKeySpecException =>
-        Some("Invalid owner public key type")
+  private def validateFromAndTo(from: AccountId,
+                                to: AccountId,
+                                zone: Zone): ValidatedNel[ZoneResponse.Error, (AccountId, AccountId)] = {
+    val validatedFrom =
+      if (!zone.accounts.contains(from))
+        Validated.invalidNel(
+          ZoneResponse.Error(code = 0, description = s"Invalid source account: $from")
+        )
+      else Validated.valid(from)
+    val validatedTo =
+      if (!zone.accounts.contains(to))
+        Validated.invalidNel(
+          ZoneResponse.Error(code = 0, description = s"Invalid destination account: $to")
+        )
+      else Validated.valid(to)
+    (validatedFrom |@| validatedTo).tupled.andThen {
+      case (validFrom, validTo) if validFrom == validTo =>
+        Validated.invalidNel(
+          ZoneResponse.Error(
+            code = 0,
+            description = s"Invalid reflexive transaction (source account: $validFrom, destination account: $validTo)")
+        )
+      case _ =>
+        Validated.valid((from, to))
     }
+  }
 
-  private def checkTagAndMetadata(tag: Option[String],
-                                  metadata: Option[com.google.protobuf.struct.Struct]): Option[String] =
-    tag
-      .collect {
-        case excessiveTag if excessiveTag.length > MaxStringLength =>
-          s"Tag length exceeds maximum ($MaxStringLength): $excessiveTag"
-      }
-      .orElse(metadata.collect {
-        case excessiveMetadata if excessiveMetadata.toByteArray.length > MaxMetadataSize =>
-          s"Metadata size exceeds maximum ($MaxMetadataSize): $excessiveMetadata"
-      })
-
-  private def checkTransaction(from: AccountId,
-                               to: AccountId,
-                               value: BigDecimal,
-                               zone: Zone,
-                               balances: Map[AccountId, BigDecimal]): Option[String] =
-    if (!zone.accounts.contains(from))
-      Some(s"Invalid transaction source account: $from")
-    else if (!zone.accounts.contains(to))
-      Some(s"Invalid transaction destination account: $to")
-    else if (to == from)
-      Some(s"Invalid reflexive transaction (source: $from, destination: $to)")
-    else if (value.compare(0) == -1)
-      Some(s"Invalid transaction value ($value)")
-    else {
+  private def validateValue(from: AccountId,
+                            value: BigDecimal,
+                            zone: Zone,
+                            balances: Map[AccountId, BigDecimal]): ValidatedNel[ZoneResponse.Error, BigDecimal] =
+    (if (value.compare(0) == -1)
+       Validated.invalidNel(ZoneResponse.Error(code = 0, description = s"Invalid transaction value ($value)"))
+     else Validated.valid(value)).andThen { value =>
       val updatedSourceBalance = balances(from) - value
       if (updatedSourceBalance < 0 && from != zone.equityAccountId)
-        Some(s"Illegal transaction value: $value")
+        Validated.invalidNel(ZoneResponse.Error(code = 0, description = s"Illegal transaction value: $value"))
       else
-        None
+        Validated.valid(value)
     }
+
+  private def validateTag(tag: Option[String]): ValidatedNel[ZoneResponse.Error, Option[String]] =
+    tag.map(_.length) match {
+      case Some(tagLength) if tagLength > MaxStringLength =>
+        Validated.invalidNel(
+          ZoneResponse.Error(code = 0, description = s"Tag length must be less than $MaxStringLength characters."))
+      case _ =>
+        Validated.valid(tag)
+    }
+
+  private def validateMetadata(metadata: Option[com.google.protobuf.struct.Struct])
+    : ValidatedNel[ZoneResponse.Error, Option[com.google.protobuf.struct.Struct]] =
+    metadata.map(_.toByteArray.length) match {
+      case Some(metadataSize) if metadataSize > MaxMetadataSize =>
+        Validated.invalidNel(
+          ZoneResponse.Error(code = 0, description = s"Metadata size must be less than $MaxMetadataSize bytes.")
+        )
+      case _ =>
+        Validated.valid(metadata)
+    }
+
 }
 
 class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
@@ -238,8 +287,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   import ZoneValidatorActor.PassivationCountdownActor._
   import context.dispatcher
 
-  private[this] val mediator                  = DistributedPubSub(context.system).mediator
-  private[this] val publishStatusTick         = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
+  private[this] val mediator = DistributedPubSub(context.system).mediator
+  private[this] val publishStatusTick =
+    context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
   private[this] val passivationCountdownActor = context.actorOf(PassivationCountdownActor.props)
 
   private[this] val zoneId = ZoneId(UUID.fromString(self.path.name))
@@ -260,7 +310,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
   override def receiveRecover: Receive = {
     case zoneEvent: ZoneEvent =>
-      updateState(zoneEvent)
+      state = state.updated(zoneEvent)
     case RecoveryCompleted =>
       state.clientConnections.keys.foreach(clientConnection =>
         context.actorSelection(clientConnection) ! ZoneRestarted(zoneId))
@@ -306,9 +356,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       pendingDeliveries = pendingDeliveries - clientConnection.path
   }
 
-  private[this] def updateState(zoneEvent: ZoneEvent): Unit =
-    state = state.updated(zoneEvent)
-
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
     val nextExpectedCommandSequenceNumber = nextExpectedCommandSequenceNumbers(sender().path)
     if (sequenceNumber <= nextExpectedCommandSequenceNumber)
@@ -340,22 +387,23 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId)
             }
           case None =>
-            checkTagAndMetadata(equityOwnerName, equityOwnerMetadata)
-              .orElse(checkTagAndMetadata(equityAccountName, equityAccountMetadata))
-              .orElse(checkTagAndMetadata(name, metadata)) match {
-              case Some(error) =>
+            val validatedParams = {
+              val validatedEquityOwnerName       = validateTag(equityOwnerName)
+              val validatedEquityOwnerMetadata   = validateMetadata(equityOwnerMetadata)
+              val validatedEquityAccountName     = validateTag(equityAccountName)
+              val validatedEquityAccountMetadata = validateMetadata(equityAccountMetadata)
+              val validatedName                  = validateTag(name)
+              val validatedMetadata              = validateMetadata(metadata)
+              (validatedEquityOwnerName |@| validatedEquityOwnerMetadata |@| validatedEquityAccountName |@|
+                validatedEquityAccountMetadata |@| validatedName |@| validatedMetadata).tupled
+            }
+            validatedParams match {
+              case Invalid(errors) =>
                 deliverResponse(
-                  CreateZoneResponse(
-                    Validated.invalidNel(
-                      // TODO: Extract all errors as constants and make each one have a unique code
-                      ZoneResponse.Error(
-                        code = 0,
-                        description = error
-                      )
-                    )),
+                  CreateZoneResponse(Validated.invalid(errors)),
                   correlationId
                 )
-              case None =>
+              case Valid(_) =>
                 val equityOwner = Member(
                   MemberId(0),
                   equityOwnerPublicKey,
@@ -385,17 +433,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   name,
                   metadata
                 )
-                persist(ZoneCreatedEvent(created, zone)) { zoneCreatedEvent =>
-                  updateState(zoneCreatedEvent)
-                  deliverResponse(
-                    CreateZoneResponse(
-                      Validated.valid(
-                        zoneCreatedEvent.zone
-                      )),
-                    correlationId
-                  )
-                  self ! PublishStatus
-                }
+                acceptCommand(
+                  ZoneCreatedEvent(System.currentTimeMillis, zone),
+                  CreateZoneResponse(Validated.valid(zone)),
+                  correlationId
+                )
             }
         }
       case JoinZoneCommand =>
@@ -477,32 +519,22 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(_) =>
-            checkTagAndMetadata(name, None) match {
-              case Some(error) =>
+            val validatedParams = validateTag(name)
+            validatedParams match {
+              case Invalid(errors) =>
                 deliverResponse(
                   ChangeZoneNameResponse(
-                    Validated.invalidNel(
-                      ZoneResponse.Error(code = 0, description = error)
-                    )
+                    Validated.invalid(errors)
                   ),
                   correlationId
                 )
-              case None =>
-                persist(ZoneNameChangedEvent(System.currentTimeMillis, name)) { zoneNameChangedEvent =>
-                  updateState(zoneNameChangedEvent)
-                  deliverResponse(
-                    ChangeZoneNameResponse(
-                      Validated.valid(())
-                    ),
-                    correlationId
-                  )
-                  self ! PublishStatus
-                  deliverNotification(
-                    ZoneNameChangedNotification(
-                      zoneNameChangedEvent.name
-                    )
-                  )
-                }
+              case Valid(_) =>
+                acceptCommand(
+                  ZoneNameChangedEvent(System.currentTimeMillis, name),
+                  ChangeZoneNameResponse(Validated.valid(())),
+                  correlationId,
+                  Some(ZoneNameChangedNotification(name))
+                )
             }
         }
       case CreateMemberCommand(ownerPublicKey, name, metadata) =>
@@ -517,40 +549,30 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
-            checkOwnerPublicKey(ownerPublicKey).orElse(checkTagAndMetadata(name, metadata)) match {
-              case Some(error) =>
+            val validatedParams = {
+              val validatedMemberId =
+                Validated.valid[NonEmptyList[ZoneResponse.Error], MemberId](MemberId(zone.members.size.toLong))
+              val validatedOwnerPublicKey = validatePublicKey(ownerPublicKey)
+              val validatedName           = validateTag(name)
+              val validatedMetadata       = validateMetadata(metadata)
+              (validatedMemberId |@| validatedOwnerPublicKey |@| validatedName |@| validatedMetadata).tupled
+            }
+            validatedParams match {
+              case Invalid(errors) =>
                 deliverResponse(
                   CreateMemberResponse(
-                    Validated.invalidNel(
-                      ZoneResponse.Error(code = 0, description = error)
-                    )
+                    Validated.invalid(errors)
                   ),
                   correlationId
                 )
-              case None =>
-                val member = Member(
-                  MemberId(zone.members.size.toLong),
-                  ownerPublicKey,
-                  name,
-                  metadata
+              case Valid(params) =>
+                val member = Member.tupled(params)
+                acceptCommand(
+                  MemberCreatedEvent(System.currentTimeMillis, member),
+                  CreateMemberResponse(Validated.valid(member)),
+                  correlationId,
+                  Some(MemberCreatedNotification(member))
                 )
-                persist(MemberCreatedEvent(System.currentTimeMillis, member)) { memberCreatedEvent =>
-                  updateState(memberCreatedEvent)
-                  deliverResponse(
-                    CreateMemberResponse(
-                      Validated.valid(
-                        memberCreatedEvent.member
-                      )
-                    ),
-                    correlationId
-                  )
-                  self ! PublishStatus
-                  deliverNotification(
-                    MemberCreatedNotification(
-                      memberCreatedEvent.member
-                    )
-                  )
-                }
             }
         }
       case UpdateMemberCommand(member) =>
@@ -565,34 +587,27 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
-            checkCanModify(zone, member.id, publicKey)
-              .orElse(checkOwnerPublicKey(member.ownerPublicKey))
-              .orElse(checkTagAndMetadata(member.name, member.metadata)) match {
-              case Some(error) =>
+            val validatedParams = validateCanUpdateMember(zone, member.id, publicKey).andThen { _ =>
+              val validatedOwnerPublicKey = validatePublicKey(member.ownerPublicKey)
+              val validatedTag            = validateTag(member.name)
+              val validatedMetadata       = validateMetadata(member.metadata)
+              (validatedOwnerPublicKey |@| validatedTag |@| validatedMetadata).tupled
+            }
+            validatedParams match {
+              case Invalid(errors) =>
                 deliverResponse(
                   UpdateMemberResponse(
-                    Validated.invalidNel(
-                      ZoneResponse.Error(code = 0, description = error)
-                    )
+                    Validated.invalid(errors)
                   ),
                   correlationId
                 )
-              case None =>
-                persist(MemberUpdatedEvent(System.currentTimeMillis, member)) { memberUpdatedEvent =>
-                  updateState(memberUpdatedEvent)
-                  deliverResponse(
-                    UpdateMemberResponse(
-                      Validated.valid(())
-                    ),
-                    correlationId
-                  )
-                  self ! PublishStatus
-                  deliverNotification(
-                    MemberUpdatedNotification(
-                      memberUpdatedEvent.member
-                    )
-                  )
-                }
+              case Valid(_) =>
+                acceptCommand(
+                  MemberUpdatedEvent(System.currentTimeMillis, member),
+                  UpdateMemberResponse(Validated.valid(())),
+                  correlationId,
+                  Some(MemberUpdatedNotification(member))
+                )
             }
         }
       case CreateAccountCommand(owners, name, metadata) =>
@@ -607,40 +622,30 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
-            checkAccountOwners(zone, owners).orElse(checkTagAndMetadata(name, metadata)) match {
-              case Some(error) =>
+            val validatedParams = {
+              val validatedAccountId =
+                Validated.valid[NonEmptyList[ZoneResponse.Error], AccountId](AccountId(zone.accounts.size.toLong))
+              val validatedAccountOwners = validateOwners(zone, owners)
+              val validatedTag           = validateTag(name)
+              val validatedMetadata      = validateMetadata(metadata)
+              (validatedAccountId |@| validatedAccountOwners |@| validatedTag |@| validatedMetadata).tupled
+            }
+            validatedParams match {
+              case Invalid(errors) =>
                 deliverResponse(
                   CreateAccountResponse(
-                    Validated.invalidNel(
-                      ZoneResponse.Error(code = 0, description = error)
-                    )
+                    Validated.invalid(errors)
                   ),
                   correlationId
                 )
-              case None =>
-                val account = Account(
-                  AccountId(zone.accounts.size.toLong),
-                  owners,
-                  name,
-                  metadata
+              case Valid(params) =>
+                val account = Account.tupled(params)
+                acceptCommand(
+                  AccountCreatedEvent(System.currentTimeMillis, account),
+                  CreateAccountResponse(Validated.valid(account)),
+                  correlationId,
+                  Some(AccountCreatedNotification(account))
                 )
-                persist(AccountCreatedEvent(System.currentTimeMillis, account)) { accountCreatedEvent =>
-                  updateState(accountCreatedEvent)
-                  deliverResponse(
-                    CreateAccountResponse(
-                      Validated.valid(
-                        accountCreatedEvent.account
-                      )
-                    ),
-                    correlationId
-                  )
-                  self ! PublishStatus
-                  deliverNotification(
-                    AccountCreatedNotification(
-                      accountCreatedEvent.account
-                    )
-                  )
-                }
             }
         }
       case UpdateAccountCommand(account) =>
@@ -655,34 +660,27 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
-            checkCanModify(zone, account.id, publicKey).orElse(
-              checkAccountOwners(zone, account.ownerMemberIds)
-                .orElse(checkTagAndMetadata(account.name, account.metadata))) match {
-              case Some(error) =>
+            val validatedParams = validateCanUpdateAccount(zone, account.id, publicKey).andThen { _ =>
+              val validatedAccountOwners = validateOwners(zone, account.ownerMemberIds)
+              val validatedTag           = validateTag(account.name)
+              val validatedMetadata      = validateMetadata(account.metadata)
+              (validatedAccountOwners |@| validatedTag |@| validatedMetadata).tupled
+            }
+            validatedParams match {
+              case Invalid(errors) =>
                 deliverResponse(
                   UpdateAccountResponse(
-                    Validated.invalidNel(
-                      ZoneResponse.Error(code = 0, description = error)
-                    )
+                    Validated.invalid(errors)
                   ),
                   correlationId
                 )
-              case None =>
-                persist(AccountUpdatedEvent(System.currentTimeMillis, account)) { accountUpdatedEvent =>
-                  updateState(accountUpdatedEvent)
-                  deliverResponse(
-                    UpdateAccountResponse(
-                      Validated.valid(())
-                    ),
-                    correlationId
-                  )
-                  self ! PublishStatus
-                  deliverNotification(
-                    AccountUpdatedNotification(
-                      accountUpdatedEvent.account
-                    )
-                  )
-                }
+              case Valid(_) =>
+                acceptCommand(
+                  AccountUpdatedEvent(System.currentTimeMillis, account),
+                  UpdateAccountResponse(Validated.valid(())),
+                  correlationId,
+                  Some(AccountUpdatedNotification(account))
+                )
             }
         }
       case AddTransactionCommand(actingAs, from, to, value, description, metadata) =>
@@ -697,97 +695,86 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
-            checkCanModify(zone, from, actingAs, publicKey).orElse(
-              checkTransaction(from, to, value, zone, state.balances)
-                .orElse(checkTagAndMetadata(description, metadata))) match {
-              case Some(error) =>
+            val validatedParams = validateCanDebitAccount(zone, from, actingAs, publicKey)
+              .andThen { _ =>
+                val validatedFromAndTo   = validateFromAndTo(from, to, zone)
+                val validatedDescription = validateTag(description)
+                val validatedMetadata    = validateMetadata(metadata)
+                (validatedFromAndTo |@| validatedDescription |@| validatedMetadata).tupled
+              }
+              .andThen(
+                _ =>
+                  validateValue(from, value, zone, state.balances)
+                    .map(
+                      (TransactionId(zone.transactions.size.toLong),
+                       from,
+                       to,
+                       _,
+                       actingAs,
+                       System.currentTimeMillis,
+                       description,
+                       metadata)))
+            validatedParams match {
+              case Invalid(errors) =>
                 deliverResponse(
-                  AddTransactionResponse(
-                    Validated.invalidNel(
-                      ZoneResponse.Error(code = 0, description = error)
-                    )
-                  ),
+                  AddTransactionResponse(Validated.invalid(errors)),
                   correlationId
                 )
-              case None =>
-                val created = System.currentTimeMillis
-                val transaction = Transaction(
-                  TransactionId(zone.transactions.size.toLong),
-                  from,
-                  to,
-                  value,
-                  actingAs,
-                  created,
-                  description,
-                  metadata
+              case Valid(params) =>
+                val transaction = Transaction.tupled(params)
+                acceptCommand(
+                  TransactionAddedEvent(transaction.created, transaction),
+                  AddTransactionResponse(Validated.valid(transaction)),
+                  correlationId,
+                  Some(TransactionAddedNotification(transaction))
                 )
-                persist(TransactionAddedEvent(created, transaction)) { transactionAddedEvent =>
-                  updateState(transactionAddedEvent)
-                  deliverResponse(
-                    AddTransactionResponse(
-                      Validated.valid(
-                        transactionAddedEvent.transaction
-                      )
-                    ),
-                    correlationId
-                  )
-                  self ! PublishStatus
-                  deliverNotification(
-                    TransactionAddedNotification(
-                      transactionAddedEvent.transaction
-                    )
-                  )
-                }
             }
         }
     }
 
   private[this] def handleJoin(clientConnection: ActorRef, publicKey: PublicKey)(onStateUpdate: State => Unit): Unit =
-    persist(
-      ZoneJoinedEvent(System.currentTimeMillis, clientConnection.path, publicKey)
-    ) { zoneJoinedEvent =>
-      if (state.clientConnections.isEmpty)
-        passivationCountdownActor ! Stop
+    persist(ZoneJoinedEvent(System.currentTimeMillis, clientConnection.path, publicKey)) { zoneJoinedEvent =>
+      if (state.clientConnections.isEmpty) passivationCountdownActor ! Stop
       context.watch(clientConnection)
       val wasAlreadyPresent = state.clientConnections.values.exists(_ == zoneJoinedEvent.publicKey)
-      updateState(zoneJoinedEvent)
+      state = state.updated(zoneJoinedEvent)
       onStateUpdate(state)
-      if (!wasAlreadyPresent)
-        deliverNotification(ClientJoinedZoneNotification(zoneJoinedEvent.publicKey))
+      if (!wasAlreadyPresent) deliverNotification(ClientJoinedZoneNotification(zoneJoinedEvent.publicKey))
     }
 
   private[this] def handleQuit(clientConnection: ActorRef)(onStateUpdate: => Unit): Unit =
-    persist(
-      ZoneQuitEvent(System.currentTimeMillis, clientConnection.path)
-    ) { zoneQuitEvent =>
+    persist(ZoneQuitEvent(System.currentTimeMillis, clientConnection.path)) { zoneQuitEvent =>
       val publicKey = state.clientConnections(clientConnection.path)
-      updateState(zoneQuitEvent)
+      state = state.updated(zoneQuitEvent)
       onStateUpdate
       val isStillPresent = state.clientConnections.values.exists(_ == publicKey)
-      if (!isStillPresent)
-        deliverNotification(ClientQuitZoneNotification(publicKey))
+      if (!isStillPresent) deliverNotification(ClientQuitZoneNotification(publicKey))
       context.unwatch(clientConnection)
-      if (state.clientConnections.isEmpty)
-        passivationCountdownActor ! Start
+      if (state.clientConnections.isEmpty) passivationCountdownActor ! Start
     }
 
-  private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit =
-    deliverResponse {
-      case (sequenceNumber, deliveryId) =>
-        ZoneResponseEnvelope(
-          response,
-          correlationId,
-          sequenceNumber,
-          deliveryId
-        )
+  private[this] def acceptCommand(event: ZoneEvent,
+                                  response: ZoneResponse,
+                                  correlationId: Long,
+                                  notification: Option[ZoneNotification] = None): Unit =
+    persist(event) { event =>
+      deliverResponse(response, correlationId)
+      state = state.updated(event)
+      notification.foreach(deliverNotification)
+      self ! PublishStatus
     }
 
-  private[this] def deliverResponse(sequenceNumberAndDeliveryIdToMessage: (Long, Long) => Any): Unit = {
+  private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit = {
     val sequenceNumber = messageSequenceNumbers(sender().path)
     messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))
     deliver(sender().path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) + deliveryId))
-      sequenceNumberAndDeliveryIdToMessage(sequenceNumber, deliveryId)
+      ZoneResponseEnvelope(
+        response,
+        correlationId,
+        sequenceNumber,
+        deliveryId
+      )
     }
   }
 

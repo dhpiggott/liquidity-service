@@ -74,12 +74,6 @@ final case class ZoneCommandEnvelope(zoneId: ZoneId,
 
 final case class ZoneCommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
 
-final case class ZoneAlreadyExists(createZoneCommand: CreateZoneCommand,
-                                   correlationId: Long,
-                                   sequenceNumber: Long,
-                                   deliveryId: Long)
-    extends ZoneValidatorMessage
-
 final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
 final case class ZoneResponseEnvelope(zoneResponse: ZoneResponse,

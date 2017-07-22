@@ -202,13 +202,6 @@ message ZoneCommandReceivedConfirmation {
     int64 delivery_id = 2;
 }
 
-message ZoneAlreadyExists {
-    ZoneCommand.CreateZoneCommand create_zone_command = 1;
-    int64 correlation_id = 2;
-    int64 sequence_number = 3;
-    int64 delivery_id = 4;
-}
-
 message ZoneRestarted {
     string zone_id = 1;
 }

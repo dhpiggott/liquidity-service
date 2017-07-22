@@ -244,23 +244,6 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
                 deliverZoneCommand(zoneId, zoneCommand, numericCorrelationId.value.toLongExact)
             }
         }
-      case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
-        exactlyOnce(sequenceNumber, deliveryId) {
-          val zoneId         = ZoneId.generate
-          val sequenceNumber = commandSequenceNumbers(zoneId)
-          commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-          deliver(zoneValidatorShardRegion.path) { deliveryId =>
-            pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-            ZoneCommandEnvelope(
-              zoneId,
-              createZoneCommand,
-              publicKey,
-              correlationId,
-              sequenceNumber,
-              deliveryId
-            )
-          }
-        }
       case ZoneResponseEnvelope(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           def toLegacyResponse[A, B <: LegacyWsProtocol.SuccessResponse](

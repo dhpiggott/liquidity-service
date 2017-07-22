@@ -369,14 +369,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] def handleCommand(publicKey: PublicKey, command: ZoneCommand, correlationId: Long): Unit =
     command match {
       case EmptyZoneCommand => ()
-      case createZoneCommand @ CreateZoneCommand(
-            equityOwnerPublicKey,
-            equityOwnerName,
-            equityOwnerMetadata,
-            equityAccountName,
-            equityAccountMetadata,
-            name,
-            metadata
+      case CreateZoneCommand(
+          equityOwnerPublicKey,
+          equityOwnerName,
+          equityOwnerMetadata,
+          equityAccountName,
+          equityAccountMetadata,
+          name,
+          metadata
           ) =>
         state.zone match {
           case Some(_) =>
@@ -384,7 +384,8 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))
             deliver(sender().path) { deliveryId =>
               pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) + deliveryId))
-              ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId)
+              CreateZoneResponse(
+                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone already exists")))
             }
           case None =>
             val validatedParams = {
@@ -444,21 +445,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              JoinZoneResponse(
-                Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                )
-              ),
+              JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
               correlationId
             )
           case Some(zone) =>
             if (state.clientConnections.contains(sender().path))
               deliverResponse(
                 JoinZoneResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone already joined")
-                  )
-                ),
+                  Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone already joined"))),
                 correlationId
               )
             else
@@ -479,21 +473,13 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              QuitZoneResponse(
-                Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                )
-              ),
+              QuitZoneResponse(Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
               correlationId
             )
           case Some(_) =>
             if (!state.clientConnections.contains(sender().path))
               deliverResponse(
-                QuitZoneResponse(
-                  Validated.invalidNel(
-                    ZoneResponse.Error(code = 0, description = "Zone not joined")
-                  )
-                ),
+                QuitZoneResponse(Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone not joined"))),
                 correlationId
               )
             else
@@ -512,10 +498,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           case None =>
             deliverResponse(
               ChangeZoneNameResponse(
-                Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                )
-              ),
+                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
               correlationId
             )
           case Some(_) =>
@@ -542,10 +525,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           case None =>
             deliverResponse(
               CreateMemberResponse(
-                Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                )
-              ),
+                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
               correlationId
             )
           case Some(zone) =>
@@ -580,10 +560,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           case None =>
             deliverResponse(
               UpdateMemberResponse(
-                Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                )
-              ),
+                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
               correlationId
             )
           case Some(zone) =>
@@ -615,10 +592,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           case None =>
             deliverResponse(
               CreateAccountResponse(
-                Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                )
-              ),
+                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
               correlationId
             )
           case Some(zone) =>
@@ -653,10 +627,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           case None =>
             deliverResponse(
               UpdateAccountResponse(
-                Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                )
-              ),
+                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
               correlationId
             )
           case Some(zone) =>
@@ -688,10 +659,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           case None =>
             deliverResponse(
               AddTransactionResponse(
-                Validated.invalidNel(
-                  ZoneResponse.Error(code = 0, description = "Zone does not exist")
-                )
-              ),
+                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
               correlationId
             )
           case Some(zone) =>

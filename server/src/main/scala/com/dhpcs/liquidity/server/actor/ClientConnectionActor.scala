@@ -229,10 +229,6 @@ class ClientConnectionActor(ip: RemoteAddress,
               case proto.ws.protocol.ServerMessage.Response.Response.PingResponse(_) =>
             }
         }
-      case ZoneAlreadyExists(createZoneCommand, correlationId, sequenceNumber, deliveryId) =>
-        exactlyOnce(sequenceNumber, deliveryId)(
-          handleZoneCommand(zoneId = ZoneId.generate, createZoneCommand, publicKey, correlationId)
-        )
       case ZoneResponseEnvelope(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           sendZoneResponse(correlationId, zoneResponse)

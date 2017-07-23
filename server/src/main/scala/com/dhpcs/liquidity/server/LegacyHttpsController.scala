@@ -11,13 +11,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Flow
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.HttpsController._
+import com.dhpcs.liquidity.server.LegacyHttpsController._
 
-object HttpsController {
+object LegacyHttpsController {
   private final val RequiredClientKeySize = 2048
 }
 
-trait HttpsController {
+trait LegacyHttpsController {
 
   protected[this] def httpsRoutes(enableClientRelay: Boolean): Route =
     if (enableClientRelay) legacyWs else reject

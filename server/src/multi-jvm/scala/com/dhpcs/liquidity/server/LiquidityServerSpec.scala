@@ -11,15 +11,12 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import akka.cluster.MemberStatus.Up
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage, WebSocketRequest, Message => WsMessage}
 import akka.http.scaladsl.{ConnectionContext, Http}
-import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.cassandra.testkit.CassandraLauncher
-import akka.persistence.query.PersistenceQuery
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
@@ -84,14 +81,6 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    parsing.tls-session-info-header = on
        |  }
        |}
-       |liquidity {
-       |  server {
-       |    ping-interval = 3s
-       |    http.interface = "0.0.0.0"
-       |    https.interface = "0.0.0.0"
-       |  }
-       |  analytics.cassandra.keyspace = "liquidity_analytics_v3"
-       |}
      """.stripMargin))
 
   nodeConfig(zoneHostNode)(
@@ -121,25 +110,9 @@ sealed abstract class LiquidityServerSpec
 
   import com.dhpcs.liquidity.server.LiquidityServerSpecConfig._
 
-  private[this] implicit val mat = ActorMaterializer()
+  private[this] implicit val mat: Materializer = ActorMaterializer()
 
   private[this] lazy val cassandraDirectory = Files.createTempDirectory("liquidity-server-spec-cassandra-data")
-
-  private[this] val readJournal =
-    PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
-
-  private[this] val futureAnalyticsStore =
-    readJournal.session
-      .underlying()
-      .flatMap(CassandraAnalyticsStore(system.settings.config)(_, ExecutionContext.global))(ExecutionContext.global)
-
-  private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
-    typeName = ZoneValidatorActor.ShardTypeName,
-    entityProps = ZoneValidatorActor.props,
-    settings = ClusterShardingSettings(system),
-    extractEntityId = ZoneValidatorActor.extractEntityId,
-    extractShardId = ZoneValidatorActor.extractShardId
-  )
 
   private[this] val akkaHttpPort  = freePort()
   private[this] val akkaHttpsPort = freePort()
@@ -150,14 +123,13 @@ sealed abstract class LiquidityServerSpec
   }
 
   private[this] val server = new LiquidityServer(
-    ConfigFactory.parseString(s"""
-         |liquidity.server.http.port = $akkaHttpPort
-         |liquidity.server.https.port = $akkaHttpsPort
-          """.stripMargin).withFallback(system.settings.config),
-    readJournal,
-    futureAnalyticsStore,
-    zoneValidatorShardRegion,
-    serverKeyManagers
+    pingInterval = 3.seconds,
+    keyManagers = serverKeyManagers,
+    httpsInterface = "0.0.0.0",
+    httpsPort = akkaHttpsPort,
+    httpInterface = "0.0.0.0",
+    httpPort = akkaHttpPort,
+    analyticsKeyspace = "liquidity_analytics"
   )
 
   private[this] val httpBinding  = server.bindHttp()
@@ -170,8 +142,7 @@ sealed abstract class LiquidityServerSpec
       createKeyManagers(certificate, privateKey),
       Array(new X509TrustManager {
 
-        override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
-          throw new CertificateException
+        override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
 
         override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = {
           val publicKey = chain(0).getPublicKey

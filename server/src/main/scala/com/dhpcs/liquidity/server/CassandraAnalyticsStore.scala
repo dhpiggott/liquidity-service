@@ -9,7 +9,6 @@ import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore._
 import com.google.common.util.concurrent.{FutureCallback, Futures, ListenableFuture}
 import com.trueaccord.scalapb.json.JsonFormat
-import com.typesafe.config.Config
 import okio.ByteString
 
 import scala.collection.JavaConverters._
@@ -17,8 +16,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object CassandraAnalyticsStore {
 
-  def apply(config: Config)(implicit session: Session, ec: ExecutionContext): Future[CassandraAnalyticsStore] = {
-    val keyspace = config.getString("liquidity.analytics.cassandra.keyspace")
+  def apply(keyspace: String)(implicit session: Session, ec: ExecutionContext): Future[CassandraAnalyticsStore] = {
     for {
       _                          <- execute(s"""
                                                |CREATE KEYSPACE IF NOT EXISTS $keyspace

@@ -13,7 +13,7 @@ class ZoneValidatorRecordSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(
-        AnyRefProtoBinding[ZoneState, proto.persistence.ZoneState],
+        AnyRefProtoBinding[ZoneSnapshot, proto.persistence.ZoneSnapshot],
         AnyRefProtoBinding[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent],
         AnyRefProtoBinding[ZoneJoinedEvent, proto.persistence.ZoneJoinedEvent],
         AnyRefProtoBinding[ZoneQuitEvent, proto.persistence.ZoneQuitEvent],

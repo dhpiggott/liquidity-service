@@ -5,10 +5,7 @@ import com.dhpcs.liquidity.model._
 
 sealed abstract class ZoneValidatorRecord extends Serializable
 
-final case class ZoneState(zone: Option[Zone],
-                           balances: Map[AccountId, BigDecimal],
-                           clientConnections: Map[ActorPath, PublicKey])
-    extends ZoneValidatorRecord
+final case class ZoneSnapshot(zoneState: ZoneState) extends ZoneValidatorRecord
 
 // TODO: Create and migrate to envelope
 sealed abstract class ZoneEvent extends ZoneValidatorRecord {
@@ -16,6 +13,7 @@ sealed abstract class ZoneEvent extends ZoneValidatorRecord {
 }
 
 final case class ZoneCreatedEvent(timestamp: Long, zone: Zone) extends ZoneEvent
+// TODO: Delete or rename as Client{Joined,Quit}Event, add metadata
 final case class ZoneJoinedEvent(timestamp: Long, clientConnectionActorPath: ActorPath, publicKey: PublicKey)
     extends ZoneEvent
 final case class ZoneQuitEvent(timestamp: Long, clientConnectionActorPath: ActorPath) extends ZoneEvent

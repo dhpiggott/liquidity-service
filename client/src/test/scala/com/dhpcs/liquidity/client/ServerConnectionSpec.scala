@@ -19,13 +19,15 @@ import com.dhpcs.liquidity.client.ServerConnectionSpec._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
+import com.dhpcs.liquidity.proto.model.ZoneState
+import com.dhpcs.liquidity.server.HttpController.GeneratedMessageEnvelope
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
+import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.ActiveClientsSummary
+import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.ActiveZonesSummary
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
-import org.json4s.JValue
-import org.json4s.JsonAST.{JInt, JObject}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
@@ -80,23 +82,30 @@ class ServerConnectionSpec
 
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
+  override protected[this] def events(persistenceId: String,
+                                      fromSequenceNr: Long,
+                                      toSequenceNr: Long): Source[GeneratedMessageEnvelope, NotUsed] =
+    Source.empty[GeneratedMessageEnvelope]
+
+  override protected[this] def zoneState(zoneId: ZoneId): Future[ZoneState] =
+    Future.successful(ZoneState(zone = None, balances = Map.empty, clientConnections = Map.empty))
+
   override protected[this] def webSocketApi(ip: RemoteAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
       props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )
 
-  override protected[this] def getStatus: Future[JValue] =
-    Future.successful(
-      JObject(
-        "clients"         -> JObject(),
-        "totalZonesCount" -> JInt(0),
-        "activeZones"     -> JObject(),
-        "shardRegions"    -> JObject(),
-        "clusterSharding" -> JObject()
-      ))
+  override protected[this] def getActiveClientsSummary: Future[ActiveClientsSummary] =
+    Future.successful(ActiveClientsSummary(Seq.empty))
+
+  override protected[this] def getActiveZonesSummary: Future[ActiveZonesSummary] =
+    Future.successful(ActiveZonesSummary(Set.empty))
+
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
+
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(Map.empty)
+
   override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
     Future.successful(Map.empty)
 

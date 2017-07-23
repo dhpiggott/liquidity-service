@@ -17,7 +17,7 @@ import com.dhpcs.liquidity.model.PublicKey
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.FreeSpec
 
-class HttpsControllerSpec extends FreeSpec with HttpsController with ScalatestRouteTest {
+class LegacyHttpsControllerSpec extends FreeSpec with LegacyHttpsController with ScalatestRouteTest {
 
   private[this] val sslSession = {
     val (certificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
@@ -48,7 +48,7 @@ class HttpsControllerSpec extends FreeSpec with HttpsController with ScalatestRo
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
-  "The HttpsController" - (
+  "The LegacyHttpsController" - (
     "will accept legacy WebSocket connections" in {
       val wsProbe = WSProbe()
       WS("/ws", wsProbe.flow)

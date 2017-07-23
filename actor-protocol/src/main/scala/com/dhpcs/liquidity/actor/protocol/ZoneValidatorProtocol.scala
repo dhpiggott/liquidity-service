@@ -3,6 +3,11 @@ package com.dhpcs.liquidity.actor.protocol
 import cats.data.ValidatedNel
 import com.dhpcs.liquidity.model._
 
+sealed abstract class ZoneValidatorMessage extends Serializable
+
+final case class GetZoneStateCommand(zoneId: ZoneId)    extends ZoneValidatorMessage
+final case class GetZoneStateResponse(state: ZoneState) extends ZoneValidatorMessage
+
 sealed abstract class ZoneCommand
 case object EmptyZoneCommand extends ZoneCommand
 final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
@@ -62,10 +67,9 @@ final case class AccountCreatedNotification(account: Account)           extends 
 final case class AccountUpdatedNotification(account: Account)           extends ZoneNotification
 final case class TransactionAddedNotification(transaction: Transaction) extends ZoneNotification
 
-sealed abstract class ZoneValidatorMessage extends Serializable
-
 final case class ZoneCommandEnvelope(zoneId: ZoneId,
                                      zoneCommand: ZoneCommand,
+                                     // TODO: Add metadata
                                      publicKey: PublicKey,
                                      correlationId: Long,
                                      sequenceNumber: Long,

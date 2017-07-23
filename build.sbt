@@ -27,7 +27,11 @@ lazy val model = project
     name := "liquidity-model"
   )
   .dependsOn(protoBinding)
-  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0")
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.squareup.okio" % "okio"        % "1.13.0",
+      "com.typesafe.akka" %% "akka-actor" % "2.5.3"
+    ))
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val persistence = project
@@ -43,7 +47,6 @@ lazy val persistence = project
   .dependsOn(model)
   .dependsOn(protoBinding)
   .dependsOn(model % "test->test")
-  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.5.3")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val actorProtocol = project
@@ -131,7 +134,8 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-http"                   % "10.0.9",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.3.1",
-      "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.0"
+      "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.0",
+      "com.typesafe.play"          %% "play-json"                   % "2.6.2"
     ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.3",
@@ -147,7 +151,9 @@ lazy val server = project
       "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
       "com.typesafe.akka"      %% "akka-http"                    % "10.0.9",
-      "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.1"
+      "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.1",
+      "com.typesafe.play"      %% "play-json"                    % "2.6.2",
+      "de.heikoseeberger"      %% "akka-http-play-json"          % "1.17.0"
     )
   )
   .dependsOn(model % "test->test")
@@ -206,7 +212,10 @@ lazy val healthcheck = project
   .dependsOn(client)
   .dependsOn(wsLegacyProtocol)
   .settings(
-    dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
+    dependencyOverrides ++= Set(
+      "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
+      "com.typesafe.play"      %% "play-json" % "2.6.2"
+    ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.3",
       "org.scalatest"     %% "scalatest"           % "3.0.3"

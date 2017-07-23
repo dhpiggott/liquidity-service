@@ -2,6 +2,7 @@ package com.dhpcs.liquidity
 
 import java.util.UUID
 
+import akka.actor.ActorPath
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
 // TODO: Move all bindings into a ProtoBindings object
@@ -67,6 +68,9 @@ package object model {
       entityIdExtractor: EntityIdExtractor[SV, SK]): ProtoBinding[Map[SK, SV], Seq[P]] =
     ProtoBinding.instance(_.values.map(protoConverter.asProto).toSeq,
                           _.map(protoConverter.asScala).map(s => entityIdExtractor.extractId(s) -> s).toMap)
+
+  implicit final val ActorPathProtoBinding: ProtoBinding[ActorPath, String] =
+    ProtoBinding.instance(_.toSerializationFormat, ActorPath.fromString)
 
   implicit def mapProtoBinding[SK, SV, PK, PV](implicit kBinding: ProtoBinding[SK, PK],
                                                vBinding: ProtoBinding[SV, PV]): ProtoBinding[Map[SK, SV], Map[PK, PV]] =

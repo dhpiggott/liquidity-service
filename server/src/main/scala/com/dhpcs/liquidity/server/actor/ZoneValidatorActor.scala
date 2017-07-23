@@ -30,12 +30,14 @@ object ZoneValidatorActor {
   final val ShardTypeName = "zone-validator"
 
   val extractEntityId: ShardRegion.ExtractEntityId = {
+    case getZoneStateCommand: GetZoneStateCommand => (getZoneStateCommand.zoneId.id.toString, getZoneStateCommand)
     case zoneCommandEnvelope: ZoneCommandEnvelope => (zoneCommandEnvelope.zoneId.id.toString, zoneCommandEnvelope)
   }
 
   private val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
+    case GetZoneStateCommand(zoneId)                => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
     case ZoneCommandEnvelope(zoneId, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
   }
 
@@ -109,7 +111,7 @@ object ZoneValidatorActor {
 
   private object PassivationCountdownActor {
 
-    def props: Props = Props[PassivationCountdownActor]
+    def props: Props = Props(new PassivationCountdownActor)
 
     case object CommandReceivedEvent
     case object RequestPassivate
@@ -305,8 +307,8 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   }
 
   override def receiveRecover: Receive = {
-    case SnapshotOffer(_, offeredSnapshot: ZoneState) =>
-      state = offeredSnapshot
+    case SnapshotOffer(_, ZoneSnapshot(zoneState)) =>
+      state = zoneState
 
     case event: ZoneEvent =>
       state = update(state, event)
@@ -340,6 +342,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
 
     case SaveSnapshotSuccess(metadata) =>
       deleteSnapshots(SnapshotSelectionCriteria(maxSequenceNr = metadata.sequenceNr - 1))
+
+    case GetZoneStateCommand(_) =>
+      sender() ! GetZoneStateResponse(state)
 
     case ZoneCommandEnvelope(_, command, publicKey, correlationId, sequenceNumber, deliveryId) =>
       passivationCountdownActor ! CommandReceivedEvent
@@ -745,7 +750,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     persist(event) { event =>
       state = update(state, event)
       if (lastSequenceNr % SnapShotInterval == 0 && lastSequenceNr != 0)
-        saveSnapshot(state)
+        saveSnapshot(ZoneSnapshot(state))
       deliverResponse(response, correlationId)
       notification.foreach(deliverNotification)
       self ! PublishStatus

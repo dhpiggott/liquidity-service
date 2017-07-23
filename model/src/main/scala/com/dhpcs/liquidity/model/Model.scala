@@ -2,6 +2,7 @@ package com.dhpcs.liquidity.model
 
 import java.util.UUID
 
+import akka.actor.ActorPath
 import okio.ByteString
 
 final case class PublicKey(value: ByteString) {
@@ -52,3 +53,7 @@ final case class Zone(id: ZoneId,
                       expires: Long,
                       name: Option[String] = None,
                       metadata: Option[com.google.protobuf.struct.Struct] = None)
+
+final case class ZoneState(zone: Option[Zone],
+                           balances: Map[AccountId, BigDecimal],
+                           clientConnections: Map[ActorPath, PublicKey])

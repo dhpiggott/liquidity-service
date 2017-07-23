@@ -9,6 +9,14 @@ import "google/protobuf/struct.proto";
 
 import "dhpcs/liquidity/model.proto";
 
+message GetZoneStateCommand {
+    string zone_id = 1;
+}
+
+message GetZoneStateResponse {
+    dhpcs.liquidity.model.ZoneState state = 1;
+}
+
 message ZoneCommand {
     message CreateZoneCommand {
         bytes equity_owner_public_key = 1;

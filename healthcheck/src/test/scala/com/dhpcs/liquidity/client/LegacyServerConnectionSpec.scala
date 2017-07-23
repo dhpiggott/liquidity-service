@@ -20,7 +20,6 @@ import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.client.LegacyServerConnection._
 import com.dhpcs.liquidity.client.LegacyServerConnectionSpec._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
@@ -57,7 +56,7 @@ object LegacyServerConnectionSpec {
 
 class LegacyServerConnectionSpec
     extends fixture.FreeSpec
-    with HttpsController
+    with LegacyHttpsController
     with BeforeAndAfterAll
     with ScalaFutures {
 
@@ -103,8 +102,22 @@ class LegacyServerConnectionSpec
     )
     ConnectionContext.https(
       sslContext,
-      enabledCipherSuites = Some(EnabledCipherSuites),
-      enabledProtocols = Some(EnabledProtocols),
+      enabledCipherSuites = Some(
+        Seq(
+          // Recommended by https://typesafehub.github.io/ssl-config/CipherSuites.html#id4
+          "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+          "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+          // For Android 4.1 (see https://www.ssllabs.com/ssltest/viewClient.html?name=Android&version=4.1.1)
+          "TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
+          "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
+        )),
+      enabledProtocols = Some(
+        Seq(
+          "TLSv1.2",
+          "TLSv1.1",
+          // For Android 4.1 (see https://www.ssllabs.com/ssltest/viewClient.html?name=Android&version=4.1.1)
+          "TLSv1"
+        )),
       clientAuth = Some(TLSClientAuth.Want)
     )
   }

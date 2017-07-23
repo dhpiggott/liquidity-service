@@ -5,19 +5,19 @@ import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
 import org.scalatest.FreeSpec
 
+import scala.collection.immutable.Seq
+
 class ClientsMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures {
 
   "A ClientsMonitorActor" - {
     "will provide a summary of the active clients" in {
-      val testProbe      = TestProbe()
-      val clientsMonitor = system.actorOf(ClientsMonitorActor.props, "clients-monitor")
-      try {
-        testProbe.send(
-          clientsMonitor,
-          GetActiveClientsSummary
-        )
-        testProbe.expectMsg(ActiveClientsSummary(Seq.empty))
-      } finally system.stop(clientsMonitor)
+      val clientsMonitorActor = system.actorOf(ClientsMonitorActor.props, "clients-monitor")
+      val testProbe           = TestProbe()
+      testProbe.send(
+        clientsMonitorActor,
+        GetActiveClientsSummary
+      )
+      testProbe.expectMsg(ActiveClientsSummary(Seq.empty))
     }
   }
 }

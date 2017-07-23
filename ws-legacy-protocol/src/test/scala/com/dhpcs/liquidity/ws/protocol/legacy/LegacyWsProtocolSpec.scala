@@ -457,7 +457,7 @@ class LegacyWsProtocolSpec extends FreeSpec {
       val jsonRpcRequestMessage = JsonRpcRequestMessage(
         "invalidMethod",
         ObjectParams(
-          Json.obj()
+          JsObject.empty
         ),
         NumericCorrelationId(1)
       )
@@ -484,7 +484,7 @@ class LegacyWsProtocolSpec extends FreeSpec {
         val jsonRpcRequestMessage = JsonRpcRequestMessage(
           "createZone",
           ObjectParams(
-            Json.obj()
+            JsObject.empty
           ),
           NumericCorrelationId(1)
         )
@@ -556,7 +556,7 @@ class LegacyWsProtocolSpec extends FreeSpec {
     "of type CreateZoneResponse" - (
       "with empty params" - {
         val jsonRpcResponseSuccessMessage = JsonRpcResponseSuccessMessage(
-          Json.obj(),
+          JsObject.empty,
           NumericCorrelationId(0)
         )
         val method  = "createZone"
@@ -622,7 +622,7 @@ class LegacyWsProtocolSpec extends FreeSpec {
       val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
         "invalidMethod",
         ObjectParams(
-          Json.obj()
+          JsObject.empty
         )
       )
       val jsError = JsError("unknown method invalidMethod")
@@ -647,7 +647,7 @@ class LegacyWsProtocolSpec extends FreeSpec {
         val jsonRpcNotificationMessage = JsonRpcNotificationMessage(
           "clientJoinedZone",
           ObjectParams(
-            Json.obj()
+            JsObject.empty
           )
         )
         val jsError = JsError(

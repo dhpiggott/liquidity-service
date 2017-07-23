@@ -74,6 +74,7 @@ final case class ZoneCommandEnvelope(zoneId: ZoneId,
 
 final case class ZoneCommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
 
+// TODO: Remove/replace?
 final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
 final case class ZoneResponseEnvelope(zoneResponse: ZoneResponse,

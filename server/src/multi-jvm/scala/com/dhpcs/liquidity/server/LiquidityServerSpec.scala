@@ -58,16 +58,14 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |  actor {
        |    provider = "akka.cluster.ClusterActorRefProvider"
        |    serializers {
-       |      zone-event = "com.dhpcs.liquidity.server.serialization.ZoneEventSerializer"
-       |      zone-validator-protocol = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
-       |      client-connection-protocol = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
+       |      zone-validator-record = "com.dhpcs.liquidity.server.serialization.ZoneValidatorRecordSerializer"
+       |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
+       |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
        |    }
        |    serialization-bindings {
-       |      "com.dhpcs.liquidity.persistence.ZoneEvent" = zone-event
-       |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-protocol
-       |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-protocol
-       |      "com.dhpcs.liquidity.proto.ws.protocol.ServerMessage" = proto
-       |      "com.dhpcs.liquidity.proto.ws.protocol.ClientMessage" = proto
+       |      "com.dhpcs.liquidity.persistence.ZoneValidatorRecord" = zone-validator-record
+       |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-message
+       |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-message
        |    }
        |    allow-java-serialization = off
        |  }

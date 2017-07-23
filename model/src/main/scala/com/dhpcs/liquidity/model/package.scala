@@ -30,20 +30,26 @@ package object model {
       byteString => PublicKey(okio.ByteString.of(byteString.asReadOnlyByteBuffer()))
     )
 
-  implicit final val BigDecimalProtoBinding: ProtoBinding[BigDecimal, Option[proto.model.BigDecimal]] =
+  implicit final val BigDecimalProtoBinding: ProtoBinding[BigDecimal, proto.model.BigDecimal] =
     ProtoBinding.instance(
       bigDecimal =>
-        Some(
-          proto.model.BigDecimal(
-            bigDecimal.scale,
-            com.google.protobuf.ByteString.copyFrom(bigDecimal.underlying().unscaledValue().toByteArray)
-          )), {
+        proto.model.BigDecimal(
+          bigDecimal.scale,
+          com.google.protobuf.ByteString.copyFrom(bigDecimal.underlying().unscaledValue().toByteArray)
+      ),
+      bigDecimal =>
+        BigDecimal(
+          BigInt(bigDecimal.value.toByteArray),
+          bigDecimal.scale
+      )
+    )
+
+  implicit final val BigDecimalOptProtoBinding: ProtoBinding[BigDecimal, Option[proto.model.BigDecimal]] =
+    ProtoBinding.instance(
+      bigDecimal => Some(ProtoBinding[BigDecimal, proto.model.BigDecimal].asProto(bigDecimal)), {
         case None => BigDecimal(0)
         case Some(bigDecimal) =>
-          BigDecimal(
-            BigInt(bigDecimal.value.toByteArray),
-            bigDecimal.scale
-          )
+          ProtoBinding[BigDecimal, proto.model.BigDecimal].asScala(bigDecimal)
       }
     )
 
@@ -61,5 +67,12 @@ package object model {
       entityIdExtractor: EntityIdExtractor[SV, SK]): ProtoBinding[Map[SK, SV], Seq[P]] =
     ProtoBinding.instance(_.values.map(protoConverter.asProto).toSeq,
                           _.map(protoConverter.asScala).map(s => entityIdExtractor.extractId(s) -> s).toMap)
+
+  implicit def mapProtoBinding[SK, SV, PK, PV](implicit kBinding: ProtoBinding[SK, PK],
+                                               vBinding: ProtoBinding[SV, PV]): ProtoBinding[Map[SK, SV], Map[PK, PV]] =
+    ProtoBinding.instance(
+      _.map { case (sk, sv) => (kBinding.asProto(sk), vBinding.asProto(sv)) },
+      _.map { case (pk, pv) => (kBinding.asScala(pk), vBinding.asScala(pv)) }
+    )
 
 }

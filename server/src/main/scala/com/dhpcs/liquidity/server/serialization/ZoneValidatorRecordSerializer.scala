@@ -9,10 +9,11 @@ import com.dhpcs.liquidity.serialization.ProtoBindingBackedSerializer.AnyRefProt
 
 import scala.collection.immutable.Seq
 
-class ZoneEventSerializer(system: ExtendedActorSystem)
+class ZoneValidatorRecordSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(
+        AnyRefProtoBinding[ZoneState, proto.persistence.ZoneState],
         AnyRefProtoBinding[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent],
         AnyRefProtoBinding[ZoneJoinedEvent, proto.persistence.ZoneJoinedEvent],
         AnyRefProtoBinding[ZoneQuitEvent, proto.persistence.ZoneQuitEvent],

@@ -3,7 +3,15 @@ package com.dhpcs.liquidity.persistence
 import akka.actor.ActorPath
 import com.dhpcs.liquidity.model._
 
-sealed abstract class ZoneEvent extends Serializable {
+sealed abstract class ZoneValidatorRecord extends Serializable
+
+final case class ZoneState(zone: Option[Zone],
+                           balances: Map[AccountId, BigDecimal],
+                           clientConnections: Map[ActorPath, PublicKey])
+    extends ZoneValidatorRecord
+
+// TODO: Create and migrate to envelope
+sealed abstract class ZoneEvent extends ZoneValidatorRecord {
   def timestamp: Long
 }
 

@@ -8,6 +8,12 @@ import "google/protobuf/wrappers.proto";
 
 import "dhpcs/liquidity/model.proto";
 
+message ZoneState {
+    dhpcs.liquidity.model.Zone zone = 1;
+    map<int64, dhpcs.liquidity.model.BigDecimal> balances = 2;
+    map<string, bytes> client_connections = 3;
+}
+
 message ZoneCreatedEvent {
     int64 timestamp = 1;
     dhpcs.liquidity.model.Zone zone = 2;

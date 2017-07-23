@@ -10,7 +10,7 @@ import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc.JsonRpcResponseSuccessMessage
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
+import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import org.scalatest.OptionValues._
@@ -18,7 +18,7 @@ import org.scalatest.{Outcome, fixture}
 
 import scala.concurrent.duration._
 
-class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures {
+class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures {
 
   private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
   private[this] val ip        = RemoteAddress(InetAddress.getLoopbackAddress)

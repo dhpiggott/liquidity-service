@@ -51,8 +51,6 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
   val zoneHostNode: RoleName    = role("zone-host")
   val clientRelayNode: RoleName = role("client-relay")
 
-  private val clusterHttpManagementPort = freePort()
-
   commonConfig(ConfigFactory.parseString(s"""
        |akka {
        |  actor {
@@ -69,23 +67,22 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    }
        |    allow-java-serialization = off
        |  }
-       |  cluster {
-       |    http.management.port = $clusterHttpManagementPort
-       |    metrics.enabled = off
-       |  }
+       |  cluster.metrics.enabled = off
        |  extensions += "akka.persistence.Persistence"
-       |  persistence.journal {
-       |    auto-start-journals = ["cassandra-journal"]
-       |    plugin = "cassandra-journal"
+       |  persistence {
+       |    journal {
+       |      auto-start-journals = ["cassandra-journal"]
+       |      plugin = "cassandra-journal"
+       |    }
+       |    snapshot-store {
+       |      auto-start-journals = ["cassandra-snapshot-store"]
+       |      plugin = "cassandra-snapshot-store"
+       |    }
        |  }
        |  http.server {
        |    remote-address-header = on
        |    parsing.tls-session-info-header = on
        |  }
-       |}
-       |cassandra-journal {
-       |  contact-points = ["localhost"]
-       |  keyspace = "liquidity_server_v3"
        |}
        |liquidity {
        |  server {
@@ -296,7 +293,7 @@ sealed abstract class LiquidityServerSpec
           ),
           correlationId
         )
-        val zone = inside(expectProtobufZoneResponse(sub, correlationId)) {
+        inside(expectProtobufZoneResponse(sub, correlationId)) {
           case CreateZoneResponse(Validated.Valid(zone)) =>
             assert(zone.equityAccountId === AccountId(0))
             assert(
@@ -310,16 +307,15 @@ sealed abstract class LiquidityServerSpec
             assert(zone.transactions === Map.empty)
             assert(zone.name === Some("Dave's Game"))
             assert(zone.metadata === None)
-            zone
-        }
-        sendProtobufZoneCommand(pub)(
-          zone.id,
-          JoinZoneCommand,
-          correlationId
-        )
-        inside(expectProtobufZoneResponse(sub, correlationId)) {
-          case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
-            assert(zoneAndConnectedClients === ((zone, Set(PublicKey(rsaPublicKey.getEncoded)))))
+            sendProtobufZoneCommand(pub)(
+              zone.id,
+              JoinZoneCommand,
+              correlationId
+            )
+            inside(expectProtobufZoneResponse(sub, correlationId)) {
+              case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
+                assert(zoneAndConnectedClients === ((zone, Set(PublicKey(rsaPublicKey.getEncoded)))))
+            }
         }; ()
       }
     }
@@ -393,9 +389,8 @@ sealed abstract class LiquidityServerSpec
           ),
           correlationId
         )
-        val zone = inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
-          case createZoneResponse: LegacyWsProtocol.CreateZoneResponse =>
-            val zone = createZoneResponse.zone
+        inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
+          case LegacyWsProtocol.CreateZoneResponse(zone) =>
             assert(zone.equityAccountId === AccountId(0))
             assert(
               zone.members(MemberId(0)) === Member(MemberId(0),
@@ -408,16 +403,16 @@ sealed abstract class LiquidityServerSpec
             assert(zone.transactions === Map.empty)
             assert(zone.name === Some("Dave's Game"))
             assert(zone.metadata === None)
-            zone
-        }
-        sendJsonRpcCommand(pub)(
-          LegacyWsProtocol.JoinZoneCommand(zone.id),
-          correlationId
-        )
-        inside(expectJsonRpcResponse(sub, correlationId, "joinZone")) {
-          case joinZoneResponse: LegacyWsProtocol.JoinZoneResponse =>
-            assert(joinZoneResponse.zone === zone)
-            assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
+
+            sendJsonRpcCommand(pub)(
+              LegacyWsProtocol.JoinZoneCommand(zone.id),
+              correlationId
+            )
+            inside(expectJsonRpcResponse(sub, correlationId, "joinZone")) {
+              case joinZoneResponse: LegacyWsProtocol.JoinZoneResponse =>
+                assert(joinZoneResponse.zone === zone)
+                assert(joinZoneResponse.connectedClients === Set(PublicKey(rsaPublicKey.getEncoded)))
+            }
         }; ()
       }
     }

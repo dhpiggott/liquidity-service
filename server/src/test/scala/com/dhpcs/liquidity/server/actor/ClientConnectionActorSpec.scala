@@ -10,13 +10,13 @@ import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
-import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
+import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.{Inside, Outcome, fixture}
 
 import scala.concurrent.duration._
 
-class ClientConnectionActorSpec extends fixture.FreeSpec with InMemPersistenceTestFixtures with Inside {
+class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures with Inside {
 
   private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
   private[this] val ip        = RemoteAddress(InetAddress.getLoopbackAddress)

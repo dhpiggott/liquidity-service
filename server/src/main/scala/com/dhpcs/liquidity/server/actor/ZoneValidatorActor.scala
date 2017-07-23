@@ -744,9 +744,8 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                                   notification: Option[ZoneNotification] = None): Unit =
     persist(event) { event =>
       state = update(state, event)
-      // TODO: Configure snapshot store for all plugin types first
-//      if (lastSequenceNr % SnapShotInterval == 0 && lastSequenceNr != 0)
-//        saveSnapshot(state)
+      if (lastSequenceNr % SnapShotInterval == 0 && lastSequenceNr != 0)
+        saveSnapshot(state)
       deliverResponse(response, correlationId)
       notification.foreach(deliverNotification)
       self ! PublishStatus

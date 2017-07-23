@@ -8,7 +8,7 @@ if [ $# -eq 0 ]
     exit 1
 fi
 
-for keyspace in "liquidity_server_v3"
+for keyspace in "liquidity_journal"
 do
     docker run --rm \
         --volume $1/$keyspace.schema.cql:/mnt/import \

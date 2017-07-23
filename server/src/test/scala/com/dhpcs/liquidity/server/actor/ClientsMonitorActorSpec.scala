@@ -1,11 +1,11 @@
 package com.dhpcs.liquidity.server.actor
 
 import akka.testkit.TestProbe
-import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
+import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.{ActiveClientsSummary, GetActiveClientsSummary}
 import org.scalatest.FreeSpec
 
-class ClientsMonitorActorSpec extends FreeSpec with InMemPersistenceTestFixtures {
+class ClientsMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures {
 
   "A ClientsMonitorActor" - {
     "will provide a summary of the active clients" in {

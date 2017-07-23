@@ -5,11 +5,10 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
+trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
   private[this] val akkaRemotingPort = freePort()
-
-  private[this] val config = ConfigFactory.parseString(s"""
+  private[this] val config           = ConfigFactory.parseString(s"""
        |akka {
        |  loglevel = "WARNING"
        |  actor {
@@ -37,9 +36,15 @@ trait InMemPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |    jmx.multi-mbeans-in-same-jvm = on
        |  }
        |  extensions += "akka.persistence.Persistence"
-       |  persistence.journal {
-       |    auto-start-journals = ["akka.persistence.journal.inmem"]
-       |    plugin = "akka.persistence.journal.inmem"
+       |  persistence {
+       |    journal {
+       |      auto-start-journals = ["inmemory-journal"]
+       |      plugin = "inmemory-journal"
+       |    }
+       |    snapshot-store {
+       |      auto-start-journals = ["inmemory-snapshot-store"]
+       |      plugin = "inmemory-snapshot-store"
+       |    }
        |  }
        |}
      """.stripMargin).resolve()

@@ -153,9 +153,10 @@ lazy val server = project
   .dependsOn(model % "test->test")
   .dependsOn(certgen % "test")
   .settings(libraryDependencies ++= Seq(
-    "org.scalatest"     %% "scalatest"           % "3.0.3"  % Test,
-    "com.typesafe.akka" %% "akka-http-testkit"   % "10.0.9" % Test,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.3"  % Test
+    "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
+    "org.scalatest"       %% "scalatest"                 % "3.0.3"   % Test,
+    "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.9"  % Test,
+    "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.3"   % Test
   ))
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)

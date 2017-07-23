@@ -1,13 +1,13 @@
 package com.dhpcs.liquidity.server.actor
 
 import akka.testkit.TestProbe
-import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
+import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.{GetZoneCount, ZoneCount}
 import org.scalatest.FreeSpec
 
 import scala.concurrent.Future
 
-class ZonesMonitorActorSpec extends FreeSpec with InMemPersistenceTestFixtures {
+class ZonesMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures {
 
   "A ZonesMonitorActor" - {
     "will provide a count of the number of zones" in {

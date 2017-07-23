@@ -8,11 +8,11 @@ import akka.testkit.TestProbe
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.InMemPersistenceTestFixtures
+import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{FreeSpec, Inside}
 
-class ZoneValidatorActorSpec extends FreeSpec with InMemPersistenceTestFixtures with Inside {
+class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures with Inside {
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
     typeName = ZoneValidatorActor.ShardTypeName,

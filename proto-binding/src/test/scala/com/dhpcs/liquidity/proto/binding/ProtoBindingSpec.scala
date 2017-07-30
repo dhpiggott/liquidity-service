@@ -28,10 +28,10 @@ object ProtoBindingSpec {
 class ProtoBindingSpec extends FreeSpec {
 
   implicit final val IdWrapperProtoBinding: ProtoBinding[IdWrapper, Long] =
-    ProtoBinding.instance(_.id, IdWrapper)
+    ProtoBinding.instance(_.id, (id, _) => IdWrapper(id))
 
   implicit final val InstantProtoBinding: ProtoBinding[Instant, Long] =
-    ProtoBinding.instance(_.toEpochMilli, Instant.ofEpochMilli)
+    ProtoBinding.instance(_.toEpochMilli, (epochMilli, _) => Instant.ofEpochMilli(epochMilli))
 
   "A ScalaProduct" - {
     val product = ScalaProduct(
@@ -48,7 +48,8 @@ class ProtoBindingSpec extends FreeSpec {
       ProtoBinding[ScalaProduct, ProtoProduct].asProto(product) === productProto
     )
     s"will convert from $product" in assert(
-      ProtoBinding[ScalaProduct, ProtoProduct].asScala(productProto) === product
+      // TODO: No!
+      ProtoBinding[ScalaProduct, ProtoProduct].asScala(productProto)(null) === product
     )
   }
 
@@ -60,7 +61,8 @@ class ProtoBindingSpec extends FreeSpec {
       ProtoBinding[ScalaCoproduct, ProtoCoproduct].asProto(coproductInstance1) === coproductInstance1Proto
     )
     s"will convert from $coproductInstance1" in assert(
-      ProtoBinding[ScalaCoproduct, ProtoCoproduct].asScala(coproductInstance1Proto) === coproductInstance1
+      // TODO: No!
+      ProtoBinding[ScalaCoproduct, ProtoCoproduct].asScala(coproductInstance1Proto)(null) === coproductInstance1
     )
   }
 
@@ -71,7 +73,8 @@ class ProtoBindingSpec extends FreeSpec {
       ProtoBinding[ScalaCoproduct, ProtoCoproduct].asProto(coproductInstance2) === coproductInstance2Proto
     )
     s"will convert from $coproductInstance2" in assert(
-      ProtoBinding[ScalaCoproduct, ProtoCoproduct].asScala(coproductInstance2Proto) === coproductInstance2
+      // TODO: No!
+      ProtoBinding[ScalaCoproduct, ProtoCoproduct].asScala(coproductInstance2Proto)(null) === coproductInstance2
     )
   }
 }

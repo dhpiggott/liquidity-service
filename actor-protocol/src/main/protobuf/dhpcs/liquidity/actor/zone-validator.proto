@@ -227,12 +227,3 @@ message ZoneNotificationEnvelope {
     int64 sequence_number = 3;
     int64 delivery_id = 4;
 }
-
-message ActiveZoneSummary {
-    string zone_id = 1;
-    google.protobuf.Struct metadata = 2;
-    repeated dhpcs.liquidity.model.Member members = 3;
-    repeated dhpcs.liquidity.model.Account accounts = 4;
-    repeated dhpcs.liquidity.model.Transaction transactions = 5;
-    repeated bytes client_connections = 6;
-}

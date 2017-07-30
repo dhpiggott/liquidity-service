@@ -92,11 +92,3 @@ final case class ZoneNotificationEnvelope(zoneId: ZoneId,
                                           sequenceNumber: Long,
                                           deliveryId: Long)
     extends ZoneValidatorMessage
-
-final case class ActiveZoneSummary(zoneId: ZoneId,
-                                   metadata: Option[com.google.protobuf.struct.Struct],
-                                   members: Set[Member],
-                                   accounts: Set[Account],
-                                   transactions: Set[Transaction],
-                                   clientConnections: Set[PublicKey])
-    extends ZoneValidatorMessage

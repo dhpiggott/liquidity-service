@@ -91,8 +91,6 @@ object LegacyClientConnectionActor {
     )
   }
 
-  final val Topic = "Client"
-
   final case class WrappedCommand(jsonRpcRequestMessage: JsonRpcRequestMessage)
 
   sealed abstract class WrappedResponseOrNotification
@@ -316,8 +314,8 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   private[this] def publishStatus: Receive = {
     case PublishStatus =>
       mediator ! Publish(
-        Topic,
-        ActiveClientSummary(publicKey)
+        ClientStatusTopic,
+        UpsertActiveClientSummary(self, ActiveClientSummary(publicKey))
       )
   }
 

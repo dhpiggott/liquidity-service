@@ -344,7 +344,8 @@ class ServerConnection(filesDir: File,
                         throw new IllegalStateException("Empty or unsupported response")
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
                         val zoneResponse = ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
-                          .asScala(protoZoneResponse.zoneResponse)
+                        // TODO: No!
+                          .asScala(protoZoneResponse.zoneResponse)(null)
                         mainHandlerWrapper.post(responseCallback.onZoneResponse(zoneResponse))
                     }
                 })
@@ -360,7 +361,8 @@ class ServerConnection(filesDir: File,
                   )) =>
                 val zoneNotification =
                   ProtoBinding[ZoneNotification, Option[proto.actor.protocol.ZoneNotification]]
-                    .asScala(protoZoneNotification)
+                  // TODO: No!
+                    .asScala(protoZoneNotification)(null)
                 activeState.subState match {
                   case _: ConnectingSubState =>
                     throw new IllegalStateException("Not connected")

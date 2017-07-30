@@ -7,7 +7,3 @@ option java_package = "com.dhpcs.liquidity.proto.actor.protocol";
 message MessageReceivedConfirmation {
     int64 delivery_id = 1;
 }
-
-message ActiveClientSummary {
-    bytes public_key = 1;
-}

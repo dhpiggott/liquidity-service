@@ -13,13 +13,11 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.{Flow, Source}
 import akka.{Done, NotUsed}
-import com.dhpcs.liquidity.actor.protocol.ActiveZoneSummary
+import com.dhpcs.liquidity.actor.protocol.{ActiveClientSummary, ActiveZoneSummary}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._
-import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.ActiveClientsSummary
-import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.ActiveZonesSummary
 import com.trueaccord.scalapb.GeneratedMessage
 import com.trueaccord.scalapb.json.JsonFormat
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
@@ -100,24 +98,22 @@ trait HttpController {
         complete(
           for {
             _ <- Future.successful(Done)
-            futureActiveClientsSummary = getActiveClientsSummary
-            futureActiveZonesSummary   = getActiveZonesSummary
-            activeClientsSummary <- futureActiveClientsSummary
-            activeZonesSummary   <- futureActiveZonesSummary
+            futureActiveClientSummaries = getActiveClientSummaries
+            futureActiveZoneSummaries   = getActiveZoneSummaries
+            activeClientSummaries <- futureActiveClientSummaries
+            activeZoneSummaries   <- futureActiveZoneSummaries
           } yield
             Json.obj(
               "clients" -> Json.obj(
-                "count" -> activeClientsSummary.activeClientSummaries.size,
-                "publicKeyFingerprints" -> activeClientsSummary.activeClientSummaries
-                  .map(_.publicKey.fingerprint)
-                  .sorted
+                "count"                 -> activeClientSummaries.size,
+                "publicKeyFingerprints" -> activeClientSummaries.map(_.publicKey.fingerprint).toSeq.sorted
               ),
               "zones" -> Json.obj(
-                "count" -> activeZonesSummary.activeZoneSummaries.size,
-                "zones" -> activeZonesSummary.activeZoneSummaries.toSeq
+                "count" -> activeZoneSummaries.size,
+                "zones" -> activeZoneSummaries.toSeq
                   .sortBy(_.zoneId.id)
                   .map {
-                    case ActiveZoneSummary(zoneId, metadata, members, accounts, transactions, clientConnections) =>
+                    case ActiveZoneSummary(zoneId, members, accounts, transactions, metadata, clientConnections) =>
                       Json.obj(
                         "zoneIdFingerprint" -> ByteString.encodeUtf8(zoneId.id.toString).sha256.hex,
                         "metadata"          -> metadata.map(JsonFormat.toJsonString).map(Json.parse),
@@ -172,9 +168,9 @@ trait HttpController {
 
   protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed]
 
-  protected[this] def getActiveClientsSummary: Future[ActiveClientsSummary]
+  protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]]
 
-  protected[this] def getActiveZonesSummary: Future[ActiveZonesSummary]
+  protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
 
   protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
 

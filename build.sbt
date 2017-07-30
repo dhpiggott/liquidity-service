@@ -15,8 +15,9 @@ lazy val protoBinding = project
   )
   .settings(
     libraryDependencies ++= Seq(
-      "com.chuusai"   %% "shapeless" % "2.3.2",
-      "org.typelevel" %% "cats"      % "0.9.0"
+      "com.chuusai"       %% "shapeless"  % "2.3.2",
+      "org.typelevel"     %% "cats"       % "0.9.0",
+      "com.typesafe.akka" %% "akka-actor" % "2.5.3"
     ))
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
@@ -28,10 +29,8 @@ lazy val model = project
   )
   .dependsOn(protoBinding)
   .settings(
-    libraryDependencies ++= Seq(
-      "com.squareup.okio" % "okio"        % "1.13.0",
-      "com.typesafe.akka" %% "akka-actor" % "2.5.3"
-    ))
+    libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0"
+  )
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val persistence = project
@@ -60,6 +59,7 @@ lazy val actorProtocol = project
   )
   .dependsOn(model)
   .dependsOn(protoBinding)
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.3")
 
 lazy val wsProtocol = project
   .in(file("ws-protocol"))

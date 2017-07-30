@@ -24,8 +24,6 @@ import com.dhpcs.liquidity.server.HttpController.GeneratedMessageEnvelope
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
-import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.ActiveClientsSummary
-import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.ActiveZonesSummary
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.scalatest._
@@ -95,11 +93,11 @@ class ServerConnectionSpec
       props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )
 
-  override protected[this] def getActiveClientsSummary: Future[ActiveClientsSummary] =
-    Future.successful(ActiveClientsSummary(Seq.empty))
+  override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
+    Future.successful(Set.empty)
 
-  override protected[this] def getActiveZonesSummary: Future[ActiveZonesSummary] =
-    Future.successful(ActiveZonesSummary(Set.empty))
+  override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
+    Future.successful(Set.empty)
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
 
@@ -281,7 +279,8 @@ class ServerConnectionSpec
             case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
               assert(
                 ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
-                  .asScala(protoCreateZoneCommand) === createZoneCommand
+                // TODO: No!
+                  .asScala(protoCreateZoneCommand)(null) === createZoneCommand
               )
           }
       }

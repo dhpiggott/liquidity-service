@@ -29,7 +29,8 @@ class PersistenceSpec extends FreeSpec {
     )
     s"will convert from $zoneCreatedEvent" in assert(
       ProtoBinding[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent]
-        .asScala(zoneCreatedEventProto) === zoneCreatedEvent
+      // TODO: No!
+        .asScala(zoneCreatedEventProto)(null) === zoneCreatedEvent
     )
   }
 }

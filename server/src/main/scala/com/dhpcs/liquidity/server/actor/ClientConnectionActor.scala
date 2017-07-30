@@ -195,7 +195,7 @@ class ClientConnectionActor(ip: RemoteAddress,
               case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
                 val createZoneCommand =
                   ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
-                    .asScala(protoCreateZoneCommand)
+                    .asScala(protoCreateZoneCommand)(context.system.asInstanceOf[ExtendedActorSystem])
                 handleZoneCommand(
                   zoneId = ZoneId.generate,
                   createZoneCommand,
@@ -207,7 +207,7 @@ class ClientConnectionActor(ip: RemoteAddress,
                   ) =>
                 val zoneCommand =
                   ProtoBinding[ZoneCommand, Option[proto.actor.protocol.ZoneCommand]]
-                    .asScala(protoZoneCommand)
+                    .asScala(protoZoneCommand)(context.system.asInstanceOf[ExtendedActorSystem])
                 zoneCommand match {
                   case _: CreateZoneCommand =>
                     log.warning(s"Stopping due to receipt of illegally enveloped CreateZoneCommand")
@@ -253,7 +253,7 @@ class ClientConnectionActor(ip: RemoteAddress,
       for (publicKey <- maybePublicKey)
         mediator ! Publish(
           ClientStatusTopic,
-          ActiveClientSummary(publicKey)
+          UpsertActiveClientSummary(self, ActiveClientSummary(publicKey))
         )
   }
 

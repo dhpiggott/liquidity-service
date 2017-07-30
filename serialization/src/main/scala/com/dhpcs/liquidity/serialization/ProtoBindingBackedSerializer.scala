@@ -27,7 +27,8 @@ object ProtoBindingBackedSerializer {
                                  val protoClassTag: ClassTag[P],
                                  protoBinding: ProtoBinding[S, P]) {
     def anyRefScalaAsAnyRefProto(s: AnyRef): AnyRef = protoBinding.asProto(s.asInstanceOf[S]).asInstanceOf[AnyRef]
-    def anyRefProtoAsAnyRefScala(p: AnyRef): AnyRef = protoBinding.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]
+    def anyRefProtoAsAnyRefScala(p: AnyRef)(implicit system: ExtendedActorSystem): AnyRef =
+      protoBinding.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]
   }
 }
 
@@ -85,6 +86,6 @@ abstract class ProtoBindingBackedSerializer(system: ExtendedActorSystem,
       .getOrElse(protoClass, throw new IllegalArgumentException(s"No ProtoBinding registered for [$protoClass]"))
       .anyRefProtoAsAnyRefScala(
         protobufSerializer.fromBinary(bytes, Some(protoClass))
-      )
+      )(system)
   }
 }

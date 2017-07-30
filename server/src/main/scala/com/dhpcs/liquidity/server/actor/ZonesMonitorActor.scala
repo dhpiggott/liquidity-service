@@ -1,54 +1,50 @@
 package com.dhpcs.liquidity.server.actor
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
+import akka.actor.ActorRef
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
+import akka.event.{Logging, LoggingAdapter}
+import akka.typed.scaladsl.Actor
+import akka.typed.scaladsl.adapter._
+import akka.typed.{Behavior, Terminated}
 import com.dhpcs.liquidity.actor.protocol._
-import com.dhpcs.liquidity.server.actor.ZonesMonitorActor._
 
 import scala.concurrent.duration._
 
-// TODO: Switch to akka-typed
 object ZonesMonitorActor {
 
-  def props: Props = Props(new ZonesMonitorActor)
+  private case object LogActiveZonesCountTimerKey
 
-  case object GetActiveZonesSummary
-  final case class ActiveZonesSummary(activeZoneSummaries: Set[ActiveZoneSummary])
-
-  private case object PublishStatus
-
-}
-
-class ZonesMonitorActor extends Actor with ActorLogging {
-
-  import context.dispatcher
-
-  private[this] val mediator = DistributedPubSub(context.system).mediator
-  mediator ! Subscribe(ZoneStatusTopic, self)
-
-  private[this] val publishStatusTick = context.system.scheduler.schedule(0.minutes, 5.minutes, self, PublishStatus)
-
-  private[this] var activeZoneSummaries = Map.empty[ActorRef, ActiveZoneSummary]
-
-  override def postStop(): Unit = {
-    publishStatusTick.cancel()
-    super.postStop()
+  def behaviour: Behavior[ZonesMonitorMessage] = Actor.deferred { context =>
+    val log      = Logging(context.system.toUntyped, context.self.toUntyped)
+    val mediator = DistributedPubSub(context.system.toUntyped).mediator
+    mediator ! Subscribe(ZoneStatusTopic, context.self.toUntyped)
+    Actor.withTimers { timers =>
+      timers.startPeriodicTimer(LogActiveZonesCountTimerKey, LogActiveZonesCount, 5.minutes)
+      withSummaries(log, Map.empty)
+    }
   }
 
-  override def receive: Receive = {
-    case PublishStatus =>
-      log.info(s"${activeZoneSummaries.size} zones are active")
+  private def withSummaries(log: LoggingAdapter,
+                            activeZoneSummaries: Map[ActorRef, ActiveZoneSummary]): Behavior[ZonesMonitorMessage] =
+    Actor.immutable[ZonesMonitorMessage] { (context, message) =>
+      message match {
+        case UpsertActiveZoneSummary(zoneValidatorActorRef, activeZoneSummary) =>
+          if (!activeZoneSummaries.contains(zoneValidatorActorRef))
+            context.watch(zoneValidatorActorRef)
+          withSummaries(log, activeZoneSummaries + (zoneValidatorActorRef -> activeZoneSummary))
 
-    case activeZoneSummary: ActiveZoneSummary =>
-      if (!activeZoneSummaries.contains(sender()))
-        context.watch(sender())
-      activeZoneSummaries = activeZoneSummaries + (sender() -> activeZoneSummary)
+        case LogActiveZonesCount =>
+          log.info(s"${activeZoneSummaries.size} zones are active")
+          Actor.same
 
-    case GetActiveZonesSummary =>
-      sender() ! ActiveZonesSummary(activeZoneSummaries.values.toSet)
+        case GetActiveZoneSummaries(replyTo) =>
+          replyTo ! activeZoneSummaries.values.toSet
+          Actor.same
+      }
+    } onSignal {
+      case (_, Terminated(ref)) =>
+        withSummaries(log, activeZoneSummaries - ref.toUntyped)
+    }
 
-    case Terminated(zoneValidator) =>
-      activeZoneSummaries = activeZoneSummaries - zoneValidator
-  }
 }

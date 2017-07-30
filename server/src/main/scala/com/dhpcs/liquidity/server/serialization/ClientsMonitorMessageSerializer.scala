@@ -2,17 +2,18 @@ package com.dhpcs.liquidity.server.serialization
 
 import akka.actor.ExtendedActorSystem
 import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoBindingBackedSerializer
 import com.dhpcs.liquidity.serialization.ProtoBindingBackedSerializer.AnyRefProtoBinding
 
 import scala.collection.immutable.Seq
 
-class ClientConnectionMessageSerializer(system: ExtendedActorSystem)
+class ClientsMonitorMessageSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(
-        AnyRefProtoBinding[MessageReceivedConfirmation, proto.actor.protocol.MessageReceivedConfirmation]
+        AnyRefProtoBinding[UpsertActiveClientSummary, proto.actor.protocol.UpsertActiveClientSummary]
       ),
-      identifier = 1909424086
+      identifier = 365517741
     )

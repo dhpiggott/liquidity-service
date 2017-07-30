@@ -114,8 +114,11 @@ object ZoneValidatorActor {
     def props: Props = Props(new PassivationCountdownActor)
 
     case object CommandReceivedEvent
+
     case object RequestPassivate
+
     case object Start
+
     case object Stop
 
     private final val PassivationTimeout = 2.minutes
@@ -161,6 +164,7 @@ object ZoneValidatorActor {
         Validated.invalidNel(ZoneResponse.Error(code = 0, description = s"Invalid owner ID: ${owner.id}."))
       else
         Validated.valid(owner)
+
     owners
       .map(validateOwner)
       .foldLeft(Validated.valid[NonEmptyList[ZoneResponse.Error], Set[MemberId]](Set.empty))(
@@ -327,13 +331,16 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         zone =>
           mediator ! Publish(
             ZoneStatusTopic,
-            ActiveZoneSummary(
-              id,
-              zone.metadata,
-              zone.members.values.toSet,
-              zone.accounts.values.toSet,
-              zone.transactions.values.toSet,
-              state.clientConnections.values.toSet
+            UpsertActiveZoneSummary(
+              self,
+              ActiveZoneSummary(
+                id,
+                zone.members.values.toSet,
+                zone.accounts.values.toSet,
+                zone.transactions.values.toSet,
+                zone.metadata,
+                state.clientConnections.values.toSet
+              )
             )
         ))
 

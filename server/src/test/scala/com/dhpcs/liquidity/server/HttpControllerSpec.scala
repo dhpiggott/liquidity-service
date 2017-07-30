@@ -11,11 +11,10 @@ import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.model.{ContentType, RemoteAddress, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.{Flow, Source}
+import com.dhpcs.liquidity.actor.protocol.{ActiveClientSummary, ActiveZoneSummary}
 import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
 import com.dhpcs.liquidity.proto.model.ZoneState
 import com.dhpcs.liquidity.server.HttpController.GeneratedMessageEnvelope
-import com.dhpcs.liquidity.server.actor.ClientsMonitorActor.ActiveClientsSummary
-import com.dhpcs.liquidity.server.actor.ZonesMonitorActor.ActiveZonesSummary
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.scalatest.{FreeSpec, Inside}
@@ -84,11 +83,11 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
 
   override protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed] = Flow[Message]
 
-  override protected[this] def getActiveClientsSummary: Future[ActiveClientsSummary] =
-    Future.successful(ActiveClientsSummary(Seq.empty))
+  override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
+    Future.successful(Set.empty)
 
-  override protected[this] def getActiveZonesSummary: Future[ActiveZonesSummary] =
-    Future.successful(ActiveZonesSummary(Set.empty))
+  override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
+    Future.successful(Set.empty)
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
 

@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package dhpcs.liquidity.actor.protocol;
+
+option java_package = "com.dhpcs.liquidity.proto.actor.protocol";
+
+import "google/protobuf/struct.proto";
+
+import "dhpcs/liquidity/model.proto";
+
+message ActiveZoneSummary {
+    string zone_id = 1;
+    repeated dhpcs.liquidity.model.Member members = 2;
+    repeated dhpcs.liquidity.model.Account accounts = 3;
+    repeated dhpcs.liquidity.model.Transaction transactions = 4;
+    google.protobuf.Struct metadata = 5;
+    repeated bytes client_connections = 6;
+}
+
+message UpsertActiveZoneSummary {
+    string zone_validator_actor_ref = 1;
+    ActiveZoneSummary active_zone_summary = 2;
+}

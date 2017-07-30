@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.proto.binding
 
+import akka.actor.ExtendedActorSystem
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import shapeless._
@@ -8,14 +9,15 @@ import scala.reflect.ClassTag
 
 object ProtoBinding extends LowPriorityImplicits {
 
-  def instance[S, P](apply: S => P, unapply: P => S): ProtoBinding[S, P] = new ProtoBinding[S, P] {
-    override def asProto(s: S): P = apply(s)
-    override def asScala(p: P): S = unapply(p)
-  }
+  def instance[S, P](apply: S => P, unapply: (P, ExtendedActorSystem) => S): ProtoBinding[S, P] =
+    new ProtoBinding[S, P] {
+      override def asProto(s: S): P                                       = apply(s)
+      override def asScala(p: P)(implicit system: ExtendedActorSystem): S = unapply(p, system)
+    }
 
   def apply[S, P](implicit protoBinding: ProtoBinding[S, P]): ProtoBinding[S, P] = protoBinding
 
-  implicit def identityProtoBinding[A]: ProtoBinding[A, A] = ProtoBinding.instance(identity, identity)
+  implicit def identityProtoBinding[A]: ProtoBinding[A, A] = ProtoBinding.instance(identity, (a, _) => a)
 
   implicit def nonEmptyListBinding[S, PV, PW](
       implicit pwGen: Lazy[Generic.Aux[PW, Seq[PV] :: HNil]],
@@ -23,7 +25,7 @@ object ProtoBinding extends LowPriorityImplicits {
   ): ProtoBinding[NonEmptyList[S], PW] = new ProtoBinding[NonEmptyList[S], PW] {
     override def asProto(nonEmptyList: NonEmptyList[S]): PW =
       pwGen.value.from(nonEmptyList.toList.map(vBinding.value.asProto) :: HNil)
-    override def asScala(p: PW): NonEmptyList[S] =
+    override def asScala(p: PW)(implicit system: ExtendedActorSystem): NonEmptyList[S] =
       NonEmptyList.fromListUnsafe(pwGen.value.to(p).head.toList.map(vBinding.value.asScala))
   }
 
@@ -36,7 +38,7 @@ object ProtoBinding extends LowPriorityImplicits {
       case Invalid(e) => pwGen.value.from(Inr(Inl(eBinding.value.asProto(e))))
       case Valid(a)   => pwGen.value.from(Inr(Inr(Inl(aBinding.value.asProto(a)))))
     }
-    override def asScala(p: PW): ValidatedNel[SE, SA] = pwGen.value.to(p) match {
+    override def asScala(p: PW)(implicit system: ExtendedActorSystem): ValidatedNel[SE, SA] = pwGen.value.to(p) match {
       case Inl(_)            => throw new IllegalArgumentException("Empty or unsupported result")
       case Inr(Inl(errors))  => Validated.invalid(eBinding.value.asScala(errors))
       case Inr(Inr(Inl(pv))) => Validated.valid(aBinding.value.asScala(pv))
@@ -47,7 +49,7 @@ object ProtoBinding extends LowPriorityImplicits {
 
 trait ProtoBinding[S, P] {
   def asProto(s: S): P
-  def asScala(p: P): S
+  def asScala(p: P)(implicit system: ExtendedActorSystem): S
 }
 
 sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
@@ -62,7 +64,7 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
       val repr = genericBinding.value.asProto(gen)
       pGen.from(repr)
     }
-    override def asScala(p: P): S = {
+    override def asScala(p: P)(implicit system: ExtendedActorSystem): S = {
       val gen  = pGen.to(p)
       val repr = genericBinding.value.asScala(gen)
       sGen.from(repr)
@@ -75,7 +77,7 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
   ): ProtoBinding[S, Option[P]] = new ProtoBinding[S, Option[P]] {
     override def asProto(s: S): Option[P] =
       Some(protoBinding.asProto(s))
-    override def asScala(maybeP: Option[P]): S =
+    override def asScala(maybeP: Option[P])(implicit system: ExtendedActorSystem): S =
       protoBinding.asScala(
         maybeP.getOrElse(throw new IllegalArgumentException(s"Empty ${protoClassTag.runtimeClass.getName}"))
       )
@@ -90,7 +92,7 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
       val tail = tBinding.value.asProto(s.tail)
       head :: tail
     }
-    override def asScala(p: PH :: PTRepr): SH :: STRepr = {
+    override def asScala(p: PH :: PTRepr)(implicit system: ExtendedActorSystem): SH :: STRepr = {
       val head = hBinding.value.asScala(p.head)
       val tail = tBinding.value.asScala(p.tail)
       head :: tail
@@ -105,7 +107,7 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
       case Inl(head) => Inl(lBinding.value.asProto(head))
       case Inr(tail) => Inr(rBinding.value.asProto(tail))
     }
-    override def asScala(p: PL :+: PRRepr): SL :+: SRRepr = p match {
+    override def asScala(p: PL :+: PRRepr)(implicit system: ExtendedActorSystem): SL :+: SRRepr = p match {
       case Inl(head) => Inl(lBinding.value.asScala(head))
       case Inr(tail) => Inr(rBinding.value.asScala(tail))
     }
@@ -117,6 +119,7 @@ sealed abstract class LowerPriorityImplicits {
                                                    vBinding: Lazy[ProtoBinding[S, PV]]): ProtoBinding[S, PW] =
     new ProtoBinding[S, PW] {
       override def asProto(s: S): PW = pwGen.value.from(vBinding.value.asProto(s) :: HNil)
-      override def asScala(p: PW): S = vBinding.value.asScala(pwGen.value.to(p).head)
+      override def asScala(p: PW)(implicit system: ExtendedActorSystem): S =
+        vBinding.value.asScala(pwGen.value.to(p).head)
     }
 }

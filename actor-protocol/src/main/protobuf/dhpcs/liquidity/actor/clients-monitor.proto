@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package dhpcs.liquidity.actor.protocol;
+
+option java_package = "com.dhpcs.liquidity.proto.actor.protocol";
+
+message ActiveClientSummary {
+    bytes public_key = 1;
+}
+
+message UpsertActiveClientSummary {
+    string client_connection_actor_ref = 1;
+    ActiveClientSummary active_client_summary = 2;
+}

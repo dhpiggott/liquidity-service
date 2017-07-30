@@ -55,12 +55,16 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    serializers {
        |      zone-validator-record = "com.dhpcs.liquidity.server.serialization.ZoneValidatorRecordSerializer"
        |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
+       |      zones-monitor-message = "com.dhpcs.liquidity.server.serialization.ZonesMonitorMessageSerializer"
        |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
+       |      clients-monitor-message = "com.dhpcs.liquidity.server.serialization.ClientsMonitorMessageSerializer"
        |    }
        |    serialization-bindings {
        |      "com.dhpcs.liquidity.persistence.ZoneValidatorRecord" = zone-validator-record
        |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-message
+       |      "com.dhpcs.liquidity.actor.protocol.ZonesMonitorMessage" = zones-monitor-message
        |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-message
+       |      "com.dhpcs.liquidity.actor.protocol.ClientsMonitorMessage" = clients-monitor-message
        |    }
        |    allow-java-serialization = off
        |  }
@@ -535,7 +539,8 @@ sealed abstract class LiquidityServerSpec
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
             ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
-              .asScala(protoZoneResponse.zoneResponse)
+              // TODO: No!
+              .asScala(protoZoneResponse.zoneResponse)(null)
         }
     }
 

@@ -4,7 +4,7 @@ import java.security.KeyStore
 import java.security.cert.X509Certificate
 import javax.net.ssl._
 
-import akka.actor.{ActorPath, ActorSystem, CoordinatedShutdown, PoisonPill}
+import akka.actor.{ActorPath, ActorSystem, CoordinatedShutdown, PoisonPill, Scheduler}
 import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
@@ -17,6 +17,10 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
+import akka.typed.SupervisorStrategy
+import akka.typed.scaladsl.Actor
+import akka.typed.scaladsl.AskPattern._
+import akka.typed.scaladsl.adapter._
 import akka.util.Timeout
 import akka.{Done, NotUsed}
 import com.dhpcs.liquidity.actor.protocol._
@@ -25,8 +29,6 @@ import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
-import com.dhpcs.liquidity.server.actor.ClientsMonitorActor._
-import com.dhpcs.liquidity.server.actor.ZonesMonitorActor._
 import com.dhpcs.liquidity.server.actor._
 import com.typesafe.config.ConfigFactory
 
@@ -91,8 +93,9 @@ class LiquidityServer(pingInterval: FiniteDuration,
   private[this] val readJournal =
     PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
 
-  private[this] implicit val askTimeout: Timeout = Timeout(5.seconds)
-  private[this] implicit val ec                  = system.dispatcher
+  private[this] implicit val askTimeout: Timeout  = Timeout(5.seconds)
+  private[this] implicit val scheduler: Scheduler = system.scheduler
+  private[this] implicit val ec                   = system.dispatcher
 
   private[this] val zoneValidatorShardRegion =
     if (Cluster(system).selfRoles.contains(ZoneHostRole))
@@ -111,8 +114,12 @@ class LiquidityServer(pingInterval: FiniteDuration,
         extractShardId = ZoneValidatorActor.extractShardId
       )
 
-  private[this] val clientsMonitorActor = system.actorOf(ClientsMonitorActor.props, "clients-monitor")
-  private[this] val zonesMonitorActor   = system.actorOf(ZonesMonitorActor.props, "zones-monitor")
+  private[this] val clientsMonitorActor = system.spawn(
+    Actor.supervise(ClientsMonitorActor.behaviour).onFailure[Exception](SupervisorStrategy.restart),
+    "clients-monitor")
+  private[this] val zonesMonitorActor = system.spawn(
+    Actor.supervise(ZonesMonitorActor.behaviour).onFailure[Exception](SupervisorStrategy.restart),
+    "zones-monitor")
 
   private[this] val futureAnalyticsStore =
     readJournal.session.underlying().flatMap(CassandraAnalyticsStore(analyticsKeyspace)(_, ec))
@@ -232,11 +239,11 @@ class LiquidityServer(pingInterval: FiniteDuration,
       props = ClientConnectionActor.props(ip, zoneValidatorShardRegion, pingInterval)
     )
 
-  override protected[this] def getActiveClientsSummary: Future[ActiveClientsSummary] =
-    (clientsMonitorActor ? GetActiveClientsSummary).mapTo[ActiveClientsSummary]
+  override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
+    clientsMonitorActor ? GetActiveClientSummaries
 
-  override protected[this] def getActiveZonesSummary: Future[ActiveZonesSummary] =
-    (zonesMonitorActor ? GetActiveZonesSummary).mapTo[ActiveZonesSummary]
+  override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
+    zonesMonitorActor ? GetActiveZoneSummaries
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
     futureAnalyticsStore.flatMap(_.zoneStore.retrieveOpt(zoneId))

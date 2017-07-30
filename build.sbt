@@ -151,7 +151,7 @@ lazy val server = project
       "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
       "com.typesafe.akka"      %% "akka-http"                    % "10.0.9",
-      "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.1",
+      "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.2",
       "com.typesafe.play"      %% "play-json"                    % "2.6.2",
       "de.heikoseeberger"      %% "akka-http-play-json"          % "1.17.0"
     )

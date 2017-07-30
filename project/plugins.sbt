@@ -1,6 +1,6 @@
 libraryDependencies += "com.geirsson" %% "scalafmt-bootstrap" % "0.6.6"
 
-libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.0"
+libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.1"
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.9")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-multi-jvm"       % "0.3.11")

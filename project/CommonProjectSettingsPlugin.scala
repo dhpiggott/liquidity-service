@@ -6,8 +6,8 @@ import scoverage.ScoverageKeys._
 object CommonProjectSettingsPlugin extends AutoPlugin {
 
   private lazy val scalaSettings = Seq(
-    scalaVersion := "2.12.2",
-    crossScalaVersions := Seq("2.11.11", "2.12.2"),
+    scalaVersion := "2.12.3",
+    crossScalaVersions := Seq("2.11.11", "2.12.3"),
     // See https://tpolecat.github.io/2017/04/25/scalac-flags.html for explanations. 2.11 doesn't support all of these,
     // so we simply don't set any of them when building for 2.11. The 2.12 build will pick up any issues anyway.
     scalacOptions in Compile ++= (CrossVersion.binaryScalaVersion(scalaVersion.value) match {

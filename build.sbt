@@ -166,6 +166,7 @@ lazy val server = project
   ))
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)
+  .settings(inConfig(MultiJvm)(scalafmtSettings))
   .dependsOn(certgen % MultiJvm)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.3" % MultiJvm,

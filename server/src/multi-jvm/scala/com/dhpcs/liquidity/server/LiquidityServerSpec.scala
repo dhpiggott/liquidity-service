@@ -539,7 +539,7 @@ sealed abstract class LiquidityServerSpec
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
             ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
-              // TODO: No!
+            // TODO: No!
               .asScala(protoZoneResponse.zoneResponse)(null)
         }
     }

@@ -103,11 +103,10 @@ class ModelSpec extends FreeSpec {
 
   "A Zone" - {
     s"will convert to $zoneProto" in assert(
-      ProtoBinding[Zone, proto.model.Zone].asProto(zone) === zoneProto
+      ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone) === zoneProto
     )
     s"will convert from $zone" in assert(
-      // TODO: No!
-      ProtoBinding[Zone, proto.model.Zone].asScala(zoneProto)(null) === zone
+      ProtoBinding[Zone, proto.model.Zone, Any].asScala(zoneProto)(()) === zone
     )
   }
 }

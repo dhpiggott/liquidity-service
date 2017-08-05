@@ -186,7 +186,7 @@ class ServerConnection(filesDir: File,
         proto.ws.protocol.ServerMessage.Command(
           correlationId,
           proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-            ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+            ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand, Any]
               .asProto(createZoneCommand)
           )
       ),
@@ -201,7 +201,7 @@ class ServerConnection(filesDir: File,
           proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
             proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
               zoneId.id.toString,
-              Some(ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand]
+              Some(ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand, Any]
                 .asProto(zoneCommand))
             ))
       ),
@@ -343,9 +343,9 @@ class ServerConnection(filesDir: File,
                       case proto.ws.protocol.ClientMessage.Response.Response.Empty =>
                         throw new IllegalStateException("Empty or unsupported response")
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-                        val zoneResponse = ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
-                        // TODO: No!
-                          .asScala(protoZoneResponse.zoneResponse)(null)
+                        val zoneResponse =
+                          ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse, Any]
+                            .asScala(protoZoneResponse.zoneResponse)(())
                         mainHandlerWrapper.post(responseCallback.onZoneResponse(zoneResponse))
                     }
                 })
@@ -360,9 +360,8 @@ class ServerConnection(filesDir: File,
                     protoZoneNotification
                   )) =>
                 val zoneNotification =
-                  ProtoBinding[ZoneNotification, Option[proto.actor.protocol.ZoneNotification]]
-                  // TODO: No!
-                    .asScala(protoZoneNotification)(null)
+                  ProtoBinding[ZoneNotification, Option[proto.actor.protocol.ZoneNotification], Any]
+                    .asScala(protoZoneNotification)(())
                 activeState.subState match {
                   case _: ConnectingSubState =>
                     throw new IllegalStateException("Not connected")

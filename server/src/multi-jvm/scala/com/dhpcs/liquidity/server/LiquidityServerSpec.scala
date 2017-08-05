@@ -504,7 +504,7 @@ sealed abstract class LiquidityServerSpec
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-          ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+          ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand, Any]
             .asProto(createZoneCommand)
         )
       )))
@@ -520,7 +520,7 @@ sealed abstract class LiquidityServerSpec
           proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
             zoneId.id.toString,
             Some(
-              ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand].asProto(zoneCommand)
+              ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand, Any].asProto(zoneCommand)
             )))
       )))
 
@@ -538,9 +538,8 @@ sealed abstract class LiquidityServerSpec
         assert(protoResponse.correlationId == expectedCorrelationId)
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
-            // TODO: No!
-              .asScala(protoZoneResponse.zoneResponse)(null)
+            ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse, Any]
+              .asScala(protoZoneResponse.zoneResponse)(())
         }
     }
 

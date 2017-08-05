@@ -194,8 +194,8 @@ class ClientConnectionActor(ip: RemoteAddress,
               case proto.ws.protocol.ServerMessage.Command.Command.Empty =>
               case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
                 val createZoneCommand =
-                  ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
-                    .asScala(protoCreateZoneCommand)(context.system.asInstanceOf[ExtendedActorSystem])
+                  ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand, Any]
+                    .asScala(protoCreateZoneCommand)(())
                 handleZoneCommand(
                   zoneId = ZoneId.generate,
                   createZoneCommand,
@@ -206,8 +206,8 @@ class ClientConnectionActor(ip: RemoteAddress,
                   proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(zoneId, protoZoneCommand)
                   ) =>
                 val zoneCommand =
-                  ProtoBinding[ZoneCommand, Option[proto.actor.protocol.ZoneCommand]]
-                    .asScala(protoZoneCommand)(context.system.asInstanceOf[ExtendedActorSystem])
+                  ProtoBinding[ZoneCommand, Option[proto.actor.protocol.ZoneCommand], Any]
+                    .asScala(protoZoneCommand)(())
                 zoneCommand match {
                   case _: CreateZoneCommand =>
                     log.warning(s"Stopping due to receipt of illegally enveloped CreateZoneCommand")
@@ -310,7 +310,7 @@ class ClientConnectionActor(ip: RemoteAddress,
       proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
         correlationId,
         proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
-          ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse].asProto(zoneResponse)
+          ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse, Any].asProto(zoneResponse)
         )
       )))
 
@@ -322,7 +322,7 @@ class ClientConnectionActor(ip: RemoteAddress,
             .ZoneNotificationEnvelope(
               proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(
                 zoneId.id.toString,
-                Some(ProtoBinding[ZoneNotification, proto.actor.protocol.ZoneNotification]
+                Some(ProtoBinding[ZoneNotification, proto.actor.protocol.ZoneNotification, Any]
                   .asProto(zoneNotification))
               ))
         )))

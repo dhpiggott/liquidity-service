@@ -278,9 +278,8 @@ class ServerConnectionSpec
           inside(protoCommand.command) {
             case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
               assert(
-                ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
-                // TODO: No!
-                  .asScala(protoCreateZoneCommand)(null) === createZoneCommand
+                ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand, Any]
+                  .asScala(protoCreateZoneCommand)(()) === createZoneCommand
               )
           }
       }
@@ -291,7 +290,7 @@ class ServerConnectionSpec
             proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
               correlationId = 0L,
               proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.actor.protocol.ZoneResponse(
-                ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
+                ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse, Any]
                   .asProto(createZoneResponse)
               ))
             ))),

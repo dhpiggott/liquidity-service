@@ -141,7 +141,7 @@ trait HttpController {
 
   private[this] def zone(id: UUID)(implicit ec: ExecutionContext): Route =
     get(complete(getZone(ZoneId(id)).map(_.map(zone =>
-      Json.parse(JsonFormat.toJsonString(ProtoBinding[Zone, proto.model.Zone].asProto(zone)))))))
+      Json.parse(JsonFormat.toJsonString(ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)))))))
 
   private[this] def balances(id: UUID)(implicit ec: ExecutionContext): Route =
     get(complete(getBalances(ZoneId(id)).map(balances =>

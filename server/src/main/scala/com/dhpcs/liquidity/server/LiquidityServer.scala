@@ -205,24 +205,28 @@ class LiquidityServer(pingInterval: FiniteDuration,
             case zoneEvent: ZoneEvent =>
               zoneEvent match {
                 case zoneCreatedEvent: ZoneCreatedEvent =>
-                  ProtoBinding[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent].asProto(zoneCreatedEvent)
+                  ProtoBinding[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent, Any].asProto(zoneCreatedEvent)
                 case zoneJoinedEvent: ZoneJoinedEvent =>
-                  ProtoBinding[ZoneJoinedEvent, proto.persistence.ZoneJoinedEvent].asProto(zoneJoinedEvent)
+                  ProtoBinding[ZoneJoinedEvent, proto.persistence.ZoneJoinedEvent, Any].asProto(zoneJoinedEvent)
                 case zoneQuitEvent: ZoneQuitEvent =>
-                  ProtoBinding[ZoneQuitEvent, proto.persistence.ZoneQuitEvent].asProto(zoneQuitEvent)
+                  ProtoBinding[ZoneQuitEvent, proto.persistence.ZoneQuitEvent, Any].asProto(zoneQuitEvent)
                 case zoneNameChangedEvent: ZoneNameChangedEvent =>
-                  ProtoBinding[ZoneNameChangedEvent, proto.persistence.ZoneNameChangedEvent]
+                  ProtoBinding[ZoneNameChangedEvent, proto.persistence.ZoneNameChangedEvent, Any]
                     .asProto(zoneNameChangedEvent)
                 case memberCreatedEvent: MemberCreatedEvent =>
-                  ProtoBinding[MemberCreatedEvent, proto.persistence.MemberCreatedEvent].asProto(memberCreatedEvent)
+                  ProtoBinding[MemberCreatedEvent, proto.persistence.MemberCreatedEvent, Any]
+                    .asProto(memberCreatedEvent)
                 case memberUpdatedEvent: MemberUpdatedEvent =>
-                  ProtoBinding[MemberUpdatedEvent, proto.persistence.MemberUpdatedEvent].asProto(memberUpdatedEvent)
+                  ProtoBinding[MemberUpdatedEvent, proto.persistence.MemberUpdatedEvent, Any]
+                    .asProto(memberUpdatedEvent)
                 case accountCreatedEvent: AccountCreatedEvent =>
-                  ProtoBinding[AccountCreatedEvent, proto.persistence.AccountCreatedEvent].asProto(accountCreatedEvent)
+                  ProtoBinding[AccountCreatedEvent, proto.persistence.AccountCreatedEvent, Any]
+                    .asProto(accountCreatedEvent)
                 case accountUpdatedEvent: AccountUpdatedEvent =>
-                  ProtoBinding[AccountUpdatedEvent, proto.persistence.AccountUpdatedEvent].asProto(accountUpdatedEvent)
+                  ProtoBinding[AccountUpdatedEvent, proto.persistence.AccountUpdatedEvent, Any]
+                    .asProto(accountUpdatedEvent)
                 case transactionAddedEvent: TransactionAddedEvent =>
-                  ProtoBinding[TransactionAddedEvent, proto.persistence.TransactionAddedEvent]
+                  ProtoBinding[TransactionAddedEvent, proto.persistence.TransactionAddedEvent, Any]
                     .asProto(transactionAddedEvent)
               }
           }
@@ -232,7 +236,7 @@ class LiquidityServer(pingInterval: FiniteDuration,
   override protected[this] def zoneState(zoneId: ZoneId): Future[proto.model.ZoneState] =
     (zoneValidatorShardRegion ? GetZoneStateCommand(zoneId))
       .mapTo[GetZoneStateResponse]
-      .map(response => ProtoBinding[ZoneState, proto.model.ZoneState].asProto(response.state))
+      .map(response => ProtoBinding[ZoneState, proto.model.ZoneState, Any].asProto(response.state))
 
   override protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(

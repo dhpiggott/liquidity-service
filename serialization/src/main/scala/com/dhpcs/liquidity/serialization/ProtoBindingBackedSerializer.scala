@@ -19,13 +19,13 @@ object ProtoBindingBackedSerializer {
   object AnyRefProtoBinding {
     def apply[S, P](implicit scalaClassTag: ClassTag[S],
                     protoClassTag: ClassTag[P],
-                    protoBinding: ProtoBinding[S, P]): AnyRefProtoBinding[S, P] =
+                    protoBinding: ProtoBinding[S, P, ExtendedActorSystem]): AnyRefProtoBinding[S, P] =
       new AnyRefProtoBinding(scalaClassTag, protoClassTag, protoBinding)
   }
 
   class AnyRefProtoBinding[S, P](val scalaClassTag: ClassTag[S],
                                  val protoClassTag: ClassTag[P],
-                                 protoBinding: ProtoBinding[S, P]) {
+                                 protoBinding: ProtoBinding[S, P, ExtendedActorSystem]) {
     def anyRefScalaAsAnyRefProto(s: AnyRef): AnyRef = protoBinding.asProto(s.asInstanceOf[S]).asInstanceOf[AnyRef]
     def anyRefProtoAsAnyRefScala(p: AnyRef)(implicit system: ExtendedActorSystem): AnyRef =
       protoBinding.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]

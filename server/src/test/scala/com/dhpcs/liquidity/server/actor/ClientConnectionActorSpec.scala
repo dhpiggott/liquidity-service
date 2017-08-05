@@ -114,7 +114,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-          ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand]
+          ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand, Any]
             .asProto(createZoneCommand))
       )))
 
@@ -132,9 +132,8 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse]
-            // TODO: No!
-              .asScala(protoZoneResponse.zoneResponse)(null)
+            ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse, Any]
+              .asScala(protoZoneResponse.zoneResponse)(())
         }
     }
 

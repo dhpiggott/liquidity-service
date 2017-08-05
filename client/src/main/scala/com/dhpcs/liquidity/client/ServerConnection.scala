@@ -293,9 +293,9 @@ class ServerConnection(filesDir: File,
             sendServerMessage(
               webSocket,
               proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
-                createKeyOwnershipProof(clientKeyStore.rsaPublicKey,
-                                        clientKeyStore.rsaPrivateKey,
-                                        keyOwnershipChallenge)
+                Authentication.createKeyOwnershipProof(clientKeyStore.rsaPublicKey,
+                                                       clientKeyStore.rsaPrivateKey,
+                                                       keyOwnershipChallenge)
               )
             )
             activeState.handlerWrapper.post {

@@ -207,7 +207,7 @@ class ServerConnectionSpec
       sub.requestNext(CONNECTING)
       clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(AUTHENTICATING)
-      val keyOwnershipChallenge = createKeyOwnershipChallengeMessage()
+      val keyOwnershipChallenge = Authentication.createKeyOwnershipChallengeMessage()
       clientConnectionActorTestProbe
         .sender()
         .tell(
@@ -217,7 +217,7 @@ class ServerConnectionSpec
         )
       inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
         case proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(keyOwnershipProof) =>
-          assert(isValidKeyOwnershipProof(keyOwnershipChallenge, keyOwnershipProof))
+          assert(Authentication.isValidKeyOwnershipProof(keyOwnershipChallenge, keyOwnershipProof))
       }
       sub.requestNext(ONLINE)
       MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
@@ -258,7 +258,7 @@ class ServerConnectionSpec
       sub.requestNext(CONNECTING)
       clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(AUTHENTICATING)
-      val keyOwnershipChallenge = createKeyOwnershipChallengeMessage()
+      val keyOwnershipChallenge = Authentication.createKeyOwnershipChallengeMessage()
       clientConnectionActorTestProbe
         .sender()
         .tell(
@@ -268,7 +268,7 @@ class ServerConnectionSpec
         )
       inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
         case proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(keyOwnershipProof) =>
-          assert(isValidKeyOwnershipProof(keyOwnershipChallenge, keyOwnershipProof))
+          assert(Authentication.isValidKeyOwnershipProof(keyOwnershipChallenge, keyOwnershipProof))
       }
       sub.requestNext(ONLINE)
       val response = sendCreateZoneCommand(createZoneCommand)

@@ -419,7 +419,7 @@ sealed abstract class LiquidityServerSpec
     }
     sendProtobufMessage(pub)(
       proto.ws.protocol.ServerMessage.Message
-        .KeyOwnershipProof(createKeyOwnershipProof(rsaPublicKey, rsaPrivateKey, keyOwnershipChallenge))
+        .KeyOwnershipProof(Authentication.createKeyOwnershipProof(rsaPublicKey, rsaPrivateKey, keyOwnershipChallenge))
     )
     try test(sub, pub)
     finally {

@@ -150,7 +150,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     publishStatus(maybePublicKey = None) orElse sendPingCommand orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
-        val keyOwnershipChallenge = createKeyOwnershipChallengeMessage()
+        val keyOwnershipChallenge = Authentication.createKeyOwnershipChallengeMessage()
         sendClientMessage(proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge(keyOwnershipChallenge))
         context.become(waitingForKeyOwnershipProof(keyOwnershipChallenge))
     }
@@ -169,7 +169,7 @@ class ClientConnectionActor(ip: RemoteAddress,
             context.stop(self)
           case proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(keyOwnershipProofMessage) =>
             val publicKey = PublicKey(keyOwnershipProofMessage.publicKey.toByteArray)
-            if (!isValidKeyOwnershipProof(keyOwnershipChallengeMessage, keyOwnershipProofMessage)) {
+            if (!Authentication.isValidKeyOwnershipProof(keyOwnershipChallengeMessage, keyOwnershipProofMessage)) {
               log.warning(
                 s"Stopping due to invalid key ownership proof for public key with fingerprint " +
                   s"${publicKey.fingerprint}.")

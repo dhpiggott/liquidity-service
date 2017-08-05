@@ -58,8 +58,8 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
           keyOwnershipChallenge.value
       }
       sendMessage(sinkTestProbe, clientConnection)(
-        proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
-          createKeyOwnershipProof(ModelSpec.rsaPublicKey, ModelSpec.rsaPrivateKey, keyOwnershipChallenge))
+        proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(Authentication
+          .createKeyOwnershipProof(ModelSpec.rsaPublicKey, ModelSpec.rsaPrivateKey, keyOwnershipChallenge))
       )
       val createZoneCommand = CreateZoneCommand(
         equityOwnerPublicKey = publicKey,

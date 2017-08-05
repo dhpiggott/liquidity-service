@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.ws
+package com.dhpcs.liquidity.ws.protocol
 
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.security.spec.X509EncodedKeySpec
@@ -9,7 +9,7 @@ import com.dhpcs.liquidity.proto
 
 import scala.util.Random
 
-package object protocol {
+object Authentication {
 
   def createKeyOwnershipChallengeMessage(): proto.ws.protocol.ClientMessage.KeyOwnershipChallenge = {
     val nonce = new Array[Byte](KeySize / 8)

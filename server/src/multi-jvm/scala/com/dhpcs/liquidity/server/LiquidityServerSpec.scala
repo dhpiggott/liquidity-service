@@ -30,7 +30,6 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor._
-import com.dhpcs.liquidity.ws.protocol
 import com.dhpcs.liquidity.ws.protocol._
 import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
 import com.typesafe.config.ConfigFactory
@@ -299,14 +298,14 @@ sealed abstract class LiquidityServerSpec
         sub.within(5.seconds)(
           assert(
             expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
-              protocol.legacy.CompatibleVersionNumbers))
+              LegacyWsProtocol.CompatibleVersionNumbers))
         ); ()
       }
       "will send a KeepAliveNotification when left idle" in withJsonRpcWsTestProbes { (sub, _) =>
         sub.within(5.seconds)(
           assert(
             expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
-              protocol.legacy.CompatibleVersionNumbers))
+              LegacyWsProtocol.CompatibleVersionNumbers))
         )
         sub.within(3.5.seconds)(
           assert(expectJsonRpcNotification(sub) === LegacyWsProtocol.KeepAliveNotification)
@@ -316,7 +315,7 @@ sealed abstract class LiquidityServerSpec
         sub.within(5.seconds)(
           assert(
             expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
-              protocol.legacy.CompatibleVersionNumbers))
+              LegacyWsProtocol.CompatibleVersionNumbers))
         )
         val correlationId = 0L
         sendJsonRpcCommand(pub)(
@@ -350,7 +349,7 @@ sealed abstract class LiquidityServerSpec
         sub.within(5.seconds)(
           assert(
             expectJsonRpcNotification(sub) === LegacyWsProtocol.SupportedVersionsNotification(
-              protocol.legacy.CompatibleVersionNumbers))
+              LegacyWsProtocol.CompatibleVersionNumbers))
         )
         val correlationId = 0L
         sendJsonRpcCommand(pub)(

@@ -47,13 +47,13 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPers
       val (_, _, upstreamTestProbe, _) = fixture
       assert(
         expectNotification(upstreamTestProbe) === LegacyWsProtocol.SupportedVersionsNotification(
-          CompatibleVersionNumbers))
+          LegacyWsProtocol.CompatibleVersionNumbers))
     }
     "will send a KeepAliveNotification when left idle" in { fixture =>
       val (_, _, upstreamTestProbe, _) = fixture
       assert(
         expectNotification(upstreamTestProbe) === LegacyWsProtocol.SupportedVersionsNotification(
-          CompatibleVersionNumbers))
+          LegacyWsProtocol.CompatibleVersionNumbers))
       upstreamTestProbe.within(3.5.seconds)(
         assert(expectNotification(upstreamTestProbe) === LegacyWsProtocol.KeepAliveNotification)
       )
@@ -62,7 +62,7 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPers
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
       assert(
         expectNotification(upstreamTestProbe) === LegacyWsProtocol.SupportedVersionsNotification(
-          CompatibleVersionNumbers))
+          LegacyWsProtocol.CompatibleVersionNumbers))
       val command = LegacyWsProtocol.CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
         equityOwnerName = Some("Dave"),

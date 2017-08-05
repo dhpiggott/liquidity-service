@@ -249,7 +249,7 @@ class LegacyServerConnectionSpec
         .tell(
           WrappedNotification(
             LegacyWsProtocol.Notification.write(
-              LegacyWsProtocol.SupportedVersionsNotification(CompatibleVersionNumbers))),
+              LegacyWsProtocol.SupportedVersionsNotification(LegacyWsProtocol.CompatibleVersionNumbers))),
           sender = clientConnectionActorTestProbe.ref
         )
       sub.requestNext(ONLINE)
@@ -295,7 +295,7 @@ class LegacyServerConnectionSpec
         .tell(
           WrappedNotification(
             LegacyWsProtocol.Notification.write(
-              LegacyWsProtocol.SupportedVersionsNotification(CompatibleVersionNumbers))),
+              LegacyWsProtocol.SupportedVersionsNotification(LegacyWsProtocol.CompatibleVersionNumbers))),
           sender = clientConnectionActorTestProbe.ref
         )
       sub.requestNext(ONLINE)

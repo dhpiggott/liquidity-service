@@ -166,7 +166,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
     publishStatus orElse sendKeepAlive orElse {
       case ActorSinkInit =>
         sender() ! ActorSinkAck
-        sendNotification(LegacyWsProtocol.SupportedVersionsNotification(CompatibleVersionNumbers))
+        sendNotification(LegacyWsProtocol.SupportedVersionsNotification(LegacyWsProtocol.CompatibleVersionNumbers))
         context.become(receiveActorSinkMessages)
     }
 

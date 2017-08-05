@@ -341,7 +341,7 @@ class LegacyServerConnection(filesDir: File,
                           case _: OnlineSubState =>
                             throw new IllegalStateException("Already online")
                           case _: WaitingForVersionCheckSubState =>
-                            if (!compatibleVersionNumbers.contains(VersionNumber))
+                            if (!compatibleVersionNumbers.contains(LegacyWsProtocol.VersionNumber))
                               mainHandlerWrapper.post(() => disconnect(1001))
                             else
                               activeState.handlerWrapper.post { () =>

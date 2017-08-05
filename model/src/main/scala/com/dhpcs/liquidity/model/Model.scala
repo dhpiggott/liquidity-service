@@ -38,10 +38,19 @@ final case class Transaction(id: TransactionId,
                              description: Option[String] = None,
                              metadata: Option[com.google.protobuf.struct.Struct] = None)
 
-final case class ZoneId(id: UUID)
+final case class ZoneId(id: UUID) {
+  def persistenceId: String = s"${ZoneId.PersistenceIdPrefix}$id"
+}
 
 object ZoneId {
+
+  final val PersistenceIdPrefix = "zone-"
+
+  def apply(persistenceId: String): ZoneId =
+    ZoneId(UUID.fromString(persistenceId.stripPrefix(PersistenceIdPrefix)))
+
   def generate: ZoneId = ZoneId(UUID.randomUUID)
+
 }
 
 final case class Zone(id: ZoneId,

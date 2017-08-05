@@ -1,7 +1,5 @@
 package com.dhpcs.liquidity.server.actor
 
-import java.util.UUID
-
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.ask
 import akka.persistence.query.scaladsl.{CurrentPersistenceIdsQuery, PersistenceIdsQuery, ReadJournal}
@@ -9,7 +7,6 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import akka.util.Timeout
 import com.dhpcs.liquidity.model.ZoneId
-import com.dhpcs.liquidity.persistence.ZoneIdStringPattern
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -36,7 +33,7 @@ class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistence
 
     val currentZoneIds = readJournal
       .currentPersistenceIds()
-      .collect { case ZoneIdStringPattern(uuidString) => ZoneId(UUID.fromString(uuidString)) }
+      .map(ZoneId(_))
       .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId => startZoneView(zoneId).map(_ => zoneId))
       .runFold(Set.empty[ZoneId])(_ + _)
 
@@ -49,7 +46,7 @@ class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistence
         currentZoneIds =>
           readJournal
             .persistenceIds()
-            .collect { case ZoneIdStringPattern(uuidString) => ZoneId(UUID.fromString(uuidString)) }
+            .map(ZoneId(_))
             .filterNot(currentZoneIds.contains)
             .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId =>
               startZoneView(zoneId).map(_ => log.info(s"Initialized zone view for ${zoneId.id}"))))

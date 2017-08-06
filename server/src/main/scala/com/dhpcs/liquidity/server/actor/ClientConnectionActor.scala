@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 
-import akka.NotUsed
+import akka.{NotUsed, typed}
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
@@ -11,11 +11,13 @@ import akka.http.scaladsl.model.ws.{BinaryMessage, Message => WsMessage}
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
+import akka.typed.Behavior
+import akka.typed.scaladsl.adapter._
 import akka.util.ByteString
-import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.ProtoBindings._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
@@ -92,24 +94,22 @@ object ClientConnectionActor {
 
   private object PingGeneratorActor {
 
-    def props(pingInterval: FiniteDuration): Props = Props(new PingGeneratorActor(pingInterval))
+    sealed abstract class PingGeneratorMessage
+    case object FrameReceivedEvent extends PingGeneratorMessage
+    case object FrameSentEvent     extends PingGeneratorMessage
+    case object SendPingCommand    extends PingGeneratorMessage
 
-    case object FrameReceivedEvent
-    case object FrameSentEvent
-    case object SendPingCommand
-
-  }
-
-  private class PingGeneratorActor(pingInterval: FiniteDuration) extends Actor {
-
-    import com.dhpcs.liquidity.server.actor.ClientConnectionActor.PingGeneratorActor._
-
-    context.setReceiveTimeout(pingInterval)
-
-    override def receive: Receive = {
-      case ReceiveTimeout                      => context.parent ! SendPingCommand
-      case FrameReceivedEvent | FrameSentEvent => ()
-    }
+    def behaviour(pingInterval: FiniteDuration, parent: ActorRef): Behavior[PingGeneratorMessage] =
+      typed.scaladsl.Actor.deferred { context =>
+        context.setReceiveTimeout(pingInterval, SendPingCommand)
+        typed.scaladsl.Actor.immutable[PingGeneratorMessage] { (_, message) =>
+          message match {
+            case FrameReceivedEvent | FrameSentEvent => ()
+            case SendPingCommand                     => parent ! SendPingCommand
+          }
+          typed.scaladsl.Actor.same
+        }
+      }
   }
 }
 
@@ -126,8 +126,12 @@ class ClientConnectionActor(ip: RemoteAddress,
 
   private[this] val mediator          = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
-  private[this] val pingGeneratorActor =
-    context.actorOf(PingGeneratorActor.props(pingInterval))
+  private[this] val pingGeneratorActor = context.spawn(
+    akka.typed.scaladsl.Actor
+      .supervise(PingGeneratorActor.behaviour(pingInterval, self))
+      .onFailure[Exception](akka.typed.SupervisorStrategy.restart),
+    "ping-generator"
+  )
 
   private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)

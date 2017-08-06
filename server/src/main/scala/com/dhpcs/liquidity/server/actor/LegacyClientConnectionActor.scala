@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 
-import akka.NotUsed
+import akka.{NotUsed, typed}
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
@@ -11,6 +11,8 @@ import akka.http.scaladsl.model.ws.{TextMessage, Message => WsMessage}
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
+import akka.typed.Behavior
+import akka.typed.scaladsl.adapter._
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.ValidatedNel
 import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, NumericCorrelationId, StringCorrelationId}
@@ -105,24 +107,22 @@ object LegacyClientConnectionActor {
 
   private object KeepAliveGeneratorActor {
 
-    def props(keepAliveInterval: FiniteDuration): Props = Props(new KeepAliveGeneratorActor(keepAliveInterval))
+    sealed abstract class KeepAliveGeneratorMessage
+    case object FrameReceivedEvent extends KeepAliveGeneratorMessage
+    case object FrameSentEvent     extends KeepAliveGeneratorMessage
+    case object SendKeepAlive      extends KeepAliveGeneratorMessage
 
-    case object FrameReceivedEvent
-    case object FrameSentEvent
-    case object SendKeepAlive
-
-  }
-
-  private class KeepAliveGeneratorActor(keepAliveInterval: FiniteDuration) extends Actor {
-
-    import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor.KeepAliveGeneratorActor._
-
-    context.setReceiveTimeout(keepAliveInterval)
-
-    override def receive: Receive = {
-      case ReceiveTimeout                      => context.parent ! SendKeepAlive
-      case FrameReceivedEvent | FrameSentEvent => ()
-    }
+    def behaviour(keepAliveInterval: FiniteDuration, parent: ActorRef): Behavior[KeepAliveGeneratorMessage] =
+      typed.scaladsl.Actor.deferred { context =>
+        context.setReceiveTimeout(keepAliveInterval, SendKeepAlive)
+        typed.scaladsl.Actor.immutable[KeepAliveGeneratorMessage] { (_, message) =>
+          message match {
+            case FrameReceivedEvent | FrameSentEvent => ()
+            case SendKeepAlive                       => parent ! SendKeepAlive
+          }
+          typed.scaladsl.Actor.same
+        }
+      }
   }
 }
 
@@ -140,8 +140,12 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
 
   private[this] val mediator          = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
-  private[this] val keepAliveGeneratorActor =
-    context.actorOf(KeepAliveGeneratorActor.props(keepAliveInterval))
+  private[this] val keepAliveGeneratorActor = context.spawn(
+    akka.typed.scaladsl.Actor
+      .supervise(KeepAliveGeneratorActor.behaviour(keepAliveInterval, self))
+      .onFailure[Exception](akka.typed.SupervisorStrategy.restart),
+    "keep-alive-generator"
+  )
 
   private[this] var nextExpectedMessageSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)

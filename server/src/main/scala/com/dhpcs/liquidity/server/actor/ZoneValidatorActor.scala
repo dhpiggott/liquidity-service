@@ -11,6 +11,9 @@ import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.ShardRegion
 import akka.cluster.sharding.ShardRegion.Passivate
 import akka.persistence._
+import akka.typed
+import akka.typed.Behavior
+import akka.typed.scaladsl.adapter._
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.instances.set._
@@ -111,32 +114,27 @@ object ZoneValidatorActor {
 
   private object PassivationCountdownActor {
 
-    def props: Props = Props(new PassivationCountdownActor)
-
-    case object CommandReceivedEvent
-
-    case object RequestPassivate
-
-    case object Start
-
-    case object Stop
+    sealed abstract class PassivationCountdownMessage
+    case object Start                extends PassivationCountdownMessage
+    case object Stop                 extends PassivationCountdownMessage
+    case object CommandReceivedEvent extends PassivationCountdownMessage
+    case object RequestPassivate     extends PassivationCountdownMessage
 
     private final val PassivationTimeout = 2.minutes
 
-  }
-
-  private class PassivationCountdownActor extends Actor {
-
-    import ZoneValidatorActor.PassivationCountdownActor._
-
-    context.setReceiveTimeout(PassivationTimeout)
-
-    override def receive: Receive = {
-      case ReceiveTimeout       => context.parent ! RequestPassivate
-      case CommandReceivedEvent => ()
-      case Start                => context.setReceiveTimeout(PassivationTimeout)
-      case Stop                 => context.setReceiveTimeout(Duration.Undefined)
-    }
+    def behaviour(parent: ActorRef): Behavior[PassivationCountdownMessage] =
+      typed.scaladsl.Actor.deferred { context =>
+        context.self ! Start
+        typed.scaladsl.Actor.immutable[PassivationCountdownMessage] { (_, message) =>
+          message match {
+            case Start                => context.setReceiveTimeout(PassivationTimeout, RequestPassivate)
+            case Stop                 => context.cancelReceiveTimeout()
+            case CommandReceivedEvent => ()
+            case RequestPassivate     => parent ! RequestPassivate
+          }
+          typed.scaladsl.Actor.same
+        }
+      }
   }
 
   private final val RequiredPublicKeySize = 2048
@@ -297,7 +295,12 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] val mediator = DistributedPubSub(context.system).mediator
   private[this] val publishStatusTick =
     context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
-  private[this] val passivationCountdownActor = context.actorOf(PassivationCountdownActor.props)
+  private[this] val passivationCountdownActor = context.spawn(
+    akka.typed.scaladsl.Actor
+      .supervise(PassivationCountdownActor.behaviour(self))
+      .onFailure[Exception](akka.typed.SupervisorStrategy.restart),
+    "passivation-countdown"
+  )
 
   private[this] val id = ZoneId(UUID.fromString(self.path.name))
   private[this] var state =

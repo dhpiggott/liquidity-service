@@ -77,7 +77,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
           Validated.invalidNel(
             ZoneResponse.Error(
               code = 0,
-              description = "Zone does not exist"
+              description = "Zone must be created."
             )
           ))
       )

@@ -133,9 +133,7 @@ object BoardGame {
 
   def isGameNameValid(name: CharSequence): Boolean = isTagValid(name)
 
-  private final val MaxStringLength = 160
-
-  def isTagValid(tag: CharSequence): Boolean = tag.length > 0 && tag.length <= MaxStringLength
+  def isTagValid(tag: CharSequence): Boolean = tag.length > 0 && tag.length <= ZoneCommand.MaximumTagLength
 
   private def currencyFromMetadata(
       metadata: Option[com.google.protobuf.struct.Struct]): Option[Either[String, Currency]] =

@@ -137,21 +137,18 @@ object ZoneValidatorActor {
       }
   }
 
-  private final val RequiredPublicKeySize = 2048
-
-  // TODO: Extract all errors as constants and make each one have a unique code
-  private def validatePublicKey(publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
+  private def validateKey(publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
     Try(
       KeyFactory
         .getInstance("RSA")
         .generatePublic(new X509EncodedKeySpec(publicKey.value.toByteArray))
         .asInstanceOf[RSAPublicKey]) match {
       case Failure(_: InvalidKeySpecException) =>
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Invalid public key type."))
+        Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
       case Failure(_) =>
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Invalid public key."))
-      case Success(value) if value.getModulus.bitLength() != RequiredPublicKeySize =>
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Invalid public key length."))
+        Validated.invalidNel(ZoneResponse.Error.invalidKey)
+      case Success(value) if value.getModulus.bitLength() != ZoneCommand.RequiredKeySize =>
+        Validated.invalidNel(ZoneResponse.Error.invalidKeyLength)
       case Success(_) =>
         Validated.valid(publicKey)
     }
@@ -159,10 +156,9 @@ object ZoneValidatorActor {
   private def validateOwners(zone: Zone, owners: Set[MemberId]): ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
     def validateOwner(owner: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
       if (!zone.members.contains(owner))
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = s"Invalid owner ID: ${owner.id}."))
+        Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist(owner))
       else
         Validated.valid(owner)
-
     owners
       .map(validateOwner)
       .foldLeft(Validated.valid[NonEmptyList[ZoneResponse.Error], Set[MemberId]](Set.empty))(
@@ -174,11 +170,10 @@ object ZoneValidatorActor {
                                       publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.members.get(memberId) match {
       case None =>
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Member does not exist."))
+        Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
       // TODO: Allow multiple member owners
       case Some(member) if publicKey != member.ownerPublicKey =>
-        Validated.invalidNel(
-          ZoneResponse.Error(code = 0, description = "Client public key does not match public key of actingAs."))
+        Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
       case _ =>
         Validated.valid(())
     }
@@ -189,12 +184,11 @@ object ZoneValidatorActor {
                                        publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.accounts.get(accountId) match {
       case None =>
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Account does not exist."))
+        Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)
       case Some(account)
           if !account.ownerMemberIds.exists(
             memberId => zone.members.get(memberId).exists(publicKey == _.ownerPublicKey)) =>
-        Validated.invalidNel(
-          ZoneResponse.Error(code = 0, description = "Client public key does not match that of any account owner."))
+        Validated.invalidNel(ZoneResponse.Error.accountOwnerKeyMismatch)
       case _ =>
         Validated.valid(())
     }
@@ -205,16 +199,15 @@ object ZoneValidatorActor {
                                       publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.accounts.get(accountId) match {
       case None =>
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Account does not exist."))
+        Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)
       case Some(account) if !account.ownerMemberIds.contains(actingAs) =>
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Member is not an account owner."))
+        Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)
       case _ =>
         zone.members.get(actingAs) match {
           case None =>
-            Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Member does not exist."))
+            Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
           case Some(member) if publicKey != member.ownerPublicKey =>
-            Validated.invalidNel(
-              ZoneResponse.Error(code = 0, description = "Client public key does not match public key of actingAs."))
+            Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
           case _ =>
             Validated.valid(())
         }
@@ -225,23 +218,15 @@ object ZoneValidatorActor {
                                 zone: Zone): ValidatedNel[ZoneResponse.Error, (AccountId, AccountId)] = {
     val validatedFrom =
       if (!zone.accounts.contains(from))
-        Validated.invalidNel(
-          ZoneResponse.Error(code = 0, description = s"Invalid source account: $from")
-        )
+        Validated.invalidNel(ZoneResponse.Error.sourceAccountDoesNotExist)
       else Validated.valid(from)
     val validatedTo =
       if (!zone.accounts.contains(to))
-        Validated.invalidNel(
-          ZoneResponse.Error(code = 0, description = s"Invalid destination account: $to")
-        )
+        Validated.invalidNel(ZoneResponse.Error.destinationAccountDoesNotExist)
       else Validated.valid(to)
-    (validatedFrom |@| validatedTo).tupled.andThen {
-      case (validFrom, validTo) if validFrom == validTo =>
-        Validated.invalidNel(
-          ZoneResponse.Error(
-            code = 0,
-            description = s"Invalid reflexive transaction (source account: $validFrom, destination account: $validTo)")
-        )
+    (validatedTo |@| validatedFrom).tupled.andThen {
+      case (validTo, validFrom) if validTo == validFrom =>
+        Validated.invalidNel(ZoneResponse.Error.reflexiveTransaction)
       case _ =>
         Validated.valid((from, to))
     }
@@ -252,35 +237,28 @@ object ZoneValidatorActor {
                             zone: Zone,
                             balances: Map[AccountId, BigDecimal]): ValidatedNel[ZoneResponse.Error, BigDecimal] =
     (if (value.compare(0) == -1)
-       Validated.invalidNel(ZoneResponse.Error(code = 0, description = s"Invalid transaction value ($value)"))
+       Validated.invalidNel(ZoneResponse.Error.negativeTransactionValue)
      else Validated.valid(value)).andThen { value =>
       val updatedSourceBalance = balances(from) - value
       if (updatedSourceBalance < 0 && from != zone.equityAccountId)
-        Validated.invalidNel(ZoneResponse.Error(code = 0, description = s"Illegal transaction value: $value"))
+        Validated.invalidNel(ZoneResponse.Error.insufficientBalance)
       else
         Validated.valid(value)
     }
 
-  private final val MaxStringLength = 160
-
   private def validateTag(tag: Option[String]): ValidatedNel[ZoneResponse.Error, Option[String]] =
     tag.map(_.length) match {
-      case Some(tagLength) if tagLength > MaxStringLength =>
-        Validated.invalidNel(
-          ZoneResponse.Error(code = 0, description = s"Tag length must be less than $MaxStringLength characters."))
+      case Some(tagLength) if tagLength > ZoneCommand.MaximumTagLength =>
+        Validated.invalidNel(ZoneResponse.Error.tagLengthExceeded)
       case _ =>
         Validated.valid(tag)
     }
 
-  private final val MaxMetadataSize = 1024
-
   private def validateMetadata(metadata: Option[com.google.protobuf.struct.Struct])
     : ValidatedNel[ZoneResponse.Error, Option[com.google.protobuf.struct.Struct]] =
     metadata.map(_.toByteArray.length) match {
-      case Some(metadataSize) if metadataSize > MaxMetadataSize =>
-        Validated.invalidNel(
-          ZoneResponse.Error(code = 0, description = s"Metadata size must be less than $MaxMetadataSize bytes.")
-        )
+      case Some(metadataSize) if metadataSize > ZoneCommand.MaximumMetadataSize =>
+        Validated.invalidNel(ZoneResponse.Error.metadataLengthExceeded)
       case _ =>
         Validated.valid(metadata)
     }
@@ -411,8 +389,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             messageSequenceNumbers = messageSequenceNumbers + (sender().path -> (sequenceNumber + 1))
             deliver(sender().path) { deliveryId =>
               pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) + deliveryId))
-              CreateZoneResponse(
-                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone already exists")))
+              CreateZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneAlreadyExists))
             }
           case None =>
             val validatedParams = {
@@ -473,14 +450,13 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
+              JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
           case Some(zone) =>
             if (state.clientConnections.contains(sender().path))
               deliverResponse(
-                JoinZoneResponse(
-                  Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone already joined"))),
+                JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneAlreadyJoined)),
                 correlationId
               )
             else
@@ -502,13 +478,13 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              QuitZoneResponse(Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
+              QuitZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
           case Some(_) =>
             if (!state.clientConnections.contains(sender().path))
               deliverResponse(
-                QuitZoneResponse(Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone not joined"))),
+                QuitZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneNotJoined)),
                 correlationId
               )
             else
@@ -527,8 +503,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              ChangeZoneNameResponse(
-                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
+              ChangeZoneNameResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
           case Some(_) =>
@@ -555,15 +530,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              CreateMemberResponse(
-                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
+              CreateMemberResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
           case Some(zone) =>
             val validatedParams = {
               val validatedMemberId =
                 Validated.valid[NonEmptyList[ZoneResponse.Error], MemberId](MemberId(zone.members.size.toLong))
-              val validatedOwnerPublicKey = validatePublicKey(ownerPublicKey)
+              val validatedOwnerPublicKey = validateKey(ownerPublicKey)
               val validatedName           = validateTag(name)
               val validatedMetadata       = validateMetadata(metadata)
               (validatedMemberId |@| validatedOwnerPublicKey |@| validatedName |@| validatedMetadata).tupled
@@ -591,13 +565,12 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              UpdateMemberResponse(
-                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
+              UpdateMemberResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
           case Some(zone) =>
             val validatedParams = validateCanUpdateMember(zone, member.id, publicKey).andThen { _ =>
-              val validatedOwnerPublicKey = validatePublicKey(member.ownerPublicKey)
+              val validatedOwnerPublicKey = validateKey(member.ownerPublicKey)
               val validatedTag            = validateTag(member.name)
               val validatedMetadata       = validateMetadata(member.metadata)
               (validatedOwnerPublicKey |@| validatedTag |@| validatedMetadata).tupled
@@ -624,8 +597,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              CreateAccountResponse(
-                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
+              CreateAccountResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
           case Some(zone) =>
@@ -660,8 +632,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              UpdateAccountResponse(
-                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
+              UpdateAccountResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
           case Some(zone) =>
@@ -693,8 +664,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         state.zone match {
           case None =>
             deliverResponse(
-              AddTransactionResponse(
-                Validated.invalidNel(ZoneResponse.Error(code = 0, description = "Zone does not exist"))),
+              AddTransactionResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
           case Some(zone) =>

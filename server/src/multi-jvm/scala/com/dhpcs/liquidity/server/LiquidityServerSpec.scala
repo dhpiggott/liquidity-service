@@ -25,8 +25,10 @@ import cats.data.Validated
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor._

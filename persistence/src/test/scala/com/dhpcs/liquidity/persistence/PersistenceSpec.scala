@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.persistence
 
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.persistence.PersistenceSpec._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding

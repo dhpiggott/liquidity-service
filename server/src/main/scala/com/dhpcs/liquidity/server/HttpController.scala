@@ -15,6 +15,7 @@ import akka.stream.scaladsl.{Flow, Source}
 import akka.{Done, NotUsed}
 import com.dhpcs.liquidity.actor.protocol.{ActiveClientSummary, ActiveZoneSummary}
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._

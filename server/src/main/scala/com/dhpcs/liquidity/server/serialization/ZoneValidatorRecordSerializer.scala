@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.server.serialization
 
 import akka.actor.ExtendedActorSystem
-import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.serialization.ProtoBindingBackedSerializer

@@ -5,8 +5,10 @@ import java.util.UUID
 import javax.net.ssl._
 
 import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.ws.protocol._

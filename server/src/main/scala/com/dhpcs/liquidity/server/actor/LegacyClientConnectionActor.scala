@@ -314,7 +314,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
   private[this] def publishStatus: Receive = {
     case PublishStatus =>
       mediator ! Publish(
-        ClientStatusTopic,
+        ClientsMonitorActor.ClientStatusTopic,
         UpsertActiveClientSummary(self, ActiveClientSummary(publicKey))
       )
   }

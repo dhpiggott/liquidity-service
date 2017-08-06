@@ -7,7 +7,9 @@ import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures

@@ -13,6 +13,8 @@ import scala.concurrent.duration._
 
 object ClientsMonitorActor {
 
+  final val ClientStatusTopic = "Client"
+
   private case object LogActiveClientsCountTimerKey
 
   def behaviour: Behavior[ClientsMonitorMessage] = Actor.deferred { context =>

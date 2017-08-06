@@ -1,15 +1,13 @@
-package com.dhpcs.liquidity
+package com.dhpcs.liquidity.model
 
 import java.util.UUID
 
 import akka.actor.{ActorPath, ActorRef, ExtendedActorSystem}
 import akka.serialization.Serialization
+import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
-// TODO: Move all bindings into a ProtoBindings object
-package object model {
-
-  final val KeySize = 2048
+object ProtoBindings {
 
   implicit def setProtoBinding[S, P, C](implicit protoBinding: ProtoBinding[S, P, C]): ProtoBinding[Set[S], Seq[P], C] =
     ProtoBinding.instance(_.map(protoBinding.asProto).toSeq,
@@ -55,6 +53,16 @@ package object model {
           ProtoBinding[BigDecimal, proto.model.BigDecimal, Any].asScala(bigDecimal)(system)
       }
     )
+
+  trait EntityIdExtractor[E, I] {
+    def extractId(entity: E): I
+  }
+
+  object EntityIdExtractor {
+    def instance[E, I](apply: E => I): EntityIdExtractor[E, I] = new EntityIdExtractor[E, I] {
+      override def extractId(e: E): I = apply(e)
+    }
+  }
 
   implicit final val MemberIdExtractor: EntityIdExtractor[Member, MemberId] =
     EntityIdExtractor.instance[Member, MemberId](_.id)

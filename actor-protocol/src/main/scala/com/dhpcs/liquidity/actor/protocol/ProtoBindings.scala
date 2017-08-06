@@ -1,14 +1,8 @@
-package com.dhpcs.liquidity.actor
+package com.dhpcs.liquidity.actor.protocol
 
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
-package object protocol {
-
-  final val MaxStringLength = 160
-  final val MaxMetadataSize = 1024
-
-  final val ClientStatusTopic = "Client"
-  final val ZoneStatusTopic   = "Zone"
+object ProtoBindings {
 
   implicit final val JoinZoneCommandProtoBinding
     : ProtoBinding[JoinZoneCommand.type, com.google.protobuf.ByteString, Any] =

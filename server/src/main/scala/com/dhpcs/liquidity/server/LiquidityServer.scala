@@ -25,6 +25,7 @@ import akka.util.Timeout
 import akka.{Done, NotUsed}
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding

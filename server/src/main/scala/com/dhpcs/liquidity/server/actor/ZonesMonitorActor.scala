@@ -13,6 +13,8 @@ import scala.concurrent.duration._
 
 object ZonesMonitorActor {
 
+  final val ZoneStatusTopic = "Zone"
+
   private case object LogActiveZonesCountTimerKey
 
   def behaviour: Behavior[ZonesMonitorMessage] = Actor.deferred { context =>

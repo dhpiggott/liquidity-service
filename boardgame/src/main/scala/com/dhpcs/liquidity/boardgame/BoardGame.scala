@@ -133,6 +133,8 @@ object BoardGame {
 
   def isGameNameValid(name: CharSequence): Boolean = isTagValid(name)
 
+  private final val MaxStringLength = 160
+
   def isTagValid(tag: CharSequence): Boolean = tag.length > 0 && tag.length <= MaxStringLength
 
   private def currencyFromMetadata(

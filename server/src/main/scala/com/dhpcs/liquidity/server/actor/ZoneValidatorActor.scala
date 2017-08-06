@@ -263,6 +263,8 @@ object ZoneValidatorActor {
         Validated.valid(value)
     }
 
+  private final val MaxStringLength = 160
+
   private def validateTag(tag: Option[String]): ValidatedNel[ZoneResponse.Error, Option[String]] =
     tag.map(_.length) match {
       case Some(tagLength) if tagLength > MaxStringLength =>
@@ -271,6 +273,8 @@ object ZoneValidatorActor {
       case _ =>
         Validated.valid(tag)
     }
+
+  private final val MaxMetadataSize = 1024
 
   private def validateMetadata(metadata: Option[com.google.protobuf.struct.Struct])
     : ValidatedNel[ZoneResponse.Error, Option[com.google.protobuf.struct.Struct]] =
@@ -330,7 +334,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       state.zone.foreach(
         zone =>
           mediator ! Publish(
-            ZoneStatusTopic,
+            ZonesMonitorActor.ZoneStatusTopic,
             UpsertActiveZoneSummary(
               self,
               ActiveZoneSummary(

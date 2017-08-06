@@ -13,7 +13,9 @@ import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.util.ByteString
 import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
@@ -252,7 +254,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     case PublishStatus =>
       for (publicKey <- maybePublicKey)
         mediator ! Publish(
-          ClientStatusTopic,
+          ClientsMonitorActor.ClientStatusTopic,
           UpsertActiveClientSummary(self, ActiveClientSummary(publicKey))
         )
   }

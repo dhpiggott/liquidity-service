@@ -5,6 +5,7 @@ import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.util.UUID
 
 import com.dhpcs.liquidity.model.ModelSpec._
+import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.proto.model
@@ -14,7 +15,7 @@ object ModelSpec {
 
   val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(KeySize)
+    keyPairGenerator.initialize(2048)
     val keyPair = keyPairGenerator.generateKeyPair
     (keyPair.getPrivate, keyPair.getPublic)
   }

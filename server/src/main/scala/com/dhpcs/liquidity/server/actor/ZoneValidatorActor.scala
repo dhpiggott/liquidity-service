@@ -43,7 +43,7 @@ object ZoneValidatorActor {
 
   private val SnapShotInterval = 100
 
-  private val ZoneLifetime = 2.days
+  private val ZoneLifetime = 7.days
 
   private def update(state: ZoneState, event: ZoneEvent): ZoneState = event match {
     case zoneCreatedEvent: ZoneCreatedEvent =>

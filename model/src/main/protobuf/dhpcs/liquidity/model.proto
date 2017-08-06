@@ -14,7 +14,7 @@ message BigDecimal {
 
 message Member {
     int64 id = 1;
-    bytes owner_public_key = 2;
+    repeated bytes owner_public_keys = 2;
     google.protobuf.StringValue name = 3;
     google.protobuf.Struct metadata = 4;
 }

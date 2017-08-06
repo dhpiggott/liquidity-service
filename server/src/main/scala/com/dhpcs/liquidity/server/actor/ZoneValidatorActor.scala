@@ -137,32 +137,42 @@ object ZoneValidatorActor {
       }
   }
 
-  private def validateKey(publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
-    Try(
-      KeyFactory
-        .getInstance("RSA")
-        .generatePublic(new X509EncodedKeySpec(publicKey.value.toByteArray))
-        .asInstanceOf[RSAPublicKey]) match {
-      case Failure(_: InvalidKeySpecException) =>
-        Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
-      case Failure(_) =>
-        Validated.invalidNel(ZoneResponse.Error.invalidKey)
-      case Success(value) if value.getModulus.bitLength() != ZoneCommand.RequiredKeySize =>
-        Validated.invalidNel(ZoneResponse.Error.invalidKeyLength)
-      case Success(_) =>
-        Validated.valid(publicKey)
-    }
+  private def validatePublicKeys(publicKeys: Set[PublicKey]): ValidatedNel[ZoneResponse.Error, Set[PublicKey]] = {
+    def validatePublicKey(publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
+      Try(
+        KeyFactory
+          .getInstance("RSA")
+          .generatePublic(new X509EncodedKeySpec(publicKey.value.toByteArray))
+          .asInstanceOf[RSAPublicKey]) match {
+        case Failure(_: InvalidKeySpecException) =>
+          Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
+        case Failure(_) =>
+          Validated.invalidNel(ZoneResponse.Error.invalidPublicKey)
+        case Success(value) if value.getModulus.bitLength() != ZoneCommand.RequiredKeySize =>
+          Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)
+        case Success(_) =>
+          Validated.valid(publicKey)
+      }
+    if (publicKeys.isEmpty) Validated.invalidNel(ZoneResponse.Error.noPublicKeys)
+    else
+      publicKeys
+        .map(validatePublicKey)
+        .foldLeft(Validated.valid[NonEmptyList[ZoneResponse.Error], Set[PublicKey]](Set.empty))(
+          (validatedPublicKeys, validatedPublicKey) => validatedPublicKeys.combine(validatedPublicKey.map(Set(_))))
+  }
 
-  private def validateOwners(zone: Zone, owners: Set[MemberId]): ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
-    def validateOwner(owner: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
-      if (!zone.members.contains(owner))
-        Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist(owner))
+  private def validateMemberIds(zone: Zone, memberIds: Set[MemberId]): ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
+    def validateMemberId(memberId: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
+      if (!zone.members.contains(memberId))
+        Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist(memberId))
       else
-        Validated.valid(owner)
-    owners
-      .map(validateOwner)
-      .foldLeft(Validated.valid[NonEmptyList[ZoneResponse.Error], Set[MemberId]](Set.empty))(
-        (validatedOwnerIds, validatedOwnerId) => validatedOwnerIds.combine(validatedOwnerId.map(Set(_))))
+        Validated.valid(memberId)
+    if (memberIds.isEmpty) Validated.invalidNel(ZoneResponse.Error.noMemberIds)
+    else
+      memberIds
+        .map(validateMemberId)
+        .foldLeft(Validated.valid[NonEmptyList[ZoneResponse.Error], Set[MemberId]](Set.empty))(
+          (validatedMemberIds, validatedMemberId) => validatedMemberIds.combine(validatedMemberId.map(Set(_))))
   }
 
   private def validateCanUpdateMember(zone: Zone,
@@ -171,8 +181,7 @@ object ZoneValidatorActor {
     zone.members.get(memberId) match {
       case None =>
         Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
-      // TODO: Allow multiple member owners
-      case Some(member) if publicKey != member.ownerPublicKey =>
+      case Some(member) if !member.ownerPublicKeys.contains(publicKey) =>
         Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
       case _ =>
         Validated.valid(())
@@ -187,7 +196,7 @@ object ZoneValidatorActor {
         Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)
       case Some(account)
           if !account.ownerMemberIds.exists(
-            memberId => zone.members.get(memberId).exists(publicKey == _.ownerPublicKey)) =>
+            memberId => zone.members.get(memberId).exists(_.ownerPublicKeys.contains(publicKey))) =>
         Validated.invalidNel(ZoneResponse.Error.accountOwnerKeyMismatch)
       case _ =>
         Validated.valid(())
@@ -206,7 +215,7 @@ object ZoneValidatorActor {
         zone.members.get(actingAs) match {
           case None =>
             Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
-          case Some(member) if publicKey != member.ownerPublicKey =>
+          case Some(member) if !member.ownerPublicKeys.contains(publicKey) =>
             Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
           case _ =>
             Validated.valid(())
@@ -411,7 +420,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               case Valid(_) =>
                 val equityOwner = Member(
                   MemberId(0),
-                  equityOwnerPublicKey,
+                  Set(equityOwnerPublicKey),
                   equityOwnerName,
                   equityOwnerMetadata
                 )
@@ -526,7 +535,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             }
         }
 
-      case CreateMemberCommand(ownerPublicKey, name, metadata) =>
+      case CreateMemberCommand(ownerPublicKeys, name, metadata) =>
         state.zone match {
           case None =>
             deliverResponse(
@@ -537,10 +546,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             val validatedParams = {
               val validatedMemberId =
                 Validated.valid[NonEmptyList[ZoneResponse.Error], MemberId](MemberId(zone.members.size.toLong))
-              val validatedOwnerPublicKey = validateKey(ownerPublicKey)
-              val validatedName           = validateTag(name)
-              val validatedMetadata       = validateMetadata(metadata)
-              (validatedMemberId |@| validatedOwnerPublicKey |@| validatedName |@| validatedMetadata).tupled
+              val validatedOwnerPublicKeys = validatePublicKeys(ownerPublicKeys)
+              val validatedName            = validateTag(name)
+              val validatedMetadata        = validateMetadata(metadata)
+              (validatedMemberId |@| validatedOwnerPublicKeys |@| validatedName |@| validatedMetadata).tupled
             }
             validatedParams match {
               case Invalid(errors) =>
@@ -570,10 +579,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             )
           case Some(zone) =>
             val validatedParams = validateCanUpdateMember(zone, member.id, publicKey).andThen { _ =>
-              val validatedOwnerPublicKey = validateKey(member.ownerPublicKey)
-              val validatedTag            = validateTag(member.name)
-              val validatedMetadata       = validateMetadata(member.metadata)
-              (validatedOwnerPublicKey |@| validatedTag |@| validatedMetadata).tupled
+              val validatedOwnerPublicKeys = validatePublicKeys(member.ownerPublicKeys)
+              val validatedTag             = validateTag(member.name)
+              val validatedMetadata        = validateMetadata(member.metadata)
+              (validatedOwnerPublicKeys |@| validatedTag |@| validatedMetadata).tupled
             }
             validatedParams match {
               case Invalid(errors) =>
@@ -604,10 +613,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             val validatedParams = {
               val validatedAccountId =
                 Validated.valid[NonEmptyList[ZoneResponse.Error], AccountId](AccountId(zone.accounts.size.toLong))
-              val validatedAccountOwners = validateOwners(zone, owners)
-              val validatedTag           = validateTag(name)
-              val validatedMetadata      = validateMetadata(metadata)
-              (validatedAccountId |@| validatedAccountOwners |@| validatedTag |@| validatedMetadata).tupled
+              val validatedOwnerMemberIds = validateMemberIds(zone, owners)
+              val validatedTag            = validateTag(name)
+              val validatedMetadata       = validateMetadata(metadata)
+              (validatedAccountId |@| validatedOwnerMemberIds |@| validatedTag |@| validatedMetadata).tupled
             }
             validatedParams match {
               case Invalid(errors) =>
@@ -637,10 +646,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             )
           case Some(zone) =>
             val validatedParams = validateCanUpdateAccount(zone, account.id, publicKey).andThen { _ =>
-              val validatedAccountOwners = validateOwners(zone, account.ownerMemberIds)
-              val validatedTag           = validateTag(account.name)
-              val validatedMetadata      = validateMetadata(account.metadata)
-              (validatedAccountOwners |@| validatedTag |@| validatedMetadata).tupled
+              val validatedOwnerMemberIds = validateMemberIds(zone, account.ownerMemberIds)
+              val validatedTag            = validateTag(account.name)
+              val validatedMetadata       = validateMetadata(account.metadata)
+              (validatedOwnerMemberIds |@| validatedTag |@| validatedMetadata).tupled
             }
             validatedParams match {
               case Invalid(errors) =>

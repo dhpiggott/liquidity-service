@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.server
 
+import java.nio.ByteBuffer
 import java.util.Date
 
 import akka.actor.ActorPath
@@ -82,7 +83,7 @@ object CassandraAnalyticsStore {
                           |  zone_id uuid,
                           |  id bigint,
                           |  updated timestamp,
-                          |  owner_fingerprint text,
+                          |  owner_fingerprint set<text>,
                           |  created timestamp,
                           |  name text,
                           |  metadata text,
@@ -94,8 +95,8 @@ object CassandraAnalyticsStore {
                           |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
                           |  zone_id uuid,
                           |  id bigint,
-                          |  owner_public_key blob,
-                          |  owner_fingerprint text,
+                          |  owner_public_keys set<blob>,
+                          |  owner_fingerprint set<text>,
                           |  created timestamp,
                           |  modified timestamp,
                           |  name text,
@@ -110,7 +111,7 @@ object CassandraAnalyticsStore {
     class MemberStore private (keyspace: String)(implicit session: Session) {
 
       private[this] val retrieveStatement = prepareStatement(s"""
-                         |SELECT id, owner_public_key, name, metadata
+                         |SELECT id, owner_public_keys, name, metadata
                          |  FROM $keyspace.members_by_zone
                          |  WHERE zone_id = ?
         """.stripMargin)
@@ -120,15 +121,19 @@ object CassandraAnalyticsStore {
           yield
             (for {
               row <- resultSet.iterator.asScala
-              memberId       = MemberId(row.getLong("id"))
-              ownerPublicKey = PublicKey(ByteString.of(row.getBytes("owner_public_key")))
-              name           = Option(row.getString("name"))
+              memberId = MemberId(row.getLong("id"))
+              ownerPublicKeys = row
+                .getSet("owner_public_keys", classOf[ByteBuffer])
+                .asScala
+                .map(ownerPublicKey => PublicKey(ByteString.of(ownerPublicKey)))
+                .toSet
+              name = Option(row.getString("name"))
               metadata = Option(row.getString("metadata"))
                 .map(JsonFormat.fromJsonString[com.google.protobuf.struct.Struct])
-            } yield memberId -> Member(memberId, ownerPublicKey, name, metadata)).toMap
+            } yield memberId -> Member(memberId, ownerPublicKeys, name, metadata)).toMap
 
       private[this] val createStatement = prepareStatement(s"""
-                         |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_key, owner_fingerprint, created, name, metadata, hidden)
+                         |INSERT INTO $keyspace.members_by_zone (zone_id, id, owner_public_keys, owner_fingerprint, created, name, metadata, hidden)
                          |  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           """.stripMargin)
 
@@ -138,8 +143,8 @@ object CassandraAnalyticsStore {
           _ <- createStatement.execute(
             zoneId.id,
             member.id.id: java.lang.Long,
-            member.ownerPublicKey.value.asByteBuffer,
-            member.ownerPublicKey.fingerprint,
+            member.ownerPublicKeys.map(_.value.asByteBuffer).asJava,
+            member.ownerPublicKeys.map(_.fingerprint).asJava,
             new Date(created),
             member.name.orNull,
             member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
@@ -151,7 +156,7 @@ object CassandraAnalyticsStore {
 
       private[this] val updateStatement = prepareStatement(s"""
                          |UPDATE $keyspace.members_by_zone
-                         |  SET owner_public_key = ?, owner_fingerprint = ?, modified = ?, name = ?, metadata = ?, hidden = ?
+                         |  SET owner_public_keys = ?, owner_fingerprint = ?, modified = ?, name = ?, metadata = ?, hidden = ?
                          |  WHERE zone_id = ? AND id = ?
           """.stripMargin)
 
@@ -159,8 +164,8 @@ object CassandraAnalyticsStore {
         for {
           _ <- addUpdate(zoneId, updated = modified, member)
           _ <- updateStatement.execute(
-            member.ownerPublicKey.value.asByteBuffer,
-            member.ownerPublicKey.fingerprint,
+            member.ownerPublicKeys.map(_.value.asByteBuffer).asJava,
+            member.ownerPublicKeys.map(_.fingerprint).asJava,
             new Date(modified),
             member.name.orNull,
             member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
@@ -183,7 +188,7 @@ object CassandraAnalyticsStore {
                zoneId.id,
                member.id.id: java.lang.Long,
                new Date(updated),
-               member.ownerPublicKey.fingerprint,
+               member.ownerPublicKeys.map(_.fingerprint).asJava,
                member.name.orNull,
                member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
                member.metadata

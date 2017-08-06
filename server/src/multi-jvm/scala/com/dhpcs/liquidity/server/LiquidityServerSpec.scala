@@ -245,7 +245,7 @@ sealed abstract class LiquidityServerSpec
               assert(zone.equityAccountId === AccountId(0))
               assert(
                 zone.members(MemberId(0)) === Member(MemberId(0),
-                                                     PublicKey(rsaPublicKey.getEncoded),
+                                                     Set(PublicKey(rsaPublicKey.getEncoded)),
                                                      name = Some("Dave")))
               assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
               assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
@@ -274,7 +274,7 @@ sealed abstract class LiquidityServerSpec
             assert(zone.equityAccountId === AccountId(0))
             assert(
               zone.members(MemberId(0)) === Member(MemberId(0),
-                                                   PublicKey(rsaPublicKey.getEncoded),
+                                                   Set(PublicKey(rsaPublicKey.getEncoded)),
                                                    name = Some("Dave")))
             assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
             assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
@@ -336,7 +336,7 @@ sealed abstract class LiquidityServerSpec
             assert(zone.equityAccountId === AccountId(0))
             assert(
               zone.members(MemberId(0)) === Member(MemberId(0),
-                                                   PublicKey(rsaPublicKey.getEncoded),
+                                                   Set(PublicKey(rsaPublicKey.getEncoded)),
                                                    name = Some("Dave")))
             assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
             assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))
@@ -370,7 +370,7 @@ sealed abstract class LiquidityServerSpec
             assert(zone.equityAccountId === AccountId(0))
             assert(
               zone.members(MemberId(0)) === Member(MemberId(0),
-                                                   PublicKey(rsaPublicKey.getEncoded),
+                                                   Set(PublicKey(rsaPublicKey.getEncoded)),
                                                    name = Some("Dave")))
             assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
             assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 500L))

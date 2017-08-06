@@ -31,7 +31,7 @@ message ZoneCommand {
         google.protobuf.StringValue name = 1;
     }
     message CreateMemberCommand {
-        bytes owner_public_key = 1;
+        repeated bytes owner_public_keys = 1;
         google.protobuf.StringValue name = 2;
         google.protobuf.Struct metadata = 3;
     }

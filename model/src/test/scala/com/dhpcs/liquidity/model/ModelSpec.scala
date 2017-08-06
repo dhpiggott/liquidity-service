@@ -27,9 +27,9 @@ object ModelSpec {
     equityAccountId = AccountId(0L),
     members = Map(
       MemberId(0L) ->
-        Member(id = MemberId(0L), ownerPublicKey = PublicKey(rsaPublicKey.getEncoded), name = Some("Banker")),
+        Member(id = MemberId(0L), ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)), name = Some("Banker")),
       MemberId(1L) ->
-        Member(id = MemberId(1L), ownerPublicKey = PublicKey(rsaPublicKey.getEncoded), name = Some("Dave"))
+        Member(id = MemberId(1L), ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)), name = Some("Dave"))
     ),
     accounts = Map(
       AccountId(0L) ->
@@ -65,10 +65,10 @@ object ModelSpec {
     equityAccountId = 0L,
     members = Seq(
       proto.model.Member(id = 0L,
-                         ownerPublicKey = com.google.protobuf.ByteString.copyFrom(rsaPublicKey.getEncoded),
+                         ownerPublicKeys = Seq(com.google.protobuf.ByteString.copyFrom(rsaPublicKey.getEncoded)),
                          name = Some("Banker")),
       proto.model.Member(id = 1L,
-                         ownerPublicKey = com.google.protobuf.ByteString.copyFrom(rsaPublicKey.getEncoded),
+                         ownerPublicKeys = Seq(com.google.protobuf.ByteString.copyFrom(rsaPublicKey.getEncoded)),
                          name = Some("Dave"))
     ),
     accounts = Seq(

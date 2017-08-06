@@ -91,7 +91,7 @@ object LegacyWsProtocolSpec {
       "A Member" - {
         val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
         "without a name or metadata" - {
-          val member = Member(MemberId(0), PublicKey(publicKeyBytes))
+          val member = Member(MemberId(0), Set(PublicKey(publicKeyBytes)))
           val memberJson = Json.parse(
             s"""
              |{
@@ -109,7 +109,7 @@ object LegacyWsProtocolSpec {
         "with a name and metadata" - {
           val member = Member(
             MemberId(0),
-            PublicKey(publicKeyBytes),
+            Set(PublicKey(publicKeyBytes)),
             Some("Dave"),
             Some(
               com.google.protobuf.struct.Struct(
@@ -310,9 +310,9 @@ object LegacyWsProtocolSpec {
             AccountId(0),
             Map(
               MemberId(0) ->
-                Member(MemberId(0), PublicKey(publicKeyBytes), Some("Banker")),
+                Member(MemberId(0), Set(PublicKey(publicKeyBytes)), Some("Banker")),
               MemberId(1) ->
-                Member(MemberId(1), PublicKey(publicKeyBytes), Some("Dave"))
+                Member(MemberId(1), Set(PublicKey(publicKeyBytes)), Some("Dave"))
             ),
             Map(
               AccountId(0) ->
@@ -378,9 +378,9 @@ object LegacyWsProtocolSpec {
             AccountId(0),
             Map(
               MemberId(0) ->
-                Member(MemberId(0), PublicKey(publicKeyBytes), Some("Banker")),
+                Member(MemberId(0), Set(PublicKey(publicKeyBytes)), Some("Banker")),
               MemberId(1) ->
-                Member(MemberId(1), PublicKey(publicKeyBytes), Some("Dave"))
+                Member(MemberId(1), Set(PublicKey(publicKeyBytes)), Some("Dave"))
             ),
             Map(
               AccountId(0) ->
@@ -573,7 +573,7 @@ class LegacyWsProtocolSpec extends FreeSpec {
         AccountId(0),
         Map(
           MemberId(0) ->
-            Member(MemberId(0), PublicKey(publicKeyBytes), Some("Banker"))
+            Member(MemberId(0), Set(PublicKey(publicKeyBytes)), Some("Banker"))
         ),
         Map(
           AccountId(0) ->

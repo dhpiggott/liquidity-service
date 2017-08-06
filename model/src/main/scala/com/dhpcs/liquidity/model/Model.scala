@@ -16,7 +16,7 @@ object PublicKey {
 final case class MemberId(id: Long)
 
 final case class Member(id: MemberId,
-                        ownerPublicKey: PublicKey,
+                        ownerPublicKeys: Set[PublicKey],
                         name: Option[String] = None,
                         metadata: Option[com.google.protobuf.struct.Struct] = None)
 

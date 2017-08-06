@@ -244,7 +244,7 @@ class ServerConnectionSpec
             id = ZoneId.generate,
             equityAccountId = AccountId(0),
             members = Map(
-              MemberId(0) -> Member(MemberId(0), ownerPublicKey = serverConnection.clientKey, name = Some("Dave"))
+              MemberId(0) -> Member(MemberId(0), ownerPublicKeys = Set(serverConnection.clientKey), name = Some("Dave"))
             ),
             accounts = Map(
               AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))

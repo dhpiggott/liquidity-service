@@ -86,7 +86,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
           Zone(
             id = zoneId,
             equityAccountId = AccountId(0),
-            members = Map(MemberId(0)   -> Member(MemberId(0), publicKey, name = Some("Dave"))),
+            members = Map(MemberId(0)   -> Member(MemberId(0), Set(publicKey), name = Some("Dave"))),
             accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
             transactions = Map.empty,
             created = created,

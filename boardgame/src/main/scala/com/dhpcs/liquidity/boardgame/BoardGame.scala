@@ -173,7 +173,7 @@ object BoardGame {
       clientPublicKey: PublicKey): (Map[MemberId, IdentityWithBalance], Map[MemberId, IdentityWithBalance]) =
     membersAccounts
       .collect {
-        case (memberId, accountId) if members(memberId).ownerPublicKey == clientPublicKey =>
+        case (memberId, accountId) if members(memberId).ownerPublicKeys == Set(clientPublicKey) =>
           memberId -> IdentityWithBalance(
             zoneId,
             members(memberId),
@@ -209,7 +209,7 @@ object BoardGame {
             accounts(accountId),
             (balances(accountId).bigDecimal, currency),
             accountId == equityAccountId,
-            connectedPublicKeys.contains(member.ownerPublicKey)
+            connectedPublicKeys.exists(member.ownerPublicKeys.contains)
           )
       }
       .partition {
@@ -347,7 +347,7 @@ class BoardGame private (serverConnection: ServerConnection,
     serverConnection.sendZoneCommand(
       zoneId.get,
       CreateMemberCommand(
-        serverConnection.clientKey,
+        Set(serverConnection.clientKey),
         Some(name)
       ),
       new ResponseCallback {
@@ -365,7 +365,7 @@ class BoardGame private (serverConnection: ServerConnection,
     serverConnection.sendZoneCommand(
       zoneId.get,
       UpdateMemberCommand(
-        state.identities(identity.member.id).member.copy(name = Some(name))
+        identity.member.copy(name = Some(name))
       ),
       new ResponseCallback {
         override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
@@ -381,7 +381,8 @@ class BoardGame private (serverConnection: ServerConnection,
     serverConnection.sendZoneCommand(
       zoneId.get,
       UpdateMemberCommand(
-        state.identities(identity.member.id).member.copy(ownerPublicKey = toPublicKey)
+        identity.member.copy(
+          ownerPublicKeys = identity.member.ownerPublicKeys - serverConnection.clientKey + toPublicKey)
       ),
       new ResponseCallback {
         override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
@@ -394,13 +395,12 @@ class BoardGame private (serverConnection: ServerConnection,
     )
 
   def deleteIdentity(identity: Identity): Unit = {
-    val member = state.identities(identity.member.id).member
     serverConnection.sendZoneCommand(
       zoneId.get,
       UpdateMemberCommand(
-        member.copy(
+        identity.member.copy(
           metadata = Some(
-            member.metadata
+            identity.member.metadata
               .getOrElse(com.google.protobuf.struct.Struct.defaultInstance)
               .addFields(HiddenFlagKey -> com.google.protobuf.struct
                 .Value(com.google.protobuf.struct.Value.Kind.BoolValue(true)))
@@ -411,7 +411,7 @@ class BoardGame private (serverConnection: ServerConnection,
         override def onZoneResponse(zoneResponse: ZoneResponse): Unit =
           zoneResponse.asInstanceOf[UpdateMemberResponse].result match {
             case Invalid(_) =>
-              gameActionListeners.foreach(_.onDeleteIdentityError(member.name))
+              gameActionListeners.foreach(_.onDeleteIdentityError(identity.member.name))
             case Valid(_) => ()
           }
       }
@@ -682,7 +682,7 @@ class BoardGame private (serverConnection: ServerConnection,
           val (joinedPlayers, joinedHiddenPlayers) = playersFromMembersAccounts(
             notificationZoneId,
             state.memberIdsToAccountIds.filterKeys(
-              state.zone.members(_).ownerPublicKey == publicKey
+              state.zone.members(_).ownerPublicKeys == Set(publicKey)
             ),
             state.zone.accounts,
             state.balances,
@@ -703,7 +703,7 @@ class BoardGame private (serverConnection: ServerConnection,
           val (quitPlayers, quitHiddenPlayers) = playersFromMembersAccounts(
             notificationZoneId,
             state.memberIdsToAccountIds.filterKeys(
-              state.zone.members(_).ownerPublicKey == publicKey
+              state.zone.members(_).ownerPublicKeys == Set(publicKey)
             ),
             state.zone.accounts,
             state.balances,
@@ -1015,7 +1015,7 @@ class BoardGame private (serverConnection: ServerConnection,
                 gameActionListeners.foreach(_.onTransfersUpdated(transfers))
                 val partiallyCreatedIdentities = zone.members.collect {
                   case (memberId, member)
-                      if serverConnection.clientKey == member.ownerPublicKey
+                      if member.ownerPublicKeys == Set(serverConnection.clientKey)
                         && !zone.accounts.values.exists(_.ownerMemberIds == Set(memberId)) =>
                     member
                 }

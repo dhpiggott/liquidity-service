@@ -95,7 +95,21 @@ object LegacyWsProtocol {
 
     implicit final lazy val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Long](MemberId, _.id)
 
-    implicit final lazy val MemberFormat: Format[Member] = Json.format[Member]
+    implicit final lazy val MemberFormat: Format[Member] = (
+      (JsPath \ "id").format[MemberId] and
+        (JsPath \ "ownerPublicKey").format[PublicKey] and
+        (JsPath \ "name").formatNullable[String] and
+        (JsPath \ "metadata").formatNullable[com.google.protobuf.struct.Struct]
+    )(
+      (id, ownerPublicKey, name, metadata) =>
+        Member(
+          id,
+          Set(ownerPublicKey),
+          name,
+          metadata
+      ),
+      member => (member.id, member.ownerPublicKeys.head, member.name, member.metadata)
+    )
 
     implicit final lazy val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Long](AccountId, _.id)
 

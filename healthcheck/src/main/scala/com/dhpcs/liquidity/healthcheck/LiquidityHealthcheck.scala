@@ -35,14 +35,14 @@ object LiquidityHealthcheck {
     members = Map(
       MemberId(0) -> Member(
         MemberId(0),
-        PublicKey(ByteString.decodeBase64(
-          "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtjMhJTSZ7viahRTVYYz/0mNdGXmbUQ5eNiNrLHXYkfIjSzIPGVf2a6kZCsTGISasgz8gCakyy8f2r6VL1dO/YrJpSsMmPdAoWxZ4heTh+HMeF7UARWwiMwYi7vIk4euGm3oAVaiGmMmPYfvI13mEe84ke9+YrZkG6qzqzk6YHxgwN3vaTntyAM2Fdgyl9Ki8j6lkrTf9bRzGdbZ1DNDzd9mqUJ7xVmwRMZXPNOB6D5DblLWlOYZouqGUIOjfcMkoWWrIR4dDdXzRemNPldigzW8KSEnJ0yCMX9MoNt0xk2HeP/ELqbnS7JzRiO0s61eoZbyKge25Y4jLNjBekxSrsQIDAQAB")),
+        Set(PublicKey(ByteString.decodeBase64(
+          "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtjMhJTSZ7viahRTVYYz/0mNdGXmbUQ5eNiNrLHXYkfIjSzIPGVf2a6kZCsTGISasgz8gCakyy8f2r6VL1dO/YrJpSsMmPdAoWxZ4heTh+HMeF7UARWwiMwYi7vIk4euGm3oAVaiGmMmPYfvI13mEe84ke9+YrZkG6qzqzk6YHxgwN3vaTntyAM2Fdgyl9Ki8j6lkrTf9bRzGdbZ1DNDzd9mqUJ7xVmwRMZXPNOB6D5DblLWlOYZouqGUIOjfcMkoWWrIR4dDdXzRemNPldigzW8KSEnJ0yCMX9MoNt0xk2HeP/ELqbnS7JzRiO0s61eoZbyKge25Y4jLNjBekxSrsQIDAQAB"))),
         name = Some("Bank")
       ),
       MemberId(1) -> Member(
         MemberId(1),
-        PublicKey(ByteString.decodeBase64(
-          "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtjMhJTSZ7viahRTVYYz/0mNdGXmbUQ5eNiNrLHXYkfIjSzIPGVf2a6kZCsTGISasgz8gCakyy8f2r6VL1dO/YrJpSsMmPdAoWxZ4heTh+HMeF7UARWwiMwYi7vIk4euGm3oAVaiGmMmPYfvI13mEe84ke9+YrZkG6qzqzk6YHxgwN3vaTntyAM2Fdgyl9Ki8j6lkrTf9bRzGdbZ1DNDzd9mqUJ7xVmwRMZXPNOB6D5DblLWlOYZouqGUIOjfcMkoWWrIR4dDdXzRemNPldigzW8KSEnJ0yCMX9MoNt0xk2HeP/ELqbnS7JzRiO0s61eoZbyKge25Y4jLNjBekxSrsQIDAQAB")),
+        Set(PublicKey(ByteString.decodeBase64(
+          "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtjMhJTSZ7viahRTVYYz/0mNdGXmbUQ5eNiNrLHXYkfIjSzIPGVf2a6kZCsTGISasgz8gCakyy8f2r6VL1dO/YrJpSsMmPdAoWxZ4heTh+HMeF7UARWwiMwYi7vIk4euGm3oAVaiGmMmPYfvI13mEe84ke9+YrZkG6qzqzk6YHxgwN3vaTntyAM2Fdgyl9Ki8j6lkrTf9bRzGdbZ1DNDzd9mqUJ7xVmwRMZXPNOB6D5DblLWlOYZouqGUIOjfcMkoWWrIR4dDdXzRemNPldigzW8KSEnJ0yCMX9MoNt0xk2HeP/ELqbnS7JzRiO0s61eoZbyKge25Y4jLNjBekxSrsQIDAQAB"))),
         name = Some("David")
       )
     ),

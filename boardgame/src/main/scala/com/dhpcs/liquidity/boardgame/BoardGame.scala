@@ -719,11 +719,6 @@ class BoardGame private (serverConnection: ServerConnection,
           }
           if (quitHiddenPlayers.nonEmpty)
             state.hiddenPlayers = state.hiddenPlayers ++ quitHiddenPlayers
-        case ZoneTerminatedNotification =>
-          state = null
-          _joinState = BoardGame.JOINING
-          joinStateListeners.foreach(_.onJoinStateChanged(_joinState))
-          join(notificationZoneId)
         case ZoneNameChangedNotification(name) =>
           state.zone = state.zone.copy(name = name)
           gameActionListeners.foreach(_.onGameNameChanged(name))

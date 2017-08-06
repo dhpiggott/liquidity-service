@@ -186,13 +186,12 @@ message ZoneNotification {
     oneof zone_notification {
         ClientJoinedZoneNotification client_joined_zone_notification = 1;
         ClientQuitZoneNotification client_quit_zone_notification = 2;
-        bytes zone_terminated_notification = 3;
-        ZoneNameChangedNotification zone_name_changed_notification = 4;
-        MemberCreatedNotification member_created_notification = 5;
-        MemberUpdatedNotification member_updated_notification = 6;
-        AccountCreatedNotification account_created_notification = 7;
-        AccountUpdatedNotification account_updated_notification = 8;
-        TransactionAddedNotification transaction_added_notification = 9;
+        ZoneNameChangedNotification zone_name_changed_notification = 3;
+        MemberCreatedNotification member_created_notification = 4;
+        MemberUpdatedNotification member_updated_notification = 5;
+        AccountCreatedNotification account_created_notification = 6;
+        AccountUpdatedNotification account_updated_notification = 7;
+        TransactionAddedNotification transaction_added_notification = 8;
     }
 }
 
@@ -208,10 +207,6 @@ message ZoneCommandEnvelope {
 message ZoneCommandReceivedConfirmation {
     string zone_id = 1;
     int64 delivery_id = 2;
-}
-
-message ZoneRestarted {
-    string zone_id = 1;
 }
 
 message ZoneResponseEnvelope {

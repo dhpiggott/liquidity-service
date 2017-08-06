@@ -308,7 +308,6 @@ object LegacyWsProtocol {
   sealed abstract class ZoneNotification                                                  extends Notification
   final case class ClientJoinedZoneNotification(zoneId: ZoneId, publicKey: PublicKey)     extends ZoneNotification
   final case class ClientQuitZoneNotification(zoneId: ZoneId, publicKey: PublicKey)       extends ZoneNotification
-  final case class ZoneTerminatedNotification(zoneId: ZoneId)                             extends ZoneNotification
   final case class ZoneNameChangedNotification(zoneId: ZoneId, name: Option[String])      extends ZoneNotification
   final case class MemberCreatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
   final case class MemberUpdatedNotification(zoneId: ZoneId, member: Member)              extends ZoneNotification
@@ -322,7 +321,6 @@ object LegacyWsProtocol {
       "keepAlive"         -> objectFormat(KeepAliveNotification),
       "clientJoinedZone"  -> Json.format[ClientJoinedZoneNotification],
       "clientQuitZone"    -> Json.format[ClientQuitZoneNotification],
-      "zoneTerminated"    -> Json.format[ZoneTerminatedNotification],
       "zoneNameChanged"   -> Json.format[ZoneNameChangedNotification],
       "memberCreated"     -> Json.format[MemberCreatedNotification],
       "memberUpdated"     -> Json.format[MemberUpdatedNotification],

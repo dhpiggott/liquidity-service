@@ -312,8 +312,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       state = update(state, event)
 
     case RecoveryCompleted =>
-      state.clientConnections.keys.foreach(clientConnection =>
-        context.actorSelection(clientConnection) ! ZoneRestarted(id))
       state = state.copy(
         clientConnections = Map.empty
       )

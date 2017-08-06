@@ -1,8 +1,5 @@
 package com.dhpcs.liquidity.server.actor
 
-import java.util.UUID
-
-import akka.{NotUsed, typed}
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
@@ -13,6 +10,7 @@ import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.typed.Behavior
 import akka.typed.scaladsl.adapter._
+import akka.{NotUsed, typed}
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.ValidatedNel
 import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, NumericCorrelationId, StringCorrelationId}
@@ -260,8 +258,10 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
             case CreateZoneResponse(result) =>
               toLegacyResponse(result)(LegacyWsProtocol.CreateZoneResponse)
             case JoinZoneResponse(result) =>
+              context.watch(sender())
               toLegacyResponse(result)(LegacyWsProtocol.JoinZoneResponse.tupled)
             case QuitZoneResponse(result) =>
+              context.unwatch(sender())
               toLegacyResponse(result)(_ => LegacyWsProtocol.QuitZoneResponse)
             case ChangeZoneNameResponse(result) =>
               toLegacyResponse(result)(_ => LegacyWsProtocol.ChangeZoneNameResponse)
@@ -287,8 +287,6 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
               LegacyWsProtocol.ClientJoinedZoneNotification(zoneId, _publicKey)
             case ClientQuitZoneNotification(_publicKey) =>
               LegacyWsProtocol.ClientQuitZoneNotification(zoneId, _publicKey)
-            case ZoneTerminatedNotification =>
-              LegacyWsProtocol.ZoneTerminatedNotification(zoneId)
             case ZoneNameChangedNotification(name) =>
               LegacyWsProtocol.ZoneNameChangedNotification(zoneId, name)
             case MemberCreatedNotification(member) =>
@@ -304,13 +302,8 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           }
           sendNotification(notification)
         }
-      case ZoneRestarted(zoneId) =>
-        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
-          ZoneId(UUID.fromString(validator.path.name)) != zoneId)
-        commandSequenceNumbers = commandSequenceNumbers - zoneId
-        pendingDeliveries(zoneId).foreach(confirmDelivery)
-        pendingDeliveries = pendingDeliveries - zoneId
-        sendNotification(LegacyWsProtocol.ZoneTerminatedNotification(zoneId))
+      case Terminated(_) =>
+        context.stop(self)
     }
 
   override def receiveRecover: Receive = Actor.emptyBehavior

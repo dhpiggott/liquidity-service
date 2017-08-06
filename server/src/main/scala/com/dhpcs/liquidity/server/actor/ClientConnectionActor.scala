@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 
-import akka.{NotUsed, typed}
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
@@ -14,6 +13,8 @@ import akka.stream.{Materializer, OverflowStrategy}
 import akka.typed.Behavior
 import akka.typed.scaladsl.adapter._
 import akka.util.ByteString
+import akka.{NotUsed, typed}
+import cats.data.Validated.Valid
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.ProtoBindings._
@@ -236,20 +237,20 @@ class ClientConnectionActor(ip: RemoteAddress,
             }
         }
       case ZoneResponseEnvelope(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
-        exactlyOnce(sequenceNumber, deliveryId)(
+        exactlyOnce(sequenceNumber, deliveryId) {
+          zoneResponse match {
+            case JoinZoneResponse(Valid(_)) => context.watch(sender())
+            case QuitZoneResponse(Valid(_)) => context.unwatch(sender())
+            case _                          => ()
+          }
           sendZoneResponse(correlationId, zoneResponse)
-        )
+        }
       case ZoneNotificationEnvelope(zoneId, zoneNotification, sequenceNumber, deliveryId) =>
         exactlyOnce(sequenceNumber, deliveryId)(
           sendZoneNotification(zoneId, zoneNotification)
         )
-      case ZoneRestarted(zoneId) =>
-        nextExpectedMessageSequenceNumbers = nextExpectedMessageSequenceNumbers.filterKeys(validator =>
-          ZoneId(UUID.fromString(validator.path.name)) != zoneId)
-        commandSequenceNumbers = commandSequenceNumbers - zoneId
-        pendingDeliveries(zoneId).foreach(confirmDelivery)
-        pendingDeliveries = pendingDeliveries - zoneId
-        sendZoneNotification(zoneId, ZoneTerminatedNotification)
+      case Terminated(_) =>
+        context.stop(self)
     }
 
   override def receiveRecover: Receive = Actor.emptyBehavior

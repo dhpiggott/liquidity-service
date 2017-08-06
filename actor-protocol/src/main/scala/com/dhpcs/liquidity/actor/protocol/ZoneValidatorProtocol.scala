@@ -116,7 +116,6 @@ sealed abstract class ZoneNotification
 case object EmptyZoneNotification                                       extends ZoneNotification
 final case class ClientJoinedZoneNotification(publicKey: PublicKey)     extends ZoneNotification
 final case class ClientQuitZoneNotification(publicKey: PublicKey)       extends ZoneNotification
-case object ZoneTerminatedNotification                                  extends ZoneNotification
 final case class ZoneNameChangedNotification(name: Option[String])      extends ZoneNotification
 final case class MemberCreatedNotification(member: Member)              extends ZoneNotification
 final case class MemberUpdatedNotification(member: Member)              extends ZoneNotification
@@ -134,9 +133,6 @@ final case class ZoneCommandEnvelope(zoneId: ZoneId,
     extends ZoneValidatorMessage
 
 final case class ZoneCommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
-
-// TODO: Remove/replace?
-final case class ZoneRestarted(zoneId: ZoneId) extends ZoneValidatorMessage
 
 final case class ZoneResponseEnvelope(zoneResponse: ZoneResponse,
                                       correlationId: Long,

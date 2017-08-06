@@ -24,11 +24,4 @@ object ProtoBindings {
       (_, _) => ()
     )
 
-  implicit final val ZoneTerminatedNotificationProtoBinding
-    : ProtoBinding[ZoneTerminatedNotification.type, com.google.protobuf.ByteString, Any] =
-    ProtoBinding.instance(
-      _ => com.google.protobuf.ByteString.EMPTY,
-      (_, _) => ZoneTerminatedNotification
-    )
-
 }

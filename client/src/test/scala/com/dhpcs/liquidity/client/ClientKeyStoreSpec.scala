@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.client
 import java.nio.file.Files
 import javax.net.ssl.X509KeyManager
 
-import com.dhpcs.liquidity.server._
+import com.dhpcs.liquidity.testkit.TestKit
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class ClientKeyStoreSpec extends FreeSpec with BeforeAndAfterAll {
@@ -12,7 +12,7 @@ class ClientKeyStoreSpec extends FreeSpec with BeforeAndAfterAll {
   private[this] val clientKeyStore = ClientKeyStore(filesDir.toFile)
 
   override protected def afterAll(): Unit = {
-    delete(filesDir)
+    TestKit.delete(filesDir)
     super.afterAll()
   }
 

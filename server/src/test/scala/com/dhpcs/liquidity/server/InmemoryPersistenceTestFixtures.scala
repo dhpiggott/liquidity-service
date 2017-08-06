@@ -1,13 +1,13 @@
 package com.dhpcs.liquidity.server
 
 import akka.actor.ActorSystem
-import akka.testkit.TestKit
+import com.dhpcs.liquidity
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
 trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
-  private[this] val akkaRemotingPort = freePort()
+  private[this] val akkaRemotingPort = liquidity.testkit.TestKit.freePort()
   private[this] val config           = ConfigFactory.parseString(s"""
        |akka {
        |  loglevel = "WARNING"
@@ -52,7 +52,7 @@ trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
   protected[this] implicit val system: ActorSystem = ActorSystem("liquidity", config)
 
   override protected def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    akka.testkit.TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 }

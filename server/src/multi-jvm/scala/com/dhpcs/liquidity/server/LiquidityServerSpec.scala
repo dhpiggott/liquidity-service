@@ -16,22 +16,22 @@ import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.persistence.cassandra.testkit.CassandraLauncher
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
-import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
+import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.ByteString
 import cats.data.Validated
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc._
-import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.certgen.CertGen
-import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.model.ProtoBindings._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor._
+import com.dhpcs.liquidity.testkit.TestKit
 import com.dhpcs.liquidity.ws.protocol._
 import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
 import com.typesafe.config.ConfigFactory
@@ -119,12 +119,12 @@ sealed abstract class LiquidityServerSpec
 
   private[this] lazy val cassandraDirectory = Files.createTempDirectory("liquidity-server-spec-cassandra-data")
 
-  private[this] val akkaHttpPort  = freePort()
-  private[this] val akkaHttpsPort = freePort()
+  private[this] val akkaHttpPort  = TestKit.freePort()
+  private[this] val akkaHttpsPort = TestKit.freePort()
 
   private[this] val (serverCertificate, serverKeyManagers) = {
-    val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = Some("localhost"))
-    (certificate, createKeyManagers(certificate, privateKey))
+    val (certificate, privateKey) = TestKit.generateCertKey(subjectAlternativeName = Some("localhost"))
+    (certificate, TestKit.createKeyManagers(certificate, privateKey))
   }
 
   private[this] val server = new LiquidityServer(
@@ -141,10 +141,10 @@ sealed abstract class LiquidityServerSpec
   private[this] val httpsBinding = server.bindHttps()
 
   private[this] val (rsaPublicKey: RSAPublicKey, rsaPrivateKey: RSAPrivateKey, clientHttpsConnectionContext) = {
-    val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = None)
+    val (certificate, privateKey) = TestKit.generateCertKey(subjectAlternativeName = None)
     val sslContext                = SSLContext.getInstance("TLS")
     sslContext.init(
-      createKeyManagers(certificate, privateKey),
+      TestKit.createKeyManagers(certificate, privateKey),
       Array(new X509TrustManager {
 
         override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
@@ -183,7 +183,7 @@ sealed abstract class LiquidityServerSpec
     multiNodeSpecAfterAll()
     runOn(cassandraNode) {
       CassandraLauncher.stop()
-      delete(cassandraDirectory)
+      TestKit.delete(cassandraDirectory)
     }
     super.afterAll()
   }

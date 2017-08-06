@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.client
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
+import java.io.InputStream
 import java.nio.file.Files
 import java.security.cert.{CertificateException, X509Certificate}
 import java.util.concurrent.Executors
@@ -14,9 +14,9 @@ import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy, TLSClientAuth}
-import akka.testkit.{TestKit, TestProbe}
+import akka.testkit.TestProbe
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
-import com.dhpcs.liquidity.certgen.CertGen
+import com.dhpcs.liquidity
 import com.dhpcs.liquidity.client.LegacyServerConnection._
 import com.dhpcs.liquidity.client.LegacyServerConnectionSpec._
 import com.dhpcs.liquidity.model._
@@ -60,7 +60,7 @@ class LegacyServerConnectionSpec
     with BeforeAndAfterAll
     with ScalaFutures {
 
-  private[this] val akkaHttpPort = freePort()
+  private[this] val akkaHttpPort = liquidity.testkit.TestKit.freePort()
 
   private[this] val config = ConfigFactory
     .parseString("""
@@ -80,8 +80,9 @@ class LegacyServerConnectionSpec
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
   private[this] val (serverCertificate, serverKeyManagers) = {
-    val (certificate, privateKey) = CertGen.generateCertKey(subjectAlternativeName = Some("localhost"))
-    (certificate, createKeyManagers(certificate, privateKey))
+    val (certificate, privateKey) =
+      liquidity.testkit.TestKit.generateCertKey(subjectAlternativeName = Some("localhost"))
+    (certificate, liquidity.testkit.TestKit.createKeyManagers(certificate, privateKey))
   }
 
   private[this] val httpsConnectionContext = {
@@ -138,9 +139,7 @@ class LegacyServerConnectionSpec
   private[this] val filesDir = Files.createTempDirectory("liquidity-server-connection-spec-files-dir")
 
   private[this] val keyStoreInputStreamProvider = {
-    val to = new ByteArrayOutputStream
-    CertGen.saveCert(to, "PKCS12", serverCertificate)
-    val keyStoreInputStream = new ByteArrayInputStream(to.toByteArray)
+    val keyStoreInputStream = liquidity.testkit.TestKit.toInputStream(serverCertificate)
     new KeyStoreInputStreamProvider {
       override def get(): InputStream = keyStoreInputStream
     }
@@ -207,9 +206,9 @@ class LegacyServerConnectionSpec
 
   override protected def afterAll(): Unit = {
     handlerWrapperFactory.synchronized(handlerWrappers.foreach(_.quit()))
-    delete(filesDir)
+    liquidity.testkit.TestKit.delete(filesDir)
     Await.result(binding.flatMap(_.unbind()), Duration.Inf)
-    TestKit.shutdownActorSystem(system)
+    akka.testkit.TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 

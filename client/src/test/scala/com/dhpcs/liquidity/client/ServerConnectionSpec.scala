@@ -11,8 +11,9 @@ import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.testkit.{TestKit, TestProbe}
+import akka.testkit.TestProbe
 import cats.data.Validated
+import com.dhpcs.liquidity
 import com.dhpcs.liquidity.actor.protocol._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.client.ServerConnection._
@@ -63,7 +64,7 @@ class ServerConnectionSpec
     with ScalaFutures
     with Inside {
 
-  private[this] val akkaHttpPort = freePort()
+  private[this] val akkaHttpPort = liquidity.testkit.TestKit.freePort()
 
   private[this] val config = ConfigFactory
     .parseString("""
@@ -172,9 +173,9 @@ class ServerConnectionSpec
 
   override protected def afterAll(): Unit = {
     handlerWrapperFactory.synchronized(handlerWrappers.foreach(_.quit()))
-    delete(filesDir)
+    liquidity.testkit.TestKit.delete(filesDir)
     Await.result(binding.flatMap(_.unbind()), Duration.Inf)
-    TestKit.shutdownActorSystem(system)
+    akka.testkit.TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 

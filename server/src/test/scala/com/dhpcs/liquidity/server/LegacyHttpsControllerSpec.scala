@@ -12,15 +12,15 @@ import akka.http.scaladsl.model.headers.{`Remote-Address`, `Tls-Session-Info`}
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.Flow
-import com.dhpcs.liquidity.certgen.CertGen
 import com.dhpcs.liquidity.model.PublicKey
+import com.dhpcs.liquidity.testkit.TestKit
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.FreeSpec
 
 class LegacyHttpsControllerSpec extends FreeSpec with LegacyHttpsController with ScalatestRouteTest {
 
   private[this] val sslSession = {
-    val (certificate, _) = CertGen.generateCertKey(subjectAlternativeName = None)
+    val (certificate, _) = TestKit.generateCertKey(subjectAlternativeName = None)
     new SSLSession {
       override def getPeerPort: Int                                = throw new NotImplementedError
       override def getCipherSuite: String                          = throw new NotImplementedError

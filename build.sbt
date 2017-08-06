@@ -87,14 +87,13 @@ lazy val wsLegacyProtocol = project
   .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
-lazy val certgen = project
-  .in(file("certgen"))
+lazy val testkit = project
+  .in(file("testkit"))
   .settings(noopPublishSetting)
   .settings(
-    name := "liquidity-certgen"
+    name := "liquidity-testkit"
   )
   .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.57")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val serialization = project
   .in(file("serialization"))
@@ -157,7 +156,7 @@ lazy val server = project
     )
   )
   .dependsOn(model % "test->test")
-  .dependsOn(certgen % "test")
+  .dependsOn(testkit % "test")
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest"       %% "scalatest"                 % "3.0.3"   % Test,
@@ -167,7 +166,7 @@ lazy val server = project
   .configs(MultiJvm)
   .settings(SbtMultiJvm.multiJvmSettings)
   .settings(inConfig(MultiJvm)(scalafmtSettings))
-  .dependsOn(certgen % MultiJvm)
+  .dependsOn(testkit % MultiJvm)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.3" % MultiJvm,
     "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.54"  % MultiJvm
@@ -200,7 +199,7 @@ lazy val client = project
       "com.squareup.okhttp3"    % "okhttp" % "3.8.1"
     )
   )
-  .dependsOn(certgen % "test")
+  .dependsOn(testkit % "test")
   .dependsOn(server % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
@@ -222,7 +221,7 @@ lazy val healthcheck = project
       "org.scalatest"     %% "scalatest"           % "3.0.3"
     )
   )
-  .dependsOn(certgen % "test")
+  .dependsOn(testkit % "test")
   .dependsOn(server % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
   .enablePlugins(JavaAppPackaging, UniversalPlugin)
@@ -247,7 +246,7 @@ lazy val root = project
     actorProtocol,
     wsProtocol,
     wsLegacyProtocol,
-    certgen,
+    testkit,
     serialization,
     server,
     client,

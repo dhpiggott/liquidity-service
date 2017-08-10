@@ -134,7 +134,7 @@ lazy val server = project
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.3.1",
       "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.0",
-      "com.typesafe.play"          %% "play-json"                   % "2.6.2"
+      "com.typesafe.play"          %% "play-json"                   % "2.6.3"
     ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.4",
@@ -151,7 +151,7 @@ lazy val server = project
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
       "com.typesafe.akka"      %% "akka-http"                    % "10.0.9",
       "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.2",
-      "com.typesafe.play"      %% "play-json"                    % "2.6.2",
+      "com.typesafe.play"      %% "play-json"                    % "2.6.3",
       "de.heikoseeberger"      %% "akka-http-play-json"          % "1.17.0"
     )
   )

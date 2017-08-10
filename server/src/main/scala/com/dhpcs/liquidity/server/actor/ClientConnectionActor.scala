@@ -91,6 +91,7 @@ object ClientConnectionActor {
   case object ActorSinkInit
   case object ActorSinkAck
 
+  private case object PublishStatusTimerKey
   private case object PublishStatus
 
   private object PingGeneratorActor {
@@ -120,13 +121,12 @@ class ClientConnectionActor(ip: RemoteAddress,
                             upstream: ActorRef)
     extends PersistentActor
     with ActorLogging
-    with AtLeastOnceDelivery {
+    with AtLeastOnceDelivery
+    with Timers {
 
   import com.dhpcs.liquidity.server.actor.ClientConnectionActor.PingGeneratorActor._
-  import context.dispatcher
 
-  private[this] val mediator          = DistributedPubSub(context.system).mediator
-  private[this] val publishStatusTick = context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
+  private[this] val mediator = DistributedPubSub(context.system).mediator
   private[this] val pingGeneratorActor = context.spawn(
     akka.typed.scaladsl.Actor
       .supervise(PingGeneratorActor.behaviour(pingInterval, self))
@@ -138,6 +138,8 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries                  = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
+  timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatus, 30.seconds)
+
   override def persistenceId: String = self.path.name
 
   override def preStart(): Unit = {
@@ -146,7 +148,6 @@ class ClientConnectionActor(ip: RemoteAddress,
   }
 
   override def postStop(): Unit = {
-    publishStatusTick.cancel()
     super.postStop()
     log.info(s"Stopped for ${ip.toOption.getOrElse("unknown IP")}")
   }

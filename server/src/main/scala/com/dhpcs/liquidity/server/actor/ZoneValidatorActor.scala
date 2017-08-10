@@ -110,6 +110,7 @@ object ZoneValidatorActor {
       )
   }
 
+  private case object PublishStatusTimerKey
   private case object PublishStatus
 
   private object PassivationCountdownActor {
@@ -274,14 +275,11 @@ object ZoneValidatorActor {
 
 }
 
-class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastOnceDelivery {
+class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastOnceDelivery with Timers {
 
   import ZoneValidatorActor.PassivationCountdownActor._
-  import context.dispatcher
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
-  private[this] val publishStatusTick =
-    context.system.scheduler.schedule(0.seconds, 30.seconds, self, PublishStatus)
   private[this] val passivationCountdownActor = context.spawn(
     akka.typed.scaladsl.Actor
       .supervise(PassivationCountdownActor.behaviour(self))
@@ -297,10 +295,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] var messageSequenceNumbers             = Map.empty[ActorPath, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries                  = Map.empty[ActorPath, Set[Long]].withDefaultValue(Set.empty)
 
+  timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatus, 30.seconds)
+
   override def persistenceId: String = id.persistenceId
 
   override def postStop(): Unit = {
-    publishStatusTick.cancel()
     super.postStop()
   }
 

@@ -15,6 +15,8 @@ import com.dhpcs.liquidity.ws.protocol._
 import okhttp3.{OkHttpClient, WebSocket, WebSocketListener}
 import okio.ByteString
 
+import scala.concurrent.{Future, Promise}
+
 object ServerConnection {
 
   trait ConnectivityStatePublisherBuilder {
@@ -67,11 +69,6 @@ object ServerConnection {
   }
 
   class ConnectionRequestToken
-
-  // TODO: Swap for returning Future
-  trait ResponseCallback {
-    def onZoneResponse(zoneResponse: ZoneResponse): Unit
-  }
 
   private sealed abstract class State
   private sealed abstract class IdleState     extends State
@@ -141,7 +138,7 @@ class ServerConnection(filesDir: File,
   private[this] val connectivityStatePublisher = connectivityStatePublisherBuilder.build(this)
   private[this] val mainHandlerWrapper         = handlerWrapperFactory.main()
 
-  private[this] var pendingRequests    = Map.empty[Long, ResponseCallback]
+  private[this] var pendingRequests    = Map.empty[Long, Promise[ZoneResponse]]
   private[this] var nextCorrelationId  = 0L
   private[this] var state: State       = UnavailableIdleState
   private[this] var hasFailed: Boolean = _
@@ -182,7 +179,7 @@ class ServerConnection(filesDir: File,
       connect()
   }
 
-  def sendCreateZoneCommand(createZoneCommand: CreateZoneCommand, responseCallback: ResponseCallback): Unit =
+  def sendCreateZoneCommand(createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =
     sendCommand(
       correlationId =>
         proto.ws.protocol.ServerMessage.Command(
@@ -191,11 +188,10 @@ class ServerConnection(filesDir: File,
             ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand, Any]
               .asProto(createZoneCommand)
           )
-      ),
-      responseCallback
+      )
     )
 
-  def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand, responseCallback: ResponseCallback): Unit =
+  def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand): Future[ZoneResponse] =
     sendCommand(
       correlationId =>
         proto.ws.protocol.ServerMessage.Command(
@@ -206,8 +202,7 @@ class ServerConnection(filesDir: File,
               Some(ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand, Any]
                 .asProto(zoneCommand))
             ))
-      ),
-      responseCallback
+      )
     )
 
   def unrequestConnection(token: ConnectionRequestToken): Unit =
@@ -348,7 +343,7 @@ class ServerConnection(filesDir: File,
                         val zoneResponse =
                           ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse, Any]
                             .asScala(protoZoneResponse.zoneResponse)(())
-                        mainHandlerWrapper.post(responseCallback.onZoneResponse(zoneResponse))
+                        mainHandlerWrapper.post { responseCallback.success(zoneResponse); () }
                     }
                 })
               case DisconnectingSubState =>
@@ -490,36 +485,30 @@ class ServerConnection(filesDir: File,
     }
   }
 
-  private[this] def sendCommand(command: Long => proto.ws.protocol.ServerMessage.Command,
-                                responseCallback: ResponseCallback): Unit = state match {
-    case _: IdleState =>
-      throw new IllegalStateException("Not connected")
-    case activeState: ActiveState =>
-      activeState.handlerWrapper.post(activeState.subState match {
-        case _: ConnectingSubState | DisconnectingSubState =>
-          throw new IllegalStateException(s"Not connected")
-        case _: AuthenticatingSubState =>
-          throw new IllegalStateException("Authenticating")
-        case OnlineSubState(webSocket) =>
-          val correlationId = nextCorrelationId
-          nextCorrelationId = nextCorrelationId + 1
-          sendServerMessage(
-            webSocket,
-            proto.ws.protocol.ServerMessage.Message.Command(command(correlationId)),
-            onSuccess = () => pendingRequests = pendingRequests + (correlationId -> responseCallback)
-          )
-      })
-  }
-
-  private[this] def sendServerMessage(webSocket: WebSocket,
-                                      message: proto.ws.protocol.ServerMessage.Message,
-                                      onSuccess: () => Unit = () => ()): Unit =
-    try {
-      webSocket.send(ByteString.of(proto.ws.protocol.ServerMessage(message).toByteArray: _*))
-      onSuccess()
-    } catch {
-      // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
-      case _: IOException =>
+  private[this] def sendCommand(command: Long => proto.ws.protocol.ServerMessage.Command): Future[ZoneResponse] =
+    state match {
+      case _: IdleState =>
+        Future.failed(new IllegalStateException("Not connected"))
+      case activeState: ActiveState =>
+        val promise = Promise[ZoneResponse]
+        activeState.handlerWrapper.post(activeState.subState match {
+          case _: ConnectingSubState | DisconnectingSubState =>
+            promise.failure(new IllegalStateException(s"Not connected")); ()
+          case _: AuthenticatingSubState =>
+            promise.failure(new IllegalStateException("Authenticating")); ()
+          case OnlineSubState(webSocket) =>
+            val correlationId = nextCorrelationId
+            nextCorrelationId = nextCorrelationId + 1
+            pendingRequests = pendingRequests + (correlationId -> promise)
+            sendServerMessage(
+              webSocket,
+              proto.ws.protocol.ServerMessage.Message.Command(command(correlationId))
+            )
+        })
+        promise.future
     }
 
+  private[this] def sendServerMessage(webSocket: WebSocket, message: proto.ws.protocol.ServerMessage.Message): Unit = {
+    webSocket.send(ByteString.of(proto.ws.protocol.ServerMessage(message).toByteArray: _*)); ()
+  }
 }

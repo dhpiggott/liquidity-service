@@ -23,7 +23,7 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
 
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 object LiquidityHealthcheck {
 
@@ -204,11 +204,12 @@ class LiquidityHealthcheck(scheme: Option[String],
     val promise = Promise[ZoneResponse]
     MainHandlerWrapper.post(
       () =>
-        serverConnection.sendZoneCommand(
-          zoneId,
-          zoneCommand,
-          promise.success _
-      ))
+        serverConnection
+          .sendZoneCommand(
+            zoneId,
+            zoneCommand
+          )
+          .onComplete(promise.complete)(ExecutionContext.global))
     promise.future
   }
 
@@ -226,8 +227,8 @@ class LiquidityHealthcheck(scheme: Option[String],
     promise.future
   }
 
-  private[this] implicit val system = ActorSystem("liquidity")
-  private[this] implicit val mat    = ActorMaterializer()
+  private[this] implicit val system: ActorSystem    = ActorSystem("liquidity")
+  private[this] implicit val mat: ActorMaterializer = ActorMaterializer()
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -236,7 +237,7 @@ class LiquidityHealthcheck(scheme: Option[String],
     super.afterAll()
   }
 
-  implicit override val patienceConfig =
+  implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(5, Seconds)), interval = scaled(Span(1, Second)))
 
   private[this] def withServerConnectionStateTestProbe(

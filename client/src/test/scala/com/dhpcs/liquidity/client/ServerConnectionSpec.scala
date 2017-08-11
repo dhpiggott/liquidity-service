@@ -78,8 +78,8 @@ class ServerConnectionSpec
     """.stripMargin)
     .resolve()
 
-  private[this] implicit val system = ActorSystem("liquidity", config)
-  private[this] implicit val mat    = ActorMaterializer()
+  private[this] implicit val system: ActorSystem    = ActorSystem("liquidity", config)
+  private[this] implicit val mat: ActorMaterializer = ActorMaterializer()
 
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
@@ -164,10 +164,11 @@ class ServerConnectionSpec
   private[this] def sendCreateZoneCommand(createZoneCommand: CreateZoneCommand): Future[ZoneResponse] = {
     val promise = Promise[ZoneResponse]
     MainHandlerWrapper.post(
-      serverConnection.sendCreateZoneCommand(
-        createZoneCommand,
-        promise.success _
-      ))
+      serverConnection
+        .sendCreateZoneCommand(
+          createZoneCommand
+        )
+        .onComplete(promise.complete))
     promise.future
   }
 
@@ -181,7 +182,7 @@ class ServerConnectionSpec
 
   override protected type FixtureParam = TestSubscriber.Probe[ConnectionState]
 
-  implicit override val patienceConfig =
+  implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(5, Seconds)), interval = scaled(Span(1, Second)))
 
   override protected def withFixture(test: OneArgTest): Outcome = {

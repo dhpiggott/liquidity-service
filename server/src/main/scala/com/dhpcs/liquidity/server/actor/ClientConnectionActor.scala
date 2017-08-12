@@ -16,7 +16,9 @@ import akka.util.ByteString
 import akka.{NotUsed, typed}
 import cats.data.Validated.Valid
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.clientconnection._
+import com.dhpcs.liquidity.actor.protocol.clientmonitor._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
@@ -202,7 +204,7 @@ class ClientConnectionActor(ip: RemoteAddress,
               case proto.ws.protocol.ServerMessage.Command.Command.Empty =>
               case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
                 val createZoneCommand =
-                  ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand, Any]
+                  ProtoBinding[CreateZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand.CreateZoneCommand, Any]
                     .asScala(protoCreateZoneCommand)(())
                 handleZoneCommand(
                   zoneId = ZoneId.generate,
@@ -214,7 +216,7 @@ class ClientConnectionActor(ip: RemoteAddress,
                   proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(zoneId, protoZoneCommand)
                   ) =>
                 val zoneCommand =
-                  ProtoBinding[ZoneCommand, Option[proto.actor.protocol.ZoneCommand], Any]
+                  ProtoBinding[ZoneCommand, Option[proto.actor.protocol.zonevalidator.ZoneCommand], Any]
                     .asScala(protoZoneCommand)(())
                 zoneCommand match {
                   case _: CreateZoneCommand =>
@@ -287,7 +289,7 @@ class ClientConnectionActor(ip: RemoteAddress,
   private[this] def handleZoneCommand(zoneId: ZoneId,
                                       zoneCommand: ZoneCommand,
                                       publicKey: PublicKey,
-                                      correlationId: Long) = {
+                                      correlationId: Long): Unit = {
     val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>
@@ -318,7 +320,7 @@ class ClientConnectionActor(ip: RemoteAddress,
       proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
         correlationId,
         proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
-          ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse, Any].asProto(zoneResponse)
+          ProtoBinding[ZoneResponse, proto.actor.protocol.zonevalidator.ZoneResponse, Any].asProto(zoneResponse)
         )
       )))
 
@@ -330,7 +332,7 @@ class ClientConnectionActor(ip: RemoteAddress,
             .ZoneNotificationEnvelope(
               proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(
                 zoneId.id.toString,
-                Some(ProtoBinding[ZoneNotification, proto.actor.protocol.ZoneNotification, Any]
+                Some(ProtoBinding[ZoneNotification, proto.actor.protocol.zonevalidator.ZoneNotification, Any]
                   .asProto(zoneNotification))
               ))
         )))

@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.boardgame
 import java.util.Currency
 
 import cats.data.Validated.{Invalid, Valid}
-import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.boardgame.BoardGame._
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.client.ServerConnection._

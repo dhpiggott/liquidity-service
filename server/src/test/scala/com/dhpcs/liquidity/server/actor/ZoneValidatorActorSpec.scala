@@ -6,7 +6,8 @@ import java.time.temporal.ChronoUnit
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
 import cats.data.Validated
-import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.clientconnection._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import org.scalactic.TripleEqualsSupport.Spread

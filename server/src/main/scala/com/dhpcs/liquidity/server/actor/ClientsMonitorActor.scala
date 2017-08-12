@@ -7,7 +7,7 @@ import akka.event.{Logging, LoggingAdapter}
 import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.adapter._
 import akka.typed.{Behavior, Terminated}
-import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 
 import scala.concurrent.duration._
 

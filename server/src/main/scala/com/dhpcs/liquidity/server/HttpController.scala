@@ -13,7 +13,8 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.{Flow, Source}
 import akka.{Done, NotUsed}
-import com.dhpcs.liquidity.actor.protocol.{ActiveClientSummary, ActiveZoneSummary}
+import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
+import com.dhpcs.liquidity.actor.protocol.zonemonitor.ActiveZoneSummary
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.proto

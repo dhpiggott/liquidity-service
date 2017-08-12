@@ -12,7 +12,7 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
 import cats.data.Validated
-import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.client.LegacyServerConnection
 import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._

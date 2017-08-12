@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.actor.protocol
+package com.dhpcs.liquidity.actor.protocol.zonemonitor
 
 import akka.actor.ActorRef
 import akka.typed

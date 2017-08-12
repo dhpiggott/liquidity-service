@@ -25,7 +25,7 @@ import cats.data.Validated
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
@@ -62,10 +62,10 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    }
        |    serialization-bindings {
        |      "com.dhpcs.liquidity.persistence.ZoneValidatorRecord" = zone-validator-record
-       |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-message
-       |      "com.dhpcs.liquidity.actor.protocol.ZonesMonitorMessage" = zones-monitor-message
-       |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-message
-       |      "com.dhpcs.liquidity.actor.protocol.ClientsMonitorMessage" = clients-monitor-message
+       |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.ZoneValidatorMessage" = zone-validator-message
+       |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.ZonesMonitorMessage" = zones-monitor-message
+       |      "com.dhpcs.liquidity.actor.protocol.clientconnection.ClientConnectionMessage" = client-connection-message
+       |      "com.dhpcs.liquidity.actor.protocol.clientmonitor.ClientsMonitorMessage" = clients-monitor-message
        |    }
        |    allow-java-serialization = off
        |  }
@@ -505,7 +505,7 @@ sealed abstract class LiquidityServerSpec
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-          ProtoBinding[CreateZoneCommand, proto.actor.protocol.ZoneCommand.CreateZoneCommand, Any]
+          ProtoBinding[CreateZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand.CreateZoneCommand, Any]
             .asProto(createZoneCommand)
         )
       )))
@@ -521,7 +521,7 @@ sealed abstract class LiquidityServerSpec
           proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
             zoneId.id.toString,
             Some(
-              ProtoBinding[ZoneCommand, proto.actor.protocol.ZoneCommand, Any].asProto(zoneCommand)
+              ProtoBinding[ZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand, Any].asProto(zoneCommand)
             )))
       )))
 
@@ -539,7 +539,7 @@ sealed abstract class LiquidityServerSpec
         assert(protoResponse.correlationId == expectedCorrelationId)
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.actor.protocol.ZoneResponse.ZoneResponse, Any]
+            ProtoBinding[ZoneResponse, proto.actor.protocol.zonevalidator.ZoneResponse.ZoneResponse, Any]
               .asScala(protoZoneResponse.zoneResponse)(())
         }
     }

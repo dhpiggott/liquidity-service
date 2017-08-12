@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.actor.protocol
+package com.dhpcs.liquidity.actor.protocol.clientconnection
 
 sealed abstract class ClientConnectionMessage extends Serializable
 

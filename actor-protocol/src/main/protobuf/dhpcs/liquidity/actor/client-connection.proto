@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-package dhpcs.liquidity.actor.protocol;
-
-option java_package = "com.dhpcs.liquidity.proto.actor.protocol";
-
-message MessageReceivedConfirmation {
-    int64 delivery_id = 1;
-}

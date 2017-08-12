@@ -4,7 +4,7 @@ package dhpcs.liquidity.ws.protocol;
 
 option java_package = "com.dhpcs.liquidity.proto.ws.protocol";
 
-import "dhpcs/liquidity/actor/zone-validator.proto";
+import "dhpcs/liquidity/actor/protocol/zone-validator.proto";
 
 message ClientMessage {
     message KeyOwnershipChallenge {
@@ -19,13 +19,13 @@ message ClientMessage {
     message Response {
         int64 correlation_id = 1;
         oneof response {
-            dhpcs.liquidity.actor.protocol.ZoneResponse zone_response = 2;
+            dhpcs.liquidity.actor.protocol.zonevalidator.ZoneResponse zone_response = 2;
         }
     }
     message Notification {
         message ZoneNotificationEnvelope {
             string zone_id = 1;
-            dhpcs.liquidity.actor.protocol.ZoneNotification zone_notification = 2;
+            dhpcs.liquidity.actor.protocol.zonevalidator.ZoneNotification zone_notification = 2;
         }
         oneof notification {
             ZoneNotificationEnvelope zone_notification_envelope = 1;
@@ -47,11 +47,11 @@ message ServerMessage {
     message Command {
         message ZoneCommandEnvelope {
             string zone_id = 1;
-            dhpcs.liquidity.actor.protocol.ZoneCommand zone_command = 2;
+            dhpcs.liquidity.actor.protocol.zonevalidator.ZoneCommand zone_command = 2;
         }
         int64 correlation_id = 1;
         oneof command {
-            dhpcs.liquidity.actor.protocol.ZoneCommand.CreateZoneCommand create_zone_command = 2;
+            dhpcs.liquidity.actor.protocol.zonevalidator.ZoneCommand.CreateZoneCommand create_zone_command = 2;
             ZoneCommandEnvelope zone_command_envelope = 3;
         }
     }

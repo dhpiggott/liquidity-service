@@ -11,7 +11,8 @@ import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.model.{ContentType, RemoteAddress, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.{Flow, Source}
-import com.dhpcs.liquidity.actor.protocol.{ActiveClientSummary, ActiveZoneSummary}
+import com.dhpcs.liquidity.actor.protocol.clientmonitor._
+import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
 import com.dhpcs.liquidity.proto.model.ZoneState
 import com.dhpcs.liquidity.server.HttpController.GeneratedMessageEnvelope

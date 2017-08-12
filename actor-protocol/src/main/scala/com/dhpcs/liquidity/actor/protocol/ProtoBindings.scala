@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.actor.protocol
 
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
 object ProtoBindings {

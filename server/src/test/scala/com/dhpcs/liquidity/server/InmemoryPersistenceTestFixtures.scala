@@ -15,13 +15,9 @@ trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |    provider = "akka.cluster.ClusterActorRefProvider"
        |    serializers {
        |      zone-validator-record = "com.dhpcs.liquidity.server.serialization.ZoneValidatorRecordSerializer"
-       |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
-       |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
        |    }
        |    serialization-bindings {
        |      "com.dhpcs.liquidity.persistence.ZoneValidatorRecord" = zone-validator-record
-       |      "com.dhpcs.liquidity.actor.protocol.ZoneValidatorMessage" = zone-validator-message
-       |      "com.dhpcs.liquidity.actor.protocol.ClientConnectionMessage" = client-connection-message
        |    }
        |    allow-java-serialization = off
        |  }

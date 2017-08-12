@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.actor.protocol
+package com.dhpcs.liquidity.actor.protocol.zonevalidator
 
 import cats.data.ValidatedNel
 import com.dhpcs.liquidity.model._

@@ -15,7 +15,9 @@ import cats.data.Validated.{Invalid, Valid}
 import cats.data.ValidatedNel
 import com.dhpcs.jsonrpc.JsonRpcMessage.{CorrelationId, NoCorrelationId, NumericCorrelationId, StringCorrelationId}
 import com.dhpcs.jsonrpc._
-import com.dhpcs.liquidity.actor.protocol._
+import com.dhpcs.liquidity.actor.protocol.clientconnection._
+import com.dhpcs.liquidity.actor.protocol.clientmonitor._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.legacy._
@@ -330,7 +332,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
     case SendKeepAlive => sendNotification(LegacyWsProtocol.KeepAliveNotification)
   }
 
-  private[this] def deliverZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand, correlationId: Long) = {
+  private[this] def deliverZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand, correlationId: Long): Unit = {
     val sequenceNumber = commandSequenceNumbers(zoneId)
     commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
     deliver(zoneValidatorShardRegion.path) { deliveryId =>

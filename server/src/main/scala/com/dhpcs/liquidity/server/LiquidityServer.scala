@@ -23,9 +23,11 @@ import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
 import akka.util.Timeout
 import akka.{Done, NotUsed}
-import com.dhpcs.liquidity.actor.protocol._
-import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.actor.protocol.clientmonitor._
+import com.dhpcs.liquidity.actor.protocol.zonemonitor._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -96,7 +98,7 @@ class LiquidityServer(pingInterval: FiniteDuration,
 
   private[this] implicit val askTimeout: Timeout  = Timeout(5.seconds)
   private[this] implicit val scheduler: Scheduler = system.scheduler
-  private[this] implicit val ec                   = system.dispatcher
+  private[this] implicit val ec: ExecutionContext = system.dispatcher
 
   private[this] val zoneValidatorShardRegion =
     if (Cluster(system).selfRoles.contains(ZoneHostRole))

@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package dhpcs.liquidity.actor.protocol;
+package dhpcs.liquidity.actor.protocol.zonevalidator;
 
-option java_package = "com.dhpcs.liquidity.proto.actor.protocol";
+option java_package = "com.dhpcs.liquidity.proto.actor.protocol.zonevalidator";
 
 import "google/protobuf/wrappers.proto";
 import "google/protobuf/struct.proto";

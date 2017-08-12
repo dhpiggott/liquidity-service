@@ -3,8 +3,8 @@ package com.dhpcs.liquidity.server.serialization
 import akka.actor.ExtendedActorSystem
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.serialization.ProtoBindingBackedSerializer
-import com.dhpcs.liquidity.serialization.ProtoBindingBackedSerializer.AnyRefProtoBinding
+import com.dhpcs.liquidity.server.ProtoBindingBackedSerializer
+import com.dhpcs.liquidity.server.ProtoBindingBackedSerializer.AnyRefProtoBinding
 
 import scala.collection.immutable.Seq
 

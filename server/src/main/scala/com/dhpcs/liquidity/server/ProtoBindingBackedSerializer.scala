@@ -1,4 +1,4 @@
-package com.dhpcs.liquidity.serialization
+package com.dhpcs.liquidity.server
 
 import java.io.NotSerializableException
 import java.util.concurrent.atomic.AtomicReference
@@ -7,7 +7,7 @@ import akka.actor.ExtendedActorSystem
 import akka.remote.serialization.ProtobufSerializer
 import akka.serialization.SerializerWithStringManifest
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
-import com.dhpcs.liquidity.serialization.ProtoBindingBackedSerializer.AnyRefProtoBinding
+import com.dhpcs.liquidity.server.ProtoBindingBackedSerializer.AnyRefProtoBinding
 
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq

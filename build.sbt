@@ -95,15 +95,6 @@ lazy val testkit = project
   )
   .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.57")
 
-lazy val serialization = project
-  .in(file("serialization"))
-  .settings(noopPublishSetting)
-  .settings(
-    name := "liquidity-serialization"
-  )
-  .dependsOn(protoBinding)
-  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-remote" % "2.5.4")
-
 lazy val server = project
   .in(file("server"))
   .settings(noopPublishSetting)
@@ -113,7 +104,6 @@ lazy val server = project
   .dependsOn(model)
   .dependsOn(persistence)
   .dependsOn(actorProtocol)
-  .dependsOn(serialization)
   .dependsOn(wsProtocol)
   .dependsOn(wsLegacyProtocol)
   .settings(
@@ -247,7 +237,6 @@ lazy val root = project
     wsProtocol,
     wsLegacyProtocol,
     testkit,
-    serialization,
     server,
     client,
     healthcheck,

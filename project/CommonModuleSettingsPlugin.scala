@@ -4,7 +4,7 @@ import sbt.Keys._
 import sbt._
 import scoverage.ScoverageKeys._
 
-object CommonProjectSettingsPlugin extends AutoPlugin {
+object CommonModuleSettingsPlugin extends AutoPlugin {
 
   override def trigger: PluginTrigger = allRequirements
 

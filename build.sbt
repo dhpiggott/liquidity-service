@@ -19,7 +19,6 @@ lazy val protoBinding = project
       "org.typelevel"     %% "cats"       % "0.9.0",
       "com.typesafe.akka" %% "akka-actor" % "2.5.4"
     ))
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
 
 lazy val model = project
   .in(file("model"))

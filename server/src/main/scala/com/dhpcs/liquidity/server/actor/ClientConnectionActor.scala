@@ -262,7 +262,7 @@ class ClientConnectionActor(ip: RemoteAddress,
     case PublishStatus =>
       for (publicKey <- maybePublicKey)
         mediator ! Publish(
-          ClientsMonitorActor.ClientStatusTopic,
+          ClientMonitorActor.ClientStatusTopic,
           UpsertActiveClientSummary(self, ActiveClientSummary(publicKey))
         )
   }

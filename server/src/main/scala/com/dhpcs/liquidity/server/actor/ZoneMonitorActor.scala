@@ -11,13 +11,13 @@ import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 
 import scala.concurrent.duration._
 
-object ZonesMonitorActor {
+object ZoneMonitorActor {
 
   final val ZoneStatusTopic = "Zone"
 
   private case object LogActiveZonesCountTimerKey
 
-  def behaviour: Behavior[ZonesMonitorMessage] = Actor.deferred { context =>
+  def behaviour: Behavior[ZoneMonitorMessage] = Actor.deferred { context =>
     val log      = Logging(context.system.toUntyped, context.self.toUntyped)
     val mediator = DistributedPubSub(context.system.toUntyped).mediator
     mediator ! Subscribe(ZoneStatusTopic, context.self.toUntyped)
@@ -28,8 +28,8 @@ object ZonesMonitorActor {
   }
 
   private def withSummaries(log: LoggingAdapter,
-                            activeZoneSummaries: Map[ActorRef, ActiveZoneSummary]): Behavior[ZonesMonitorMessage] =
-    Actor.immutable[ZonesMonitorMessage] { (context, message) =>
+                            activeZoneSummaries: Map[ActorRef, ActiveZoneSummary]): Behavior[ZoneMonitorMessage] =
+    Actor.immutable[ZoneMonitorMessage] { (context, message) =>
       message match {
         case UpsertActiveZoneSummary(zoneValidatorActorRef, activeZoneSummary) =>
           if (!activeZoneSummaries.contains(zoneValidatorActorRef))

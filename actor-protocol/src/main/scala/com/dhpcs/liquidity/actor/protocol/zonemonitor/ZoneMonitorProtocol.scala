@@ -11,9 +11,9 @@ final case class ActiveZoneSummary(zoneId: ZoneId,
                                    metadata: Option[com.google.protobuf.struct.Struct],
                                    clientConnections: Set[PublicKey])
 
-sealed abstract class ZonesMonitorMessage extends Serializable
+sealed abstract class ZoneMonitorMessage extends Serializable
 
 final case class UpsertActiveZoneSummary(zoneValidatorActorRef: ActorRef, activeZoneSummary: ActiveZoneSummary)
-    extends ZonesMonitorMessage
-case object LogActiveZonesCount                                                          extends ZonesMonitorMessage
-final case class GetActiveZoneSummaries(replyTo: typed.ActorRef[Set[ActiveZoneSummary]]) extends ZonesMonitorMessage
+    extends ZoneMonitorMessage
+case object LogActiveZonesCount                                                          extends ZoneMonitorMessage
+final case class GetActiveZoneSummaries(replyTo: typed.ActorRef[Set[ActiveZoneSummary]]) extends ZoneMonitorMessage

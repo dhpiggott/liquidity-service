@@ -56,16 +56,16 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    serializers {
        |      zone-validator-record = "com.dhpcs.liquidity.server.serialization.ZoneValidatorRecordSerializer"
        |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
-       |      zones-monitor-message = "com.dhpcs.liquidity.server.serialization.ZonesMonitorMessageSerializer"
+       |      zone-monitor-message = "com.dhpcs.liquidity.server.serialization.ZonesMonitorMessageSerializer"
        |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
-       |      clients-monitor-message = "com.dhpcs.liquidity.server.serialization.ClientsMonitorMessageSerializer"
+       |      client-monitor-message = "com.dhpcs.liquidity.server.serialization.ClientsMonitorMessageSerializer"
        |    }
        |    serialization-bindings {
        |      "com.dhpcs.liquidity.persistence.ZoneValidatorRecord" = zone-validator-record
        |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.ZoneValidatorMessage" = zone-validator-message
-       |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.ZonesMonitorMessage" = zones-monitor-message
+       |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.ZoneMonitorMessage" = zone-monitor-message
        |      "com.dhpcs.liquidity.actor.protocol.clientconnection.ClientConnectionMessage" = client-connection-message
-       |      "com.dhpcs.liquidity.actor.protocol.clientmonitor.ClientsMonitorMessage" = clients-monitor-message
+       |      "com.dhpcs.liquidity.actor.protocol.clientmonitor.ClientMonitorMessage" = client-monitor-message
        |    }
        |    allow-java-serialization = off
        |  }

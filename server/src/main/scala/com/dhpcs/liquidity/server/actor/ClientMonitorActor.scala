@@ -11,13 +11,13 @@ import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 
 import scala.concurrent.duration._
 
-object ClientsMonitorActor {
+object ClientMonitorActor {
 
   final val ClientStatusTopic = "Client"
 
   private case object LogActiveClientsCountTimerKey
 
-  def behaviour: Behavior[ClientsMonitorMessage] = Actor.deferred { context =>
+  def behaviour: Behavior[ClientMonitorMessage] = Actor.deferred { context =>
     val log      = Logging(context.system.toUntyped, context.self.toUntyped)
     val mediator = DistributedPubSub(context.system.toUntyped).mediator
     mediator ! Subscribe(ClientStatusTopic, context.self.toUntyped)
@@ -27,10 +27,9 @@ object ClientsMonitorActor {
     }
   }
 
-  private def withSummaries(
-      log: LoggingAdapter,
-      activeClientSummaries: Map[ActorRef, ActiveClientSummary]): Behavior[ClientsMonitorMessage] =
-    Actor.immutable[ClientsMonitorMessage] { (context, message) =>
+  private def withSummaries(log: LoggingAdapter,
+                            activeClientSummaries: Map[ActorRef, ActiveClientSummary]): Behavior[ClientMonitorMessage] =
+    Actor.immutable[ClientMonitorMessage] { (context, message) =>
       message match {
         case UpsertActiveClientSummary(clientConnectionActorRef, activeClientSummary) =>
           if (!activeClientSummaries.contains(clientConnectionActorRef))

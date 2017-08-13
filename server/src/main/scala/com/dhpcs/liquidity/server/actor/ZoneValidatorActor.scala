@@ -323,7 +323,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       state.zone.foreach(
         zone =>
           mediator ! Publish(
-            ZonesMonitorActor.ZoneStatusTopic,
+            ZoneMonitorActor.ZoneStatusTopic,
             UpsertActiveZoneSummary(
               self,
               ActiveZoneSummary(

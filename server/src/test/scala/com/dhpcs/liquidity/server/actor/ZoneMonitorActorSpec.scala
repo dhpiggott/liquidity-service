@@ -6,14 +6,14 @@ import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import org.scalatest.FreeSpec
 
-class ZonesMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures {
+class ZoneMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures {
 
-  "A ZonesMonitorActor" - {
+  "A ZoneMonitorActor" - {
     "will provide a summary of the active zones" in {
-      val zonesMonitorActor = system.spawn(ZonesMonitorActor.behaviour, "zones-monitor")
-      val testProbe         = TestProbe()
+      val zoneMonitorActor = system.spawn(ZoneMonitorActor.behaviour, "zone-monitor")
+      val testProbe        = TestProbe()
       testProbe.send(
-        zonesMonitorActor.toUntyped,
+        zoneMonitorActor.toUntyped,
         GetActiveZoneSummaries(testProbe.ref)
       )
       testProbe.expectMsg(Set.empty)

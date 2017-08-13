@@ -117,12 +117,12 @@ class LiquidityServer(pingInterval: FiniteDuration,
         extractShardId = ZoneValidatorActor.extractShardId
       )
 
-  private[this] val clientsMonitorActor = system.spawn(
-    Actor.supervise(ClientsMonitorActor.behaviour).onFailure[Exception](SupervisorStrategy.restart),
-    "clients-monitor")
-  private[this] val zonesMonitorActor = system.spawn(
-    Actor.supervise(ZonesMonitorActor.behaviour).onFailure[Exception](SupervisorStrategy.restart),
-    "zones-monitor")
+  private[this] val clientMonitorActor = system.spawn(
+    Actor.supervise(ClientMonitorActor.behaviour).onFailure[Exception](SupervisorStrategy.restart),
+    "client-monitor")
+  private[this] val zoneMonitorActor = system.spawn(
+    Actor.supervise(ZoneMonitorActor.behaviour).onFailure[Exception](SupervisorStrategy.restart),
+    "zone-monitor")
 
   private[this] val futureAnalyticsStore =
     readJournal.session.underlying().flatMap(CassandraAnalyticsStore(analyticsKeyspace)(_, ec))
@@ -247,10 +247,10 @@ class LiquidityServer(pingInterval: FiniteDuration,
     )
 
   override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
-    clientsMonitorActor ? GetActiveClientSummaries
+    clientMonitorActor ? GetActiveClientSummaries
 
   override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
-    zonesMonitorActor ? GetActiveZoneSummaries
+    zoneMonitorActor ? GetActiveZoneSummaries
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
     futureAnalyticsStore.flatMap(_.zoneStore.retrieveOpt(zoneId))

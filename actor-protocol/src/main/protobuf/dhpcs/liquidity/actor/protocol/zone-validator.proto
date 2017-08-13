@@ -44,7 +44,8 @@ message ZoneCommand {
         google.protobuf.Struct metadata = 3;
     }
     message UpdateAccountCommand {
-        dhpcs.liquidity.model.Account account = 1;
+        int64 acting_as = 1;
+        dhpcs.liquidity.model.Account account = 2;
     }
     message AddTransactionCommand {
         int64 acting_as = 1;

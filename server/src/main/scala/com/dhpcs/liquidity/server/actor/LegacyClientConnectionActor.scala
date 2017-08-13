@@ -234,7 +234,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
                   case zoneCommand @ LegacyWsProtocol.CreateAccountCommand(_, ownerMemberIds, name, metadata) =>
                     zoneCommand.zoneId -> CreateAccountCommand(ownerMemberIds, name, metadata)
                   case zoneCommand @ LegacyWsProtocol.UpdateAccountCommand(_, account) =>
-                    zoneCommand.zoneId -> UpdateAccountCommand(account)
+                    zoneCommand.zoneId -> UpdateAccountCommand(actingAs = account.ownerMemberIds.head, account)
                   case zoneCommand @ LegacyWsProtocol.AddTransactionCommand(_,
                                                                             actingAs,
                                                                             from,

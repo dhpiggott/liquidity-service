@@ -38,7 +38,7 @@ final case class CreateAccountCommand(ownerMemberIds: Set[MemberId],
                                       name: Option[String] = None,
                                       metadata: Option[com.google.protobuf.struct.Struct] = None)
     extends ZoneCommand
-final case class UpdateAccountCommand(account: Account) extends ZoneCommand
+final case class UpdateAccountCommand(actingAs: MemberId, account: Account) extends ZoneCommand
 final case class AddTransactionCommand(actingAs: MemberId,
                                        from: AccountId,
                                        to: AccountId,

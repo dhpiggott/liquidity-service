@@ -191,24 +191,29 @@ object ZoneValidatorActor {
     }
 
   private def validateCanUpdateAccount(zone: Zone,
-                                       accountId: AccountId,
-                                       // TODO: Add actingAs
-                                       publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
+                                       publicKey: PublicKey,
+                                       actingAs: MemberId,
+                                       accountId: AccountId): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.accounts.get(accountId) match {
       case None =>
         Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)
-      case Some(account)
-          if !account.ownerMemberIds.exists(
-            memberId => zone.members.get(memberId).exists(_.ownerPublicKeys.contains(publicKey))) =>
-        Validated.invalidNel(ZoneResponse.Error.accountOwnerKeyMismatch)
+      case Some(account) if !account.ownerMemberIds.contains(actingAs) =>
+        Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)
       case _ =>
-        Validated.valid(())
+        zone.members.get(actingAs) match {
+          case None =>
+            Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
+          case Some(member) if !member.ownerPublicKeys.contains(publicKey) =>
+            Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
+          case _ =>
+            Validated.valid(())
+        }
     }
 
   private def validateCanDebitAccount(zone: Zone,
-                                      accountId: AccountId,
+                                      publicKey: PublicKey,
                                       actingAs: MemberId,
-                                      publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
+                                      accountId: AccountId): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.accounts.get(accountId) match {
       case None =>
         Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)
@@ -636,7 +641,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             }
         }
 
-      case UpdateAccountCommand(account) =>
+      case UpdateAccountCommand(actingAs, account) =>
         state.zone match {
           case None =>
             deliverResponse(
@@ -644,7 +649,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
-            val validatedParams = validateCanUpdateAccount(zone, account.id, publicKey).andThen { _ =>
+            val validatedParams = validateCanUpdateAccount(zone, publicKey, actingAs, account.id).andThen { _ =>
               val validatedOwnerMemberIds = validateMemberIds(zone, account.ownerMemberIds)
               val validatedTag            = validateTag(account.name)
               val validatedMetadata       = validateMetadata(account.metadata)
@@ -676,7 +681,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
-            val validatedParams = validateCanDebitAccount(zone, from, actingAs, publicKey)
+            val validatedParams = validateCanDebitAccount(zone, publicKey, actingAs, from)
               .andThen { _ =>
                 val validatedFromAndTo   = validateFromAndTo(from, to, zone)
                 val validatedDescription = validateTag(description)

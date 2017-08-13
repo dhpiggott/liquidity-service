@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.client
 
 import java.io.InputStream
+import java.net.InetAddress
 import java.nio.file.Files
 import java.security.cert.{CertificateException, X509Certificate}
 import java.util.concurrent.Executors
@@ -8,7 +9,7 @@ import javax.net.ssl.{SSLContext, X509TrustManager}
 
 import akka.NotUsed
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
-import akka.http.scaladsl.model.{RemoteAddress, ws}
+import akka.http.scaladsl.model.ws
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.TestSubscriber
@@ -74,8 +75,8 @@ class LegacyServerConnectionSpec
     """.stripMargin)
     .resolve()
 
-  private[this] implicit val system = ActorSystem("liquidity", config)
-  private[this] implicit val mat    = ActorMaterializer()
+  private[this] implicit val system: ActorSystem    = ActorSystem("liquidity", config)
+  private[this] implicit val mat: ActorMaterializer = ActorMaterializer()
 
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
@@ -123,7 +124,7 @@ class LegacyServerConnectionSpec
     )
   }
 
-  override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
+  override protected[this] def legacyWebSocketApi(remoteAddress: InetAddress,
                                                   publicKey: PublicKey): Flow[ws.Message, ws.Message, NotUsed] =
     LegacyClientConnectionActor.webSocketFlow(
       props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
@@ -214,7 +215,7 @@ class LegacyServerConnectionSpec
 
   override protected type FixtureParam = TestSubscriber.Probe[ConnectionState]
 
-  implicit override val patienceConfig =
+  implicit override val patienceConfig: PatienceConfig =
     PatienceConfig(timeout = scaled(Span(5, Seconds)), interval = scaled(Span(1, Second)))
 
   override protected def withFixture(test: OneArgTest): Outcome = {

@@ -82,7 +82,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
   override protected[this] def zoneState(zoneId: ZoneId): Future[ZoneState] =
     Future.successful(ZoneState(zone = None, balances = Map.empty, clientConnections = Map.empty))
 
-  override protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed] = Flow[Message]
+  override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] = Flow[Message]
 
   override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
     Future.successful(Set.empty)

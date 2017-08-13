@@ -1,5 +1,7 @@
 package com.dhpcs.liquidity.actor.protocol.zonevalidator
 
+import java.net.InetAddress
+
 import cats.data.ValidatedNel
 import com.dhpcs.liquidity.model._
 
@@ -9,11 +11,9 @@ final case class GetZoneStateCommand(zoneId: ZoneId)    extends ZoneValidatorMes
 final case class GetZoneStateResponse(state: ZoneState) extends ZoneValidatorMessage
 
 object ZoneCommand {
-
   final val RequiredKeySize     = 2048
   final val MaximumTagLength    = 160
   final val MaximumMetadataSize = 1024
-
 }
 
 sealed abstract class ZoneCommand
@@ -124,24 +124,24 @@ final case class AccountUpdatedNotification(account: Account)           extends 
 final case class TransactionAddedNotification(transaction: Transaction) extends ZoneNotification
 
 final case class ZoneCommandEnvelope(zoneId: ZoneId,
-                                     zoneCommand: ZoneCommand,
-                                     // TODO: Add metadata
+                                     remoteAddress: InetAddress,
                                      publicKey: PublicKey,
                                      correlationId: Long,
                                      sequenceNumber: Long,
-                                     deliveryId: Long)
+                                     deliveryId: Long,
+                                     zoneCommand: ZoneCommand)
     extends ZoneValidatorMessage
 
 final case class ZoneCommandReceivedConfirmation(zoneId: ZoneId, deliveryId: Long) extends ZoneValidatorMessage
 
-final case class ZoneResponseEnvelope(zoneResponse: ZoneResponse,
-                                      correlationId: Long,
+final case class ZoneResponseEnvelope(correlationId: Long,
                                       sequenceNumber: Long,
-                                      deliveryId: Long)
+                                      deliveryId: Long,
+                                      zoneResponse: ZoneResponse)
     extends ZoneValidatorMessage
 
 final case class ZoneNotificationEnvelope(zoneId: ZoneId,
-                                          zoneNotification: ZoneNotification,
                                           sequenceNumber: Long,
-                                          deliveryId: Long)
+                                          deliveryId: Long,
+                                          zoneNotification: ZoneNotification)
     extends ZoneValidatorMessage

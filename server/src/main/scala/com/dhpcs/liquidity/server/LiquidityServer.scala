@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.server
 
+import java.net.InetAddress
 import java.security.KeyStore
 import java.security.cert.X509Certificate
 import javax.net.ssl._
@@ -9,7 +10,6 @@ import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
-import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.pattern.ask
@@ -241,9 +241,9 @@ class LiquidityServer(pingInterval: FiniteDuration,
       .mapTo[GetZoneStateResponse]
       .map(response => ProtoBinding[ZoneState, proto.model.ZoneState, Any].asProto(response.state))
 
-  override protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed] =
+  override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionActor.props(ip, zoneValidatorShardRegion, pingInterval)
+      props = ClientConnectionActor.props(remoteAddress, zoneValidatorShardRegion, pingInterval)
     )
 
   override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
@@ -261,10 +261,10 @@ class LiquidityServer(pingInterval: FiniteDuration,
   override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
     futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId))
 
-  override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
+  override protected[this] def legacyWebSocketApi(remoteAddress: InetAddress,
                                                   publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     LegacyClientConnectionActor.webSocketFlow(
-      props = LegacyClientConnectionActor.props(ip, publicKey, zoneValidatorShardRegion, pingInterval)
+      props = LegacyClientConnectionActor.props(remoteAddress, publicKey, zoneValidatorShardRegion, pingInterval)
     )
 
 }

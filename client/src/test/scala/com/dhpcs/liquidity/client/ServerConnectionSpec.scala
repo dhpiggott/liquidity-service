@@ -1,12 +1,13 @@
 package com.dhpcs.liquidity.client
 
+import java.net.InetAddress
 import java.nio.file.Files
 import java.util.concurrent.Executors
 
 import akka.NotUsed
 import akka.actor.{Actor, ActorPath, ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{RemoteAddress, ws}
+import akka.http.scaladsl.model.ws
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
@@ -14,14 +15,14 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestProbe
 import cats.data.Validated
 import com.dhpcs.liquidity
-import com.dhpcs.liquidity.actor.protocol.zonemonitor._
-import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
+import com.dhpcs.liquidity.actor.protocol.zonemonitor._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
-import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.model.ProtoBindings._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.proto.model.ZoneState
@@ -93,7 +94,7 @@ class ServerConnectionSpec
   override protected[this] def zoneState(zoneId: ZoneId): Future[ZoneState] =
     Future.successful(ZoneState(zone = None, balances = Map.empty, clientConnections = Map.empty))
 
-  override protected[this] def webSocketApi(ip: RemoteAddress): Flow[ws.Message, ws.Message, NotUsed] =
+  override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
       props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
     )

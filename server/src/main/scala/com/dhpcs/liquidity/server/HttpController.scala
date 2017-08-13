@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.server
 
+import java.net.InetAddress
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -7,6 +8,7 @@ import java.util.UUID
 import akka.actor.ActorPath
 import akka.http.scaladsl.common.{EntityStreamingSupport, JsonEntityStreamingSupport}
 import akka.http.scaladsl.marshalling._
+import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
@@ -15,8 +17,8 @@ import akka.stream.scaladsl.{Flow, Source}
 import akka.{Done, NotUsed}
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor.ActiveZoneSummary
-import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.model.ProtoBindings._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._
@@ -46,7 +48,6 @@ object HttpController {
           "event" -> Json.parse(JsonFormat.toJsonString(GeneratedMessageEnvelope.event))
       ))
   }
-
 }
 
 trait HttpController {
@@ -92,7 +93,14 @@ trait HttpController {
         )
       ))
 
-  private[this] def ws: Route = path("ws")(extractClientIP(ip => handleWebSocketMessages(webSocketApi(ip))))
+  private[this] def ws: Route =
+    path("ws")(extractClientIP(_.toOption match {
+      case None =>
+        complete(
+          (InternalServerError, s"Could not extract remote address. Check akka.http.server.remote-address-header = on.")
+        )
+      case Some(remoteAddress) => handleWebSocketMessages(webSocketApi(remoteAddress))
+    }))
 
   private[this] def status(implicit ec: ExecutionContext): Route =
     path("status")(
@@ -168,7 +176,7 @@ trait HttpController {
 
   protected[this] def zoneState(zoneId: ZoneId): Future[proto.model.ZoneState]
 
-  protected[this] def webSocketApi(ip: RemoteAddress): Flow[Message, Message, NotUsed]
+  protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed]
 
   protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]]
 

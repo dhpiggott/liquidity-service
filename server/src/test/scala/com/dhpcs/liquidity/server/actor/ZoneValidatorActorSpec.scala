@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
+import java.net.InetAddress
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -23,7 +24,8 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
     extractShardId = ZoneValidatorActor.extractShardId
   )
 
-  private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
+  private[this] val remoteAddress = InetAddress.getLoopbackAddress
+  private[this] val publicKey     = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
 
   "A ZoneValidatorActor" - {
     "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
@@ -33,6 +35,11 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
       send(clientConnectionTestProbe, zoneId)(
         ZoneCommandEnvelope(
           zoneId,
+          remoteAddress,
+          publicKey,
+          correlationId,
+          sequenceNumber,
+          deliveryId = 1L,
           CreateZoneCommand(
             equityOwnerPublicKey = publicKey,
             equityOwnerName = Some("Dave"),
@@ -40,11 +47,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
             equityAccountName = None,
             equityAccountMetadata = None,
             name = Some("Dave's Game")
-          ),
-          publicKey,
-          correlationId,
-          sequenceNumber,
-          deliveryId = 1L
+          )
         )
       )
       inside(expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
@@ -66,11 +69,12 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
       send(clientConnectionTestProbe, zoneId)(
         ZoneCommandEnvelope(
           zoneId,
-          JoinZoneCommand,
+          remoteAddress,
           publicKey,
           correlationId,
           sequenceNumber,
-          deliveryId = 1L
+          deliveryId = 1L,
+          JoinZoneCommand
         )
       )
       assert(

@@ -3,13 +3,12 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 
 import akka.actor.ActorRef
-import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import cats.data.Validated
-import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
@@ -21,7 +20,6 @@ import scala.concurrent.duration._
 class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures with Inside {
 
   private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
-  private[this] val ip        = RemoteAddress(InetAddress.getLoopbackAddress)
 
   override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
@@ -30,8 +28,9 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
     val zoneValidatorShardRegionTestProbe = TestProbe()
     val upstreamTestProbe                 = TestProbe()
     val clientConnection = system.actorOf(
-      ClientConnectionActor
-        .props(ip, zoneValidatorShardRegionTestProbe.ref, pingInterval = 3.seconds)(upstreamTestProbe.ref)
+      ClientConnectionActor.props(InetAddress.getLoopbackAddress,
+                                  zoneValidatorShardRegionTestProbe.ref,
+                                  pingInterval = 3.seconds)(upstreamTestProbe.ref)
     )
     sinkTestProbe.send(clientConnection, ClientConnectionActor.ActorSinkInit)
     sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
@@ -97,7 +96,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        ZoneResponseEnvelope(result, correlationId, sequenceNumber = 1L, deliveryId = 1L)
+        ZoneResponseEnvelope(correlationId, sequenceNumber = 1L, deliveryId = 1L, result)
       )
       assert(expectZoneResponse(upstreamTestProbe) === result)
     }

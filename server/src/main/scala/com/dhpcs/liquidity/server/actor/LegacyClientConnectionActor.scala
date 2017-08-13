@@ -1,9 +1,10 @@
 package com.dhpcs.liquidity.server.actor
 
+import java.net.InetAddress
+
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
-import akka.http.scaladsl.model.RemoteAddress
 import akka.http.scaladsl.model.ws.{TextMessage, Message => WsMessage}
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
@@ -27,17 +28,12 @@ import scala.concurrent.duration._
 
 object LegacyClientConnectionActor {
 
-  def props(ip: RemoteAddress,
+  def props(remoteAddress: InetAddress,
             publicKey: PublicKey,
             zoneValidatorShardRegion: ActorRef,
             keepAliveInterval: FiniteDuration)(upstream: ActorRef): Props =
     Props(
-      classOf[LegacyClientConnectionActor],
-      ip,
-      publicKey,
-      zoneValidatorShardRegion,
-      keepAliveInterval,
-      upstream
+      new LegacyClientConnectionActor(remoteAddress, publicKey, zoneValidatorShardRegion, keepAliveInterval, upstream)
     )
 
   def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
@@ -127,7 +123,7 @@ object LegacyClientConnectionActor {
   }
 }
 
-class LegacyClientConnectionActor(ip: RemoteAddress,
+class LegacyClientConnectionActor(remoteAddress: InetAddress,
                                   publicKey: PublicKey,
                                   zoneValidatorShardRegion: ActorRef,
                                   keepAliveInterval: FiniteDuration,
@@ -157,12 +153,12 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
 
   override def preStart(): Unit = {
     super.preStart()
-    log.info(s"Started for ${ip.toOption.getOrElse("unknown IP")}")
+    log.info(s"Started for $remoteAddress")
   }
 
   override def postStop(): Unit = {
     super.postStop()
-    log.info(s"Stopped for ${ip.toOption.getOrElse("unknown IP")}")
+    log.info(s"Stopped for $remoteAddress")
   }
 
   override def receiveCommand: Receive = waitingForActorSinkInit
@@ -244,10 +240,23 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
                                                                             metadata) =>
                     zoneCommand.zoneId -> AddTransactionCommand(actingAs, from, to, value, description, metadata)
                 }
-                deliverZoneCommand(zoneId, zoneCommand, numericCorrelationId.value.toLongExact)
+                val sequenceNumber = commandSequenceNumbers(zoneId)
+                commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
+                deliver(zoneValidatorShardRegion.path) { deliveryId =>
+                  pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
+                  ZoneCommandEnvelope(
+                    zoneId,
+                    remoteAddress,
+                    publicKey,
+                    numericCorrelationId.value.toLongExact,
+                    sequenceNumber,
+                    deliveryId,
+                    zoneCommand
+                  )
+                }
             }
         }
-      case ZoneResponseEnvelope(zoneResponse, correlationId, sequenceNumber, deliveryId) =>
+      case ZoneResponseEnvelope(correlationId, sequenceNumber, deliveryId, zoneResponse) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           def toLegacyResponse[A, B <: LegacyWsProtocol.SuccessResponse](
               validated: ValidatedNel[ZoneResponse.Error, A])(successResponse: A => B): LegacyWsProtocol.ZoneResponse =
@@ -281,7 +290,7 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           }
           sendResponse(response, correlationId)
         }
-      case ZoneNotificationEnvelope(zoneId, zoneNotification, sequenceNumber, deliveryId) =>
+      case ZoneNotificationEnvelope(zoneId, sequenceNumber, deliveryId, zoneNotification) =>
         exactlyOnce(sequenceNumber, deliveryId) {
           val notification = zoneNotification match {
             case EmptyZoneNotification =>
@@ -332,22 +341,6 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
     case SendKeepAlive => sendNotification(LegacyWsProtocol.KeepAliveNotification)
   }
 
-  private[this] def deliverZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand, correlationId: Long): Unit = {
-    val sequenceNumber = commandSequenceNumbers(zoneId)
-    commandSequenceNumbers = commandSequenceNumbers + (zoneId -> (sequenceNumber + 1))
-    deliver(zoneValidatorShardRegion.path) { deliveryId =>
-      pendingDeliveries = pendingDeliveries + (zoneId -> (pendingDeliveries(zoneId) + deliveryId))
-      ZoneCommandEnvelope(
-        zoneId,
-        zoneCommand,
-        publicKey,
-        correlationId,
-        sequenceNumber,
-        deliveryId
-      )
-    }
-  }
-
   private[this] def exactlyOnce(sequenceNumber: Long, deliveryId: Long)(body: => Unit): Unit = {
     val nextExpectedMessageSequenceNumber = nextExpectedMessageSequenceNumbers(sender())
     if (sequenceNumber <= nextExpectedMessageSequenceNumber)
@@ -366,7 +359,8 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
       case LegacyWsProtocol.ErrorResponse(error) =>
         sendErrorResponse(error, NumericCorrelationId(correlationId))
       case successResponse: LegacyWsProtocol.SuccessResponse =>
-        sendSuccessResponse(successResponse, correlationId)
+        send(
+          WrappedResponse(LegacyWsProtocol.SuccessResponse.write(successResponse, NumericCorrelationId(correlationId))))
     }
 
   private[this] def sendErrorResponse(error: String, correlationId: CorrelationId): Unit =
@@ -379,9 +373,6 @@ class LegacyClientConnectionActor(ip: RemoteAddress,
           correlationId
         )
       ))
-
-  private[this] def sendSuccessResponse(response: LegacyWsProtocol.SuccessResponse, correlationId: Long): Unit =
-    send(WrappedResponse(LegacyWsProtocol.SuccessResponse.write(response, NumericCorrelationId(correlationId))))
 
   private[this] def send(wrappedResponseOrNotification: WrappedResponseOrNotification): Unit = {
     upstream ! wrappedResponseOrNotification

@@ -3,7 +3,6 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 
 import akka.actor.ActorRef
-import akka.http.scaladsl.model.RemoteAddress
 import akka.testkit.TestProbe
 import cats.data.Validated
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
@@ -21,7 +20,6 @@ import scala.concurrent.duration._
 class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures {
 
   private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
-  private[this] val ip        = RemoteAddress(InetAddress.getLoopbackAddress)
 
   override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
@@ -30,9 +28,10 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPers
     val zoneValidatorShardRegionTestProbe = TestProbe()
     val upstreamTestProbe                 = TestProbe()
     val clientConnection = system.actorOf(
-      LegacyClientConnectionActor
-        .props(ip, publicKey, zoneValidatorShardRegionTestProbe.ref, keepAliveInterval = 3.seconds)(
-          upstreamTestProbe.ref)
+      LegacyClientConnectionActor.props(InetAddress.getLoopbackAddress,
+                                        publicKey,
+                                        zoneValidatorShardRegionTestProbe.ref,
+                                        keepAliveInterval = 3.seconds)(upstreamTestProbe.ref)
     )
     sinkTestProbe.send(clientConnection, LegacyClientConnectionActor.ActorSinkInit)
     sinkTestProbe.expectMsg(LegacyClientConnectionActor.ActorSinkAck)
@@ -94,10 +93,10 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPers
       )
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        ZoneResponseEnvelope(CreateZoneResponse(Validated.valid(zone)),
-                             correlationId,
+        ZoneResponseEnvelope(correlationId,
                              sequenceNumber = 1L,
-                             deliveryId = 1L)
+                             deliveryId = 1L,
+                             CreateZoneResponse(Validated.valid(zone)))
       )
       assert(expectResponse(upstreamTestProbe, "createZone") === LegacyWsProtocol.CreateZoneResponse(zone))
     }

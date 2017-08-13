@@ -1,5 +1,6 @@
 package com.dhpcs.liquidity.model
 
+import java.net.InetAddress
 import java.util.UUID
 
 import akka.actor.{ActorPath, ActorRef, ExtendedActorSystem}
@@ -24,6 +25,12 @@ object ProtoBindings {
 
   implicit final val ZoneIdProtoBinding: ProtoBinding[ZoneId, String, Any] =
     ProtoBinding.instance(_.id.toString, (id, _) => ZoneId(UUID.fromString(id)))
+
+  implicit final val InetAddressBinding: ProtoBinding[InetAddress, com.google.protobuf.ByteString, Any] =
+    ProtoBinding.instance(
+      inetAddress => com.google.protobuf.ByteString.copyFrom(inetAddress.getAddress),
+      (inetAddress, _) => InetAddress.getByAddress(inetAddress.toByteArray)
+    )
 
   implicit final val PublicKeyProtoBinding: ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any] =
     ProtoBinding.instance(

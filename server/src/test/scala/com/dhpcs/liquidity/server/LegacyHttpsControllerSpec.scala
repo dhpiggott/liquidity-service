@@ -68,7 +68,7 @@ class LegacyHttpsControllerSpec extends FreeSpec with LegacyHttpsController with
     }
   )
 
-  override protected[this] def legacyWebSocketApi(ip: RemoteAddress,
+  override protected[this] def legacyWebSocketApi(remoteAddress: InetAddress,
                                                   publicKey: PublicKey): Flow[Message, Message, NotUsed] =
     Flow[Message]
 

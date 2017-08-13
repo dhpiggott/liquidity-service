@@ -42,8 +42,8 @@ object ZoneValidatorActor {
   private val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
-    case GetZoneStateCommand(zoneId)                => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
-    case ZoneCommandEnvelope(zoneId, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
+    case GetZoneStateCommand(zoneId)                   => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
+    case ZoneCommandEnvelope(zoneId, _, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
   }
 
   private val SnapShotInterval = 100
@@ -351,10 +351,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     case GetZoneStateCommand(_) =>
       sender() ! GetZoneStateResponse(state)
 
-    case ZoneCommandEnvelope(_, command, publicKey, correlationId, sequenceNumber, deliveryId) =>
+    case ZoneCommandEnvelope(_, _, publicKey, correlationId, sequenceNumber, deliveryId, command) =>
       passivationCountdownActor ! CommandReceivedEvent
       exactlyOnce(sequenceNumber, deliveryId)(
-        handleCommand(publicKey, command, correlationId)
+        handleCommand(publicKey, correlationId, command)
       )
 
     case MessageReceivedConfirmation(deliveryId) =>
@@ -383,7 +383,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     }
   }
 
-  private[this] def handleCommand(publicKey: PublicKey, command: ZoneCommand, correlationId: Long): Unit =
+  private[this] def handleCommand(publicKey: PublicKey, correlationId: Long, command: ZoneCommand): Unit =
     command match {
       case EmptyZoneCommand => ()
 
@@ -759,10 +759,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     deliver(sender().path) { deliveryId =>
       pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(sender().path) + deliveryId))
       ZoneResponseEnvelope(
-        response,
         correlationId,
         sequenceNumber,
-        deliveryId
+        deliveryId,
+        response
       )
     }
   }
@@ -773,7 +773,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
       deliver(clientConnection) { deliveryId =>
         pendingDeliveries = pendingDeliveries + (sender().path -> (pendingDeliveries(clientConnection) + deliveryId))
-        ZoneNotificationEnvelope(id, notification, sequenceNumber, deliveryId)
+        ZoneNotificationEnvelope(id, sequenceNumber, deliveryId, notification)
       }
     }
   }

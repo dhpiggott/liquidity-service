@@ -198,11 +198,12 @@ message ZoneNotification {
 
 message ZoneCommandEnvelope {
     string zone_id = 1;
-    ZoneCommand command = 2;
+    bytes remote_addess = 2;
     bytes public_key = 3;
     int64 correlation_id = 4;
     int64 sequence_number = 5;
     int64 delivery_id = 6;
+    ZoneCommand command = 7;
 }
 
 message ZoneCommandReceivedConfirmation {
@@ -211,15 +212,15 @@ message ZoneCommandReceivedConfirmation {
 }
 
 message ZoneResponseEnvelope {
-    ZoneResponse response = 1;
-    int64 correlation_id = 2;
-    int64 sequence_number = 3;
-    int64 delivery_id = 4;
+    int64 correlation_id = 1;
+    int64 sequence_number = 2;
+    int64 delivery_id = 3;
+    ZoneResponse response = 4;
 }
 
 message ZoneNotificationEnvelope {
     string zone_id = 1;
-    ZoneNotification notification = 2;
-    int64 sequence_number = 3;
-    int64 delivery_id = 4;
+    int64 sequence_number = 2;
+    int64 delivery_id = 3;
+    ZoneNotification notification = 4;
 }

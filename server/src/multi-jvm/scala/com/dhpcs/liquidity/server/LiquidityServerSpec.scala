@@ -54,14 +54,14 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |  actor {
        |    provider = "akka.cluster.ClusterActorRefProvider"
        |    serializers {
-       |      zone-validator-record = "com.dhpcs.liquidity.server.serialization.ZoneValidatorRecordSerializer"
+       |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
        |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
        |      zone-monitor-message = "com.dhpcs.liquidity.server.serialization.ZonesMonitorMessageSerializer"
        |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
        |      client-monitor-message = "com.dhpcs.liquidity.server.serialization.ClientsMonitorMessageSerializer"
        |    }
        |    serialization-bindings {
-       |      "com.dhpcs.liquidity.persistence.ZoneValidatorRecord" = zone-validator-record
+       |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
        |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.ZoneValidatorMessage" = zone-validator-message
        |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.ZoneMonitorMessage" = zone-monitor-message
        |      "com.dhpcs.liquidity.actor.protocol.clientconnection.ClientConnectionMessage" = client-connection-message
@@ -242,12 +242,12 @@ sealed abstract class LiquidityServerSpec
           )
           inside(expectProtobufZoneResponse(sub, correlationId)) {
             case CreateZoneResponse(Validated.Valid(zone)) =>
-              assert(zone.equityAccountId === AccountId(0))
+              assert(zone.equityAccountId === AccountId("0"))
               assert(
-                zone.members(MemberId(0)) === Member(MemberId(0),
-                                                     Set(PublicKey(rsaPublicKey.getEncoded)),
-                                                     name = Some("Dave")))
-              assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+                zone.members(MemberId("0")) === Member(MemberId("0"),
+                                                       Set(PublicKey(rsaPublicKey.getEncoded)),
+                                                       name = Some("Dave")))
+              assert(zone.accounts(AccountId("0")) === Account(AccountId("0"), ownerMemberIds = Set(MemberId("0"))))
               assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
               assert(
                 zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
@@ -271,12 +271,12 @@ sealed abstract class LiquidityServerSpec
         )
         inside(expectProtobufZoneResponse(sub, correlationId)) {
           case CreateZoneResponse(Validated.Valid(zone)) =>
-            assert(zone.equityAccountId === AccountId(0))
+            assert(zone.equityAccountId === AccountId("0"))
             assert(
-              zone.members(MemberId(0)) === Member(MemberId(0),
-                                                   Set(PublicKey(rsaPublicKey.getEncoded)),
-                                                   name = Some("Dave")))
-            assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+              zone.members(MemberId("0")) === Member(MemberId("0"),
+                                                     Set(PublicKey(rsaPublicKey.getEncoded)),
+                                                     name = Some("Dave")))
+            assert(zone.accounts(AccountId("0")) === Account(AccountId("0"), ownerMemberIds = Set(MemberId("0"))))
             assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
             assert(
               zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
@@ -290,7 +290,9 @@ sealed abstract class LiquidityServerSpec
             )
             inside(expectProtobufZoneResponse(sub, correlationId)) {
               case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
-                assert(zoneAndConnectedClients === ((zone, Set(PublicKey(rsaPublicKey.getEncoded)))))
+                val (_zone, _connectedClients) = zoneAndConnectedClients
+                assert(_zone === zone)
+                assert(_connectedClients.values.toSet === Set(PublicKey(rsaPublicKey.getEncoded)))
             }
         }; ()
       }
@@ -333,12 +335,12 @@ sealed abstract class LiquidityServerSpec
         )
         inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
           case LegacyWsProtocol.CreateZoneResponse(zone) =>
-            assert(zone.equityAccountId === AccountId(0))
+            assert(zone.equityAccountId === AccountId("0"))
             assert(
-              zone.members(MemberId(0)) === Member(MemberId(0),
-                                                   Set(PublicKey(rsaPublicKey.getEncoded)),
-                                                   name = Some("Dave")))
-            assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+              zone.members(MemberId("0")) === Member(MemberId("0"),
+                                                     Set(PublicKey(rsaPublicKey.getEncoded)),
+                                                     name = Some("Dave")))
+            assert(zone.accounts(AccountId("0")) === Account(AccountId("0"), ownerMemberIds = Set(MemberId("0"))))
             assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
             assert(
               zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
@@ -367,12 +369,12 @@ sealed abstract class LiquidityServerSpec
         )
         inside(expectJsonRpcResponse(sub, correlationId, "createZone")) {
           case LegacyWsProtocol.CreateZoneResponse(zone) =>
-            assert(zone.equityAccountId === AccountId(0))
+            assert(zone.equityAccountId === AccountId("0"))
             assert(
-              zone.members(MemberId(0)) === Member(MemberId(0),
-                                                   Set(PublicKey(rsaPublicKey.getEncoded)),
-                                                   name = Some("Dave")))
-            assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+              zone.members(MemberId("0")) === Member(MemberId("0"),
+                                                     Set(PublicKey(rsaPublicKey.getEncoded)),
+                                                     name = Some("Dave")))
+            assert(zone.accounts(AccountId("0")) === Account(AccountId("0"), ownerMemberIds = Set(MemberId("0"))))
             assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
             assert(
               zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))

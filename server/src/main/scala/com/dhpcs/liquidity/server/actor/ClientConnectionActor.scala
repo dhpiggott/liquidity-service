@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
 import java.net.InetAddress
-import java.util.UUID
 
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
@@ -232,7 +231,7 @@ class ClientConnectionActor(remoteAddress: InetAddress,
                     context.stop(self)
                   case _ =>
                     handleZoneCommand(
-                      zoneId = ZoneId(UUID.fromString(zoneId)),
+                      zoneId = ZoneId(zoneId),
                       publicKey,
                       protoCommand.correlationId,
                       zoneCommand

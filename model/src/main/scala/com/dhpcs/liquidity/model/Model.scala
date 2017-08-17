@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.model
 
 import java.util.UUID
 
-import akka.actor.ActorPath
+import akka.actor.ActorRef
 import okio.ByteString
 
 final case class PublicKey(value: ByteString) {
@@ -13,21 +13,21 @@ object PublicKey {
   def apply(value: Array[Byte]): PublicKey = PublicKey(ByteString.of(value: _*))
 }
 
-final case class MemberId(id: Long)
+final case class MemberId(id: String)
 
 final case class Member(id: MemberId,
                         ownerPublicKeys: Set[PublicKey],
                         name: Option[String] = None,
                         metadata: Option[com.google.protobuf.struct.Struct] = None)
 
-final case class AccountId(id: Long)
+final case class AccountId(id: String)
 
 final case class Account(id: AccountId,
                          ownerMemberIds: Set[MemberId],
                          name: Option[String] = None,
                          metadata: Option[com.google.protobuf.struct.Struct] = None)
 
-final case class TransactionId(id: Long)
+final case class TransactionId(id: String)
 
 final case class Transaction(id: TransactionId,
                              from: AccountId,
@@ -38,7 +38,7 @@ final case class Transaction(id: TransactionId,
                              description: Option[String] = None,
                              metadata: Option[com.google.protobuf.struct.Struct] = None)
 
-final case class ZoneId(id: UUID) {
+final case class ZoneId(id: String) {
   def persistenceId: String = s"${ZoneId.PersistenceIdPrefix}$id"
 }
 
@@ -46,10 +46,10 @@ object ZoneId {
 
   final val PersistenceIdPrefix = "zone-"
 
-  def apply(persistenceId: String): ZoneId =
-    ZoneId(UUID.fromString(persistenceId.stripPrefix(PersistenceIdPrefix)))
+  def fromPersistenceId(persistenceId: String): ZoneId =
+    ZoneId(persistenceId.stripPrefix(PersistenceIdPrefix))
 
-  def generate: ZoneId = ZoneId(UUID.randomUUID)
+  def generate: ZoneId = ZoneId(UUID.randomUUID.toString)
 
 }
 
@@ -65,4 +65,4 @@ final case class Zone(id: ZoneId,
 
 final case class ZoneState(zone: Option[Zone],
                            balances: Map[AccountId, BigDecimal],
-                           clientConnections: Map[ActorPath, PublicKey])
+                           connectedClients: Map[ActorRef, PublicKey])

@@ -113,7 +113,7 @@ object BoardGame {
   class JoinRequestToken
 
   private class State(var zone: Zone,
-                      var connectedClients: Set[PublicKey],
+                      var connectedClients: Map[String, PublicKey],
                       var balances: Map[AccountId, BigDecimal],
                       var currency: Option[Either[String, Currency]],
                       var memberIdsToAccountIds: Map[MemberId, AccountId],
@@ -170,10 +170,10 @@ object BoardGame {
       currency: Option[Either[String, Currency]],
       members: Map[MemberId, Member],
       equityAccountId: AccountId,
-      clientPublicKey: PublicKey): (Map[MemberId, IdentityWithBalance], Map[MemberId, IdentityWithBalance]) =
+      clientKey: PublicKey): (Map[MemberId, IdentityWithBalance], Map[MemberId, IdentityWithBalance]) =
     membersAccounts
       .collect {
-        case (memberId, accountId) if members(memberId).ownerPublicKeys == Set(clientPublicKey) =>
+        case (memberId, accountId) if members(memberId).ownerPublicKeys == Set(clientKey) =>
           memberId -> IdentityWithBalance(
             zoneId,
             members(memberId),
@@ -197,7 +197,7 @@ object BoardGame {
                                          currency: Option[Either[String, Currency]],
                                          members: Map[MemberId, Member],
                                          equityAccountId: AccountId,
-                                         connectedPublicKeys: Set[PublicKey])
+                                         connectedClients: Iterable[PublicKey])
     : (Map[MemberId, PlayerWithBalanceAndConnectionState], Map[MemberId, PlayerWithBalanceAndConnectionState]) =
     membersAccounts
       .map {
@@ -209,7 +209,7 @@ object BoardGame {
             accounts(accountId),
             (balances(accountId).bigDecimal, currency),
             accountId == equityAccountId,
-            connectedPublicKeys.exists(member.ownerPublicKeys.contains)
+            connectedClients.exists(member.ownerPublicKeys.contains)
           )
       }
       .partition {
@@ -325,7 +325,7 @@ class BoardGame private (serverConnection: ServerConnection,
       !state.zone.members(state.accountIdsToMemberIds(state.zone.equityAccountId)).name.contains(name.toString)
 
   def isPublicKeyConnectedAndImplicitlyValid(publicKey: PublicKey): Boolean =
-    state.connectedClients.contains(publicKey)
+    state.connectedClients.values.exists(_ == publicKey)
 
   def changeGameName(name: String): Unit =
     serverConnection
@@ -618,7 +618,7 @@ class BoardGame private (serverConnection: ServerConnection,
           state.currency,
           state.zone.members,
           state.zone.equityAccountId,
-          state.connectedClients
+          state.connectedClients.values
         )
         if (updatedPlayers != state.players) {
           val addedPlayers = updatedPlayers -- state.players.keys
@@ -659,48 +659,54 @@ class BoardGame private (serverConnection: ServerConnection,
       }
       zoneNotification match {
         case EmptyZoneNotification =>
-        case ClientJoinedZoneNotification(publicKey) =>
-          state.connectedClients = state.connectedClients + publicKey
-          val (joinedPlayers, joinedHiddenPlayers) = playersFromMembersAccounts(
-            notificationZoneId,
-            state.memberIdsToAccountIds.filterKeys(
-              state.zone.members(_).ownerPublicKeys == Set(publicKey)
-            ),
-            state.zone.accounts,
-            state.balances,
-            state.currency,
-            state.zone.members,
-            state.zone.equityAccountId,
-            Set(publicKey)
-          )
-          if (joinedPlayers.nonEmpty) {
-            state.players = state.players ++ joinedPlayers
-            gameActionListeners.foreach(listener => joinedPlayers.values.foreach(listener.onPlayerChanged))
-            gameActionListeners.foreach(_.onPlayersUpdated(state.players))
+        case ClientJoinedNotification(connectionId, publicKey) =>
+          val wasPublicKeyAlreadyJoined = state.connectedClients.values.exists(_ == publicKey)
+          if (!wasPublicKeyAlreadyJoined) {
+            state.connectedClients = state.connectedClients + (connectionId -> publicKey)
+            val (joinedPlayers, joinedHiddenPlayers) = playersFromMembersAccounts(
+              notificationZoneId,
+              state.memberIdsToAccountIds.filterKeys(
+                state.zone.members(_).ownerPublicKeys == Set(publicKey)
+              ),
+              state.zone.accounts,
+              state.balances,
+              state.currency,
+              state.zone.members,
+              state.zone.equityAccountId,
+              Set(publicKey)
+            )
+            if (joinedPlayers.nonEmpty) {
+              state.players = state.players ++ joinedPlayers
+              gameActionListeners.foreach(listener => joinedPlayers.values.foreach(listener.onPlayerChanged))
+              gameActionListeners.foreach(_.onPlayersUpdated(state.players))
+            }
+            if (joinedHiddenPlayers.nonEmpty)
+              state.hiddenPlayers = state.hiddenPlayers ++ joinedHiddenPlayers
           }
-          if (joinedHiddenPlayers.nonEmpty)
-            state.hiddenPlayers = state.hiddenPlayers ++ joinedHiddenPlayers
-        case ClientQuitZoneNotification(publicKey) =>
-          state.connectedClients = state.connectedClients - publicKey
-          val (quitPlayers, quitHiddenPlayers) = playersFromMembersAccounts(
-            notificationZoneId,
-            state.memberIdsToAccountIds.filterKeys(
-              state.zone.members(_).ownerPublicKeys == Set(publicKey)
-            ),
-            state.zone.accounts,
-            state.balances,
-            state.currency,
-            state.zone.members,
-            state.zone.equityAccountId,
-            Set.empty
-          )
-          if (quitPlayers.nonEmpty) {
-            state.players = state.players ++ quitPlayers
-            gameActionListeners.foreach(listener => quitPlayers.values.foreach(listener.onPlayerChanged))
-            gameActionListeners.foreach(_.onPlayersUpdated(state.players))
+        case ClientQuitNotification(connectionId, publicKey) =>
+          state.connectedClients = state.connectedClients - connectionId
+          val isPublicKeyStillJoined = state.connectedClients.values.exists(_ == publicKey)
+          if (!isPublicKeyStillJoined) {
+            val (quitPlayers, quitHiddenPlayers) = playersFromMembersAccounts(
+              notificationZoneId,
+              state.memberIdsToAccountIds.filterKeys(
+                state.zone.members(_).ownerPublicKeys == Set(publicKey)
+              ),
+              state.zone.accounts,
+              state.balances,
+              state.currency,
+              state.zone.members,
+              state.zone.equityAccountId,
+              Set.empty
+            )
+            if (quitPlayers.nonEmpty) {
+              state.players = state.players ++ quitPlayers
+              gameActionListeners.foreach(listener => quitPlayers.values.foreach(listener.onPlayerChanged))
+              gameActionListeners.foreach(_.onPlayersUpdated(state.players))
+            }
+            if (quitHiddenPlayers.nonEmpty)
+              state.hiddenPlayers = state.hiddenPlayers ++ quitHiddenPlayers
           }
-          if (quitHiddenPlayers.nonEmpty)
-            state.hiddenPlayers = state.hiddenPlayers ++ quitHiddenPlayers
         case ZoneNameChangedNotification(name) =>
           state.zone = state.zone.copy(name = name)
           gameActionListeners.foreach(_.onGameNameChanged(name))
@@ -789,7 +795,7 @@ class BoardGame private (serverConnection: ServerConnection,
             state.currency,
             state.zone.members,
             state.zone.equityAccountId,
-            state.connectedClients
+            state.connectedClients.values
           )
           if (createdPlayer.nonEmpty) {
             state.players = state.players ++ createdPlayer
@@ -858,7 +864,7 @@ class BoardGame private (serverConnection: ServerConnection,
             state.currency,
             state.zone.members,
             state.zone.equityAccountId,
-            state.connectedClients
+            state.connectedClients.values
           )
           if (changedPlayers.nonEmpty) {
             state.players = state.players ++ changedPlayers
@@ -955,7 +961,7 @@ class BoardGame private (serverConnection: ServerConnection,
                 currency,
                 zone.members,
                 zone.equityAccountId,
-                connectedClients
+                connectedClients.values
               )
               val transfers = transfersFromTransactions(
                 zone.transactions,

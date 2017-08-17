@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package dhpcs.liquidity.persistence.zone;
+
+option java_package = "com.dhpcs.liquidity.proto.persistence.zone";
+
+import "google/protobuf/wrappers.proto";
+
+import "dhpcs/liquidity/model.proto";
+
+message ZoneSnapshot {
+    dhpcs.liquidity.model.ZoneState zone_state = 1;
+}
+
+message ZoneEventEnvelope {
+    message ZoneEvent {
+        oneof event {
+            ZoneCreatedEvent zone_created_event = 1;
+            ClientJoinedEvent client_joined_event = 2;
+            ClientQuitEvent client_quit_event = 3;
+            ZoneNameChangedEvent zone_name_changed_event = 4;
+            MemberCreatedEvent member_created_event = 5;
+            MemberUpdatedEvent member_updated_event = 6;
+            AccountCreatedEvent account_created_event = 7;
+            AccountUpdatedEvent account_updated_event = 8;
+            TransactionAddedEvent transaction_added_event = 9;
+        }
+    }
+    google.protobuf.BytesValue remote_address = 1;
+    google.protobuf.BytesValue public_key = 2;
+    int64 timestamp = 3;
+    ZoneEvent event = 4;
+}
+
+message ZoneCreatedEvent {
+    dhpcs.liquidity.model.Zone zone = 1;
+}
+
+message ClientJoinedEvent {
+    google.protobuf.StringValue client_connection_actor_ref = 1;
+}
+
+message ClientQuitEvent {
+    google.protobuf.StringValue client_connection_actor_ref = 1;
+}
+
+message ZoneNameChangedEvent {
+    google.protobuf.StringValue name = 1;
+}
+
+message MemberCreatedEvent {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message MemberUpdatedEvent {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message AccountCreatedEvent {
+    dhpcs.liquidity.model.Account account = 1;
+}
+
+message AccountUpdatedEvent {
+    google.protobuf.StringValue acting_as = 1;
+    dhpcs.liquidity.model.Account account = 2;
+}
+
+message TransactionAddedEvent {
+    dhpcs.liquidity.model.Transaction transaction = 1;
+}

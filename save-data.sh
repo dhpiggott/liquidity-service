@@ -10,7 +10,7 @@ fi
 
 mkdir --parents $1
 
-for keyspace in "liquidity_journal"
+for keyspace in "liquidity_journal_v4" "liquidity_snapshot_store_v4"
 do
     touch $1/$keyspace.schema.cql
     docker run --rm \

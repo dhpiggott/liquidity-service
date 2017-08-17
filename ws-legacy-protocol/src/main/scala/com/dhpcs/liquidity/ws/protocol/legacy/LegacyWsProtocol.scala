@@ -1,7 +1,5 @@
 package com.dhpcs.liquidity.ws.protocol.legacy
 
-import java.util.UUID
-
 import com.dhpcs.jsonrpc.Message.{MessageFormats, objectFormat}
 import com.dhpcs.jsonrpc._
 import com.dhpcs.liquidity.model._
@@ -93,7 +91,8 @@ object LegacyWsProtocol {
       publicKeyBase64 => PublicKey(ByteString.decodeBase64(publicKeyBase64)),
       publicKey => publicKey.value.base64)
 
-    implicit final lazy val MemberIdFormat: Format[MemberId] = ValueFormat[MemberId, Long](MemberId, _.id)
+    implicit final lazy val MemberIdFormat: Format[MemberId] =
+      ValueFormat[MemberId, Long](id => MemberId(id.toString), _.id.toLong)
 
     implicit final lazy val MemberFormat: Format[Member] = (
       (JsPath \ "id").format[MemberId] and
@@ -111,12 +110,13 @@ object LegacyWsProtocol {
       member => (member.id, member.ownerPublicKeys.head, member.name, member.metadata)
     )
 
-    implicit final lazy val AccountIdFormat: Format[AccountId] = ValueFormat[AccountId, Long](AccountId, _.id)
+    implicit final lazy val AccountIdFormat: Format[AccountId] =
+      ValueFormat[AccountId, Long](id => AccountId(id.toString), _.id.toLong)
 
     implicit final lazy val AccountFormat: Format[Account] = Json.format[Account]
 
     implicit final lazy val TransactionIdFormat: Format[TransactionId] =
-      ValueFormat[TransactionId, Long](TransactionId, _.id)
+      ValueFormat[TransactionId, Long](id => TransactionId(id.toString), _.id.toLong)
 
     implicit final lazy val TransactionFormat: Format[Transaction] = (
       (JsPath \ "id").format[TransactionId] and
@@ -150,7 +150,7 @@ object LegacyWsProtocol {
          transaction.metadata)
     )
 
-    implicit final lazy val ZoneIdFormat: Format[ZoneId] = ValueFormat[ZoneId, UUID](ZoneId(_), _.id)
+    implicit final lazy val ZoneIdFormat: Format[ZoneId] = ValueFormat[ZoneId, String](ZoneId(_), _.id)
 
     implicit final lazy val ZoneFormat: Format[Zone] = (
       (JsPath \ "id").format[ZoneId] and

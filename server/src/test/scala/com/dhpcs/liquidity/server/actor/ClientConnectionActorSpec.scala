@@ -19,7 +19,7 @@ import scala.concurrent.duration._
 
 class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures with Inside {
 
-  private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
+  private[this] val publicKey = PublicKey(AuthenticationSpec.rsaPublicKey.getEncoded)
 
   override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
@@ -59,8 +59,11 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
           keyOwnershipChallenge.value
       }
       sendMessage(sinkTestProbe, clientConnection)(
-        proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(Authentication
-          .createKeyOwnershipProof(ModelSpec.rsaPublicKey, ModelSpec.rsaPrivateKey, keyOwnershipChallenge))
+        proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
+          Authentication
+            .createKeyOwnershipProof(AuthenticationSpec.rsaPublicKey,
+                                     AuthenticationSpec.rsaPrivateKey,
+                                     keyOwnershipChallenge))
       )
       val createZoneCommand = CreateZoneCommand(
         equityOwnerPublicKey = publicKey,
@@ -84,9 +87,9 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
         Validated.valid(
           Zone(
             id = zoneId,
-            equityAccountId = AccountId(0),
-            members = Map(MemberId(0)   -> Member(MemberId(0), Set(publicKey), name = Some("Dave"))),
-            accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
+            equityAccountId = AccountId("0"),
+            members = Map(MemberId("0")   -> Member(MemberId("0"), Set(publicKey), name = Some("Dave"))),
+            accounts = Map(AccountId("0") -> Account(AccountId("0"), ownerMemberIds = Set(MemberId("0")))),
             transactions = Map.empty,
             created = created,
             expires = created + 2.days.toMillis,

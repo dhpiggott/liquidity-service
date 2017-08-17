@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.healthcheck
 
 import java.io.InputStream
 import java.nio.file.Files
-import java.util.UUID
 import java.util.concurrent.Executors
 
 import akka.actor.ActorSystem
@@ -13,8 +12,7 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
-import com.dhpcs.liquidity.client.LegacyServerConnection
-import com.dhpcs.liquidity.client.ServerConnection
+import com.dhpcs.liquidity.client.{LegacyServerConnection, ServerConnection}
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
@@ -30,57 +28,63 @@ object LiquidityHealthcheck {
   private final val TrustStoreFilename = "liquidity.dhpcs.com.truststore.p12"
 
   private final val SentinelZone = Zone(
-    id = ZoneId(UUID.fromString("4cdcdb95-5647-4d46-a2f9-a68e9294d00a")),
-    equityAccountId = AccountId(0),
+    id = ZoneId("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"),
+    equityAccountId = AccountId(0.toString),
     members = Map(
-      MemberId(0) -> Member(
-        MemberId(0),
+      MemberId(0.toString) -> Member(
+        MemberId(0.toString),
         Set(PublicKey(ByteString.decodeBase64(
           "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtjMhJTSZ7viahRTVYYz/0mNdGXmbUQ5eNiNrLHXYkfIjSzIPGVf2a6kZCsTGISasgz8gCakyy8f2r6VL1dO/YrJpSsMmPdAoWxZ4heTh+HMeF7UARWwiMwYi7vIk4euGm3oAVaiGmMmPYfvI13mEe84ke9+YrZkG6qzqzk6YHxgwN3vaTntyAM2Fdgyl9Ki8j6lkrTf9bRzGdbZ1DNDzd9mqUJ7xVmwRMZXPNOB6D5DblLWlOYZouqGUIOjfcMkoWWrIR4dDdXzRemNPldigzW8KSEnJ0yCMX9MoNt0xk2HeP/ELqbnS7JzRiO0s61eoZbyKge25Y4jLNjBekxSrsQIDAQAB"))),
         name = Some("Bank")
       ),
-      MemberId(1) -> Member(
-        MemberId(1),
+      MemberId(1.toString) -> Member(
+        MemberId(1.toString),
         Set(PublicKey(ByteString.decodeBase64(
           "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtjMhJTSZ7viahRTVYYz/0mNdGXmbUQ5eNiNrLHXYkfIjSzIPGVf2a6kZCsTGISasgz8gCakyy8f2r6VL1dO/YrJpSsMmPdAoWxZ4heTh+HMeF7UARWwiMwYi7vIk4euGm3oAVaiGmMmPYfvI13mEe84ke9+YrZkG6qzqzk6YHxgwN3vaTntyAM2Fdgyl9Ki8j6lkrTf9bRzGdbZ1DNDzd9mqUJ7xVmwRMZXPNOB6D5DblLWlOYZouqGUIOjfcMkoWWrIR4dDdXzRemNPldigzW8KSEnJ0yCMX9MoNt0xk2HeP/ELqbnS7JzRiO0s61eoZbyKge25Y4jLNjBekxSrsQIDAQAB"))),
         name = Some("David")
       )
     ),
     accounts = Map(
-      AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0))),
-      AccountId(1) -> Account(AccountId(1), ownerMemberIds = Set(MemberId(1)))
+      AccountId(0.toString) -> Account(AccountId(0.toString), ownerMemberIds = Set(MemberId(0.toString))),
+      AccountId(1.toString) -> Account(AccountId(1.toString), ownerMemberIds = Set(MemberId(1.toString)))
     ),
     transactions = Map(
-      TransactionId(0) -> Transaction(TransactionId(0),
-                                      from = AccountId(0),
-                                      to = AccountId(1),
-                                      value = BigDecimal(123),
-                                      creator = MemberId(0),
-                                      created = 1456738931256L),
-      TransactionId(4) -> Transaction(TransactionId(4),
-                                      from = AccountId(0),
-                                      to = AccountId(1),
-                                      value = BigDecimal(2),
-                                      creator = MemberId(0),
-                                      created = 1456740197666L),
-      TransactionId(1) -> Transaction(TransactionId(1),
-                                      from = AccountId(0),
-                                      to = AccountId(1),
-                                      value = BigDecimal(456),
-                                      creator = MemberId(0),
-                                      created = 1456739064702L),
-      TransactionId(3) -> Transaction(TransactionId(3),
-                                      from = AccountId(0),
-                                      to = AccountId(1),
-                                      value = BigDecimal(1),
-                                      creator = MemberId(0),
-                                      created = 1456739925349L),
-      TransactionId(2) -> Transaction(TransactionId(2),
-                                      from = AccountId(0),
-                                      to = AccountId(1),
-                                      value = BigDecimal(789),
-                                      creator = MemberId(0),
-                                      created = 1456739330121L)
+      TransactionId(0.toString) -> Transaction(
+        TransactionId(0.toString),
+        from = AccountId(0.toString),
+        to = AccountId(1.toString),
+        value = BigDecimal(123),
+        creator = MemberId(0.toString),
+        created = 1456738931256L
+      ),
+      TransactionId(4.toString) -> Transaction(TransactionId(4.toString),
+                                               from = AccountId(0.toString),
+                                               to = AccountId(1.toString),
+                                               value = BigDecimal(2),
+                                               creator = MemberId(0.toString),
+                                               created = 1456740197666L),
+      TransactionId(1.toString) -> Transaction(
+        TransactionId(1.toString),
+        from = AccountId(0.toString),
+        to = AccountId(1.toString),
+        value = BigDecimal(456),
+        creator = MemberId(0.toString),
+        created = 1456739064702L
+      ),
+      TransactionId(3.toString) -> Transaction(TransactionId(3.toString),
+                                               from = AccountId(0.toString),
+                                               to = AccountId(1.toString),
+                                               value = BigDecimal(1),
+                                               creator = MemberId(0.toString),
+                                               created = 1456739925349L),
+      TransactionId(2.toString) -> Transaction(
+        TransactionId(2.toString),
+        from = AccountId(0.toString),
+        to = AccountId(1.toString),
+        value = BigDecimal(789),
+        creator = MemberId(0.toString),
+        created = 1456739330121L
+      )
     ),
     created = 1456399347712L,
     expires = 1456572147712L,
@@ -304,7 +308,7 @@ class LiquidityHealthcheck(scheme: Option[String],
         inside(sendZoneCommand(SentinelZone.id, JoinZoneCommand).futureValue) {
           case JoinZoneResponse(Validated.Valid((zone, connectedClients))) =>
             assert(zone === SentinelZone)
-            assert(connectedClients === Set(serverConnection.clientKey))
+            assert(connectedClients.values.toSet === Set(serverConnection.clientKey))
         }
         LegacyMainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
         sub

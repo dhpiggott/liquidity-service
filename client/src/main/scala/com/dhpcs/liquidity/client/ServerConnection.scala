@@ -1,14 +1,13 @@
 package com.dhpcs.liquidity.client
 
 import java.io.{File, IOException}
-import java.util.UUID
 import javax.net.ssl._
 
-import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
+import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.client.ServerConnection._
-import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.model.ProtoBindings._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.ws.protocol._
@@ -368,7 +367,7 @@ class ServerConnection(filesDir: File,
                     activeState.handlerWrapper.post(
                       mainHandlerWrapper.post(
                         notificationReceiptListeners.foreach(
-                          _.onZoneNotificationReceived(ZoneId(UUID.fromString(zoneId)), zoneNotification)
+                          _.onZoneNotificationReceived(ZoneId(zoneId), zoneNotification)
                         )))
                   case DisconnectingSubState =>
                 }

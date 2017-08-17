@@ -1,11 +1,10 @@
 package com.dhpcs.liquidity.model
 
 import java.net.InetAddress
-import java.util.UUID
+import java.time.Instant
 
-import akka.actor.{ActorPath, ActorRef, ExtendedActorSystem}
+import akka.actor.{ActorRef, ExtendedActorSystem}
 import akka.serialization.Serialization
-import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
 object ProtoBindings {
@@ -14,23 +13,17 @@ object ProtoBindings {
     ProtoBinding.instance(_.map(protoBinding.asProto).toSeq,
                           (set, system) => set.map(protoBinding.asScala(_)(system)).toSet)
 
-  implicit final val MemberIdProtoBinding: ProtoBinding[MemberId, Long, Any] =
+  implicit final val MemberIdProtoBinding: ProtoBinding[MemberId, String, Any] =
     ProtoBinding.instance(_.id, (id, _) => MemberId(id))
 
-  implicit final val AccountIdProtoBinding: ProtoBinding[AccountId, Long, Any] =
+  implicit final val AccountIdProtoBinding: ProtoBinding[AccountId, String, Any] =
     ProtoBinding.instance(_.id, (id, _) => AccountId(id))
 
-  implicit final val TransactionIdProtoBinding: ProtoBinding[TransactionId, Long, Any] =
+  implicit final val TransactionIdProtoBinding: ProtoBinding[TransactionId, String, Any] =
     ProtoBinding.instance(_.id, (id, _) => TransactionId(id))
 
   implicit final val ZoneIdProtoBinding: ProtoBinding[ZoneId, String, Any] =
-    ProtoBinding.instance(_.id.toString, (id, _) => ZoneId(UUID.fromString(id)))
-
-  implicit final val InetAddressBinding: ProtoBinding[InetAddress, com.google.protobuf.ByteString, Any] =
-    ProtoBinding.instance(
-      inetAddress => com.google.protobuf.ByteString.copyFrom(inetAddress.getAddress),
-      (inetAddress, _) => InetAddress.getByAddress(inetAddress.toByteArray)
-    )
+    ProtoBinding.instance(_.id.toString, (id, _) => ZoneId(id))
 
   implicit final val PublicKeyProtoBinding: ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any] =
     ProtoBinding.instance(
@@ -38,27 +31,19 @@ object ProtoBindings {
       (byteString, _) => PublicKey(okio.ByteString.of(byteString.asReadOnlyByteBuffer()))
     )
 
-  implicit final val BigDecimalProtoBinding: ProtoBinding[BigDecimal, proto.model.BigDecimal, Any] =
+  implicit final val InetAddressProtoBinding: ProtoBinding[InetAddress, com.google.protobuf.ByteString, Any] =
     ProtoBinding.instance(
-      bigDecimal =>
-        proto.model.BigDecimal(
-          bigDecimal.scale,
-          com.google.protobuf.ByteString.copyFrom(bigDecimal.underlying().unscaledValue().toByteArray)
-      ),
-      (bigDecimal, _) =>
-        BigDecimal(
-          BigInt(bigDecimal.value.toByteArray),
-          bigDecimal.scale
-      )
+      inetAddress => com.google.protobuf.ByteString.copyFrom(inetAddress.getAddress),
+      (inetAddress, _) => InetAddress.getByAddress(inetAddress.toByteArray)
     )
 
-  implicit final val BigDecimalOptProtoBinding: ProtoBinding[BigDecimal, Option[proto.model.BigDecimal], Any] =
+  implicit final val InstantProtoBinding: ProtoBinding[Instant, Long, Any] =
+    ProtoBinding.instance(_.toEpochMilli, (timestamp, _) => Instant.ofEpochMilli(timestamp))
+
+  implicit final val BigDecimalProtoBinding: ProtoBinding[BigDecimal, String, Any] =
     ProtoBinding.instance(
-      bigDecimal => Some(ProtoBinding[BigDecimal, proto.model.BigDecimal, Any].asProto(bigDecimal)), {
-        case (None, _) => BigDecimal(0)
-        case (Some(bigDecimal), system) =>
-          ProtoBinding[BigDecimal, proto.model.BigDecimal, Any].asScala(bigDecimal)(system)
-      }
+      _.toString(),
+      (bigDecimal, _) => BigDecimal(bigDecimal)
     )
 
   trait EntityIdExtractor[E, I] {
@@ -86,9 +71,6 @@ object ProtoBindings {
     ProtoBinding.instance(
       _.values.map(protoBinding.asProto).toSeq,
       (seq, system) => seq.map(protoBinding.asScala(_)(system)).map(s => entityIdExtractor.extractId(s) -> s).toMap)
-
-  implicit final val ActorPathProtoBinding: ProtoBinding[ActorPath, String, Any] =
-    ProtoBinding.instance(_.toSerializationFormat, (s, _) => ActorPath.fromString(s))
 
   implicit final val ActorRefProtoBinding: ProtoBinding[ActorRef, String, ExtendedActorSystem] =
     ProtoBinding.instance(Serialization.serializedActorPath, (s, system) => system.provider.resolveActorRef(s))

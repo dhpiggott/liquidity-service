@@ -27,7 +27,7 @@ class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistence
 
   import context.dispatcher
 
-  private[this] implicit val mat = _mat
+  private[this] implicit val mat: Materializer = _mat
 
   private[this] val killSwitch = {
 
@@ -46,7 +46,7 @@ class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistence
         currentZoneIds =>
           readJournal
             .persistenceIds()
-            .map(ZoneId(_))
+            .map(ZoneId.fromPersistenceId)
             .filterNot(currentZoneIds.contains)
             .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId =>
               startZoneView(zoneId).map(_ => log.info(s"Initialized zone view for ${zoneId.id}"))))
@@ -58,7 +58,7 @@ class ZoneAnalyticsStarterActor(readJournal: ReadJournal with CurrentPersistence
     killSwitch
   }
 
-  private[this] implicit val zoneViewInitialisationTimeout = Timeout(30.seconds)
+  private[this] implicit val zoneViewInitialisationTimeout: Timeout = Timeout(30.seconds)
 
   private[this] def startZoneView(zoneId: ZoneId): Future[Unit] =
     (zoneViewShardRegion ? ZoneAnalyticsActor.Start(zoneId)).mapTo[ZoneAnalyticsActor.Started.type].map(_ => ())

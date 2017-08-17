@@ -3,9 +3,8 @@ package com.dhpcs.liquidity.server
 import java.net.InetAddress
 import java.time.Instant
 import java.time.format.DateTimeFormatter
-import java.util.UUID
 
-import akka.actor.ActorPath
+import akka.actor.ActorRef
 import akka.http.scaladsl.common.{EntityStreamingSupport, JsonEntityStreamingSupport}
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.StatusCodes._
@@ -13,6 +12,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.serialization.Serialization
 import akka.stream.scaladsl.{Flow, Source}
 import akka.{Done, NotUsed}
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
@@ -34,10 +34,10 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object HttpController {
 
-  final case class GeneratedMessageEnvelope(sequenceNr: Long, event: GeneratedMessage)
+  final case class EventEnvelope(sequenceNr: Long, event: GeneratedMessage)
 
-  object GeneratedMessageEnvelope {
-    implicit final val GeneratedMessageEnvelopeWrites: OWrites[GeneratedMessageEnvelope] = OWrites(
+  object EventEnvelope {
+    implicit final val GeneratedMessageEnvelopeWrites: OWrites[EventEnvelope] = OWrites(
       GeneratedMessageEnvelope =>
         Json.obj(
           "sequenceNr" -> GeneratedMessageEnvelope.sequenceNr,
@@ -89,7 +89,7 @@ trait HttpController {
                 complete(events(persistenceId, fromSequenceNr, toSequenceNr))
           })
         ) ~ pathPrefix("zones")(
-          path(JavaUUID)(zoneId => complete(zoneState(ZoneId(zoneId))))
+          path(JavaUUID)(id => complete(zoneState(ZoneId(id.toString))))
         )
       ))
 
@@ -145,34 +145,34 @@ trait HttpController {
       pathPrefix("zones")(
         pathPrefix(JavaUUID)(
           id =>
-            pathEnd(zone(id)) ~
-              path("balances")(balances(id)) ~
-              path("clients")(clients(id)))))
+            pathEnd(zone(id.toString)) ~
+              path("balances")(balances(id.toString)) ~
+              path("clients")(clients(id.toString)))))
 
-  private[this] def zone(id: UUID)(implicit ec: ExecutionContext): Route =
+  private[this] def zone(id: String)(implicit ec: ExecutionContext): Route =
     get(complete(getZone(ZoneId(id)).map(_.map(zone =>
       Json.parse(JsonFormat.toJsonString(ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)))))))
 
-  private[this] def balances(id: UUID)(implicit ec: ExecutionContext): Route =
+  private[this] def balances(id: String)(implicit ec: ExecutionContext): Route =
     get(complete(getBalances(ZoneId(id)).map(balances =>
       Json.obj(balances.map {
         case (accountId, balance) => accountId.id.toString -> toJsFieldJsValueWrapper(balance)
       }.toSeq: _*))))
 
-  private[this] def clients(id: UUID)(implicit ec: ExecutionContext): Route =
+  private[this] def clients(id: String)(implicit ec: ExecutionContext): Route =
     get(complete(getClients(ZoneId(id)).map(clients =>
       Json.obj(clients.map {
-        case (actorPath, (lastJoined, publicKey)) =>
-          actorPath.toSerializationFormat -> toJsFieldJsValueWrapper(
+        case (actorRef, (lastJoined, publicKey)) =>
+          Serialization.serializedActorPath(actorRef) -> toJsFieldJsValueWrapper(
             Json.obj(
-              "lastJoined"  -> DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(lastJoined)),
+              "lastJoined"  -> DateTimeFormatter.ISO_INSTANT.format(lastJoined),
               "fingerprint" -> publicKey.fingerprint
             ))
       }.toSeq: _*))))
 
   protected[this] def events(persistenceId: String,
                              fromSequenceNr: Long,
-                             toSequenceNr: Long): Source[GeneratedMessageEnvelope, NotUsed]
+                             toSequenceNr: Long): Source[EventEnvelope, NotUsed]
 
   protected[this] def zoneState(zoneId: ZoneId): Future[proto.model.ZoneState]
 
@@ -186,6 +186,6 @@ trait HttpController {
 
   protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
 
-  protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]]
+  protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]]
 
 }

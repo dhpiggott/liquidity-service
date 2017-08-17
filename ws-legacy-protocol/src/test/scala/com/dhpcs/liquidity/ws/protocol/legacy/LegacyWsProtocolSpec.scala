@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.ws.protocol.legacy
 
 import java.security.KeyPairGenerator
-import java.util.UUID
 
 import com.dhpcs.jsonrpc.JsonRpcMessage.{ArrayParams, NumericCorrelationId, ObjectParams}
 import com.dhpcs.jsonrpc._
@@ -119,7 +118,7 @@ class LegacyWsProtocolSpec extends FreeSpec {
       "with empty params" - {
         val jsonRpcResponseSuccessMessage = JsonRpcResponseSuccessMessage(
           JsObject.empty,
-          NumericCorrelationId(0)
+          NumericCorrelationId(1)
         )
         val method  = "createZone"
         val jsError = JsError(__ \ "zone", "error.path.missing")
@@ -131,15 +130,15 @@ class LegacyWsProtocolSpec extends FreeSpec {
     val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
     val createZoneResponse = LegacyWsProtocol.CreateZoneResponse(
       Zone(
-        ZoneId(UUID.fromString("158842d1-38c7-4ad3-ab83-d4c723c9aaf3")),
-        AccountId(0),
+        ZoneId("158842d1-38c7-4ad3-ab83-d4c723c9aaf3"),
+        AccountId("0"),
         Map(
-          MemberId(0) ->
-            Member(MemberId(0), Set(PublicKey(publicKeyBytes)), Some("Banker"))
+          MemberId("0") ->
+            Member(MemberId("0"), Set(PublicKey(publicKeyBytes)), Some("Banker"))
         ),
         Map(
-          AccountId(0) ->
-            Account(AccountId(0), Set(MemberId(0)), Some("Bank"))
+          AccountId("0") ->
+            Account(AccountId("0"), Set(MemberId("0")), Some("Bank"))
         ),
         Map.empty,
         1436179968835L,
@@ -224,7 +223,7 @@ class LegacyWsProtocolSpec extends FreeSpec {
       }
       val publicKeyBytes = KeyPairGenerator.getInstance("RSA").generateKeyPair.getPublic.getEncoded
       val clientJoinedZoneNotification = LegacyWsProtocol.ClientJoinedZoneNotification(
-        ZoneId(UUID.fromString("a52e984e-f0aa-4481-802b-74622cb3f6f6")),
+        ZoneId("a52e984e-f0aa-4481-802b-74622cb3f6f6"),
         PublicKey(publicKeyBytes)
       )
       val jsonRpcNotificationMessage = JsonRpcNotificationMessage(

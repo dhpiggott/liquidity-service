@@ -1,16 +1,18 @@
 package com.dhpcs.liquidity.server.actor
 
-import java.util.UUID
+import java.time.Instant
 
-import akka.actor.{Actor, ActorPath, Props}
+import akka.actor.{Actor, ActorRef, ExtendedActorSystem, Props}
 import akka.cluster.sharding.ShardRegion
 import akka.pattern.pipe
 import akka.persistence.query.EventEnvelope
 import akka.persistence.query.scaladsl.{CurrentEventsByPersistenceIdQuery, EventsByPersistenceIdQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
+import cats.Cartesian
+import cats.instances.option._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.persistence._
+import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.{Start, Started}
 
@@ -51,9 +53,9 @@ class ZoneAnalyticsActor(
 
   import context.dispatcher
 
-  private[this] implicit val mat = _mat
+  private[this] implicit val mat: Materializer = _mat
 
-  private[this] val zoneId = ZoneId(UUID.fromString(self.path.name))
+  private[this] val zoneId = ZoneId.fromPersistenceId(self.path.name)
 
   private[this] val killSwitch = KillSwitches.shared("zone-events")
 
@@ -72,7 +74,8 @@ class ZoneAnalyticsActor(
           case _  => analyticsStore.zoneStore.retrieve(zoneId)
         }
         previousBalances <- analyticsStore.balanceStore.retrieve(zoneId)
-        previousClients  <- analyticsStore.clientStore.retrieve(zoneId)
+        previousClients <- analyticsStore.clientStore.retrieve(zoneId)(context.dispatcher,
+                                                                       context.system.asInstanceOf[ExtendedActorSystem])
         (currentSequenceNumber, currentZone, currentBalances, currentClients) <- readJournal
           .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber, Long.MaxValue)
           .runFoldAsync((previousSequenceNumber, previousZone, previousBalances, previousClients))(
@@ -101,49 +104,62 @@ class ZoneAnalyticsActor(
       previousSequenceNumberZoneBalancesAndClients: (Long,
                                                      Zone,
                                                      Map[AccountId, BigDecimal],
-                                                     Map[ActorPath, (Long, PublicKey)]),
-      envelope: EventEnvelope): Future[(Long, Zone, Map[AccountId, BigDecimal], Map[ActorPath, (Long, PublicKey)])] = {
+                                                     Map[ActorRef, (Instant, PublicKey)]),
+      envelope: EventEnvelope)
+    : Future[(Long, Zone, Map[AccountId, BigDecimal], Map[ActorRef, (Instant, PublicKey)])] = {
 
     val (_, previousZone, previousBalances, previousClients) =
       previousSequenceNumberZoneBalancesAndClients
 
-    val updatedZone = envelope.event match {
-      case ZoneCreatedEvent(_, zone) =>
+    val (maybePublicKey, timestamp, zoneEvent) = envelope.event match {
+      case zoneEventEnvelope: ZoneEventEnvelope =>
+        (zoneEventEnvelope.publicKey, zoneEventEnvelope.timestamp, zoneEventEnvelope.zoneEvent)
+    }
+
+    val updatedZone = zoneEvent match {
+      case ZoneCreatedEvent(zone) =>
         zone
-      case ZoneNameChangedEvent(_, name) =>
+      case ZoneNameChangedEvent(name) =>
         previousZone.copy(name = name)
-      case MemberCreatedEvent(_, member) =>
+      case MemberCreatedEvent(member) =>
         previousZone.copy(members = previousZone.members + (member.id -> member))
-      case MemberUpdatedEvent(_, member) =>
+      case MemberUpdatedEvent(member) =>
         previousZone.copy(members = previousZone.members + (member.id -> member))
-      case AccountCreatedEvent(_, account) =>
+      case AccountCreatedEvent(account) =>
         previousZone.copy(accounts = previousZone.accounts + (account.id -> account))
       case AccountUpdatedEvent(_, account) =>
         previousZone.copy(accounts = previousZone.accounts + (account.id -> account))
-      case TransactionAddedEvent(_, transaction) =>
+      case TransactionAddedEvent(transaction) =>
         previousZone.copy(transactions = previousZone.transactions + (transaction.id -> transaction))
       case _ =>
         previousZone
     }
 
-    val updatedClients = envelope.event match {
-      case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey)
-          if clientConnectionActorPath.name != "deadLetters" =>
-        previousClients + (clientConnectionActorPath -> (timestamp -> publicKey))
-      case ZoneQuitEvent(_, clientConnectionActorPath)
-          if clientConnectionActorPath.name != "deadLetters"
-            && previousClients.contains(clientConnectionActorPath) =>
-        previousClients - clientConnectionActorPath
+    val updatedClients = zoneEvent match {
+      case ClientJoinedEvent(maybeClientConnectionActorRef) =>
+        Cartesian[Option].product(maybeClientConnectionActorRef, maybePublicKey) match {
+          case None =>
+            previousClients
+          case Some((clientConnectionActorRef, publicKey)) =>
+            previousClients + (clientConnectionActorRef -> (timestamp -> publicKey))
+        }
+      case ClientQuitEvent(maybeClientConnectionActorRef) =>
+        maybeClientConnectionActorRef match {
+          case None =>
+            previousClients
+          case Some(clientConnectionActorRef) =>
+            previousClients - clientConnectionActorRef
+        }
       case _ =>
         previousClients
     }
 
-    val updatedBalances = envelope.event match {
-      case ZoneCreatedEvent(_, zone) =>
+    val updatedBalances = zoneEvent match {
+      case ZoneCreatedEvent(zone) =>
         previousBalances ++ zone.accounts.mapValues(_ => BigDecimal(0))
-      case AccountCreatedEvent(_, account) =>
+      case AccountCreatedEvent(account) =>
         previousBalances + (account.id -> BigDecimal(0))
-      case TransactionAddedEvent(_, transaction) =>
+      case TransactionAddedEvent(transaction) =>
         val updatedSourceBalance      = previousBalances(transaction.from) - transaction.value
         val updatedDestinationBalance = previousBalances(transaction.to) + transaction.value
         previousBalances + (transaction.from -> updatedSourceBalance) + (transaction.to -> updatedDestinationBalance)
@@ -151,36 +167,44 @@ class ZoneAnalyticsActor(
     }
 
     for {
-      _ <- envelope.event match {
-        case ZoneCreatedEvent(_, zone) =>
+      _ <- zoneEvent match {
+        case EmptyZoneEvent =>
+          Future.successful(())
+        case ZoneCreatedEvent(zone) =>
           for {
             _ <- analyticsStore.zoneStore.create(zone)
             _ <- analyticsStore.balanceStore.create(zone, BigDecimal(0), zone.accounts.values)
           } yield ()
-        case ZoneJoinedEvent(timestamp, clientConnectionActorPath, publicKey)
-            if clientConnectionActorPath.name != "deadLetters" =>
-          analyticsStore.clientStore.createOrUpdate(zoneId,
+        case ClientJoinedEvent(maybeClientConnectionActorRef) =>
+          Cartesian[Option].product(maybeClientConnectionActorRef, maybePublicKey) match {
+            case None =>
+              Future.successful(())
+            case Some((clientConnectionActorRef, publicKey)) =>
+              analyticsStore.clientStore.createOrUpdate(zoneId,
+                                                        publicKey,
+                                                        joined = timestamp,
+                                                        actorRef = clientConnectionActorRef)
+          }
+        case ClientQuitEvent(maybeClientConnectionActorRef) =>
+          maybeClientConnectionActorRef match {
+            case None =>
+              Future.successful(())
+            case Some(clientConnectionActorRef) =>
+              previousClients.get(clientConnectionActorRef) match {
+                case None => Future.successful(())
+                case Some((joined, publicKey)) =>
+                  analyticsStore.clientStore.update(zoneId,
                                                     publicKey,
-                                                    joined = timestamp,
-                                                    actorPath = clientConnectionActorPath)
-        case _: ZoneJoinedEvent =>
-          Future.successful(())
-        case ZoneQuitEvent(timestamp, clientConnectionActorPath)
-            if clientConnectionActorPath.name != "deadLetters"
-              && previousClients.contains(clientConnectionActorPath) =>
-          val (joined, publicKey) = previousClients(clientConnectionActorPath)
-          analyticsStore.clientStore.update(zoneId,
-                                            publicKey,
-                                            joined,
-                                            actorPath = clientConnectionActorPath,
-                                            quit = timestamp)
-        case _: ZoneQuitEvent =>
-          Future.successful(())
-        case ZoneNameChangedEvent(timestamp, name) =>
+                                                    joined,
+                                                    actorRef = clientConnectionActorRef,
+                                                    quit = timestamp)
+              }
+          }
+        case ZoneNameChangedEvent(name) =>
           analyticsStore.zoneStore.changeName(zoneId, modified = timestamp, name)
-        case MemberCreatedEvent(timestamp, member) =>
+        case MemberCreatedEvent(member) =>
           analyticsStore.zoneStore.memberStore.create(zoneId, created = timestamp)(member)
-        case MemberUpdatedEvent(timestamp, member) =>
+        case MemberUpdatedEvent(member) =>
           for {
             _ <- analyticsStore.zoneStore.memberStore.update(zoneId, modified = timestamp, member)
             updatedAccounts = previousZone.accounts.values.filter(_.ownerMemberIds.contains(member.id))
@@ -190,12 +214,12 @@ class ZoneAnalyticsActor(
             _ <- analyticsStore.zoneStore.transactionStore.update(previousZone, updatedTransactions)
             _ <- analyticsStore.balanceStore.update(previousZone, updatedAccounts, previousBalances)
           } yield ()
-        case AccountCreatedEvent(timestamp, account) =>
+        case AccountCreatedEvent(account) =>
           for {
             _ <- analyticsStore.zoneStore.accountStore.create(previousZone, created = timestamp)(account)
             _ <- analyticsStore.balanceStore.create(previousZone, BigDecimal(0))(account)
           } yield ()
-        case AccountUpdatedEvent(timestamp, account) =>
+        case AccountUpdatedEvent(_, account) =>
           for {
             _ <- analyticsStore.zoneStore.accountStore.update(previousZone, modified = timestamp, account)
             updatedTransactions = previousZone.transactions.values.filter(transaction =>
@@ -203,7 +227,7 @@ class ZoneAnalyticsActor(
             _ <- analyticsStore.zoneStore.transactionStore.update(previousZone, updatedTransactions)
             _ <- analyticsStore.balanceStore.update(previousZone)(account -> previousBalances(account.id))
           } yield ()
-        case TransactionAddedEvent(_, transaction) =>
+        case TransactionAddedEvent(transaction) =>
           for {
             _ <- analyticsStore.zoneStore.transactionStore.add(previousZone)(transaction)
             updatedSourceBalance      = previousBalances(transaction.from) - transaction.value
@@ -214,10 +238,7 @@ class ZoneAnalyticsActor(
               previousZone.accounts(transaction.to) -> updatedDestinationBalance)
           } yield ()
       }
-      _ <- envelope.event match {
-        case zoneEvent: ZoneEvent =>
-          analyticsStore.zoneStore.updateModified(zoneId, zoneEvent.timestamp)
-      }
+      _ <- analyticsStore.zoneStore.updateModified(zoneId, timestamp)
       _ <- analyticsStore.journalSequenceNumberStore.update(zoneId, envelope.sequenceNr)
     } yield (envelope.sequenceNr, updatedZone, updatedBalances, updatedClients)
   }

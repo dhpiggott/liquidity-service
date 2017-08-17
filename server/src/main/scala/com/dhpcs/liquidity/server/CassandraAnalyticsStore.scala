@@ -1,9 +1,11 @@
 package com.dhpcs.liquidity.server
 
 import java.nio.ByteBuffer
+import java.time.Instant
 import java.util.Date
 
-import akka.actor.ActorPath
+import akka.actor.{ActorRef, ExtendedActorSystem}
+import akka.serialization.Serialization
 import com.datastax.driver.core.{PreparedStatement, ResultSet, Row, Session}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore._
@@ -35,7 +37,7 @@ object CassandraAnalyticsStore {
       for {
         _ <- execute(s"""
                         |CREATE TABLE IF NOT EXISTS $keyspace.journal_sequence_numbers_by_zone (
-                        |  id uuid,
+                        |  id text,
                         |  journal_sequence_number bigint,
                         |  PRIMARY KEY (id)
                         |);
@@ -80,8 +82,8 @@ object CassandraAnalyticsStore {
         for {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.member_updates_by_id (
-                          |  zone_id uuid,
-                          |  id bigint,
+                          |  zone_id text,
+                          |  id text,
                           |  updated timestamp,
                           |  owner_fingerprint set<text>,
                           |  created timestamp,
@@ -93,8 +95,8 @@ object CassandraAnalyticsStore {
       """.stripMargin)
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.members_by_zone (
-                          |  zone_id uuid,
-                          |  id bigint,
+                          |  zone_id text,
+                          |  id text,
                           |  owner_public_keys set<blob>,
                           |  owner_fingerprint set<text>,
                           |  created timestamp,
@@ -121,7 +123,7 @@ object CassandraAnalyticsStore {
           yield
             (for {
               row <- resultSet.iterator.asScala
-              memberId = MemberId(row.getLong("id"))
+              memberId = MemberId(row.getString("id"))
               ownerPublicKeys = row
                 .getSet("owner_public_keys", classOf[ByteBuffer])
                 .asScala
@@ -137,15 +139,15 @@ object CassandraAnalyticsStore {
                          |  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           """.stripMargin)
 
-      def create(zoneId: ZoneId, created: Long)(member: Member)(implicit ec: ExecutionContext): Future[Unit] =
+      def create(zoneId: ZoneId, created: Instant)(member: Member)(implicit ec: ExecutionContext): Future[Unit] =
         for {
           _ <- addUpdate(zoneId, updated = created, member)
           _ <- createStatement.execute(
             zoneId.id,
-            member.id.id: java.lang.Long,
+            member.id.id,
             member.ownerPublicKeys.map(_.value.asByteBuffer).asJava,
             member.ownerPublicKeys.map(_.fingerprint).asJava,
-            new Date(created),
+            Date.from(created),
             member.name.orNull,
             member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
             member.metadata
@@ -160,20 +162,20 @@ object CassandraAnalyticsStore {
                          |  WHERE zone_id = ? AND id = ?
           """.stripMargin)
 
-      def update(zoneId: ZoneId, modified: Long, member: Member)(implicit ec: ExecutionContext): Future[Unit] =
+      def update(zoneId: ZoneId, modified: Instant, member: Member)(implicit ec: ExecutionContext): Future[Unit] =
         for {
           _ <- addUpdate(zoneId, updated = modified, member)
           _ <- updateStatement.execute(
             member.ownerPublicKeys.map(_.value.asByteBuffer).asJava,
             member.ownerPublicKeys.map(_.fingerprint).asJava,
-            new Date(modified),
+            Date.from(modified),
             member.name.orNull,
             member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
             member.metadata
               .flatMap(_.fields.get("hidden").flatMap(_.kind.boolValue).map(hidden => hidden: java.lang.Boolean))
               .orNull,
             zoneId.id,
-            member.id.id: java.lang.Long
+            member.id.id
           )
         } yield ()
 
@@ -182,12 +184,12 @@ object CassandraAnalyticsStore {
                          |  VALUES (?, ?, ?, ?, ?, ?, ?)
         """.stripMargin)
 
-      private[this] def addUpdate(zoneId: ZoneId, updated: Long, member: Member)(
+      private[this] def addUpdate(zoneId: ZoneId, updated: Instant, member: Member)(
           implicit ec: ExecutionContext): Future[Unit] =
         for (_ <- addUpdateStatement.execute(
                zoneId.id,
-               member.id.id: java.lang.Long,
-               new Date(updated),
+               member.id.id,
+               Date.from(updated),
                member.ownerPublicKeys.map(_.fingerprint).asJava,
                member.name.orNull,
                member.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
@@ -203,10 +205,10 @@ object CassandraAnalyticsStore {
         for {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.account_updates_by_id (
-                          |  zone_id uuid,
-                          |  id bigint,
+                          |  zone_id text,
+                          |  id text,
                           |  updated timestamp,
-                          |  owner_member_ids set<bigint>,
+                          |  owner_member_ids set<text>,
                           |  owner_names list<text>,
                           |  created timestamp,
                           |  modified timestamp,
@@ -217,9 +219,9 @@ object CassandraAnalyticsStore {
       """.stripMargin)
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.accounts_by_zone (
-                          |  zone_id uuid,
-                          |  id bigint,
-                          |  owner_member_ids set<bigint>,
+                          |  zone_id text,
+                          |  id text,
+                          |  owner_member_ids set<text>,
                           |  owner_names list<text>,
                           |  created timestamp,
                           |  modified timestamp,
@@ -244,11 +246,11 @@ object CassandraAnalyticsStore {
           yield
             (for {
               row <- resultSet.iterator.asScala
-              accountId = AccountId(row.getLong("id"))
+              accountId = AccountId(row.getString("id"))
               ownerMemberIds = row
-                .getSet("owner_member_ids", classOf[java.lang.Long])
+                .getSet("owner_member_ids", classOf[String])
                 .asScala
-                .map(MemberId(_))
+                .map(MemberId)
                 .toSet
               name = Option(row.getString("name"))
               metadata = Option(row.getString("metadata"))
@@ -260,15 +262,15 @@ object CassandraAnalyticsStore {
                          |  VALUES (?, ?, ?, ?, ?, ?, ?)
           """.stripMargin)
 
-      def create(zone: Zone, created: Long)(account: Account)(implicit ec: ExecutionContext): Future[Unit] =
+      def create(zone: Zone, created: Instant)(account: Account)(implicit ec: ExecutionContext): Future[Unit] =
         for {
           _ <- addUpdate(zone, updated = created, account)
           _ <- createStatement.execute(
             zone.id.id,
-            account.id.id: java.lang.Long,
+            account.id.id,
             account.ownerMemberIds.map(_.id).asJava,
             ownerNames(zone.members, account),
-            new Date(zone.created),
+            Date.from(created),
             account.name.orNull,
             account.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull
           )
@@ -286,7 +288,7 @@ object CassandraAnalyticsStore {
                  updatesStatement.execute(
                    ownerNames(zone.members, account),
                    zone.id.id,
-                   account.id.id: java.lang.Long
+                   account.id.id
                )
              )) yield ()
 
@@ -296,17 +298,17 @@ object CassandraAnalyticsStore {
                          |  WHERE zone_id = ? AND id = ?
           """.stripMargin)
 
-      def update(zone: Zone, modified: Long, account: Account)(implicit ec: ExecutionContext): Future[Unit] =
+      def update(zone: Zone, modified: Instant, account: Account)(implicit ec: ExecutionContext): Future[Unit] =
         for {
           _ <- addUpdate(zone, updated = modified, account)
           _ <- updateStatement.execute(
             account.ownerMemberIds.map(_.id).asJava,
             ownerNames(zone.members, account),
-            new Date(modified),
+            Date.from(modified),
             account.name.orNull,
             account.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
             zone.id.id,
-            account.id.id: java.lang.Long
+            account.id.id
           )
         } yield ()
 
@@ -315,12 +317,12 @@ object CassandraAnalyticsStore {
                          |  VALUES (?, ?, ?, ?, ?, ?, ?)
         """.stripMargin)
 
-      private[this] def addUpdate(zone: Zone, updated: Long, account: Account)(
+      private[this] def addUpdate(zone: Zone, updated: Instant, account: Account)(
           implicit ec: ExecutionContext): Future[Unit] =
         for (_ <- addUpdateStatement.execute(
                zone.id.id,
-               account.id.id: java.lang.Long,
-               new Date(updated),
+               account.id.id,
+               Date.from(updated),
                account.ownerMemberIds.map(_.id).asJava,
                ownerNames(zone.members, account),
                account.name.orNull,
@@ -334,14 +336,14 @@ object CassandraAnalyticsStore {
         for {
           _ <- execute(s"""
                           |CREATE TABLE IF NOT EXISTS $keyspace.transactions_by_zone (
-                          |  zone_id uuid,
-                          |  id bigint,
-                          |  "from" bigint,
+                          |  zone_id text,
+                          |  id text,
+                          |  "from" text,
                           |  from_owner_names list<text>,
-                          |  "to" bigint,
+                          |  "to" text,
                           |  to_owner_names list<text>,
                           |  value decimal,
-                          |  creator bigint,
+                          |  creator text,
                           |  created timestamp,
                           |  description text,
                           |  metadata text,
@@ -364,11 +366,11 @@ object CassandraAnalyticsStore {
           yield
             (for {
               row <- resultSet.iterator.asScala
-              transactionId = TransactionId(row.getLong("id"))
-              from          = AccountId(row.getLong("from"))
-              to            = AccountId(row.getLong("to"))
+              transactionId = TransactionId(row.getString("id"))
+              from          = AccountId(row.getString("from"))
+              to            = AccountId(row.getString("to"))
               value         = BigDecimal(row.getDecimal("value"))
-              creator       = MemberId(row.getLong("creator"))
+              creator       = MemberId(row.getString("creator"))
               created       = row.getTimestamp("created").getTime
               description   = Option(row.getString("description"))
               metadata = Option(row.getString("metadata"))
@@ -385,17 +387,17 @@ object CassandraAnalyticsStore {
       def update(zone: Zone, transactions: Iterable[Transaction])(implicit ec: ExecutionContext): Future[Unit] =
         for (_ <- Future.traverse(transactions)(transaction =>
                updatesStatement.execute(
-                 transaction.from.id: java.lang.Long,
+                 transaction.from.id,
                  ownerNames(zone.members, zone.accounts(transaction.from)),
-                 transaction.to.id: java.lang.Long,
+                 transaction.to.id,
                  ownerNames(zone.members, zone.accounts(transaction.to)),
                  transaction.value.underlying,
-                 transaction.creator.id: java.lang.Long,
+                 transaction.creator.id,
                  new Date(transaction.created),
                  transaction.description.orNull,
                  transaction.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
                  zone.id.id,
-                 transaction.id.id: java.lang.Long
+                 transaction.id.id
              ))) yield ()
 
       private[this] val addStatement = prepareStatement(s"""
@@ -406,13 +408,13 @@ object CassandraAnalyticsStore {
       def add(zone: Zone)(transaction: Transaction)(implicit ec: ExecutionContext): Future[Unit] =
         for (_ <- addStatement.execute(
                zone.id.id,
-               transaction.id.id: java.lang.Long,
-               transaction.from.id: java.lang.Long,
+               transaction.id.id,
+               transaction.from.id,
                ownerNames(zone.members, zone.accounts(transaction.from)),
-               transaction.to.id: java.lang.Long,
+               transaction.to.id,
                ownerNames(zone.members, zone.accounts(transaction.to)),
                transaction.value.underlying,
-               transaction.creator.id: java.lang.Long,
+               transaction.creator.id,
                new Date(transaction.created),
                transaction.description.orNull,
                transaction.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull
@@ -424,7 +426,7 @@ object CassandraAnalyticsStore {
       for {
         _                 <- execute(s"""
                                        |CREATE TABLE IF NOT EXISTS $keyspace.zone_name_changes_by_id (
-                                       |  id uuid,
+                                       |  id text,
                                        |  changed timestamp,
                                        |  name text,
                                        |  PRIMARY KEY ((id), changed)
@@ -432,9 +434,9 @@ object CassandraAnalyticsStore {
       """.stripMargin)
         _                 <- execute(s"""
                                        |CREATE TABLE IF NOT EXISTS $keyspace.zones_by_id(
-                                       |  id uuid,
+                                       |  id text,
                                        |  bucket bigint,
-                                       |  equity_account_id bigint,
+                                       |  equity_account_id text,
                                        |  created timestamp,
                                        |  modified timestamp,
                                        |  expires timestamp,
@@ -489,7 +491,7 @@ object CassandraAnalyticsStore {
         members      <- memberStore.retrieve(zoneId)
         accounts     <- accountStore.retrieve(zoneId)
         transactions <- transactionStore.retrieve(zoneId)
-        equityAccountId = AccountId(row.getLong("equity_account_id"))
+        equityAccountId = AccountId(row.getString("equity_account_id"))
         created         = row.getTimestamp("created").getTime
         expires         = row.getTimestamp("expires").getTime
         name            = Option(row.getString("name"))
@@ -505,19 +507,19 @@ object CassandraAnalyticsStore {
 
     def create(zone: Zone)(implicit ec: ExecutionContext): Future[Unit] =
       for {
-        _ <- addNameChange(zone.id, zone.created, zone.name)
+        _ <- addNameChange(zone.id, Instant.ofEpochMilli(zone.created), zone.name)
         _ <- createStatement.execute(
           zone.id.id,
           1L: java.lang.Long,
-          zone.equityAccountId.id: java.lang.Long,
+          zone.equityAccountId.id,
           new Date(zone.created),
           new Date(zone.expires),
           zone.name.orNull,
           zone.metadata.map(JsonFormat.toJsonString[com.google.protobuf.struct.Struct]).orNull,
           zone.metadata.flatMap(_.fields.get("currency").flatMap(_.kind.stringValue)).orNull
         )
-        _ <- Future.traverse(zone.members.values)(memberStore.create(zone.id, zone.created))
-        _ <- Future.traverse(zone.accounts.values)(accountStore.create(zone, zone.created))
+        _ <- Future.traverse(zone.members.values)(memberStore.create(zone.id, Instant.ofEpochMilli(zone.created)))
+        _ <- Future.traverse(zone.accounts.values)(accountStore.create(zone, Instant.ofEpochMilli(zone.created)))
         _ <- Future.traverse(zone.transactions.values)(transactionStore.add(zone))
       } yield ()
 
@@ -527,11 +529,12 @@ object CassandraAnalyticsStore {
                        |  WHERE id = ? AND bucket = ?
         """.stripMargin)
 
-    def changeName(zoneId: ZoneId, modified: Long, name: Option[String])(implicit ec: ExecutionContext): Future[Unit] =
+    def changeName(zoneId: ZoneId, modified: Instant, name: Option[String])(
+        implicit ec: ExecutionContext): Future[Unit] =
       for {
         _ <- addNameChange(zoneId, changed = modified, name)
         _ <- changeNameStatement.execute(
-          new Date(modified),
+          Date.from(modified),
           name.orNull,
           zoneId.id,
           1L: java.lang.Long
@@ -543,11 +546,11 @@ object CassandraAnalyticsStore {
                        |  VALUES (?, ?, ?)
         """.stripMargin)
 
-    private[this] def addNameChange(zoneId: ZoneId, changed: Long, name: Option[String])(
+    private[this] def addNameChange(zoneId: ZoneId, changed: Instant, name: Option[String])(
         implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- addNameChangeStatement.execute(
              zoneId.id,
-             new Date(changed),
+             Date.from(changed),
              name.orNull
            )) yield ()
 
@@ -557,9 +560,9 @@ object CassandraAnalyticsStore {
                        |  WHERE id = ? AND bucket = ?
         """.stripMargin)
 
-    def updateModified(zoneId: ZoneId, modified: Long)(implicit ec: ExecutionContext): Future[Unit] =
+    def updateModified(zoneId: ZoneId, modified: Instant)(implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- updateModifiedStatement.execute(
-             new Date(modified),
+             Date.from(modified),
              zoneId.id,
              1L: java.lang.Long
            )) yield ()
@@ -571,8 +574,8 @@ object CassandraAnalyticsStore {
       for {
         _ <- execute(s"""
                         |CREATE TABLE IF NOT EXISTS $keyspace.balances_by_zone (
-                        |  zone_id uuid,
-                        |  account_id bigint,
+                        |  zone_id text,
+                        |  account_id text,
                         |  owner_names list<text>,
                         |  balance decimal,
                         |  PRIMARY KEY ((zone_id), account_id)
@@ -594,7 +597,7 @@ object CassandraAnalyticsStore {
         yield
           (for {
             row <- resultSet.iterator.asScala
-            accountId = AccountId(row.getLong("account_id"))
+            accountId = AccountId(row.getString("account_id"))
             value     = BigDecimal(row.getDecimal("balance"))
           } yield accountId -> value).toMap
 
@@ -610,7 +613,7 @@ object CassandraAnalyticsStore {
     def create(zone: Zone, balance: BigDecimal)(account: Account)(implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- createStatement.execute(
              zone.id.id,
-             account.id.id: java.lang.Long,
+             account.id.id,
              ownerNames(zone.members, account),
              balance.underlying
            )) yield ()
@@ -632,7 +635,7 @@ object CassandraAnalyticsStore {
              ownerNames(zone.members, account),
              balance.underlying,
              zone.id.id,
-             account.id.id: java.lang.Long
+             account.id.id
            )) yield ()
     }
   }
@@ -642,21 +645,21 @@ object CassandraAnalyticsStore {
       for {
         _ <- execute(s"""
                         |CREATE TABLE IF NOT EXISTS $keyspace.client_sessions_by_zone_fingerprint (
-                        |  zone_id uuid,
+                        |  zone_id text,
                         |  fingerprint text,
                         |  joined timestamp,
-                        |  actor_path text,
+                        |  actor_ref text,
                         |  quit timestamp,
-                        |  PRIMARY KEY ((zone_id, fingerprint), joined, actor_path)
+                        |  PRIMARY KEY ((zone_id, fingerprint), joined, actor_ref)
                         |);
       """.stripMargin)
         _ <- execute(s"""
                         |CREATE TABLE IF NOT EXISTS $keyspace.clients_by_zone (
-                        |  zone_id uuid,
+                        |  zone_id text,
                         |  public_key blob,
                         |  fingerprint text,
                         |  last_joined timestamp,
-                        |  current_actor_path text,
+                        |  current_actor_ref text,
                         |  last_quit timestamp,
                         |  PRIMARY KEY ((zone_id), public_key)
                         |);
@@ -673,87 +676,88 @@ object CassandraAnalyticsStore {
   class ClientStore private (keyspace: String)(implicit session: Session) {
 
     private[this] val retrieveStatement = prepareStatement(s"""
-                       |SELECT public_key, last_joined, current_actor_path
+                       |SELECT public_key, last_joined, current_actor_ref
                        |  FROM $keyspace.clients_by_zone
                        |  WHERE zone_id = ?
         """.stripMargin)
 
-    def retrieve(zoneId: ZoneId)(implicit ec: ExecutionContext): Future[Map[ActorPath, (Long, PublicKey)]] =
+    def retrieve(zoneId: ZoneId)(implicit ec: ExecutionContext,
+                                 system: ExtendedActorSystem): Future[Map[ActorRef, (Instant, PublicKey)]] =
       for (resultSet <- retrieveStatement.execute(zoneId.id))
         yield
           (for {
-            row <- resultSet.iterator.asScala if !row.isNull("current_actor_path")
-            publicKey        = PublicKey(ByteString.of(row.getBytes("public_key")))
-            lastJoined       = row.getTimestamp("last_joined").getTime
-            currentActorPath = ActorPath.fromString(row.getString("current_actor_path"))
-          } yield currentActorPath -> (lastJoined -> publicKey)).toMap
+            row <- resultSet.iterator.asScala if !row.isNull("current_actor_ref")
+            publicKey       = PublicKey(ByteString.of(row.getBytes("public_key")))
+            lastJoined      = row.getTimestamp("last_joined").toInstant
+            currentActorRef = system.provider.resolveActorRef(row.getString("current_actor_ref"))
+          } yield currentActorRef -> (lastJoined -> publicKey)).toMap
 
     private[this] val createOrUpdateStatement = prepareStatement(s"""
-                       |INSERT INTO $keyspace.clients_by_zone (zone_id, public_key, fingerprint, last_joined, current_actor_path, last_quit)
+                       |INSERT INTO $keyspace.clients_by_zone (zone_id, public_key, fingerprint, last_joined, current_actor_ref, last_quit)
                        |  VALUES (?, ?, ?, ?, ?, null)
         """.stripMargin)
 
-    def createOrUpdate(zoneId: ZoneId, publicKey: PublicKey, joined: Long, actorPath: ActorPath)(
+    def createOrUpdate(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef)(
         implicit ec: ExecutionContext): Future[Unit] =
       for {
-        _ <- openSession(zoneId, publicKey, joined, actorPath)
+        _ <- openSession(zoneId, publicKey, joined, actorRef)
         _ <- createOrUpdateStatement.execute(
           zoneId.id,
           publicKey.value.asByteBuffer,
           publicKey.fingerprint,
-          new Date(joined),
-          actorPath.toSerializationFormat
+          Date.from(joined),
+          Serialization.serializedActorPath(actorRef)
         )
       } yield ()
 
     private[this] val updateStatement = prepareStatement(s"""
                        |UPDATE $keyspace.clients_by_zone
-                       |  SET current_actor_path = null, last_quit = ?
+                       |  SET current_actor_ref = null, last_quit = ?
                        |  WHERE zone_id = ? AND public_key = ?
         """.stripMargin)
 
-    def update(zoneId: ZoneId, publicKey: PublicKey, joined: Long, actorPath: ActorPath, quit: Long)(
+    def update(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef, quit: Instant)(
         implicit ec: ExecutionContext): Future[Unit] =
       for {
-        _ <- closeSession(zoneId, publicKey, joined, actorPath, quit)
+        _ <- closeSession(zoneId, publicKey, joined, actorRef, quit)
         _ <- updateStatement.execute(
-          new Date(quit),
+          Date.from(quit),
           zoneId.id,
           publicKey.value.asByteBuffer
         )
       } yield ()
 
     private[this] val openSessionStatement = prepareStatement(s"""
-                         |INSERT INTO $keyspace.client_sessions_by_zone_fingerprint (zone_id, fingerprint, joined, actor_path)
+                         |INSERT INTO $keyspace.client_sessions_by_zone_fingerprint (zone_id, fingerprint, joined, actor_ref)
                          |  VALUES (?, ?, ?, ?)
           """.stripMargin)
 
-    private[this] def openSession(zoneId: ZoneId, publicKey: PublicKey, joined: Long, actorPath: ActorPath)(
+    private[this] def openSession(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef)(
         implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- openSessionStatement.execute(
              zoneId.id,
              publicKey.fingerprint,
-             new Date(joined),
-             actorPath.toSerializationFormat
+             Date.from(joined),
+             Serialization.serializedActorPath(actorRef)
            )) yield ()
 
     private[this] val closeSessionStatement = prepareStatement(s"""
                          |UPDATE $keyspace.client_sessions_by_zone_fingerprint
                          |  SET quit = ?
-                         |  WHERE zone_id = ? AND fingerprint = ? AND joined = ? AND actor_path = ?
+                         |  WHERE zone_id = ? AND fingerprint = ? AND joined = ? AND actor_ref = ?
           """.stripMargin)
 
     private[this] def closeSession(zoneId: ZoneId,
                                    publicKey: PublicKey,
-                                   joined: Long,
-                                   actorPath: ActorPath,
-                                   quit: Long)(implicit ec: ExecutionContext): Future[Unit] =
+                                   joined: Instant,
+                                   actorRef: ActorRef,
+                                   quit: Instant)(implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- closeSessionStatement.execute(
-             new Date(quit),
+             Date.from(quit),
              zoneId.id,
              publicKey.fingerprint,
-             new Date(joined),
-             actorPath.toSerializationFormat
+             Date.from(joined),
+             Serialization.serializedActorPath(actorRef)
            )) yield ()
 
   }

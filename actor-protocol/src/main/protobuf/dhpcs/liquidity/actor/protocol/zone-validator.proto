@@ -17,6 +17,35 @@ message GetZoneStateResponse {
     dhpcs.liquidity.model.ZoneState state = 1;
 }
 
+message ZoneCommandEnvelope {
+    string zone_id = 1;
+    bytes remote_addess = 2;
+    bytes public_key = 3;
+    int64 correlation_id = 4;
+    int64 sequence_number = 5;
+    int64 delivery_id = 6;
+    ZoneCommand command = 7;
+}
+
+message ZoneCommandReceivedConfirmation {
+    string zone_id = 1;
+    int64 delivery_id = 2;
+}
+
+message ZoneResponseEnvelope {
+    int64 correlation_id = 1;
+    int64 sequence_number = 2;
+    int64 delivery_id = 3;
+    ZoneResponse response = 4;
+}
+
+message ZoneNotificationEnvelope {
+    string zone_id = 1;
+    int64 sequence_number = 2;
+    int64 delivery_id = 3;
+    ZoneNotification notification = 4;
+}
+
 message ZoneCommand {
     message CreateZoneCommand {
         bytes equity_owner_public_key = 1;
@@ -39,24 +68,25 @@ message ZoneCommand {
         dhpcs.liquidity.model.Member member = 1;
     }
     message CreateAccountCommand {
-        repeated int64 owner_member_ids = 1;
+        repeated string owner_member_ids = 1;
         google.protobuf.StringValue name = 2;
         google.protobuf.Struct metadata = 3;
     }
     message UpdateAccountCommand {
-        int64 acting_as = 1;
+        string acting_as = 1;
         dhpcs.liquidity.model.Account account = 2;
     }
     message AddTransactionCommand {
-        int64 acting_as = 1;
-        int64 from = 2;
-        int64 to = 3;
-        dhpcs.liquidity.model.BigDecimal value = 4;
+        string acting_as = 1;
+        string from = 2;
+        string to = 3;
+        string value = 4;
         google.protobuf.StringValue description = 5;
         google.protobuf.Struct metadata = 6;
     }
     oneof zone_command {
         CreateZoneCommand create_zone_command = 1;
+        // TODO: Add event/notification number
         bytes join_zone_command = 2;
         bytes quit_zone_command = 3;
         ChangeZoneNameCommand change_zone_name_command = 4;
@@ -88,7 +118,7 @@ message ZoneResponse {
     message JoinZoneResponse {
         message Success {
             dhpcs.liquidity.model.Zone zone = 1;
-            repeated bytes connected_clients = 2;
+            map<string, bytes> connected_clients = 2;
         }
         oneof result {
             Errors errors = 1;
@@ -161,10 +191,12 @@ message ZoneResponse {
 
 message ZoneNotification {
     message ClientJoinedZoneNotification {
-        bytes public_key = 1;
+        string connection_id = 1;
+        bytes public_key = 2;
     }
     message ClientQuitZoneNotification {
-        bytes public_key = 1;
+        string connection_id = 1;
+        bytes public_key = 2;
     }
     message ZoneNameChangedNotification {
         google.protobuf.StringValue name = 1;
@@ -194,33 +226,4 @@ message ZoneNotification {
         AccountUpdatedNotification account_updated_notification = 7;
         TransactionAddedNotification transaction_added_notification = 8;
     }
-}
-
-message ZoneCommandEnvelope {
-    string zone_id = 1;
-    bytes remote_addess = 2;
-    bytes public_key = 3;
-    int64 correlation_id = 4;
-    int64 sequence_number = 5;
-    int64 delivery_id = 6;
-    ZoneCommand command = 7;
-}
-
-message ZoneCommandReceivedConfirmation {
-    string zone_id = 1;
-    int64 delivery_id = 2;
-}
-
-message ZoneResponseEnvelope {
-    int64 correlation_id = 1;
-    int64 sequence_number = 2;
-    int64 delivery_id = 3;
-    ZoneResponse response = 4;
-}
-
-message ZoneNotificationEnvelope {
-    string zone_id = 1;
-    int64 sequence_number = 2;
-    int64 delivery_id = 3;
-    ZoneNotification notification = 4;
 }

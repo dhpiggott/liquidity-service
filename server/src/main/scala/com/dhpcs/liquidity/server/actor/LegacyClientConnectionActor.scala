@@ -271,7 +271,9 @@ class LegacyClientConnectionActor(remoteAddress: InetAddress,
               toLegacyResponse(result)(LegacyWsProtocol.CreateZoneResponse)
             case JoinZoneResponse(result) =>
               context.watch(sender())
-              toLegacyResponse(result)(LegacyWsProtocol.JoinZoneResponse.tupled)
+              toLegacyResponse(result) {
+                case (zone, connectedClients) => LegacyWsProtocol.JoinZoneResponse(zone, connectedClients.values.toSet)
+              }
             case QuitZoneResponse(result) =>
               context.unwatch(sender())
               toLegacyResponse(result)(_ => LegacyWsProtocol.QuitZoneResponse)
@@ -295,9 +297,9 @@ class LegacyClientConnectionActor(remoteAddress: InetAddress,
           val notification = zoneNotification match {
             case EmptyZoneNotification =>
               throw new IllegalArgumentException("Inconceivable")
-            case ClientJoinedZoneNotification(_publicKey) =>
+            case ClientJoinedNotification(_, _publicKey) =>
               LegacyWsProtocol.ClientJoinedZoneNotification(zoneId, _publicKey)
-            case ClientQuitZoneNotification(_publicKey) =>
+            case ClientQuitNotification(_, _publicKey) =>
               LegacyWsProtocol.ClientQuitZoneNotification(zoneId, _publicKey)
             case ZoneNameChangedNotification(name) =>
               LegacyWsProtocol.ZoneNameChangedNotification(zoneId, name)

@@ -1,9 +1,10 @@
 package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
+import java.time.Instant
 
 import akka.NotUsed
-import akka.actor.ActorPath
+import akka.actor.ActorRef
 import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.headers.`Remote-Address`
@@ -15,7 +16,7 @@ import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
 import com.dhpcs.liquidity.proto.model.ZoneState
-import com.dhpcs.liquidity.server.HttpController.GeneratedMessageEnvelope
+import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.scalatest.{FreeSpec, Inside}
@@ -76,11 +77,11 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
 
   override protected[this] def events(persistenceId: String,
                                       fromSequenceNr: Long,
-                                      toSequenceNr: Long): Source[GeneratedMessageEnvelope, NotUsed] =
-    Source.empty[GeneratedMessageEnvelope]
+                                      toSequenceNr: Long): Source[EventEnvelope, NotUsed] =
+    Source.empty[EventEnvelope]
 
   override protected[this] def zoneState(zoneId: ZoneId): Future[ZoneState] =
-    Future.successful(ZoneState(zone = None, balances = Map.empty, clientConnections = Map.empty))
+    Future.successful(ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty))
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] = Flow[Message]
 
@@ -95,7 +96,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(Map.empty)
 
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
+  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]] =
     Future.successful(Map.empty)
 
 }

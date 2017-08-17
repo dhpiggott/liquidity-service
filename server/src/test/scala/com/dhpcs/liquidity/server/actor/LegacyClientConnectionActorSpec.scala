@@ -11,6 +11,7 @@ import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol.AuthenticationSpec
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import org.scalatest.OptionValues._
 import org.scalatest.{Outcome, fixture}
@@ -19,7 +20,7 @@ import scala.concurrent.duration._
 
 class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures {
 
-  private[this] val publicKey = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
+  private[this] val publicKey = PublicKey(AuthenticationSpec.rsaPublicKey.getEncoded)
 
   override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
@@ -82,9 +83,9 @@ class LegacyClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPers
       val created = System.currentTimeMillis
       val zone = Zone(
         id = zoneId,
-        equityAccountId = AccountId(0),
-        members = Map(MemberId(0)   -> Member(MemberId(0), Set(publicKey), name = Some("Dave"))),
-        accounts = Map(AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))),
+        equityAccountId = AccountId("0"),
+        members = Map(MemberId("0")   -> Member(MemberId("0"), Set(publicKey), name = Some("Dave"))),
+        accounts = Map(AccountId("0") -> Account(AccountId("0"), ownerMemberIds = Set(MemberId("0")))),
         transactions = Map.empty,
         created = created,
         expires = created + 2.days.toMillis,

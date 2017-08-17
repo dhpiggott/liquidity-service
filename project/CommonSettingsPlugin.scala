@@ -16,23 +16,23 @@ object CommonSettingsPlugin extends AutoPlugin {
     )
 
   override def buildSettings: Seq[Setting[_]] =
-    scalaSettings ++
-      resolverSettings ++
-      scalafmtSettings ++
-      testSettings ++
-      coverageSettings ++
-      publishSettings
+    resolverBuildSettings ++
+      scalaBuildSettings ++
+      scalafmtBuildSettings ++
+      testBuildSettings ++
+      coverageBuildSettings ++
+      publishBuildSettings
 
-  private lazy val resolverSettings = Seq(
+  private lazy val resolverBuildSettings = Seq(
     resolvers += Resolver.bintrayRepo("dhpcs", "maven"),
     conflictManager := ConflictManager.strict
   )
 
-  private lazy val scalafmtSettings = Seq(
+  private lazy val scalafmtBuildSettings = Seq(
     ScalafmtCorePlugin.autoImport.scalafmtVersion := "1.2.0"
   )
 
-  private lazy val scalaSettings = Seq(
+  private lazy val scalaBuildSettings = Seq(
     scalaVersion := "2.12.3",
     crossScalaVersions := Seq("2.11.11", "2.12.3"),
     // See https://tpolecat.github.io/2017/04/25/scalac-flags.html for explanations. 2.11 doesn't support all of these,
@@ -99,16 +99,16 @@ object CommonSettingsPlugin extends AutoPlugin {
     )
   )
 
-  private lazy val testSettings = Seq(
+  private lazy val testBuildSettings = Seq(
     testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"),
     testOptions in MultiJvm += Tests.Argument(TestFrameworks.ScalaTest, "-oDF")
   )
 
-  private lazy val coverageSettings = Seq(
+  private lazy val coverageBuildSettings = Seq(
     coverageExcludedFiles := ".*/target/.*"
   )
 
-  private lazy val publishSettings = Seq(
+  private lazy val publishBuildSettings = Seq(
     organization := "com.dhpcs"
   )
 

@@ -3,9 +3,10 @@ package com.dhpcs.liquidity.server
 import java.net.InetAddress
 import java.security.KeyStore
 import java.security.cert.X509Certificate
+import java.time.Instant
 import javax.net.ssl._
 
-import akka.actor.{ActorPath, ActorSystem, CoordinatedShutdown, PoisonPill, Scheduler}
+import akka.actor.{ActorRef, ActorSystem, CoordinatedShutdown, ExtendedActorSystem, PoisonPill, Scheduler}
 import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
@@ -28,7 +29,7 @@ import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.persistence._
+import com.dhpcs.liquidity.persistence.zone.ZoneEventEnvelope
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
@@ -199,47 +200,23 @@ class LiquidityServer(pingInterval: FiniteDuration,
 
   override protected[this] def events(persistenceId: String,
                                       fromSequenceNr: Long,
-                                      toSequenceNr: Long): Source[HttpController.GeneratedMessageEnvelope, NotUsed] =
+                                      toSequenceNr: Long): Source[HttpController.EventEnvelope, NotUsed] =
     readJournal
       .eventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr)
       .map {
         case EventEnvelope(_, _, sequenceNr, event) =>
           val protoEvent = event match {
-            case zoneEvent: ZoneEvent =>
-              zoneEvent match {
-                case zoneCreatedEvent: ZoneCreatedEvent =>
-                  ProtoBinding[ZoneCreatedEvent, proto.persistence.ZoneCreatedEvent, Any].asProto(zoneCreatedEvent)
-                case zoneJoinedEvent: ZoneJoinedEvent =>
-                  ProtoBinding[ZoneJoinedEvent, proto.persistence.ZoneJoinedEvent, Any].asProto(zoneJoinedEvent)
-                case zoneQuitEvent: ZoneQuitEvent =>
-                  ProtoBinding[ZoneQuitEvent, proto.persistence.ZoneQuitEvent, Any].asProto(zoneQuitEvent)
-                case zoneNameChangedEvent: ZoneNameChangedEvent =>
-                  ProtoBinding[ZoneNameChangedEvent, proto.persistence.ZoneNameChangedEvent, Any]
-                    .asProto(zoneNameChangedEvent)
-                case memberCreatedEvent: MemberCreatedEvent =>
-                  ProtoBinding[MemberCreatedEvent, proto.persistence.MemberCreatedEvent, Any]
-                    .asProto(memberCreatedEvent)
-                case memberUpdatedEvent: MemberUpdatedEvent =>
-                  ProtoBinding[MemberUpdatedEvent, proto.persistence.MemberUpdatedEvent, Any]
-                    .asProto(memberUpdatedEvent)
-                case accountCreatedEvent: AccountCreatedEvent =>
-                  ProtoBinding[AccountCreatedEvent, proto.persistence.AccountCreatedEvent, Any]
-                    .asProto(accountCreatedEvent)
-                case accountUpdatedEvent: AccountUpdatedEvent =>
-                  ProtoBinding[AccountUpdatedEvent, proto.persistence.AccountUpdatedEvent, Any]
-                    .asProto(accountUpdatedEvent)
-                case transactionAddedEvent: TransactionAddedEvent =>
-                  ProtoBinding[TransactionAddedEvent, proto.persistence.TransactionAddedEvent, Any]
-                    .asProto(transactionAddedEvent)
-              }
+            case zoneEventEnvelope: ZoneEventEnvelope =>
+              ProtoBinding[ZoneEventEnvelope, proto.persistence.zone.ZoneEventEnvelope, ExtendedActorSystem]
+                .asProto(zoneEventEnvelope)
           }
-          HttpController.GeneratedMessageEnvelope(sequenceNr, protoEvent)
+          HttpController.EventEnvelope(sequenceNr, protoEvent)
       }
 
   override protected[this] def zoneState(zoneId: ZoneId): Future[proto.model.ZoneState] =
     (zoneValidatorShardRegion ? GetZoneStateCommand(zoneId))
       .mapTo[GetZoneStateResponse]
-      .map(response => ProtoBinding[ZoneState, proto.model.ZoneState, Any].asProto(response.state))
+      .map(response => ProtoBinding[ZoneState, proto.model.ZoneState, ExtendedActorSystem].asProto(response.state))
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
@@ -258,8 +235,8 @@ class LiquidityServer(pingInterval: FiniteDuration,
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     futureAnalyticsStore.flatMap(_.balanceStore.retrieve(zoneId))
 
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
-    futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId))
+  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]] =
+    futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId)(ec, system.asInstanceOf[ExtendedActorSystem]))
 
   override protected[this] def legacyWebSocketApi(remoteAddress: InetAddress,
                                                   publicKey: PublicKey): Flow[Message, Message, NotUsed] =

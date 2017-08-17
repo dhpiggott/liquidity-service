@@ -30,7 +30,6 @@ lazy val model = project
   .settings(
     libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0"
   )
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val persistence = project
   .in(file("persistence"))
@@ -71,8 +70,8 @@ lazy val wsProtocol = project
     PB.includePaths in Compile += file("actor-protocol/src/main/protobuf")
   )
   .dependsOn(model)
+  // TODO: No!
   .dependsOn(actorProtocol)
-  .dependsOn(model % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val wsLegacyProtocol = project
@@ -82,8 +81,8 @@ lazy val wsLegacyProtocol = project
     name := "liquidity-ws-legacy-protocol"
   )
   .dependsOn(model)
-  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0.1")
-  .dependsOn(model % "test->test")
+  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0.0")
+  .dependsOn(wsProtocol % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val testkit = project
@@ -145,7 +144,7 @@ lazy val server = project
       "de.heikoseeberger"      %% "akka-http-play-json"          % "1.17.0"
     )
   )
-  .dependsOn(model % "test->test")
+  .dependsOn(wsProtocol % "test->test")
   .dependsOn(testkit % "test")
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
@@ -167,6 +166,8 @@ lazy val server = project
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
+    // TODO: Remove when migration is complete
+    mainClass in Compile := Some("com.dhpcs.liquidity.server.LiquidityServer"),
     bashScriptExtraDefines ++= Seq(
       "addJava -Djdk.tls.ephemeralDHKeySize=2048",
       "addJava -Djdk.tls.rejectClientInitiatedRenegotiation=true"

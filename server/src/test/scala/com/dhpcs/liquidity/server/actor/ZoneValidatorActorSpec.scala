@@ -11,6 +11,7 @@ import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
+import com.dhpcs.liquidity.ws.protocol.AuthenticationSpec
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{FreeSpec, Inside}
 
@@ -25,7 +26,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
   )
 
   private[this] val remoteAddress = InetAddress.getLoopbackAddress
-  private[this] val publicKey     = PublicKey(ModelSpec.rsaPublicKey.getEncoded)
+  private[this] val publicKey     = PublicKey(AuthenticationSpec.rsaPublicKey.getEncoded)
 
   "A ZoneValidatorActor" - {
     "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
@@ -52,9 +53,9 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
       )
       inside(expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
         case CreateZoneResponse(Validated.Valid(zone)) =>
-          assert(zone.equityAccountId === AccountId(0))
-          assert(zone.members(MemberId(0)) === Member(MemberId(0), Set(publicKey), name = Some("Dave")))
-          assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
+          assert(zone.equityAccountId === AccountId("0"))
+          assert(zone.members(MemberId("0")) === Member(MemberId("0"), Set(publicKey), name = Some("Dave")))
+          assert(zone.accounts(AccountId("0")) === Account(AccountId("0"), ownerMemberIds = Set(MemberId("0"))))
           assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
           assert(
             zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))

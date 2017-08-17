@@ -2,10 +2,11 @@ package com.dhpcs.liquidity.client
 
 import java.net.InetAddress
 import java.nio.file.Files
+import java.time.Instant
 import java.util.concurrent.Executors
 
 import akka.NotUsed
-import akka.actor.{Actor, ActorPath, ActorRef, ActorSystem, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws
 import akka.stream.scaladsl.{Flow, Keep, Source}
@@ -26,7 +27,7 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.proto.model.ZoneState
-import com.dhpcs.liquidity.server.HttpController.GeneratedMessageEnvelope
+import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
@@ -88,11 +89,11 @@ class ServerConnectionSpec
 
   override protected[this] def events(persistenceId: String,
                                       fromSequenceNr: Long,
-                                      toSequenceNr: Long): Source[GeneratedMessageEnvelope, NotUsed] =
-    Source.empty[GeneratedMessageEnvelope]
+                                      toSequenceNr: Long): Source[EventEnvelope, NotUsed] =
+    Source.empty[EventEnvelope]
 
   override protected[this] def zoneState(zoneId: ZoneId): Future[ZoneState] =
-    Future.successful(ZoneState(zone = None, balances = Map.empty, clientConnections = Map.empty))
+    Future.successful(ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty))
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
@@ -110,7 +111,7 @@ class ServerConnectionSpec
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(Map.empty)
 
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorPath, (Long, PublicKey)]] =
+  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]] =
     Future.successful(Map.empty)
 
   private[this] val binding = Http().bindAndHandle(
@@ -246,12 +247,14 @@ class ServerConnectionSpec
         Validated.valid(
           Zone(
             id = ZoneId.generate,
-            equityAccountId = AccountId(0),
+            equityAccountId = AccountId("0"),
             members = Map(
-              MemberId(0) -> Member(MemberId(0), ownerPublicKeys = Set(serverConnection.clientKey), name = Some("Dave"))
+              MemberId("0") -> Member(MemberId("0"),
+                                      ownerPublicKeys = Set(serverConnection.clientKey),
+                                      name = Some("Dave"))
             ),
             accounts = Map(
-              AccountId(0) -> Account(AccountId(0), ownerMemberIds = Set(MemberId(0)))
+              AccountId("0") -> Account(AccountId("0"), ownerMemberIds = Set(MemberId("0")))
             ),
             transactions = Map.empty,
             created,

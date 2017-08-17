@@ -1,0 +1,97 @@
+// TODO: Remove when migration is complete
+syntax = "proto3";
+
+package dhpcs.liquidity.persistence;
+
+option java_package = "com.dhpcs.liquidity.proto.persistence";
+
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
+
+message LegacyBigDecimal {
+    int32 scale = 1;
+    bytes value = 2;
+}
+
+message LegacyMember {
+    int32 id = 1;
+    bytes owner_public_key = 2;
+    google.protobuf.StringValue name = 3;
+    google.protobuf.Struct metadata = 4;
+}
+
+message LegacyAccount {
+    int32 id = 1;
+    repeated int32 owner_member_ids = 2;
+    google.protobuf.StringValue name = 3;
+    google.protobuf.Struct metadata = 4;
+}
+
+message LegacyTransaction {
+    int32 id = 1;
+    int32 from = 2;
+    int32 to = 3;
+    LegacyBigDecimal value = 4;
+    int32 creator = 5;
+    int64 created = 6;
+    google.protobuf.StringValue description = 7;
+    google.protobuf.Struct metadata = 8;
+}
+
+message LegacyZone {
+    string id = 1;
+    int32 equity_account_id = 2;
+    repeated LegacyMember members = 3;
+    repeated LegacyAccount accounts = 4;
+    repeated LegacyTransaction transactions = 5;
+    int64 created = 6;
+    int64 expires = 7;
+    google.protobuf.StringValue name = 8;
+    google.protobuf.Struct metadata = 9;
+}
+
+message ZoneCreatedEvent {
+    int64 timestamp = 1;
+    LegacyZone zone = 2;
+}
+
+message ZoneJoinedEvent {
+    int64 timestamp = 1;
+    string client_connection_actor_path = 2;
+    bytes public_key = 3;
+}
+
+message ZoneQuitEvent {
+    int64 timestamp = 1;
+    string client_connection_actor_path = 2;
+}
+
+message ZoneNameChangedEvent {
+    int64 timestamp = 1;
+    google.protobuf.StringValue name = 2;
+}
+
+message MemberCreatedEvent {
+    int64 timestamp = 1;
+    LegacyMember member = 2;
+}
+
+message MemberUpdatedEvent {
+    int64 timestamp = 1;
+    LegacyMember member = 2;
+}
+
+message AccountCreatedEvent {
+    int64 timestamp = 1;
+    LegacyAccount account = 2;
+}
+
+message AccountUpdatedEvent {
+    int64 timestamp = 1;
+    LegacyAccount account = 2;
+}
+
+message TransactionAddedEvent {
+    int64 timestamp = 1;
+    LegacyTransaction transaction = 2;
+}

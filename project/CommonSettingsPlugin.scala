@@ -4,21 +4,23 @@ import sbt.Keys._
 import sbt._
 import scoverage.ScoverageKeys._
 
-object CommonModuleSettingsPlugin extends AutoPlugin {
+object CommonSettingsPlugin extends AutoPlugin {
 
   override def trigger: PluginTrigger = allRequirements
 
-  override def projectSettings: Seq[Setting[_]] =
+  override def globalSettings: Seq[Setting[_]] =
+    addCommandAlias(
+      "validate",
+      ";reload plugins; sbt:scalafmt::test; scalafmt::test; reload return; " +
+        "sbt:scalafmt::test; scalafmt::test; test:scalafmt::test; multi-jvm:scalafmt::test; test; multi-jvm:test"
+    )
+
+  override def buildSettings: Seq[Setting[_]] =
     scalaSettings ++
       resolverSettings ++
       scalafmtSettings ++
       testSettings ++
       coverageSettings ++
-      addCommandAlias(
-        "validate",
-        ";reload plugins; sbt:scalafmt::test; scalafmt::test; reload return; " +
-          "sbt:scalafmt::test; scalafmt::test; test:scalafmt::test; multi-jvm:scalafmt::test; test; multi-jvm:test"
-      ) ++
       publishSettings
 
   private lazy val resolverSettings = Seq(

@@ -92,7 +92,7 @@ lazy val testkit = project
   .settings(
     name := "liquidity-testkit"
   )
-  .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.57")
+  .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.58")
 
 lazy val server = project
   .in(file("server"))

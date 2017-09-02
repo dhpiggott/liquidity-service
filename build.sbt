@@ -30,7 +30,7 @@ lazy val model = project
   .settings(
     libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0"
   )
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val persistence = project
   .in(file("persistence"))
@@ -45,7 +45,7 @@ lazy val persistence = project
   .dependsOn(model)
   .dependsOn(protoBinding)
   .dependsOn(model % "test->test")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val actorProtocol = project
   .in(file("actor-protocol"))
@@ -73,7 +73,7 @@ lazy val wsProtocol = project
   .dependsOn(model)
   .dependsOn(actorProtocol)
   .dependsOn(model % "test->test")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val wsLegacyProtocol = project
   .in(file("ws-legacy-protocol"))
@@ -84,7 +84,7 @@ lazy val wsLegacyProtocol = project
   .dependsOn(model)
   .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0.0")
   .dependsOn(model % "test->test")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val testkit = project
   .in(file("testkit"))
@@ -148,7 +148,7 @@ lazy val server = project
   .dependsOn(testkit % "test")
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
-    "org.scalatest"       %% "scalatest"                 % "3.0.3"   % Test,
+    "org.scalatest"       %% "scalatest"                 % "3.0.4"   % Test,
     "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.9"  % Test,
     "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.4"   % Test
   ))
@@ -190,7 +190,7 @@ lazy val client = project
   )
   .dependsOn(testkit % "test")
   .dependsOn(server % "test->test")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val healthcheck = project
   .in(file("healthcheck"))
@@ -207,12 +207,12 @@ lazy val healthcheck = project
     ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.4",
-      "org.scalatest"     %% "scalatest"           % "3.0.3"
+      "org.scalatest"     %% "scalatest"           % "3.0.4"
     )
   )
   .dependsOn(testkit % "test")
   .dependsOn(server % "test->test")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.3" % Test)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
   .enablePlugins(JavaAppPackaging, UniversalPlugin)
 
 lazy val boardgame = project

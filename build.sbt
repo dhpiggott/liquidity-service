@@ -108,6 +108,7 @@ lazy val server = project
   .settings(
     dependencyOverrides ++= Set(
       "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
+      "com.lihaoyi"                %% "fastparse"                   % "0.4.3",
       "com.fasterxml.jackson.core" % "jackson-databind"             % "2.8.8",
       "com.github.jnr"             % "jnr-constants"                % "0.9.6",
       "com.github.jnr"             % "jnr-ffi"                      % "2.1.2",
@@ -122,7 +123,7 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-http"                   % "10.0.10",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.3.1",
-      "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.0",
+      "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.2",
       "com.typesafe.play"          %% "play-json"                   % "2.6.3"
     ),
     libraryDependencies ++= Seq(

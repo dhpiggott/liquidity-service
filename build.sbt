@@ -119,7 +119,7 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-stream-testkit"         % "2.5.4",
       "com.typesafe.akka"          %% "akka-persistence"            % "2.5.4",
       "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.4",
-      "com.typesafe.akka"          %% "akka-http"                   % "10.0.9",
+      "com.typesafe.akka"          %% "akka-http"                   % "10.0.10",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.3.1",
       "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.0",
@@ -138,7 +138,7 @@ lazy val server = project
       "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.54",
       "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
-      "com.typesafe.akka"      %% "akka-http"                    % "10.0.9",
+      "com.typesafe.akka"      %% "akka-http"                    % "10.0.10",
       "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.2",
       "com.typesafe.play"      %% "play-json"                    % "2.6.3",
       "de.heikoseeberger"      %% "akka-http-play-json"          % "1.17.0"
@@ -149,7 +149,7 @@ lazy val server = project
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest"       %% "scalatest"                 % "3.0.4"   % Test,
-    "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.9"  % Test,
+    "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.10" % Test,
     "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.4"   % Test
   ))
   .configs(MultiJvm)

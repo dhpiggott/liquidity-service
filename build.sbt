@@ -204,7 +204,7 @@ lazy val healthcheck = project
   .settings(
     dependencyOverrides ++= Seq(
       "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
-      "com.typesafe.play"      %% "play-json" % "2.6.2"
+      "com.typesafe.play"      %% "play-json" % "2.6.3"
     ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.4",

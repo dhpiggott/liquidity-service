@@ -153,8 +153,8 @@ lazy val server = project
     "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.10" % Test,
     "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.4"   % Test
   ))
+  .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
-  .settings(SbtMultiJvm.multiJvmSettings)
   .settings(inConfig(MultiJvm)(scalafmtSettings))
   .dependsOn(testkit % MultiJvm)
   .settings(libraryDependencies ++= Seq(

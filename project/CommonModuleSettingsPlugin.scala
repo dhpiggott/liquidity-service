@@ -44,8 +44,15 @@ object CommonModuleSettingsPlugin extends AutoPlugin {
           "utf-8",
           "-explaintypes",
           "-feature",
+          "-language:existentials",
+          "-language:experimental.macros",
+          "-language:higherKinds",
+          "-language:implicitConversions",
           "-unchecked",
+          // TODO: Re-enable this when Scala 2.12.4 is released (see https://github.com/scala/scala/pull/6024).
+          // "-Xcheckinit",
           "-Xfatal-warnings",
+          "-Xfuture",
           "-Xlint:adapted-args",
           "-Xlint:by-name-right-associative",
           "-Xlint:constant",
@@ -64,6 +71,7 @@ object CommonModuleSettingsPlugin extends AutoPlugin {
           "-Xlint:type-parameter-shadow",
           "-Xlint:unsound-match",
           "-Yno-adapted-args",
+          "-Ypartial-unification",
           "-Ywarn-dead-code",
           "-Ywarn-extra-implicit",
           "-Ywarn-inaccessible",
@@ -81,7 +89,7 @@ object CommonModuleSettingsPlugin extends AutoPlugin {
         )
       case "2.11" => Seq("-encoding", "utf-8")
     }),
-    dependencyOverrides ++= Set(
+    dependencyOverrides ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
       "org.scala-lang" % "scala-library" % scalaVersion.value,
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,

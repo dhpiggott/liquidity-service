@@ -106,7 +106,7 @@ lazy val server = project
   .dependsOn(wsProtocol)
   .dependsOn(wsLegacyProtocol)
   .settings(
-    dependencyOverrides ++= Set(
+    dependencyOverrides ++= Seq(
       "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
       "com.lihaoyi"                %% "fastparse"                   % "0.4.3",
       "com.fasterxml.jackson.core" % "jackson-databind"             % "2.8.8",
@@ -202,7 +202,7 @@ lazy val healthcheck = project
   .dependsOn(client)
   .dependsOn(wsLegacyProtocol)
   .settings(
-    dependencyOverrides ++= Set(
+    dependencyOverrides ++= Seq(
       "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
       "com.typesafe.play"      %% "play-json" % "2.6.2"
     ),

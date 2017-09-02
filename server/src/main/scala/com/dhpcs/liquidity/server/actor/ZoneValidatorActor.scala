@@ -164,7 +164,8 @@ object ZoneValidatorActor {
           (validatedPublicKeys, validatedPublicKey) => validatedPublicKeys.combine(validatedPublicKey.map(Set(_))))
   }
 
-  private def validateMemberIds(zone: Zone, memberIds: Set[MemberId]): ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
+  private def validateMemberIds(zone: Zone,
+                                memberIds: Set[MemberId]): ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
     def validateMemberId(memberId: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
       if (!zone.members.contains(memberId))
         Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist(memberId))

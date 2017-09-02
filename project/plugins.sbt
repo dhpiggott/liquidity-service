@@ -1,4 +1,4 @@
-scalafmtVersion := "1.1.0"
+scalafmtVersion := "1.2.0"
 addSbtPlugin("com.lucidchart" % "sbt-scalafmt" % "1.10")
 
 libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.2"

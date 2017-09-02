@@ -56,7 +56,8 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
           assert(zone.members(MemberId(0)) === Member(MemberId(0), Set(publicKey), name = Some("Dave")))
           assert(zone.accounts(AccountId(0)) === Account(AccountId(0), ownerMemberIds = Set(MemberId(0))))
           assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
-          assert(zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
+          assert(
+            zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
           assert(zone.transactions === Map.empty)
           assert(zone.name === Some("Dave's Game"))
           assert(zone.metadata === None)

@@ -186,7 +186,7 @@ lazy val client = project
     dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
     libraryDependencies ++= Seq(
       "com.madgag.spongycastle" % "pkix"   % "1.54.0.0",
-      "com.squareup.okhttp3"    % "okhttp" % "3.8.1"
+      "com.squareup.okhttp3"    % "okhttp" % "3.9.0"
     )
   )
   .dependsOn(testkit % "test")

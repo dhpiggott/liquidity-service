@@ -166,8 +166,6 @@ lazy val server = project
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
-    // TODO: Remove when migration is complete
-    mainClass in Compile := Some("com.dhpcs.liquidity.server.LiquidityServer"),
     bashScriptExtraDefines ++= Seq(
       "addJava -Djdk.tls.ephemeralDHKeySize=2048",
       "addJava -Djdk.tls.rejectClientInitiatedRenegotiation=true"

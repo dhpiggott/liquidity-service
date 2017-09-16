@@ -169,6 +169,7 @@ class LegacyClientConnectionActor(remoteAddress: InetAddress,
         sender() ! ActorSinkAck
         sendNotification(LegacyWsProtocol.SupportedVersionsNotification(LegacyWsProtocol.CompatibleVersionNumbers))
         context.become(receiveActorSinkMessages)
+        self ! PublishStatus
     }
 
   private[this] def receiveActorSinkMessages: Receive =

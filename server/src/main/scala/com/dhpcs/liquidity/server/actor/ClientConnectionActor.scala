@@ -184,8 +184,10 @@ class ClientConnectionActor(remoteAddress: InetAddress,
                 s"Stopping due to invalid key ownership proof for public key with fingerprint " +
                   s"${publicKey.fingerprint}.")
               context.stop(self)
-            } else
+            } else {
               context.become(receiveActorSinkMessages(publicKey))
+              self ! PublishStatus
+            }
         }
     }
 

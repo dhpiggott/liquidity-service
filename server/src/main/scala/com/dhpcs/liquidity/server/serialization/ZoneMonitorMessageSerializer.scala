@@ -9,7 +9,7 @@ import com.dhpcs.liquidity.server.ProtoBindingBackedSerializer.AnyRefProtoBindin
 
 import scala.collection.immutable.Seq
 
-class ZonesMonitorMessageSerializer(system: ExtendedActorSystem)
+class ZoneMonitorMessageSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(

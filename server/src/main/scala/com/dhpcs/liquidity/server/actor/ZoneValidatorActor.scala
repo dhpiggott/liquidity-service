@@ -392,18 +392,14 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     case Terminated(clientConnection) =>
       state.connectedClients
         .get(clientConnection)
-        .foreach(publicKey =>
-          acceptCommand(
-            InetAddress.getLoopbackAddress,
-            publicKey,
-            ClientQuitEvent(Some(sender())),
-            _ =>
-              QuitZoneResponse(
-                Validated.valid(())
-            ),
-            correlationId = -1,
-            Some(ClientQuitNotification(Serialization.serializedActorPath(sender()), publicKey))
-        ))
+        .foreach(
+          publicKey =>
+            acceptCommand(
+              InetAddress.getLoopbackAddress,
+              publicKey,
+              ClientQuitEvent(Some(sender())),
+              correlationId = -1
+          ))
       nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers - clientConnection
       messageSequenceNumbers = messageSequenceNumbers - clientConnection
       pendingDeliveries(clientConnection).foreach(confirmDelivery)
@@ -485,7 +481,6 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   remoteAddress,
                   publicKey,
                   ZoneCreatedEvent(zone),
-                  _ => CreateZoneResponse(Validated.valid(zone)),
                   correlationId
                 )
             }
@@ -498,7 +493,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
-          case Some(zone) =>
+          case Some(_) =>
             if (state.connectedClients.contains(sender()))
               deliverResponse(
                 JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneAlreadyJoined)),
@@ -509,18 +504,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                 remoteAddress,
                 publicKey,
                 ClientJoinedEvent(Some(sender())),
-                zoneState =>
-                  JoinZoneResponse(
-                    Validated.valid(
-                      (
-                        zone,
-                        zoneState.connectedClients.map {
-                          case (clientConnectionActorRef, _publicKey) =>
-                            Serialization.serializedActorPath(clientConnectionActorRef) -> _publicKey
-                        }
-                      ))),
-                correlationId,
-                Some(ClientJoinedNotification(Serialization.serializedActorPath(sender()), publicKey))
+                correlationId
               )
             }
         }
@@ -543,12 +527,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                 remoteAddress,
                 publicKey,
                 ClientQuitEvent(Some(sender())),
-                _ =>
-                  QuitZoneResponse(
-                    Validated.valid(())
-                ),
-                correlationId,
-                Some(ClientQuitNotification(Serialization.serializedActorPath(sender()), publicKey))
+                correlationId
               )
             }
         }
@@ -575,9 +554,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   remoteAddress,
                   publicKey,
                   ZoneNameChangedEvent(name),
-                  _ => ChangeZoneNameResponse(Validated.valid(())),
-                  correlationId,
-                  Some(ZoneNameChangedNotification(name))
+                  correlationId
                 )
             }
         }
@@ -612,9 +589,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   remoteAddress,
                   publicKey,
                   MemberCreatedEvent(member),
-                  _ => CreateMemberResponse(Validated.valid(member)),
-                  correlationId,
-                  Some(MemberCreatedNotification(member))
+                  correlationId
                 )
             }
         }
@@ -646,9 +621,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   remoteAddress,
                   publicKey,
                   MemberUpdatedEvent(member),
-                  _ => UpdateMemberResponse(Validated.valid(())),
-                  correlationId,
-                  Some(MemberUpdatedNotification(member))
+                  correlationId
                 )
             }
         }
@@ -683,9 +656,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   remoteAddress,
                   publicKey,
                   AccountCreatedEvent(account),
-                  _ => CreateAccountResponse(Validated.valid(account)),
-                  correlationId,
-                  Some(AccountCreatedNotification(account))
+                  correlationId
                 )
             }
         }
@@ -717,9 +688,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   remoteAddress,
                   publicKey,
                   AccountUpdatedEvent(Some(actingAs), account),
-                  _ => UpdateAccountResponse(Validated.valid(())),
-                  correlationId,
-                  Some(AccountUpdatedNotification(account))
+                  correlationId
                 )
             }
         }
@@ -763,36 +732,86 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   remoteAddress,
                   publicKey,
                   TransactionAddedEvent(transaction),
-                  _ => AddTransactionResponse(Validated.valid(transaction)),
-                  correlationId,
-                  Some(TransactionAddedNotification(transaction))
+                  correlationId
                 )
             }
         }
     }
 
-  // TODO: Add params, derive responses and notifications entirely from state and events
   private[this] def acceptCommand(remoteAddress: InetAddress,
                                   publicKey: PublicKey,
                                   event: ZoneEvent,
-                                  response: ZoneState => ZoneResponse,
-                                  correlationId: Long,
-                                  notification: Option[ZoneNotification] = None): Unit = {
-    val zoneEventEnvelope = ZoneEventEnvelope(
-      Some(remoteAddress),
-      Some(publicKey),
-      timestamp = Instant.now(),
-      event
-    )
-    persist(zoneEventEnvelope) { zoneEventEnvelope =>
+                                  correlationId: Long): Unit =
+    persist(
+      ZoneEventEnvelope(
+        Some(remoteAddress),
+        Some(publicKey),
+        timestamp = Instant.now(),
+        event
+      )) { zoneEventEnvelope =>
       state = update(passivationCountdownActor.toUntyped, state, zoneEventEnvelope)
       if (lastSequenceNr % SnapShotInterval == 0 && lastSequenceNr != 0)
         saveSnapshot(ZoneSnapshot(state))
-      deliverResponse(response(state), correlationId)
+      val response = event match {
+        case EmptyZoneEvent =>
+          EmptyZoneResponse
+        case ZoneCreatedEvent(zone) =>
+          CreateZoneResponse(Validated.valid(zone))
+        case ClientJoinedEvent(_) =>
+          JoinZoneResponse(
+            Validated.valid(
+              (
+                state.zone.get,
+                state.connectedClients.map {
+                  case (clientConnectionActorRef, _publicKey) =>
+                    Serialization.serializedActorPath(clientConnectionActorRef) -> _publicKey
+                }
+              )))
+        case ClientQuitEvent(_) =>
+          QuitZoneResponse(Validated.valid(()))
+        case ZoneNameChangedEvent(_) =>
+          ChangeZoneNameResponse(Validated.valid(()))
+        case MemberCreatedEvent(member) =>
+          CreateMemberResponse(Validated.valid(member))
+        case MemberUpdatedEvent(_) =>
+          UpdateMemberResponse(Validated.valid(()))
+        case AccountCreatedEvent(account) =>
+          CreateAccountResponse(Validated.valid(account))
+        case AccountUpdatedEvent(_, _) =>
+          UpdateAccountResponse(Validated.valid(()))
+        case TransactionAddedEvent(transaction) =>
+          AddTransactionResponse(Validated.valid(transaction))
+      }
+      deliverResponse(response, correlationId)
+      val notification = event match {
+        case EmptyZoneEvent =>
+          None
+        case ZoneCreatedEvent(_) =>
+          None
+        case ClientJoinedEvent(maybeClientConnectionActorRef) =>
+          maybeClientConnectionActorRef.map(clientConnectionActorRef =>
+            ClientJoinedNotification(Serialization.serializedActorPath(clientConnectionActorRef), publicKey))
+        case ClientQuitEvent(maybeClientConnectionActorRef) =>
+          maybeClientConnectionActorRef.map(clientConnectionActorRef =>
+            ClientQuitNotification(Serialization.serializedActorPath(clientConnectionActorRef), publicKey))
+        case ZoneNameChangedEvent(name) =>
+          Some(ZoneNameChangedNotification(name))
+        case MemberCreatedEvent(member) =>
+          Some(MemberCreatedNotification(member))
+        case MemberUpdatedEvent(member) =>
+          Some(MemberUpdatedNotification(member))
+        case AccountCreatedEvent(account) =>
+          Some(AccountCreatedNotification(account))
+        case AccountUpdatedEvent(None, account) =>
+          Some(AccountUpdatedNotification(account.ownerMemberIds.head, account))
+        case AccountUpdatedEvent(Some(actingAs), account) =>
+          Some(AccountUpdatedNotification(actingAs, account))
+        case TransactionAddedEvent(transaction) =>
+          Some(TransactionAddedNotification(transaction))
+      }
       notification.foreach(deliverNotification)
       self ! PublishStatus
     }
-  }
 
   private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit = {
     val sequenceNumber = messageSequenceNumbers(sender())
@@ -808,7 +827,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
     }
   }
 
-  private[this] def deliverNotification(notification: ZoneNotification): Unit = {
+  private[this] def deliverNotification(notification: ZoneNotification): Unit =
     state.connectedClients.keys.foreach { clientConnection =>
       val sequenceNumber = messageSequenceNumbers(clientConnection)
       messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
@@ -817,5 +836,5 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         ZoneNotificationEnvelope(id, sequenceNumber, deliveryId, notification)
       }
     }
-  }
+
 }

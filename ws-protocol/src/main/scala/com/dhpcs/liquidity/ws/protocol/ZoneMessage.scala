@@ -3,14 +3,16 @@ package com.dhpcs.liquidity.ws.protocol
 import cats.data.ValidatedNel
 import com.dhpcs.liquidity.model._
 
+sealed abstract class ZoneMessage
+
 object ZoneCommand {
   final val RequiredKeySize     = 2048
   final val MaximumTagLength    = 160
   final val MaximumMetadataSize = 1024
 }
 
-sealed abstract class ZoneCommand
-case object EmptyZoneCommand extends ZoneCommand
+sealed abstract class ZoneCommand extends ZoneMessage
+case object EmptyZoneCommand      extends ZoneCommand
 final case class CreateZoneCommand(equityOwnerPublicKey: PublicKey,
                                    equityOwnerName: Option[String],
                                    equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
@@ -93,7 +95,7 @@ object ZoneResponse {
 
 }
 
-sealed abstract class ZoneResponse
+sealed abstract class ZoneResponse                                                    extends ZoneMessage
 case object EmptyZoneResponse                                                         extends ZoneResponse
 final case class CreateZoneResponse(result: ValidatedNel[ZoneResponse.Error, (Zone)]) extends ZoneResponse
 final case class JoinZoneResponse(result: ValidatedNel[ZoneResponse.Error, (Zone, Map[String, PublicKey])])
@@ -106,7 +108,7 @@ final case class CreateAccountResponse(result: ValidatedNel[ZoneResponse.Error, 
 final case class UpdateAccountResponse(result: ValidatedNel[ZoneResponse.Error, Unit])           extends ZoneResponse
 final case class AddTransactionResponse(result: ValidatedNel[ZoneResponse.Error, (Transaction)]) extends ZoneResponse
 
-sealed abstract class ZoneNotification
+sealed abstract class ZoneNotification                                                extends ZoneMessage
 case object EmptyZoneNotification                                                     extends ZoneNotification
 final case class ClientJoinedNotification(connectionId: String, publicKey: PublicKey) extends ZoneNotification
 final case class ClientQuitNotification(connectionId: String, publicKey: PublicKey)   extends ZoneNotification
@@ -114,5 +116,5 @@ final case class ZoneNameChangedNotification(name: Option[String])              
 final case class MemberCreatedNotification(member: Member)                            extends ZoneNotification
 final case class MemberUpdatedNotification(member: Member)                            extends ZoneNotification
 final case class AccountCreatedNotification(account: Account)                         extends ZoneNotification
-final case class AccountUpdatedNotification(account: Account)                         extends ZoneNotification
+final case class AccountUpdatedNotification(actingAs: MemberId, account: Account)     extends ZoneNotification
 final case class TransactionAddedNotification(transaction: Transaction)               extends ZoneNotification

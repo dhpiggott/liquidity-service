@@ -804,7 +804,7 @@ class BoardGame private (serverConnection: ServerConnection,
           }
           if (createdHiddenPlayer.nonEmpty)
             state.hiddenPlayers = state.hiddenPlayers ++ createdHiddenPlayer
-        case AccountUpdatedNotification(account) =>
+        case AccountUpdatedNotification(_, account) =>
           state.zone = state.zone.copy(
             accounts = state.zone.accounts + (account.id -> account)
           )

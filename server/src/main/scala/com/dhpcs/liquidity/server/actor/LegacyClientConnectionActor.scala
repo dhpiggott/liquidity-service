@@ -311,7 +311,7 @@ class LegacyClientConnectionActor(remoteAddress: InetAddress,
               LegacyWsProtocol.MemberUpdatedNotification(zoneId, member)
             case AccountCreatedNotification(account) =>
               LegacyWsProtocol.AccountCreatedNotification(zoneId, account)
-            case AccountUpdatedNotification(account) =>
+            case AccountUpdatedNotification(_, account) =>
               LegacyWsProtocol.AccountUpdatedNotification(zoneId, account)
             case TransactionAddedNotification(transaction) =>
               LegacyWsProtocol.TransactionAddedNotification(zoneId, transaction)

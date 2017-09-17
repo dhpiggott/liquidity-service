@@ -111,7 +111,6 @@ message ZoneCommand {
     }
     oneof zone_command {
         CreateZoneCommand create_zone_command = 1;
-        // TODO: Add event/notification number
         bytes join_zone_command = 2;
         bytes quit_zone_command = 3;
         ChangeZoneNameCommand change_zone_name_command = 4;
@@ -236,7 +235,8 @@ message ZoneNotification {
         dhpcs.liquidity.model.Account account = 1;
     }
     message AccountUpdatedNotification {
-        dhpcs.liquidity.model.Account account = 1;
+        string acting_as = 1;
+        dhpcs.liquidity.model.Account account = 2;
     }
     message TransactionAddedNotification {
         dhpcs.liquidity.model.Transaction transaction = 1;

@@ -190,6 +190,8 @@ class ZoneAnalyticsActor(
             case None =>
               Future.successful(())
             case Some(clientConnectionActorRef) =>
+              // TODO: Remove get when type is changed from ActorRef to String and deadLetter refs are replaced with
+              // None
               previousClients.get(clientConnectionActorRef) match {
                 case None => Future.successful(())
                 case Some((joined, publicKey)) =>

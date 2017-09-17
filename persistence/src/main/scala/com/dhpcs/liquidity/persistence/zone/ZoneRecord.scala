@@ -17,6 +17,7 @@ final case class ZoneEventEnvelope(remoteAddress: Option[InetAddress],
 sealed abstract class ZoneEvent
 case object EmptyZoneEvent                                                         extends ZoneEvent
 final case class ZoneCreatedEvent(zone: Zone)                                      extends ZoneEvent
+// TODO: String, not ActorRef
 final case class ClientJoinedEvent(clientConnectionActorRef: Option[ActorRef])     extends ZoneEvent
 final case class ClientQuitEvent(clientConnectionActorRef: Option[ActorRef])       extends ZoneEvent
 final case class ZoneNameChangedEvent(name: Option[String])                        extends ZoneEvent

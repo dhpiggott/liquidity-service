@@ -3,13 +3,12 @@ package com.dhpcs.liquidity.client
 import java.io.{File, IOException}
 import javax.net.ssl._
 
-import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import okhttp3.{OkHttpClient, WebSocket, WebSocketListener}
 import okio.ByteString
@@ -184,7 +183,7 @@ class ServerConnection(filesDir: File,
         proto.ws.protocol.ServerMessage.Command(
           correlationId,
           proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-            ProtoBinding[CreateZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand.CreateZoneCommand, Any]
+            ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any]
               .asProto(createZoneCommand)
           )
       )
@@ -198,8 +197,7 @@ class ServerConnection(filesDir: File,
           proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
             proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
               zoneId.id.toString,
-              Some(ProtoBinding[ZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand, Any]
-                .asProto(zoneCommand))
+              Some(ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any].asProto(zoneCommand))
             ))
       )
     )
@@ -340,7 +338,7 @@ class ServerConnection(filesDir: File,
                         throw new IllegalStateException("Empty or unsupported response")
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
                         val zoneResponse =
-                          ProtoBinding[ZoneResponse, proto.actor.protocol.zonevalidator.ZoneResponse.ZoneResponse, Any]
+                          ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
                             .asScala(protoZoneResponse.zoneResponse)(())
                         mainHandlerWrapper.post { responseCallback.success(zoneResponse); () }
                     }
@@ -356,7 +354,7 @@ class ServerConnection(filesDir: File,
                     protoZoneNotification
                   )) =>
                 val zoneNotification =
-                  ProtoBinding[ZoneNotification, Option[proto.actor.protocol.zonevalidator.ZoneNotification], Any]
+                  ProtoBinding[ZoneNotification, Option[proto.ws.protocol.ZoneNotification], Any]
                     .asScala(protoZoneNotification)(())
                 activeState.subState match {
                   case _: ConnectingSubState =>

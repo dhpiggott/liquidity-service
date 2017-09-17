@@ -13,6 +13,7 @@ import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.AuthenticationSpec
 import com.dhpcs.liquidity.ws.protocol.legacy._
+import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.OptionValues._
 import org.scalatest.{Outcome, fixture}
 

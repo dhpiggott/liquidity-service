@@ -5,7 +5,7 @@ import java.net.InetAddress
 import akka.actor.ActorRef
 import akka.testkit.TestProbe
 import cats.data.Validated
-import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
@@ -118,7 +118,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-          ProtoBinding[CreateZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand.CreateZoneCommand, Any]
+          ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any]
             .asProto(createZoneCommand))
       )))
 
@@ -136,7 +136,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.actor.protocol.zonevalidator.ZoneResponse.ZoneResponse, Any]
+            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
               .asScala(protoZoneResponse.zoneResponse)(())
         }
     }

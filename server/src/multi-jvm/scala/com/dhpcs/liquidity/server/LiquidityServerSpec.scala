@@ -24,20 +24,19 @@ import akka.util.ByteString
 import cats.data.Validated
 import com.dhpcs.jsonrpc.JsonRpcMessage.NumericCorrelationId
 import com.dhpcs.jsonrpc._
-import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor._
 import com.dhpcs.liquidity.testkit.TestKit
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
 import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.OptionValues._
-import org.scalatest._
+import org.scalatest.{BeforeAndAfterAll, FreeSpecLike, Inside}
 import play.api.libs.json.Json
 
 import scala.concurrent.duration._
@@ -507,7 +506,7 @@ sealed abstract class LiquidityServerSpec
       proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-          ProtoBinding[CreateZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand.CreateZoneCommand, Any]
+          ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any]
             .asProto(createZoneCommand)
         )
       )))
@@ -523,7 +522,7 @@ sealed abstract class LiquidityServerSpec
           proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
             zoneId.id.toString,
             Some(
-              ProtoBinding[ZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand, Any].asProto(zoneCommand)
+              ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any].asProto(zoneCommand)
             )))
       )))
 
@@ -541,7 +540,7 @@ sealed abstract class LiquidityServerSpec
         assert(protoResponse.correlationId == expectedCorrelationId)
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.actor.protocol.zonevalidator.ZoneResponse.ZoneResponse, Any]
+            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
               .asScala(protoZoneResponse.zoneResponse)(())
         }
     }

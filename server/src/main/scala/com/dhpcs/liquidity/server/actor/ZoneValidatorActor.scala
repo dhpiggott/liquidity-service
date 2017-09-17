@@ -28,6 +28,7 @@ import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActor._
+import com.dhpcs.liquidity.ws.protocol._
 
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}

@@ -21,6 +21,7 @@ import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.{PublicKey, ZoneId}
 import com.dhpcs.liquidity.server.actor.LegacyClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol._
 import com.dhpcs.liquidity.ws.protocol.legacy._
 import play.api.libs.json.{JsError, JsSuccess, Json}
 

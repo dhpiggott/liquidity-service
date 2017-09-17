@@ -14,7 +14,6 @@ import akka.typed.scaladsl.adapter._
 import akka.util.ByteString
 import akka.{NotUsed, typed}
 import cats.data.Validated.Valid
-import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
@@ -23,6 +22,7 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 
 import scala.concurrent.duration._
@@ -213,7 +213,7 @@ class ClientConnectionActor(remoteAddress: InetAddress,
               case proto.ws.protocol.ServerMessage.Command.Command.Empty =>
               case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
                 val createZoneCommand =
-                  ProtoBinding[CreateZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand.CreateZoneCommand, Any]
+                  ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any]
                     .asScala(protoCreateZoneCommand)(())
                 handleZoneCommand(
                   zoneId = ZoneId.generate,
@@ -225,8 +225,7 @@ class ClientConnectionActor(remoteAddress: InetAddress,
                   proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(zoneId, protoZoneCommand)
                   ) =>
                 val zoneCommand =
-                  ProtoBinding[ZoneCommand, Option[proto.actor.protocol.zonevalidator.ZoneCommand], Any]
-                    .asScala(protoZoneCommand)(())
+                  ProtoBinding[ZoneCommand, Option[proto.ws.protocol.ZoneCommand], Any].asScala(protoZoneCommand)(())
                 zoneCommand match {
                   case _: CreateZoneCommand =>
                     log.warning(s"Stopping due to receipt of illegally enveloped CreateZoneCommand")
@@ -259,7 +258,7 @@ class ClientConnectionActor(remoteAddress: InetAddress,
             proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
               correlationId,
               proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
-                ProtoBinding[ZoneResponse, proto.actor.protocol.zonevalidator.ZoneResponse, Any].asProto(zoneResponse)
+                ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asProto(zoneResponse)
               )
             )))
         }
@@ -272,7 +271,7 @@ class ClientConnectionActor(remoteAddress: InetAddress,
                   .ZoneNotificationEnvelope(
                     proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(
                       zoneId.id.toString,
-                      Some(ProtoBinding[ZoneNotification, proto.actor.protocol.zonevalidator.ZoneNotification, Any]
+                      Some(ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any]
                         .asProto(zoneNotification))
                     ))
               )))

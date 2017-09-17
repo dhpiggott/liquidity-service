@@ -8,7 +8,7 @@ lazy val protobufSettings = Seq(
 
 lazy val noopPublishSetting = publishM2 := {}
 
-lazy val protoBinding = project
+lazy val `proto-binding` = project
   .in(file("proto-binding"))
   .settings(
     name := "liquidity-proto-binding"
@@ -26,10 +26,46 @@ lazy val model = project
   .settings(
     name := "liquidity-model"
   )
-  .dependsOn(protoBinding)
+  .dependsOn(`proto-binding`)
   .settings(
     libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0"
   )
+
+lazy val `ws-protocol` = project
+  .in(file("ws-protocol"))
+  .settings(protobufSettings)
+  .settings(
+    name := "liquidity-ws-protocol"
+  )
+  .settings(
+    PB.includePaths in Compile += file("model/src/main/protobuf")
+  )
+  .dependsOn(model)
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
+
+lazy val `ws-legacy-protocol` = project
+  .in(file("ws-legacy-protocol"))
+  .settings(noopPublishSetting)
+  .settings(
+    name := "liquidity-ws-legacy-protocol"
+  )
+  .dependsOn(model)
+  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0.0")
+  .dependsOn(`ws-protocol` % "test->test")
+  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
+
+lazy val `actor-protocol` = project
+  .in(file("actor-protocol"))
+  .settings(protobufSettings)
+  .settings(
+    name := "liquidity-actor-protocol"
+  )
+  .settings(
+    PB.includePaths in Compile += file("model/src/main/protobuf"),
+    PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
+  )
+  .dependsOn(`ws-protocol`)
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.4")
 
 lazy val persistence = project
   .in(file("persistence"))
@@ -42,47 +78,6 @@ lazy val persistence = project
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
   .dependsOn(model)
-  .dependsOn(protoBinding)
-  .dependsOn(model % "test->test")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
-
-lazy val actorProtocol = project
-  .in(file("actor-protocol"))
-  .settings(protobufSettings)
-  .settings(
-    name := "liquidity-actor-protocol"
-  )
-  .settings(
-    PB.includePaths in Compile += file("model/src/main/protobuf")
-  )
-  .dependsOn(model)
-  .dependsOn(protoBinding)
-  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.4")
-
-lazy val wsProtocol = project
-  .in(file("ws-protocol"))
-  .settings(protobufSettings)
-  .settings(
-    name := "liquidity-ws-protocol"
-  )
-  .settings(
-    PB.includePaths in Compile += file("model/src/main/protobuf"),
-    PB.includePaths in Compile += file("actor-protocol/src/main/protobuf")
-  )
-  .dependsOn(model)
-  // TODO: No!
-  .dependsOn(actorProtocol)
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
-
-lazy val wsLegacyProtocol = project
-  .in(file("ws-legacy-protocol"))
-  .settings(noopPublishSetting)
-  .settings(
-    name := "liquidity-ws-legacy-protocol"
-  )
-  .dependsOn(model)
-  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0.0")
-  .dependsOn(wsProtocol % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val testkit = project
@@ -99,11 +94,10 @@ lazy val server = project
   .settings(
     name := "liquidity-server"
   )
-  .dependsOn(model)
+  .dependsOn(`ws-protocol`)
+  .dependsOn(`ws-legacy-protocol`)
+  .dependsOn(`actor-protocol`)
   .dependsOn(persistence)
-  .dependsOn(actorProtocol)
-  .dependsOn(wsProtocol)
-  .dependsOn(wsLegacyProtocol)
   .settings(
     dependencyOverrides ++= Seq(
       "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
@@ -144,7 +138,7 @@ lazy val server = project
       "de.heikoseeberger"      %% "akka-http-play-json"          % "1.17.0"
     )
   )
-  .dependsOn(wsProtocol % "test->test")
+  .dependsOn(`ws-protocol` % "test->test")
   .dependsOn(testkit % "test")
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
@@ -179,8 +173,7 @@ lazy val client = project
   .settings(
     name := "liquidity-client"
   )
-  .dependsOn(model)
-  .dependsOn(wsProtocol)
+  .dependsOn(`ws-protocol`)
   .settings(
     dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
     libraryDependencies ++= Seq(
@@ -199,7 +192,7 @@ lazy val healthcheck = project
     name := "liquidity-healthcheck"
   )
   .dependsOn(client)
-  .dependsOn(wsLegacyProtocol)
+  .dependsOn(`ws-legacy-protocol`)
   .settings(
     dependencyOverrides ++= Seq(
       "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
@@ -229,12 +222,12 @@ lazy val root = project
     name := "liquidity"
   )
   .aggregate(
-    protoBinding,
+    `proto-binding`,
     model,
     persistence,
-    actorProtocol,
-    wsProtocol,
-    wsLegacyProtocol,
+    `actor-protocol`,
+    `ws-protocol`,
+    `ws-legacy-protocol`,
     testkit,
     server,
     client,

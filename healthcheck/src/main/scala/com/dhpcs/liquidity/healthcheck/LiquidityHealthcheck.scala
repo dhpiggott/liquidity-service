@@ -11,11 +11,11 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
 import cats.data.Validated
-import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.client.{LegacyServerConnection, ServerConnection}
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
+import com.dhpcs.liquidity.ws.protocol._
 import okio.ByteString
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures

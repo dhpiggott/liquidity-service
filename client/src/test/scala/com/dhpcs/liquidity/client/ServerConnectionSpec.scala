@@ -16,10 +16,9 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestProbe
 import cats.data.Validated
 import com.dhpcs.liquidity
-import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
-import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
 import com.dhpcs.liquidity.model.ProtoBindings._
@@ -288,7 +287,7 @@ class ServerConnectionSpec
           inside(protoCommand.command) {
             case proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(protoCreateZoneCommand) =>
               assert(
-                ProtoBinding[CreateZoneCommand, proto.actor.protocol.zonevalidator.ZoneCommand.CreateZoneCommand, Any]
+                ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any]
                   .asScala(protoCreateZoneCommand)(()) === createZoneCommand
               )
           }
@@ -299,11 +298,10 @@ class ServerConnectionSpec
           proto.ws.protocol.ClientMessage(
             proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
               correlationId = 0L,
-              proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
-                proto.actor.protocol.zonevalidator.ZoneResponse(
-                  ProtoBinding[ZoneResponse, proto.actor.protocol.zonevalidator.ZoneResponse.ZoneResponse, Any]
-                    .asProto(createZoneResponse)
-                ))
+              proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.ws.protocol.ZoneResponse(
+                ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
+                  .asProto(createZoneResponse)
+              ))
             ))),
           sender = clientConnectionActorTestProbe.ref
         )

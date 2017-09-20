@@ -29,6 +29,12 @@ import scala.concurrent.duration._
 
 object LegacyClientConnectionActor {
 
+  def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
+                                              mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
+    InFlow
+      .via(actorFlow[WrappedCommand, WrappedResponseOrNotification](props))
+      .via(OutFlow)
+
   def props(remoteAddress: InetAddress,
             publicKey: PublicKey,
             zoneValidatorShardRegion: ActorRef,
@@ -37,11 +43,18 @@ object LegacyClientConnectionActor {
       new LegacyClientConnectionActor(remoteAddress, publicKey, zoneValidatorShardRegion, keepAliveInterval, upstream)
     )
 
-  def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
-                                              mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
-    InFlow
-      .via(actorFlow[WrappedCommand, WrappedResponseOrNotification](props))
-      .via(OutFlow)
+  final case class WrappedCommand(jsonRpcRequestMessage: JsonRpcRequestMessage)
+
+  sealed abstract class WrappedResponseOrNotification
+  final case class WrappedResponse(jsonRpcResponseMessage: JsonRpcResponseMessage) extends WrappedResponseOrNotification
+  final case class WrappedNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
+      extends WrappedResponseOrNotification
+
+  case object ActorSinkInit
+  case object ActorSinkAck
+
+  private case object PublishStatusTimerKey
+  private case object PublishStatusTick
 
   private final val InFlow: Flow[WsMessage, WrappedCommand, NotUsed] =
     Flow[WsMessage].flatMapConcat(wsMessage =>
@@ -90,19 +103,6 @@ object LegacyClientConnectionActor {
     )
   }
 
-  final case class WrappedCommand(jsonRpcRequestMessage: JsonRpcRequestMessage)
-
-  sealed abstract class WrappedResponseOrNotification
-  final case class WrappedResponse(jsonRpcResponseMessage: JsonRpcResponseMessage) extends WrappedResponseOrNotification
-  final case class WrappedNotification(jsonRpcNotificationMessage: JsonRpcNotificationMessage)
-      extends WrappedResponseOrNotification
-
-  case object ActorSinkInit
-  case object ActorSinkAck
-
-  private case object PublishStatusTimerKey
-  private case object PublishStatus
-
   private object KeepAliveGeneratorActor {
 
     sealed abstract class KeepAliveGeneratorMessage
@@ -148,18 +148,18 @@ class LegacyClientConnectionActor(remoteAddress: InetAddress,
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries                  = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
-  timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatus, 30.seconds)
+  timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatusTick, 30.seconds)
 
   override def persistenceId: String = self.path.name
 
   override def preStart(): Unit = {
     super.preStart()
-    log.info(s"Started for $remoteAddress")
+    log.info(s"Starting for $remoteAddress")
   }
 
   override def postStop(): Unit = {
-    super.postStop()
     log.info(s"Stopped for $remoteAddress")
+    super.postStop()
   }
 
   override def receiveCommand: Receive = waitingForActorSinkInit
@@ -170,7 +170,7 @@ class LegacyClientConnectionActor(remoteAddress: InetAddress,
         sender() ! ActorSinkAck
         sendNotification(LegacyWsProtocol.SupportedVersionsNotification(LegacyWsProtocol.CompatibleVersionNumbers))
         context.become(receiveActorSinkMessages)
-        self ! PublishStatus
+        self ! PublishStatusTick
     }
 
   private[this] def receiveActorSinkMessages: Receive =
@@ -325,7 +325,7 @@ class LegacyClientConnectionActor(remoteAddress: InetAddress,
   override def receiveRecover: Receive = Actor.emptyBehavior
 
   private[this] def publishStatus: Receive = {
-    case PublishStatus =>
+    case PublishStatusTick =>
       mediator ! Publish(
         ClientMonitorActor.ClientStatusTopic,
         UpsertActiveClientSummary(self, ActiveClientSummary(publicKey))

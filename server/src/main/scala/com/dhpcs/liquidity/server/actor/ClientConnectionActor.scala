@@ -29,6 +29,12 @@ import scala.concurrent.duration._
 
 object ClientConnectionActor {
 
+  def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
+                                              mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
+    InFlow
+      .via(actorFlow[proto.ws.protocol.ServerMessage, proto.ws.protocol.ClientMessage](props))
+      .via(OutFlow)
+
   def props(remoteAddress: InetAddress, zoneValidatorShardRegion: ActorRef, pingInterval: FiniteDuration)(
       upstream: ActorRef): Props =
     Props(
@@ -40,11 +46,11 @@ object ClientConnectionActor {
       )
     )
 
-  def webSocketFlow(props: ActorRef => Props)(implicit factory: ActorRefFactory,
-                                              mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
-    InFlow
-      .via(actorFlow[proto.ws.protocol.ServerMessage, proto.ws.protocol.ClientMessage](props))
-      .via(OutFlow)
+  case object ActorSinkInit
+  case object ActorSinkAck
+
+  private case object PublishStatusTimerKey
+  private case object PublishStatusTick
 
   private final val InFlow: Flow[WsMessage, proto.ws.protocol.ServerMessage, NotUsed] =
     Flow[WsMessage].flatMapConcat(wsMessage =>
@@ -90,12 +96,6 @@ object ClientConnectionActor {
     )
   }
 
-  case object ActorSinkInit
-  case object ActorSinkAck
-
-  private case object PublishStatusTimerKey
-  private case object PublishStatus
-
   private object PingGeneratorActor {
 
     sealed abstract class PingGeneratorMessage
@@ -140,18 +140,18 @@ class ClientConnectionActor(remoteAddress: InetAddress,
   private[this] var commandSequenceNumbers             = Map.empty[ZoneId, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries                  = Map.empty[ZoneId, Set[Long]].withDefaultValue(Set.empty)
 
-  timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatus, 30.seconds)
+  timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatusTick, 30.seconds)
 
   override def persistenceId: String = self.path.name
 
   override def preStart(): Unit = {
     super.preStart()
-    log.info(s"Started for $remoteAddress")
+    log.info(s"Starting for $remoteAddress")
   }
 
   override def postStop(): Unit = {
-    super.postStop()
     log.info(s"Stopped for $remoteAddress")
+    super.postStop()
   }
 
   override def receiveCommand: Receive = waitingForActorSinkInit
@@ -186,7 +186,7 @@ class ClientConnectionActor(remoteAddress: InetAddress,
               context.stop(self)
             } else {
               context.become(receiveActorSinkMessages(publicKey))
-              self ! PublishStatus
+              self ! PublishStatusTick
             }
         }
     }
@@ -283,7 +283,7 @@ class ClientConnectionActor(remoteAddress: InetAddress,
   override def receiveRecover: Receive = Actor.emptyBehavior
 
   private[this] def publishStatus(maybePublicKey: Option[PublicKey]): Receive = {
-    case PublishStatus =>
+    case PublishStatusTick =>
       for (publicKey <- maybePublicKey)
         mediator ! Publish(
           ClientMonitorActor.ClientStatusTopic,

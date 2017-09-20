@@ -44,128 +44,19 @@ object ZoneValidatorActor {
     case zoneCommandEnvelope: ZoneCommandEnvelope => (zoneCommandEnvelope.zoneId.id.toString, zoneCommandEnvelope)
   }
 
-  private val NumberOfShards = 10
+  private final val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
     case GetZoneStateCommand(zoneId)                   => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
     case ZoneCommandEnvelope(zoneId, _, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
   }
 
-  private val SnapShotInterval = 100
-
-  private val ZoneLifetime = 7.days
-
-  private def update(passivationCountdownActor: ActorRef,
-                     state: ZoneState,
-                     eventEnvelope: ZoneEventEnvelope): ZoneState =
-    eventEnvelope.zoneEvent match {
-      case EmptyZoneEvent =>
-        state
-      case zoneCreatedEvent: ZoneCreatedEvent =>
-        state.copy(
-          zone = Some(zoneCreatedEvent.zone),
-          balances = state.balances ++ zoneCreatedEvent.zone.accounts.values.map(_.id -> BigDecimal(0)).toMap
-        )
-      case ClientJoinedEvent(maybeClientConnectionActorRef) =>
-        Cartesian[Option].product(eventEnvelope.publicKey, maybeClientConnectionActorRef) match {
-          case None =>
-            state
-          case Some((publicKey, clientConnectionActorRef)) =>
-            if (state.connectedClients.isEmpty) passivationCountdownActor ! PassivationCountdownActor.Stop
-            val updatedClientConnections = state.connectedClients + (clientConnectionActorRef -> publicKey)
-            state.copy(
-              connectedClients = updatedClientConnections
-            )
-        }
-      case ClientQuitEvent(maybeClientConnectionActorRef) =>
-        maybeClientConnectionActorRef match {
-          case None =>
-            state
-          case Some(clientConnectionActorRef) =>
-            val updatedClientConnections = state.connectedClients - clientConnectionActorRef
-            if (updatedClientConnections.isEmpty) passivationCountdownActor ! PassivationCountdownActor.Start
-            state.copy(
-              connectedClients = updatedClientConnections
-            )
-        }
-      case ZoneNameChangedEvent(name) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              name = name
-            ))
-        )
-      case MemberCreatedEvent(member) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              members = state.zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
-            ))
-        )
-      case MemberUpdatedEvent(member) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              members = state.zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
-            ))
-        )
-      case AccountCreatedEvent(account) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              accounts = state.zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
-            )),
-          balances = state.balances + (account.id -> BigDecimal(0))
-        )
-      case AccountUpdatedEvent(_, account) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              accounts = state.zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
-            ))
-        )
-      case TransactionAddedEvent(transaction) =>
-        val updatedSourceBalance      = state.balances(transaction.from) - transaction.value
-        val updatedDestinationBalance = state.balances(transaction.to) + transaction.value
-        state.copy(
-          balances = state.balances +
-            (transaction.from -> updatedSourceBalance) +
-            (transaction.to   -> updatedDestinationBalance),
-          zone = state.zone.map(
-            _.copy(
-              transactions = state.zone.map(_.transactions).getOrElse(Map.empty) + (transaction.id -> transaction)
-            ))
-        )
-    }
-
   private case object PublishStatusTimerKey
-  private case object PublishStatus
+  private case object PublishStatusTick
 
-  private object PassivationCountdownActor {
-
-    sealed abstract class PassivationCountdownMessage
-    case object Start                extends PassivationCountdownMessage
-    case object Stop                 extends PassivationCountdownMessage
-    case object CommandReceivedEvent extends PassivationCountdownMessage
-    case object RequestPassivate     extends PassivationCountdownMessage
-
-    private final val PassivationTimeout = 2.minutes
-
-    def behaviour(parent: ActorRef): Behavior[PassivationCountdownMessage] =
-      typed.scaladsl.Actor.deferred { context =>
-        context.self ! Start
-        typed.scaladsl.Actor.immutable[PassivationCountdownMessage] { (_, message) =>
-          message match {
-            case Start                => context.setReceiveTimeout(PassivationTimeout, RequestPassivate)
-            case Stop                 => context.cancelReceiveTimeout()
-            case CommandReceivedEvent => ()
-            case RequestPassivate     => parent ! RequestPassivate
-          }
-          typed.scaladsl.Actor.same
-        }
-      }
-
-  }
+  private final val PassivationTimeout = 2.minutes
+  private final val SnapShotInterval   = 100
+  private final val ZoneLifetime       = 7.days
 
   private def validatePublicKeys(publicKeys: Set[PublicKey]): ValidatedNel[ZoneResponse.Error, Set[PublicKey]] = {
     def validatePublicKey(publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
@@ -308,12 +199,118 @@ object ZoneValidatorActor {
         Validated.valid(metadata)
     }
 
+  private def update(passivationCountdownActor: ActorRef,
+                     state: ZoneState,
+                     eventEnvelope: ZoneEventEnvelope): ZoneState =
+    eventEnvelope.zoneEvent match {
+      case EmptyZoneEvent =>
+        state
+      case zoneCreatedEvent: ZoneCreatedEvent =>
+        state.copy(
+          zone = Some(zoneCreatedEvent.zone),
+          balances = state.balances ++ zoneCreatedEvent.zone.accounts.values.map(_.id -> BigDecimal(0)).toMap
+        )
+      case ClientJoinedEvent(maybeClientConnectionActorRef) =>
+        Cartesian[Option].product(eventEnvelope.publicKey, maybeClientConnectionActorRef) match {
+          case None =>
+            state
+          case Some((publicKey, clientConnectionActorRef)) =>
+            if (state.connectedClients.isEmpty) passivationCountdownActor ! PassivationCountdownActor.Stop
+            val updatedClientConnections = state.connectedClients + (clientConnectionActorRef -> publicKey)
+            state.copy(
+              connectedClients = updatedClientConnections
+            )
+        }
+      case ClientQuitEvent(maybeClientConnectionActorRef) =>
+        maybeClientConnectionActorRef match {
+          case None =>
+            state
+          case Some(clientConnectionActorRef) =>
+            val updatedClientConnections = state.connectedClients - clientConnectionActorRef
+            if (updatedClientConnections.isEmpty) passivationCountdownActor ! PassivationCountdownActor.Start
+            state.copy(
+              connectedClients = updatedClientConnections
+            )
+        }
+      case ZoneNameChangedEvent(name) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              name = name
+            ))
+        )
+      case MemberCreatedEvent(member) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              members = state.zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
+            ))
+        )
+      case MemberUpdatedEvent(member) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              members = state.zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
+            ))
+        )
+      case AccountCreatedEvent(account) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              accounts = state.zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
+            )),
+          balances = state.balances + (account.id -> BigDecimal(0))
+        )
+      case AccountUpdatedEvent(_, account) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              accounts = state.zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
+            ))
+        )
+      case TransactionAddedEvent(transaction) =>
+        val updatedSourceBalance      = state.balances(transaction.from) - transaction.value
+        val updatedDestinationBalance = state.balances(transaction.to) + transaction.value
+        state.copy(
+          balances = state.balances +
+            (transaction.from -> updatedSourceBalance) +
+            (transaction.to   -> updatedDestinationBalance),
+          zone = state.zone.map(
+            _.copy(
+              transactions = state.zone.map(_.transactions).getOrElse(Map.empty) + (transaction.id -> transaction)
+            ))
+        )
+    }
+
+  private object PassivationCountdownActor {
+
+    sealed abstract class PassivationCountdownMessage
+    case object Start                extends PassivationCountdownMessage
+    case object Stop                 extends PassivationCountdownMessage
+    case object CommandReceivedEvent extends PassivationCountdownMessage
+    case object RequestPassivate     extends PassivationCountdownMessage
+
+    def behaviour(parent: ActorRef): Behavior[PassivationCountdownMessage] =
+      typed.scaladsl.Actor.deferred { context =>
+        context.self ! Start
+        typed.scaladsl.Actor.immutable[PassivationCountdownMessage] { (_, message) =>
+          message match {
+            case Start                => context.setReceiveTimeout(PassivationTimeout, RequestPassivate)
+            case Stop                 => context.cancelReceiveTimeout()
+            case CommandReceivedEvent => ()
+            case RequestPassivate     => parent ! RequestPassivate
+          }
+          typed.scaladsl.Actor.same
+        }
+      }
+
+  }
 }
 
 class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastOnceDelivery with Timers {
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
-  // TODO: Eliminate?
+  // TODO: Eliminate when AtLeastOnceDelivery is removed?
   private[this] val passivationCountdownActor = context.spawn(
     akka.typed.scaladsl.Actor
       .supervise(PassivationCountdownActor.behaviour(self))
@@ -328,11 +325,17 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] var messageSequenceNumbers             = Map.empty[ActorRef, Long].withDefaultValue(1L)
   private[this] var pendingDeliveries                  = Map.empty[ActorRef, Set[Long]].withDefaultValue(Set.empty)
 
-  timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatus, 30.seconds)
+  timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatusTick, 30.seconds)
 
   override def persistenceId: String = id.persistenceId
 
+  override def preStart(): Unit = {
+    super.preStart()
+    log.info(s"Starting")
+  }
+
   override def postStop(): Unit = {
+    log.info(s"Stopped")
     super.postStop()
   }
 
@@ -345,7 +348,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   }
 
   override def receiveCommand: Receive = {
-    case PublishStatus =>
+    case PublishStatusTick =>
       state.zone.foreach(
         zone =>
           mediator ! Publish(
@@ -810,7 +813,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           Some(TransactionAddedNotification(transaction))
       }
       notification.foreach(deliverNotification)
-      self ! PublishStatus
+      self ! PublishStatusTick
     }
 
   private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit = {

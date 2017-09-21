@@ -1,5 +1,5 @@
 scalafmtVersion := "1.2.0"
-addSbtPlugin("com.lucidchart" % "sbt-scalafmt" % "1.11")
+addSbtPlugin("com.lucidchart" % "sbt-scalafmt" % "1.12")
 
 libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.2"
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.12-rc6")

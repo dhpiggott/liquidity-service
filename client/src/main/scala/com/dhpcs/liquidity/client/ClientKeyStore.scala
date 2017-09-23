@@ -1,110 +1,70 @@
 package com.dhpcs.liquidity.client
 
-import java.io.{File, FileInputStream, FileOutputStream}
-import java.math.BigInteger
-import java.security.cert.X509Certificate
+import java.io.{File, FileInputStream, FileReader, FileWriter}
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
-import java.security.{KeyPairGenerator, KeyStore, PrivateKey}
-import java.util.{Calendar, Locale}
-import javax.net.ssl.{KeyManager, KeyManagerFactory}
+import java.security.{KeyPair, KeyPairGenerator, KeyStore, PrivateKey}
 
-import com.dhpcs.liquidity.client.ClientKeyStore._
-import org.spongycastle.asn1.x500.X500NameBuilder
-import org.spongycastle.asn1.x500.style.BCStyle
-import org.spongycastle.asn1.x509.{Extension, Time}
-import org.spongycastle.asn1.{ASN1GeneralizedTime, ASN1UTCTime}
-import org.spongycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509ExtensionUtils, JcaX509v3CertificateBuilder}
-import org.spongycastle.operator.jcajce.JcaContentSignerBuilder
+import org.spongycastle.openssl.jcajce.{JcaPEMKeyConverter, JcaPEMWriter}
+import org.spongycastle.openssl.{PEMKeyPair, PEMParser}
 
 object ClientKeyStore {
 
-  private final val Pkcs12KeyStoreFilename = "client.p12"
-  private final val EntryAlias             = "identity"
-  private final val CommonName             = "com.dhpcs.liquidity"
-  private final val KeySize                = 2048
-
   private final val LegacyBksKeyStoreFilename = "client.keystore"
+  private final val EntryAlias                = "identity"
+  private final val KeySize                   = 2048
+  private final val PrivateKeyFilename        = "id_rsa"
 
   def apply(filesDir: File): ClientKeyStore = {
-    val keyStore     = KeyStore.getInstance("PKCS12")
-    val keyStoreFile = new File(filesDir, Pkcs12KeyStoreFilename)
-    if (!keyStoreFile.exists) {
-      val (certificate, privateKey) = loadFromLegacyBksKeyStore(filesDir).getOrElse(generateCertKey())
-      keyStore.load(null, null)
-      keyStore.setKeyEntry(
-        EntryAlias,
-        privateKey,
-        Array.emptyCharArray,
-        Array(certificate)
-      )
-      val keyStoreFileOutputStream = new FileOutputStream(keyStoreFile)
-      try keyStore.store(keyStoreFileOutputStream, Array.emptyCharArray)
-      finally keyStoreFileOutputStream.close()
-    } else loadIntoKeyStore(keyStoreFile, keyStore)
-    deleteLegacyBksKeyStoreIfExists(filesDir)
-    new ClientKeyStore(keyStore)
+    val keyStoreFile   = new File(filesDir, LegacyBksKeyStoreFilename)
+    val privateKeyFile = new File(filesDir, PrivateKeyFilename)
+    val keyPair        = readKey(privateKeyFile).orElse(loadFromLegacyBksKeyStore(keyStoreFile)).getOrElse(generateKey())
+    if (!privateKeyFile.exists) writeKey(privateKeyFile, keyPair)
+    deleteLegacyBksKeyStoreIfExists(keyStoreFile)
+    ClientKeyStore(keyPair.getPublic.asInstanceOf[RSAPublicKey], keyPair.getPrivate.asInstanceOf[RSAPrivateKey])
   }
 
-  private def loadFromLegacyBksKeyStore(filesDir: File): Option[(X509Certificate, PrivateKey)] = {
-    val keyStoreFile = new File(filesDir, LegacyBksKeyStoreFilename)
-    if (!keyStoreFile.exists) None
+  private def readKey(privateKeyFile: File): Option[KeyPair] =
+    if (!privateKeyFile.exists)
+      None
     else {
-      val keyStore = KeyStore.getInstance("BKS")
-      loadIntoKeyStore(keyStoreFile, keyStore)
-      val certificate = keyStore.getCertificate(EntryAlias).asInstanceOf[X509Certificate]
-      val privateKey  = keyStore.getKey(EntryAlias, Array.emptyCharArray).asInstanceOf[PrivateKey]
-      Some((certificate, privateKey))
+      val privateKeyPemParser = new PEMParser(new FileReader(privateKeyFile))
+      try {
+        val keyPair = new JcaPEMKeyConverter().getKeyPair(privateKeyPemParser.readObject().asInstanceOf[PEMKeyPair])
+        Some(keyPair)
+      } finally privateKeyPemParser.close()
+    }
+
+  private def loadFromLegacyBksKeyStore(keyStoreFile: File): Option[KeyPair] = {
+    if (!keyStoreFile.exists)
+      None
+    else {
+      val keyStore                = KeyStore.getInstance("BKS")
+      val keyStoreFileInputStream = new FileInputStream(keyStoreFile)
+      try keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
+      finally keyStoreFileInputStream.close()
+      val publicKey  = keyStore.getCertificate(EntryAlias).getPublicKey
+      val privateKey = keyStore.getKey(EntryAlias, Array.emptyCharArray).asInstanceOf[PrivateKey]
+      Some(new KeyPair(publicKey, privateKey))
     }
   }
 
-  private def generateCertKey(): (X509Certificate, PrivateKey) = {
-    val identity         = new X500NameBuilder().addRDN(BCStyle.CN, CommonName).build
+  private def generateKey(): KeyPair = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(KeySize)
-    val keyPair = keyPairGenerator.generateKeyPair
-    val certificate = new JcaX509CertificateConverter().getCertificate(
-      new JcaX509v3CertificateBuilder(
-        identity,
-        BigInteger.ONE,
-        new Time(new ASN1UTCTime(Calendar.getInstance.getTime, Locale.US)),
-        new Time(new ASN1GeneralizedTime("99991231235959Z")),
-        identity,
-        keyPair.getPublic
-      ).addExtension(
-          Extension.subjectKeyIdentifier,
-          false,
-          new JcaX509ExtensionUtils().createSubjectKeyIdentifier(keyPair.getPublic)
-        )
-        .build(
-          new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate)
-        )
-    )
-    (certificate, keyPair.getPrivate)
+    keyPairGenerator.generateKeyPair
   }
 
-  private def loadIntoKeyStore(keyStoreFile: File, keyStore: KeyStore): Unit = {
-    val keyStoreFileInputStream = new FileInputStream(keyStoreFile)
-    try keyStore.load(keyStoreFileInputStream, Array.emptyCharArray)
-    finally keyStoreFileInputStream.close()
+  private def writeKey(privateKeyFile: File, keyPair: KeyPair): Unit = {
+    val privateKeyPemWriter = new JcaPEMWriter(new FileWriter(privateKeyFile))
+    try privateKeyPemWriter.writeObject(keyPair.getPrivate)
+    finally privateKeyPemWriter.close()
   }
 
-  private def deleteLegacyBksKeyStoreIfExists(filesDir: File): Unit = {
-    val keyStoreFile = new File(filesDir, LegacyBksKeyStoreFilename)
+  private def deleteLegacyBksKeyStoreIfExists(keyStoreFile: File): Unit =
     if (keyStoreFile.exists) {
       keyStoreFile.delete(); ()
     }
-  }
-}
-
-class ClientKeyStore private (keyStore: KeyStore) {
-
-  val keyManagers: Array[KeyManager] = {
-    val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
-    keyManagerFactory.init(keyStore, Array.emptyCharArray)
-    keyManagerFactory.getKeyManagers
-  }
-
-  val rsaPublicKey: RSAPublicKey   = keyStore.getCertificate(EntryAlias).getPublicKey.asInstanceOf[RSAPublicKey]
-  val rsaPrivateKey: RSAPrivateKey = keyStore.getKey(EntryAlias, Array.emptyCharArray).asInstanceOf[RSAPrivateKey]
 
 }
+
+case class ClientKeyStore private (publicKey: RSAPublicKey, privateKey: RSAPrivateKey)

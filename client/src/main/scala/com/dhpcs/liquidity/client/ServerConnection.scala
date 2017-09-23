@@ -138,7 +138,7 @@ class ServerConnection(filesDir: File,
 
   handleConnectivityStateChange()
 
-  lazy val clientKey: PublicKey = PublicKey(clientKeyStore.rsaPublicKey.getEncoded)
+  lazy val clientKey: PublicKey = PublicKey(clientKeyStore.publicKey.getEncoded)
 
   def connectionState: ConnectionState = _connectionState
 
@@ -276,8 +276,8 @@ class ServerConnection(filesDir: File,
             sendServerMessage(
               webSocket,
               proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
-                Authentication.createKeyOwnershipProof(clientKeyStore.rsaPublicKey,
-                                                       clientKeyStore.rsaPrivateKey,
+                Authentication.createKeyOwnershipProof(clientKeyStore.publicKey,
+                                                       clientKeyStore.privateKey,
                                                        keyOwnershipChallenge)
               )
             )

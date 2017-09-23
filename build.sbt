@@ -207,7 +207,6 @@ lazy val healthcheck = project
   )
   .dependsOn(testkit % "test")
   .dependsOn(server % "test->test")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
   .enablePlugins(JavaAppPackaging, UniversalPlugin)
 
 lazy val boardgame = project

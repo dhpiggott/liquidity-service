@@ -137,7 +137,7 @@ class LegacyServerConnection(filesDir: File,
     )
 
   private[this] lazy val (clientKeyStore, okHttpClient) = {
-    val clientKeyStore     = ClientKeyStore(filesDir)
+    val clientKeyStore     = LegacyClientKeyStore(filesDir)
     val serverTrustManager = ServerTrustManager(keyStoreInputStreamProvider.get())
     val okHttpClient = new OkHttpClient.Builder()
       .sslSocketFactory(createSslSocketFactory(
@@ -167,7 +167,7 @@ class LegacyServerConnection(filesDir: File,
 
   handleConnectivityStateChange()
 
-  lazy val clientKey: PublicKey = PublicKey(clientKeyStore.rsaPublicKey.getEncoded)
+  lazy val clientKey: PublicKey = PublicKey(clientKeyStore.publicKey.getEncoded)
 
   def connectionState: ConnectionState = _connectionState
 

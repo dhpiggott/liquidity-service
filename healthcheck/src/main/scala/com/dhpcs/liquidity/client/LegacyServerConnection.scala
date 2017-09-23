@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.client
 
 import java.io.{File, IOException, InputStream}
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{Executor, ExecutorService, Executors, TimeUnit}
 import javax.net.ssl._
 
 import com.dhpcs.jsonrpc.JsonRpcMessage.{NoCorrelationId, NumericCorrelationId, StringCorrelationId}
@@ -18,8 +18,8 @@ object LegacyServerConnection {
     def get(): InputStream
   }
 
-  trait ConnectivityStatePublisherBuilder {
-    def build(serverConnection: LegacyServerConnection): ConnectivityStatePublisher
+  trait ConnectivityStatePublisherProvider {
+    def provide(serverConnection: LegacyServerConnection): ConnectivityStatePublisher
   }
 
   trait ConnectivityStatePublisher {
@@ -27,20 +27,6 @@ object LegacyServerConnection {
     def isConnectionAvailable: Boolean
     def register(): Unit
     def unregister(): Unit
-
-  }
-
-  trait HandlerWrapperFactory {
-
-    def create(name: String): HandlerWrapper
-    def main(): HandlerWrapper
-
-  }
-
-  abstract class HandlerWrapper {
-
-    def post(runnable: Runnable): Unit
-    def quit(): Unit
 
   }
 
@@ -79,7 +65,7 @@ object LegacyServerConnection {
   private case object TlsErrorIdleState           extends IdleState
   private case object UnsupportedVersionIdleState extends IdleState
   private case object AvailableIdleState          extends IdleState
-  private final case class ActiveState(handlerWrapper: HandlerWrapper) extends State {
+  private final case class ActiveState(executorService: ExecutorService) extends State {
     var subState: SubState = _
   }
   private sealed abstract class SubState
@@ -114,36 +100,38 @@ object LegacyServerConnection {
 
 class LegacyServerConnection(filesDir: File,
                              keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
-                             connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                             handlerWrapperFactory: HandlerWrapperFactory,
+                             connectivityStatePublisherProvider: ConnectivityStatePublisherProvider,
+                             mainThreadExecutor: Executor,
                              hostname: String,
                              port: Int)
     extends WebSocketListener {
 
+  import ServerConnection.RichExecutor
+
   def this(filesDir: File,
            keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
-           connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-           handlerWrapperFactory: HandlerWrapperFactory,
+           connectivityStatePublisherProvider: ConnectivityStatePublisherProvider,
+           mainThreadExecutor: Executor,
            hostname: Option[String],
            port: Option[Int]) =
     this(
       filesDir,
       keyStoreInputStreamProvider,
-      connectivityStatePublisherBuilder,
-      handlerWrapperFactory,
+      connectivityStatePublisherProvider,
+      mainThreadExecutor,
       hostname.getOrElse("liquidity.dhpcs.com"),
       port.getOrElse(443)
     )
 
   def this(filesDir: File,
            keyStoreInputStreamProvider: KeyStoreInputStreamProvider,
-           connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-           handlerWrapperFactory: HandlerWrapperFactory) =
+           connectivityStatePublisherProvider: ConnectivityStatePublisherProvider,
+           mainThreadExecutor: Executor) =
     this(
       filesDir,
       keyStoreInputStreamProvider,
-      connectivityStatePublisherBuilder,
-      handlerWrapperFactory,
+      connectivityStatePublisherProvider,
+      mainThreadExecutor,
       hostname = None,
       port = None
     )
@@ -164,8 +152,7 @@ class LegacyServerConnection(filesDir: File,
     (clientKeyStore, okHttpClient)
   }
 
-  private[this] val connectivityStatePublisher = connectivityStatePublisherBuilder.build(this)
-  private[this] val mainHandlerWrapper         = handlerWrapperFactory.main()
+  private[this] val connectivityStatePublisher = connectivityStatePublisherProvider.provide(this)
 
   private[this] var pendingRequests    = Map.empty[BigDecimal, PendingRequest]
   private[this] var nextCorrelationId  = 0L
@@ -213,26 +200,25 @@ class LegacyServerConnection(filesDir: File,
     case _: IdleState =>
       throw new IllegalStateException("Not connected")
     case activeState: ActiveState =>
-      activeState.handlerWrapper.post(() =>
-        activeState.subState match {
-          case _: ConnectingSubState | DisconnectingSubState =>
-            throw new IllegalStateException(s"Not connected")
-          case _: WaitingForVersionCheckSubState =>
-            throw new IllegalStateException("Waiting for version check")
-          case onlineSubState: OnlineSubState =>
-            val correlationId = NumericCorrelationId(nextCorrelationId)
-            nextCorrelationId = nextCorrelationId + 1
-            val jsonRpcRequestMessage = LegacyWsProtocol.Command.write(command, correlationId)
-            try {
-              onlineSubState.webSocket.send(
-                Json.stringify(Json.toJson(jsonRpcRequestMessage))
-              )
-              pendingRequests = pendingRequests +
-                (correlationId.value -> PendingRequest(jsonRpcRequestMessage, responseCallback))
-            } catch {
-              // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
-              case _: IOException =>
-            }
+      activeState.executorService.submit(activeState.subState match {
+        case _: ConnectingSubState | DisconnectingSubState =>
+          throw new IllegalStateException(s"Not connected")
+        case _: WaitingForVersionCheckSubState =>
+          throw new IllegalStateException("Waiting for version check")
+        case onlineSubState: OnlineSubState =>
+          val correlationId = NumericCorrelationId(nextCorrelationId)
+          nextCorrelationId = nextCorrelationId + 1
+          val jsonRpcRequestMessage = LegacyWsProtocol.Command.write(command, correlationId)
+          try {
+            onlineSubState.webSocket.send(
+              Json.stringify(Json.toJson(jsonRpcRequestMessage))
+            )
+            pendingRequests = pendingRequests +
+              (correlationId.value -> PendingRequest(jsonRpcRequestMessage, responseCallback))
+          } catch {
+            // We do nothing here because we count on receiving a call to onFailure due to a matching read error.
+            case _: IOException =>
+          }
       })
   }
 
@@ -275,186 +261,173 @@ class LegacyServerConnection(filesDir: File,
       }
 
   override def onClosed(webSocket: WebSocket, code: Int, reason: String): Unit =
-    mainHandlerWrapper.post(() =>
-      state match {
-        case _: IdleState =>
-          throw new IllegalStateException("Already disconnected")
-        case activeState: ActiveState =>
-          activeState.handlerWrapper.post(() =>
-            activeState.subState match {
-              case _: ConnectingSubState =>
-                throw new IllegalStateException("Not connected or disconnecting")
-              case _: WaitingForVersionCheckSubState =>
-                doClose(activeState.handlerWrapper, UnsupportedVersion)
-              case _: OnlineSubState =>
-                doClose(activeState.handlerWrapper, ServerDisconnect)
-              case DisconnectingSubState =>
-                doClose(activeState.handlerWrapper, ClientDisconnect)
-          })
+    mainThreadExecutor.submit(state match {
+      case _: IdleState =>
+        throw new IllegalStateException("Already disconnected")
+      case activeState: ActiveState =>
+        activeState.executorService.submit(activeState.subState match {
+          case _: ConnectingSubState =>
+            throw new IllegalStateException("Not connected or disconnecting")
+          case _: WaitingForVersionCheckSubState =>
+            doClose(activeState.executorService, UnsupportedVersion)
+          case _: OnlineSubState =>
+            doClose(activeState.executorService, ServerDisconnect)
+          case DisconnectingSubState =>
+            doClose(activeState.executorService, ClientDisconnect)
+        })
     })
 
   override def onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response): Unit =
-    mainHandlerWrapper.post(() =>
-      state match {
-        case _: IdleState =>
-          throw new IllegalStateException("Already disconnected")
-        case activeState: ActiveState =>
-          activeState.handlerWrapper.post(() =>
-            activeState.subState match {
-              case DisconnectingSubState =>
-                doClose(activeState.handlerWrapper, ClientDisconnect)
-              case _ =>
-                if (response == null)
-                  t match {
-                    case _: SSLException =>
-                      // Client rejected server certificate.
-                      doClose(activeState.handlerWrapper, TlsError)
-                    case _ =>
-                      doClose(activeState.handlerWrapper, GeneralFailure)
-                  } else if (response.code == 400)
-                  // Server rejected client certificate.
-                  doClose(activeState.handlerWrapper, TlsError)
-                else
-                  doClose(activeState.handlerWrapper, GeneralFailure)
-          })
+    mainThreadExecutor.submit(state match {
+      case _: IdleState =>
+        throw new IllegalStateException("Already disconnected")
+      case activeState: ActiveState =>
+        activeState.executorService.submit(activeState.subState match {
+          case DisconnectingSubState =>
+            doClose(activeState.executorService, ClientDisconnect)
+          case _ =>
+            if (response == null)
+              t match {
+                case _: SSLException =>
+                  // Client rejected server certificate.
+                  doClose(activeState.executorService, TlsError)
+                case _ =>
+                  doClose(activeState.executorService, GeneralFailure)
+              } else if (response.code == 400)
+              // Server rejected client certificate.
+              doClose(activeState.executorService, TlsError)
+            else
+              doClose(activeState.executorService, GeneralFailure)
+        })
     })
 
   override def onMessage(webSocket: WebSocket, message: String): Unit = {
     val jsonRpcMessage = Json.parse(message).as[JsonRpcMessage]
-    mainHandlerWrapper.post(() =>
-      state match {
-        case _: IdleState =>
-          throw new IllegalStateException("Not connected")
-        case activeState: ActiveState =>
-          jsonRpcMessage match {
-            case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
-              activeState.handlerWrapper.post(() =>
-                LegacyWsProtocol.Notification.read(jsonRpcNotificationMessage) match {
-                  case JsError(errors) =>
-                    throw new IllegalStateException(s"Invalid Notification: $errors")
-                  case JsSuccess(value, _) =>
-                    value match {
-                      case LegacyWsProtocol.SupportedVersionsNotification(compatibleVersionNumbers) =>
-                        activeState.subState match {
-                          case _: ConnectingSubState =>
-                            throw new IllegalStateException("Not connected")
-                          case _: OnlineSubState =>
-                            throw new IllegalStateException("Already online")
-                          case _: WaitingForVersionCheckSubState =>
-                            if (!compatibleVersionNumbers.contains(LegacyWsProtocol.VersionNumber))
-                              mainHandlerWrapper.post(() => disconnect(1001))
-                            else
-                              activeState.handlerWrapper.post { () =>
-                                activeState.subState = OnlineSubState(webSocket)
-                                mainHandlerWrapper.post { () =>
-                                  _connectionState = ONLINE
-                                  connectionStateListeners.foreach(
-                                    _.onConnectionStateChanged(_connectionState)
-                                  )
-                                }
-                              }
-                          case DisconnectingSubState =>
-                        }
-                      case LegacyWsProtocol.KeepAliveNotification =>
-                        activeState.subState match {
-                          case _: ConnectingSubState =>
-                            throw new IllegalStateException("Not connected")
-                          case _: WaitingForVersionCheckSubState =>
-                            throw new IllegalStateException("Waiting for version check")
-                          case _: OnlineSubState     =>
-                          case DisconnectingSubState =>
-                        }
-                      case zoneNotification: LegacyWsProtocol.ZoneNotification =>
-                        activeState.subState match {
-                          case _: ConnectingSubState =>
-                            throw new IllegalStateException("Not connected")
-                          case _: WaitingForVersionCheckSubState =>
-                            throw new IllegalStateException("Waiting for version check")
-                          case _: OnlineSubState =>
-                            activeState.handlerWrapper.post(
-                              () =>
-                                mainHandlerWrapper.post(
-                                  () =>
-                                    notificationReceiptListeners.foreach(
-                                      _.onZoneNotificationReceived(zoneNotification)
-                                  )))
-                          case DisconnectingSubState =>
-                        }
+    mainThreadExecutor.submit(state match {
+      case _: IdleState =>
+        throw new IllegalStateException("Not connected")
+      case activeState: ActiveState =>
+        jsonRpcMessage match {
+          case jsonRpcNotificationMessage: JsonRpcNotificationMessage =>
+            activeState.executorService.submit(LegacyWsProtocol.Notification.read(jsonRpcNotificationMessage) match {
+              case JsError(errors) =>
+                throw new IllegalStateException(s"Invalid Notification: $errors")
+              case jsSuccess: JsSuccess[_] =>
+                jsSuccess.value match {
+                  case LegacyWsProtocol.SupportedVersionsNotification(compatibleVersionNumbers) =>
+                    activeState.subState match {
+                      case _: ConnectingSubState =>
+                        throw new IllegalStateException("Not connected")
+                      case _: OnlineSubState =>
+                        throw new IllegalStateException("Already online")
+                      case _: WaitingForVersionCheckSubState =>
+                        if (!compatibleVersionNumbers.contains(LegacyWsProtocol.VersionNumber))
+                          mainThreadExecutor.submit(disconnect(1001))
+                        else
+                          activeState.executorService.submit {
+                            activeState.subState = OnlineSubState(webSocket)
+                            mainThreadExecutor.submit {
+                              _connectionState = ONLINE
+                              connectionStateListeners.foreach(
+                                _.onConnectionStateChanged(_connectionState)
+                              )
+                            }
+                          }
+                      case DisconnectingSubState =>
                     }
-              })
-            case jsonRpcResponseMessage: JsonRpcResponseMessage =>
-              activeState.handlerWrapper.post(() =>
-                activeState.subState match {
-                  case _: ConnectingSubState =>
-                    throw new IllegalStateException("Not connected")
-                  case _: WaitingForVersionCheckSubState =>
-                    throw new IllegalStateException("Waiting for version check")
-                  case _: OnlineSubState =>
-                    jsonRpcResponseMessage.id match {
-                      case NoCorrelationId =>
-                        throw new IllegalStateException(
-                          s"JSON-RPC message ID missing, jsonRpcResponseMessage=$jsonRpcResponseMessage")
-                      case StringCorrelationId(value) =>
-                        throw new IllegalStateException(s"JSON-RPC message ID was not a number, id=$value")
-                      case NumericCorrelationId(value) =>
-                        activeState.handlerWrapper.post(() =>
-                          pendingRequests.get(value) match {
-                            case None =>
-                              throw new IllegalStateException(
-                                s"No pending request exists with commandIdentifier=$value")
-                            case Some(pendingRequest) =>
-                              pendingRequests = pendingRequests - value
-                              jsonRpcResponseMessage match {
-                                case jsonRpcResponseErrorMessage: JsonRpcResponseErrorMessage =>
-                                  mainHandlerWrapper.post(
-                                    () =>
-                                      pendingRequest.callback.onErrorResponse(
-                                        LegacyWsProtocol.ErrorResponse(jsonRpcResponseErrorMessage.message)))
-                                case jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage =>
-                                  LegacyWsProtocol.SuccessResponse
-                                    .read(jsonRpcResponseSuccessMessage, pendingRequest.requestMessage.method) match {
-                                    case JsError(errors) =>
-                                      throw new IllegalStateException(s"Invalid Response: $errors")
-                                    case JsSuccess(response, _) =>
-                                      mainHandlerWrapper.post(() => pendingRequest.callback.onSuccessResponse(response))
-                                  }
-                              }
-                        })
+                  case LegacyWsProtocol.KeepAliveNotification =>
+                    activeState.subState match {
+                      case _: ConnectingSubState =>
+                        throw new IllegalStateException("Not connected")
+                      case _: WaitingForVersionCheckSubState =>
+                        throw new IllegalStateException("Waiting for version check")
+                      case _: OnlineSubState     =>
+                      case DisconnectingSubState =>
                     }
-                  case DisconnectingSubState =>
-              })
-            case _ =>
-              activeState.handlerWrapper.post(() =>
-                activeState.subState match {
-                  case _: ConnectingSubState =>
-                    throw new IllegalStateException("Not connected")
-                  case _: WaitingForVersionCheckSubState =>
-                    throw new IllegalStateException("Waiting for version check")
-                  case _: OnlineSubState =>
-                    throw new IllegalStateException(s"Received $jsonRpcMessage")
-                  case DisconnectingSubState =>
-              })
-          }
+                  case zoneNotification: LegacyWsProtocol.ZoneNotification =>
+                    activeState.subState match {
+                      case _: ConnectingSubState =>
+                        throw new IllegalStateException("Not connected")
+                      case _: WaitingForVersionCheckSubState =>
+                        throw new IllegalStateException("Waiting for version check")
+                      case _: OnlineSubState =>
+                        activeState.executorService.submit(
+                          mainThreadExecutor.submit(
+                            notificationReceiptListeners.foreach(
+                              _.onZoneNotificationReceived(zoneNotification)
+                            )))
+                      case DisconnectingSubState =>
+                    }
+                }
+            })
+          case jsonRpcResponseMessage: JsonRpcResponseMessage =>
+            activeState.executorService.submit(activeState.subState match {
+              case _: ConnectingSubState =>
+                throw new IllegalStateException("Not connected")
+              case _: WaitingForVersionCheckSubState =>
+                throw new IllegalStateException("Waiting for version check")
+              case _: OnlineSubState =>
+                jsonRpcResponseMessage.id match {
+                  case NoCorrelationId =>
+                    throw new IllegalStateException(
+                      s"JSON-RPC message ID missing, jsonRpcResponseMessage=$jsonRpcResponseMessage")
+                  case StringCorrelationId(value) =>
+                    throw new IllegalStateException(s"JSON-RPC message ID was not a number, id=$value")
+                  case NumericCorrelationId(value) =>
+                    activeState.executorService.submit(pendingRequests.get(value) match {
+                      case None =>
+                        throw new IllegalStateException(s"No pending request exists with commandIdentifier=$value")
+                      case Some(pendingRequest) =>
+                        pendingRequests = pendingRequests - value
+                        jsonRpcResponseMessage match {
+                          case jsonRpcResponseErrorMessage: JsonRpcResponseErrorMessage =>
+                            mainThreadExecutor.submit(
+                              pendingRequest.callback.onErrorResponse(
+                                LegacyWsProtocol.ErrorResponse(jsonRpcResponseErrorMessage.message)))
+                          case jsonRpcResponseSuccessMessage: JsonRpcResponseSuccessMessage =>
+                            LegacyWsProtocol.SuccessResponse
+                              .read(jsonRpcResponseSuccessMessage, pendingRequest.requestMessage.method) match {
+                              case JsError(errors) =>
+                                throw new IllegalStateException(s"Invalid Response: $errors")
+                              case jsSuccess: JsSuccess[_] =>
+                                mainThreadExecutor.submit(
+                                  pendingRequest.callback.onSuccessResponse(
+                                    jsSuccess.value.asInstanceOf[LegacyWsProtocol.SuccessResponse]))
+                            }
+                        }
+                    })
+                }
+              case DisconnectingSubState =>
+            })
+          case _ =>
+            activeState.executorService.submit(activeState.subState match {
+              case _: ConnectingSubState =>
+                throw new IllegalStateException("Not connected")
+              case _: WaitingForVersionCheckSubState =>
+                throw new IllegalStateException("Waiting for version check")
+              case _: OnlineSubState =>
+                throw new IllegalStateException(s"Received $jsonRpcMessage")
+              case DisconnectingSubState =>
+            })
+        }
     })
   }
 
   override def onOpen(webSocket: WebSocket, response: okhttp3.Response): Unit =
-    mainHandlerWrapper.post(() =>
-      state match {
-        case _: IdleState =>
-          throw new IllegalStateException("Not connecting")
-        case activeState: ActiveState =>
-          activeState.handlerWrapper.post(() =>
-            activeState.subState match {
-              case _: ConnectedSubState | DisconnectingSubState =>
-                throw new IllegalStateException("Not connecting")
-              case _: ConnectingSubState =>
-                activeState.subState = WaitingForVersionCheckSubState(webSocket)
-                mainHandlerWrapper.post { () =>
-                  _connectionState = WAITING_FOR_VERSION_CHECK
-                  connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
-                }
-          })
+    mainThreadExecutor.submit(state match {
+      case _: IdleState =>
+        throw new IllegalStateException("Not connecting")
+      case activeState: ActiveState =>
+        activeState.executorService.submit(activeState.subState match {
+          case _: ConnectedSubState | DisconnectingSubState =>
+            throw new IllegalStateException("Not connecting")
+          case _: ConnectingSubState =>
+            activeState.subState = WaitingForVersionCheckSubState(webSocket)
+            mainThreadExecutor.submit {
+              _connectionState = WAITING_FOR_VERSION_CHECK
+              connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
+            }
+        })
     })
 
   private[this] def connect(): Unit = state match {
@@ -470,42 +443,41 @@ class LegacyServerConnection(filesDir: File,
     case _: IdleState =>
       throw new IllegalStateException("Already disconnected")
     case activeState: ActiveState =>
-      activeState.handlerWrapper.post(() =>
-        activeState.subState match {
-          case DisconnectingSubState =>
-            throw new IllegalStateException("Already disconnecting")
-          case ConnectingSubState(webSocket) =>
-            activeState.subState = DisconnectingSubState
-            mainHandlerWrapper.post { () =>
-              _connectionState = DISCONNECTING
-              connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
-            }
-            webSocket.cancel()
-          case WaitingForVersionCheckSubState(webSocket) =>
-            try {
-              webSocket.close(code, null); ()
-            } catch {
-              case _: IOException =>
-            }
-          case OnlineSubState(webSocket) =>
-            activeState.subState = DisconnectingSubState
-            mainHandlerWrapper.post { () =>
-              _connectionState = DISCONNECTING
-              connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
-            }
-            try {
-              webSocket.close(code, null); ()
-            } catch {
-              case _: IOException =>
-            }
+      activeState.executorService.submit(activeState.subState match {
+        case DisconnectingSubState =>
+          throw new IllegalStateException("Already disconnecting")
+        case ConnectingSubState(webSocket) =>
+          activeState.subState = DisconnectingSubState
+          mainThreadExecutor.submit {
+            _connectionState = DISCONNECTING
+            connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
+          }
+          webSocket.cancel()
+        case WaitingForVersionCheckSubState(webSocket) =>
+          try {
+            webSocket.close(code, null); ()
+          } catch {
+            case _: IOException =>
+          }
+        case OnlineSubState(webSocket) =>
+          activeState.subState = DisconnectingSubState
+          mainThreadExecutor.submit {
+            _connectionState = DISCONNECTING
+            connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
+          }
+          try {
+            webSocket.close(code, null); ()
+          } catch {
+            case _: IOException =>
+          }
       })
   }
 
-  private[this] def doClose(handlerWrapper: HandlerWrapper, closeCause: CloseCause): Unit = {
-    handlerWrapper.quit()
+  private[this] def doClose(executorService: ExecutorService, closeCause: CloseCause): Unit = {
+    executorService.shutdown()
     nextCorrelationId = 0
     pendingRequests = Map.empty
-    mainHandlerWrapper.post { () =>
+    mainThreadExecutor.submit {
       closeCause match {
         case GeneralFailure =>
           hasFailed = true
@@ -541,9 +513,9 @@ class LegacyServerConnection(filesDir: File,
   }
 
   private[this] def doOpen(): Unit = {
-    val activeState = ActiveState(handlerWrapperFactory.create("ServerConnection"))
+    val activeState = ActiveState(Executors.newSingleThreadExecutor())
     state = activeState
-    activeState.handlerWrapper.post { () =>
+    activeState.executorService.submit {
       val webSocket = okHttpClient.newWebSocket(
         new okhttp3.Request.Builder().url(s"https://$hostname:$port/ws").build,
         this

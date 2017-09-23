@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.client
 
 import java.io.{File, IOException}
+import java.util.concurrent.{Executor, ExecutorService, Executors}
 import javax.net.ssl._
 
 import com.dhpcs.liquidity.client.ServerConnection._
@@ -17,8 +18,8 @@ import scala.concurrent.{Future, Promise}
 
 object ServerConnection {
 
-  trait ConnectivityStatePublisherBuilder {
-    def build(serverConnection: ServerConnection): ConnectivityStatePublisher
+  trait ConnectivityStatePublisherProvider {
+    def provide(serverConnection: ServerConnection): ConnectivityStatePublisher
   }
 
   trait ConnectivityStatePublisher {
@@ -29,23 +30,12 @@ object ServerConnection {
 
   }
 
-  trait HandlerWrapperFactory {
-
-    def create(name: String): HandlerWrapper
-    def main(): HandlerWrapper
-
-  }
-
-  abstract class HandlerWrapper {
-
-    def post(body: => Unit): Unit =
-      post(new Runnable {
+  implicit class RichExecutor(private val executor: Executor) extends AnyVal {
+    def submit(body: => Unit): Unit = {
+      executor.execute(new Runnable {
         override def run(): Unit = body
-      })
-
-    def post(runnable: Runnable): Unit
-    def quit(): Unit
-
+      }); ()
+    }
   }
 
   sealed abstract class ConnectionState
@@ -74,7 +64,7 @@ object ServerConnection {
   private case object GeneralFailureIdleState extends IdleState
   private case object TlsErrorIdleState       extends IdleState
   private case object AvailableIdleState      extends IdleState
-  private final case class ActiveState(handlerWrapper: HandlerWrapper) extends State {
+  private final case class ActiveState(executorService: ExecutorService) extends State {
     var subState: SubState = _
   }
   private sealed abstract class SubState
@@ -95,35 +85,35 @@ object ServerConnection {
 }
 
 class ServerConnection(filesDir: File,
-                       connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                       val handlerWrapperFactory: HandlerWrapperFactory,
+                       connectivityStatePublisherProvider: ConnectivityStatePublisherProvider,
+                       mainThreadExecutor: Executor,
                        scheme: String,
                        hostname: String,
                        port: Int)
     extends WebSocketListener {
 
   def this(filesDir: File,
-           connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-           handlerWrapperFactory: HandlerWrapperFactory,
+           connectivityStatePublisherProvider: ConnectivityStatePublisherProvider,
+           mainThreadExecutor: Executor,
            scheme: Option[String],
            hostname: Option[String],
            port: Option[Int]) =
     this(
       filesDir,
-      connectivityStatePublisherBuilder,
-      handlerWrapperFactory,
+      connectivityStatePublisherProvider,
+      mainThreadExecutor,
       scheme.getOrElse("https"),
       hostname.getOrElse("api.liquidityapp.com"),
       port.getOrElse(443)
     )
 
   def this(filesDir: File,
-           connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-           handlerWrapperFactory: HandlerWrapperFactory) =
+           connectivityStatePublisherProvider: ConnectivityStatePublisherProvider,
+           mainThreadExecutor: Executor) =
     this(
       filesDir,
-      connectivityStatePublisherBuilder,
-      handlerWrapperFactory,
+      connectivityStatePublisherProvider,
+      mainThreadExecutor,
       scheme = None,
       hostname = None,
       port = None
@@ -133,8 +123,7 @@ class ServerConnection(filesDir: File,
 
   private[this] val okHttpClient = new OkHttpClient()
 
-  private[this] val connectivityStatePublisher = connectivityStatePublisherBuilder.build(this)
-  private[this] val mainHandlerWrapper         = handlerWrapperFactory.main()
+  private[this] val connectivityStatePublisher = connectivityStatePublisherProvider.provide(this)
 
   private[this] var pendingRequests    = Map.empty[Long, Promise[ZoneResponse]]
   private[this] var nextCorrelationId  = 0L
@@ -240,44 +229,44 @@ class ServerConnection(filesDir: File,
       }
 
   override def onClosed(webSocket: WebSocket, code: Int, reason: String): Unit =
-    mainHandlerWrapper.post(state match {
+    mainThreadExecutor.submit(state match {
       case _: IdleState =>
         throw new IllegalStateException("Already disconnected")
       case activeState: ActiveState =>
-        activeState.handlerWrapper.post(activeState.subState match {
+        activeState.executorService.submit(activeState.subState match {
           case _: ConnectingSubState =>
             throw new IllegalStateException("Not connected or disconnecting")
           case _: AuthenticatingSubState | _: OnlineSubState =>
-            doClose(activeState.handlerWrapper, ServerDisconnect)
+            doClose(activeState.executorService, ServerDisconnect)
           case DisconnectingSubState =>
-            doClose(activeState.handlerWrapper, ClientDisconnect)
+            doClose(activeState.executorService, ClientDisconnect)
         })
     })
 
   override def onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response): Unit =
-    mainHandlerWrapper.post(state match {
+    mainThreadExecutor.submit(state match {
       case _: IdleState =>
         throw new IllegalStateException("Already disconnected")
       case activeState: ActiveState =>
-        activeState.handlerWrapper.post(activeState.subState match {
+        activeState.executorService.submit(activeState.subState match {
           case DisconnectingSubState =>
-            doClose(activeState.handlerWrapper, ClientDisconnect)
+            doClose(activeState.executorService, ClientDisconnect)
           case _ =>
             if (response == null)
               t match {
                 case _: SSLException =>
                   // Client rejected server certificate.
-                  doClose(activeState.handlerWrapper, TlsError)
+                  doClose(activeState.executorService, TlsError)
                 case _ =>
-                  doClose(activeState.handlerWrapper, GeneralFailure)
+                  doClose(activeState.executorService, GeneralFailure)
               } else
-              doClose(activeState.handlerWrapper, GeneralFailure)
+              doClose(activeState.executorService, GeneralFailure)
         })
     })
 
   override def onMessage(webSocket: WebSocket, bytes: ByteString): Unit = {
     val clientMessage = proto.ws.protocol.ClientMessage.parseFrom(bytes.toByteArray)
-    mainHandlerWrapper.post(state match {
+    mainThreadExecutor.submit(state match {
       case _: IdleState =>
         throw new IllegalStateException("Not connected")
       case activeState: ActiveState =>
@@ -292,19 +281,19 @@ class ServerConnection(filesDir: File,
                                                        keyOwnershipChallenge)
               )
             )
-            activeState.handlerWrapper.post {
+            activeState.executorService.submit {
               activeState.subState = OnlineSubState(webSocket)
-              mainHandlerWrapper.post {
+              mainThreadExecutor.submit {
                 _connectionState = ONLINE
                 connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
               }
             }
           case proto.ws.protocol.ClientMessage.Message.Command(protoCommand) =>
-            activeState.handlerWrapper.post(activeState.subState match {
+            activeState.executorService.submit(activeState.subState match {
               case _: ConnectingSubState =>
                 throw new IllegalStateException("Not connected")
               case _: AuthenticatingSubState | _: OnlineSubState =>
-                activeState.handlerWrapper.post(protoCommand.command match {
+                activeState.executorService.submit(protoCommand.command match {
                   case proto.ws.protocol.ClientMessage.Command.Command.Empty =>
                   case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
                     sendServerMessage(
@@ -321,17 +310,17 @@ class ServerConnection(filesDir: File,
               case DisconnectingSubState =>
             })
           case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
-            activeState.handlerWrapper.post(activeState.subState match {
+            activeState.executorService.submit(activeState.subState match {
               case _: ConnectingSubState =>
                 throw new IllegalStateException("Not connected")
               case _: AuthenticatingSubState =>
                 throw new IllegalStateException("Authenticating")
               case _: OnlineSubState =>
-                activeState.handlerWrapper.post(pendingRequests.get(protoResponse.correlationId) match {
+                activeState.executorService.submit(pendingRequests.get(protoResponse.correlationId) match {
                   case None =>
                     throw new IllegalStateException(
                       s"No pending request exists with correlationId=${protoResponse.correlationId}")
-                  case Some(responseCallback) =>
+                  case Some(promise) =>
                     pendingRequests = pendingRequests - protoResponse.correlationId
                     protoResponse.response match {
                       case proto.ws.protocol.ClientMessage.Response.Response.Empty =>
@@ -340,13 +329,13 @@ class ServerConnection(filesDir: File,
                         val zoneResponse =
                           ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
                             .asScala(protoZoneResponse.zoneResponse)(())
-                        mainHandlerWrapper.post { responseCallback.success(zoneResponse); () }
+                        promise.success(zoneResponse); ()
                     }
                 })
               case DisconnectingSubState =>
             })
           case proto.ws.protocol.ClientMessage.Message.Notification(protoNotification) =>
-            activeState.handlerWrapper.post(protoNotification.notification match {
+            activeState.executorService.submit(protoNotification.notification match {
               case proto.ws.protocol.ClientMessage.Notification.Notification.Empty =>
               case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotificationEnvelope(
                   proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(
@@ -362,8 +351,8 @@ class ServerConnection(filesDir: File,
                   case _: AuthenticatingSubState =>
                     throw new IllegalStateException("Authenticating")
                   case _: OnlineSubState =>
-                    activeState.handlerWrapper.post(
-                      mainHandlerWrapper.post(
+                    activeState.executorService.submit(
+                      mainThreadExecutor.submit(
                         notificationReceiptListeners.foreach(
                           _.onZoneNotificationReceived(ZoneId(zoneId), zoneNotification)
                         )))
@@ -375,16 +364,16 @@ class ServerConnection(filesDir: File,
   }
 
   override def onOpen(webSocket: WebSocket, response: okhttp3.Response): Unit =
-    mainHandlerWrapper.post(state match {
+    mainThreadExecutor.submit(state match {
       case _: IdleState =>
         throw new IllegalStateException("Not connecting")
       case activeState: ActiveState =>
-        activeState.handlerWrapper.post(activeState.subState match {
+        activeState.executorService.submit(activeState.subState match {
           case _: ConnectedSubState | DisconnectingSubState =>
             throw new IllegalStateException("Not connecting")
           case _: ConnectingSubState =>
             activeState.subState = AuthenticatingSubState(webSocket)
-            mainHandlerWrapper.post {
+            mainThreadExecutor.submit {
               _connectionState = AUTHENTICATING
               connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
             }
@@ -404,12 +393,12 @@ class ServerConnection(filesDir: File,
     case _: IdleState =>
       throw new IllegalStateException("Already disconnected")
     case activeState: ActiveState =>
-      activeState.handlerWrapper.post(activeState.subState match {
+      activeState.executorService.submit(activeState.subState match {
         case DisconnectingSubState =>
           throw new IllegalStateException("Already disconnecting")
         case ConnectingSubState(webSocket) =>
           activeState.subState = DisconnectingSubState
-          mainHandlerWrapper.post {
+          mainThreadExecutor.submit {
             _connectionState = DISCONNECTING
             connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
           }
@@ -422,7 +411,7 @@ class ServerConnection(filesDir: File,
           }
         case OnlineSubState(webSocket) =>
           activeState.subState = DisconnectingSubState
-          mainHandlerWrapper.post {
+          mainThreadExecutor.submit {
             _connectionState = DISCONNECTING
             connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
           }
@@ -435,9 +424,9 @@ class ServerConnection(filesDir: File,
   }
 
   private[this] def doOpen(): Unit = {
-    val activeState = ActiveState(handlerWrapperFactory.create("ServerConnection"))
+    val activeState = ActiveState(Executors.newSingleThreadExecutor())
     state = activeState
-    activeState.handlerWrapper.post {
+    activeState.executorService.submit {
       val webSocket = okHttpClient.newWebSocket(
         new okhttp3.Request.Builder().url(s"$scheme://$hostname:$port/ws").build,
         this
@@ -448,11 +437,11 @@ class ServerConnection(filesDir: File,
     connectionStateListeners.foreach(_.onConnectionStateChanged(_connectionState))
   }
 
-  private[this] def doClose(handlerWrapper: HandlerWrapper, closeCause: CloseCause): Unit = {
-    handlerWrapper.quit()
+  private[this] def doClose(executorService: ExecutorService, closeCause: CloseCause): Unit = {
+    executorService.shutdown()
     nextCorrelationId = 0
     pendingRequests = Map.empty
-    mainHandlerWrapper.post {
+    mainThreadExecutor.submit {
       closeCause match {
         case GeneralFailure =>
           hasFailed = true
@@ -488,7 +477,7 @@ class ServerConnection(filesDir: File,
         Future.failed(new IllegalStateException("Not connected"))
       case activeState: ActiveState =>
         val promise = Promise[ZoneResponse]
-        activeState.handlerWrapper.post(activeState.subState match {
+        activeState.executorService.submit(activeState.subState match {
           case _: ConnectingSubState | DisconnectingSubState =>
             promise.failure(new IllegalStateException(s"Not connected")); ()
           case _: AuthenticatingSubState =>

@@ -248,6 +248,7 @@ object BoardGame {
 }
 
 class BoardGame private (serverConnection: ServerConnection,
+                         mainThreadExecutor: Executor,
                          gameDatabase: GameDatabase,
                          currency: Option[Currency],
                          gameName: Option[String],
@@ -257,10 +258,7 @@ class BoardGame private (serverConnection: ServerConnection,
     extends ServerConnection.ConnectionStateListener
     with ServerConnection.NotificationReceiptListener {
 
-  private[this] implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(new Executor {
-    override def execute(runnable: Runnable): Unit =
-      serverConnection.handlerWrapperFactory.main().post(runnable)
-  })
+  private[this] implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(mainThreadExecutor)
 
   private[this] val connectionRequestToken = new ConnectionRequestToken
 
@@ -272,12 +270,14 @@ class BoardGame private (serverConnection: ServerConnection,
   private[this] var gameActionListeners = Set.empty[GameActionListener]
 
   def this(serverConnection: ServerConnection,
+           mainThreadExecutor: Executor,
            gameDatabase: GameDatabase,
            currency: Currency,
            gameName: String,
            bankMemberName: String) {
     this(
       serverConnection,
+      mainThreadExecutor,
       gameDatabase,
       Some(currency),
       Some(gameName),
@@ -287,9 +287,13 @@ class BoardGame private (serverConnection: ServerConnection,
     )
   }
 
-  def this(serverConnection: ServerConnection, gameDatabase: GameDatabase, zoneId: ZoneId) {
+  def this(serverConnection: ServerConnection,
+           mainThreadExecutor: Executor,
+           gameDatabase: GameDatabase,
+           zoneId: ZoneId) {
     this(
       serverConnection,
+      mainThreadExecutor,
       gameDatabase,
       None,
       None,
@@ -299,9 +303,14 @@ class BoardGame private (serverConnection: ServerConnection,
     )
   }
 
-  def this(serverConnection: ServerConnection, gameDatabase: GameDatabase, zoneId: ZoneId, gameId: Long) {
+  def this(serverConnection: ServerConnection,
+           mainThreadExecutor: Executor,
+           gameDatabase: GameDatabase,
+           zoneId: ZoneId,
+           gameId: Long) {
     this(
       serverConnection,
+      mainThreadExecutor,
       gameDatabase,
       None,
       None,

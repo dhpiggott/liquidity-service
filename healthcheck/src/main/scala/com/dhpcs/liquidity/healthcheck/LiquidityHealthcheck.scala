@@ -14,14 +14,14 @@ import cats.data.Validated
 import com.dhpcs.liquidity.client.{LegacyServerConnection, ServerConnection}
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
 import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
 import okio.ByteString
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{Future, Promise}
 
 object LiquidityHealthcheck {
 
@@ -120,113 +120,61 @@ class LiquidityHealthcheck(scheme: Option[String],
     with Inside
     with BeforeAndAfterAll {
 
+  import ServerConnection.RichExecutor
+
   private[this] val filesDir = Files.createTempDirectory("liquidity-healthcheck-files-dir")
 
-  private[this] class HandlerWrapperImpl extends ServerConnection.HandlerWrapper {
-
-    private[this] val executor = Executors.newSingleThreadExecutor()
-
-    override def post(runnable: Runnable): Unit = {
-      executor.submit(runnable); ()
-    }
-
-    override def quit(): Unit = executor.shutdown()
-
-  }
-
-  private[this] class LegacyHandlerWrapperImpl extends LegacyServerConnection.HandlerWrapper {
-
-    private[this] val executor = Executors.newSingleThreadExecutor()
-
-    override def post(runnable: Runnable): Unit = {
-      executor.submit(runnable); ()
-    }
-
-    override def quit(): Unit = executor.shutdown()
-
-  }
-
-  private[this] object MainHandlerWrapper       extends HandlerWrapperImpl
-  private[this] object LegacyMainHandlerWrapper extends LegacyHandlerWrapperImpl
-
-  private[this] var handlerWrappers       = Seq[ServerConnection.HandlerWrapper](MainHandlerWrapper)
-  private[this] var legacyHandlerWrappers = Seq[LegacyServerConnection.HandlerWrapper](LegacyMainHandlerWrapper)
-
-  private[this] val handlerWrapperFactory = new ServerConnection.HandlerWrapperFactory {
-    override def create(name: String): ServerConnection.HandlerWrapper = synchronized {
-      val handlerWrapper = new HandlerWrapperImpl
-      handlerWrappers = handlerWrapper +: handlerWrappers
-      handlerWrapper
-    }
-    override def main(): ServerConnection.HandlerWrapper = MainHandlerWrapper
-  }
-
-  private[this] val legacyHandlerWrapperFactory = new LegacyServerConnection.HandlerWrapperFactory {
-    override def create(name: String): LegacyServerConnection.HandlerWrapper = synchronized {
-      val handlerWrapper = new LegacyHandlerWrapperImpl
-      legacyHandlerWrappers = handlerWrapper +: legacyHandlerWrappers
-      handlerWrapper
-    }
-    override def main(): LegacyServerConnection.HandlerWrapper = LegacyMainHandlerWrapper
-  }
-
+  private[this] val mainThreadExecutorService = Executors.newSingleThreadExecutor()
   private[this] val serverConnection = new ServerConnection(
     filesDir.toFile,
-    connectivityStatePublisherBuilder = new ServerConnection.ConnectivityStatePublisherBuilder {
-      override def build(serverConnection: ServerConnection): ServerConnection.ConnectivityStatePublisher =
+    connectivityStatePublisherProvider = new ServerConnection.ConnectivityStatePublisherProvider {
+      override def provide(serverConnection: ServerConnection): ServerConnection.ConnectivityStatePublisher =
         new ServerConnection.ConnectivityStatePublisher {
           override def isConnectionAvailable: Boolean = true
           override def register(): Unit               = ()
           override def unregister(): Unit             = ()
         }
     },
-    handlerWrapperFactory,
+    mainThreadExecutorService,
     scheme,
     hostname,
     port
   )
-
   private[this] val legacyServerConnection = new LegacyServerConnection(
     filesDir.toFile,
     keyStoreInputStreamProvider = new LegacyServerConnection.KeyStoreInputStreamProvider {
       override def get(): InputStream = getClass.getClassLoader.getResourceAsStream(TrustStoreFilename)
     },
-    connectivityStatePublisherBuilder = new LegacyServerConnection.ConnectivityStatePublisherBuilder {
-      override def build(serverConnection: LegacyServerConnection): LegacyServerConnection.ConnectivityStatePublisher =
+    connectivityStatePublisherProvider = new LegacyServerConnection.ConnectivityStatePublisherProvider {
+      override def provide(
+          serverConnection: LegacyServerConnection): LegacyServerConnection.ConnectivityStatePublisher =
         new LegacyServerConnection.ConnectivityStatePublisher {
           override def isConnectionAvailable: Boolean = true
           override def register(): Unit               = ()
           override def unregister(): Unit             = ()
         }
     },
-    legacyHandlerWrapperFactory,
+    mainThreadExecutorService,
     legacyHostname,
     legacyPort
   )
 
-  private[this] def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand): Future[ZoneResponse] = {
-    val promise = Promise[ZoneResponse]
-    MainHandlerWrapper.post(
-      () =>
-        serverConnection
-          .sendZoneCommand(
-            zoneId,
-            zoneCommand
-          )
-          .onComplete(promise.complete)(ExecutionContext.global))
-    promise.future
-  }
+  private[this] def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand): Future[ZoneResponse] =
+    serverConnection
+      .sendZoneCommand(
+        zoneId,
+        zoneCommand
+      )
 
   private[this] def sendLegacyZoneCommand(command: LegacyWsProtocol.Command): Future[LegacyWsProtocol.Response] = {
     val promise = Promise[LegacyWsProtocol.Response]
-    LegacyMainHandlerWrapper.post(
-      () =>
-        legacyServerConnection.sendCommand(
-          command,
-          new LegacyServerConnection.ResponseCallback {
-            override def onErrorResponse(error: LegacyWsProtocol.ErrorResponse): Unit       = promise.success(error)
-            override def onSuccessResponse(success: LegacyWsProtocol.SuccessResponse): Unit = promise.success(success)
-          }
+    mainThreadExecutorService.submit(
+      legacyServerConnection.sendCommand(
+        command,
+        new LegacyServerConnection.ResponseCallback {
+          override def onErrorResponse(error: LegacyWsProtocol.ErrorResponse): Unit       = promise.success(error)
+          override def onSuccessResponse(success: LegacyWsProtocol.SuccessResponse): Unit = promise.success(success)
+        }
       ))
     promise.future
   }
@@ -236,8 +184,7 @@ class LiquidityHealthcheck(scheme: Option[String],
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
-    legacyHandlerWrapperFactory.synchronized(legacyHandlerWrappers.foreach(_.quit()))
-    handlerWrapperFactory.synchronized(handlerWrappers.foreach(_.quit()))
+    mainThreadExecutorService.shutdown()
     super.afterAll()
   }
 
@@ -286,12 +233,12 @@ class LiquidityHealthcheck(scheme: Option[String],
     "will accept connections" in withServerConnectionStateTestProbe { sub =>
       val connectionRequestToken = new ServerConnection.ConnectionRequestToken
       sub.requestNext(ServerConnection.AVAILABLE); ()
-      LegacyMainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub
         .requestNext(ServerConnection.CONNECTING)
         .requestNext(ServerConnection.AUTHENTICATING)
         .requestNext(ServerConnection.ONLINE); ()
-      LegacyMainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      mainThreadExecutorService.submit(serverConnection.unrequestConnection(connectionRequestToken))
       sub
         .requestNext(ServerConnection.DISCONNECTING)
         .requestNext(ServerConnection.AVAILABLE); ()
@@ -300,7 +247,7 @@ class LiquidityHealthcheck(scheme: Option[String],
       withServerConnectionStateTestProbe { sub =>
         val connectionRequestToken = new ServerConnection.ConnectionRequestToken
         sub.requestNext(ServerConnection.AVAILABLE); ()
-        LegacyMainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+        mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
         sub
           .requestNext(ServerConnection.CONNECTING)
           .requestNext(ServerConnection.AUTHENTICATING)
@@ -310,7 +257,7 @@ class LiquidityHealthcheck(scheme: Option[String],
             assert(zone === SentinelZone)
             assert(connectedClients.values.toSet === Set(serverConnection.clientKey))
         }
-        LegacyMainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+        mainThreadExecutorService.submit(serverConnection.unrequestConnection(connectionRequestToken))
         sub
           .requestNext(ServerConnection.DISCONNECTING)
           .requestNext(ServerConnection.AVAILABLE); ()
@@ -320,13 +267,12 @@ class LiquidityHealthcheck(scheme: Option[String],
     "will accept connections" in withLegacyServerConnectionStateTestProbe { sub =>
       val connectionRequestToken = new LegacyServerConnection.ConnectionRequestToken
       sub.requestNext(LegacyServerConnection.AVAILABLE); ()
-      LegacyMainHandlerWrapper.post(() =>
-        legacyServerConnection.requestConnection(connectionRequestToken, retry = false))
+      mainThreadExecutorService.submit(legacyServerConnection.requestConnection(connectionRequestToken, retry = false))
       sub
         .requestNext(LegacyServerConnection.CONNECTING)
         .requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
         .requestNext(LegacyServerConnection.ONLINE); ()
-      LegacyMainHandlerWrapper.post(() => legacyServerConnection.unrequestConnection(connectionRequestToken))
+      mainThreadExecutorService.submit(legacyServerConnection.unrequestConnection(connectionRequestToken))
       sub
         .requestNext(LegacyServerConnection.DISCONNECTING)
         .requestNext(LegacyServerConnection.AVAILABLE); ()
@@ -335,7 +281,7 @@ class LiquidityHealthcheck(scheme: Option[String],
       sub =>
         val connectionRequestToken = new LegacyServerConnection.ConnectionRequestToken
         sub.requestNext(LegacyServerConnection.AVAILABLE); ()
-        LegacyMainHandlerWrapper.post(() =>
+        mainThreadExecutorService.submit(
           legacyServerConnection.requestConnection(connectionRequestToken, retry = false))
         sub
           .requestNext(LegacyServerConnection.CONNECTING)
@@ -346,7 +292,7 @@ class LiquidityHealthcheck(scheme: Option[String],
             assert(zone === SentinelZone)
             assert(connectedClients === Set(legacyServerConnection.clientKey))
         }
-        LegacyMainHandlerWrapper.post(() => legacyServerConnection.unrequestConnection(connectionRequestToken))
+        mainThreadExecutorService.submit(legacyServerConnection.unrequestConnection(connectionRequestToken))
         sub
           .requestNext(LegacyServerConnection.DISCONNECTING)
           .requestNext(LegacyServerConnection.AVAILABLE); ()

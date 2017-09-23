@@ -16,7 +16,6 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestProbe
 import cats.data.Validated
 import com.dhpcs.liquidity
-import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.client.ServerConnection._
@@ -30,16 +29,15 @@ import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
 
-import scala.collection.immutable.Seq
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.{Await, Future}
 
 object ServerConnectionSpec {
 
@@ -84,6 +82,8 @@ class ServerConnectionSpec
   private[this] implicit val system: ActorSystem    = ActorSystem("liquidity", config)
   private[this] implicit val mat: ActorMaterializer = ActorMaterializer()
 
+  import system.dispatcher
+
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
   override protected[this] def events(persistenceId: String,
@@ -121,62 +121,25 @@ class ServerConnectionSpec
 
   private[this] val filesDir = Files.createTempDirectory("liquidity-server-connection-spec-files-dir")
 
-  private[this] val connectivityStatePublisherBuilder = new ConnectivityStatePublisherBuilder {
-    override def build(serverConnection: ServerConnection): ConnectivityStatePublisher =
-      new ConnectivityStatePublisher {
-        override def isConnectionAvailable: Boolean = true
-        override def register(): Unit               = ()
-        override def unregister(): Unit             = ()
-      }
-  }
-
-  private[this] class HandlerWrapperImpl extends HandlerWrapper {
-
-    private[this] val executor = Executors.newSingleThreadExecutor()
-
-    override def post(runnable: Runnable): Unit = {
-      executor.submit(runnable); ()
-    }
-
-    override def quit(): Unit = executor.shutdown()
-
-  }
-
-  private[this] object MainHandlerWrapper extends HandlerWrapperImpl
-
-  private[this] var handlerWrappers = Seq[HandlerWrapper](MainHandlerWrapper)
-
-  private[this] val handlerWrapperFactory = new HandlerWrapperFactory {
-    override def create(name: String): HandlerWrapper = synchronized {
-      val handlerWrapper = new HandlerWrapperImpl
-      handlerWrappers = handlerWrapper +: handlerWrappers
-      handlerWrapper
-    }
-    override def main(): HandlerWrapper = MainHandlerWrapper
-  }
-
+  private[this] val mainThreadExecutorService = Executors.newSingleThreadExecutor()
   private[this] val serverConnection = new ServerConnection(
     filesDir.toFile,
-    connectivityStatePublisherBuilder,
-    handlerWrapperFactory,
+    connectivityStatePublisherProvider = new ConnectivityStatePublisherProvider {
+      override def provide(serverConnection: ServerConnection): ConnectivityStatePublisher =
+        new ConnectivityStatePublisher {
+          override def isConnectionAvailable: Boolean = true
+          override def register(): Unit               = ()
+          override def unregister(): Unit             = ()
+        }
+    },
+    mainThreadExecutorService,
     scheme = "http",
     hostname = "localhost",
     port = akkaHttpPort
   )
 
-  private[this] def sendCreateZoneCommand(createZoneCommand: CreateZoneCommand): Future[ZoneResponse] = {
-    val promise = Promise[ZoneResponse]
-    MainHandlerWrapper.post(
-      serverConnection
-        .sendCreateZoneCommand(
-          createZoneCommand
-        )
-        .onComplete(promise.complete))
-    promise.future
-  }
-
   override protected def afterAll(): Unit = {
-    handlerWrapperFactory.synchronized(handlerWrappers.foreach(_.quit()))
+    mainThreadExecutorService.shutdown()
     liquidity.testkit.TestKit.delete(filesDir)
     Await.result(binding.flatMap(_.unbind()), Duration.Inf)
     akka.testkit.TestKit.shutdownActorSystem(system)
@@ -210,7 +173,7 @@ class ServerConnectionSpec
     "will connect to the server and update the connection state as it does so" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
+      mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(AUTHENTICATING)
@@ -227,7 +190,7 @@ class ServerConnectionSpec
           assert(Authentication.isValidKeyOwnershipProof(keyOwnershipChallenge, keyOwnershipProof))
       }
       sub.requestNext(ONLINE)
-      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
+      mainThreadExecutorService.submit(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
@@ -263,7 +226,7 @@ class ServerConnectionSpec
       )
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(serverConnection.requestConnection(connectionRequestToken, retry = false))
+      mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(AUTHENTICATING)
@@ -280,7 +243,7 @@ class ServerConnectionSpec
           assert(Authentication.isValidKeyOwnershipProof(keyOwnershipChallenge, keyOwnershipProof))
       }
       sub.requestNext(ONLINE)
-      val response = sendCreateZoneCommand(createZoneCommand)
+      val response = serverConnection.sendCreateZoneCommand(createZoneCommand)
       inside(clientConnectionActorTestProbe.expectMsgType[proto.ws.protocol.ServerMessage].message) {
         case proto.ws.protocol.ServerMessage.Message.Command(protoCommand) =>
           assert(protoCommand.correlationId === 0L)
@@ -306,7 +269,7 @@ class ServerConnectionSpec
           sender = clientConnectionActorTestProbe.ref
         )
       assert(response.futureValue === createZoneResponse)
-      MainHandlerWrapper.post(serverConnection.unrequestConnection(connectionRequestToken))
+      mainThreadExecutorService.submit(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }

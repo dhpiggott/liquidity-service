@@ -32,7 +32,6 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
 
 import scala.collection.immutable.Seq
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future, Promise}
 
@@ -61,6 +60,8 @@ class LegacyServerConnectionSpec
     with BeforeAndAfterAll
     with ScalaFutures {
 
+  import ServerConnection.RichExecutor
+
   private[this] val akkaHttpPort = liquidity.testkit.TestKit.freePort()
 
   private[this] val config = ConfigFactory
@@ -77,6 +78,8 @@ class LegacyServerConnectionSpec
 
   private[this] implicit val system: ActorSystem    = ActorSystem("liquidity", config)
   private[this] implicit val mat: ActorMaterializer = ActorMaterializer()
+
+  import system.dispatcher
 
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
@@ -139,74 +142,45 @@ class LegacyServerConnectionSpec
 
   private[this] val filesDir = Files.createTempDirectory("liquidity-server-connection-spec-files-dir")
 
-  private[this] val keyStoreInputStreamProvider = {
-    val keyStoreInputStream = liquidity.testkit.TestKit.toInputStream(serverCertificate)
-    new KeyStoreInputStreamProvider {
-      override def get(): InputStream = keyStoreInputStream
-    }
-  }
-
-  private[this] val connectivityStatePublisherBuilder = new ConnectivityStatePublisherBuilder {
-    override def build(serverConnection: LegacyServerConnection): ConnectivityStatePublisher =
-      new ConnectivityStatePublisher {
-        override def isConnectionAvailable: Boolean = true
-        override def register(): Unit               = ()
-        override def unregister(): Unit             = ()
-      }
-  }
-
-  private[this] class HandlerWrapperImpl extends HandlerWrapper {
-
-    private[this] val executor = Executors.newSingleThreadExecutor()
-
-    override def post(runnable: Runnable): Unit = {
-      executor.submit(runnable); ()
-    }
-
-    override def quit(): Unit = executor.shutdown()
-
-  }
-
-  private[this] object MainHandlerWrapper extends HandlerWrapperImpl
-
-  private[this] var handlerWrappers = Seq[HandlerWrapper](MainHandlerWrapper)
-
-  private[this] val handlerWrapperFactory = new HandlerWrapperFactory {
-    override def create(name: String): HandlerWrapper = synchronized {
-      val handlerWrapper = new HandlerWrapperImpl
-      handlerWrappers = handlerWrapper +: handlerWrappers
-      handlerWrapper
-    }
-    override def main(): HandlerWrapper = MainHandlerWrapper
-  }
-
+  private[this] val mainThreadExecutorService = Executors.newSingleThreadExecutor()
   private[this] val serverConnection = new LegacyServerConnection(
     filesDir.toFile,
-    keyStoreInputStreamProvider,
-    connectivityStatePublisherBuilder,
-    handlerWrapperFactory,
+    keyStoreInputStreamProvider = {
+      val keyStoreInputStream = liquidity.testkit.TestKit.toInputStream(serverCertificate)
+      new KeyStoreInputStreamProvider {
+        override def get(): InputStream = keyStoreInputStream
+      }
+    },
+    connectivityStatePublisherProvider = new ConnectivityStatePublisherProvider {
+      override def provide(serverConnection: LegacyServerConnection): ConnectivityStatePublisher =
+        new ConnectivityStatePublisher {
+          override def isConnectionAvailable: Boolean = true
+          override def register(): Unit               = ()
+          override def unregister(): Unit             = ()
+        }
+    },
+    mainThreadExecutorService,
     hostname = "localhost",
     port = akkaHttpPort
   )
 
   private[this] def send(command: LegacyWsProtocol.Command): Future[LegacyWsProtocol.Response] = {
     val promise = Promise[LegacyWsProtocol.Response]
-    MainHandlerWrapper.post(
-      () =>
-        serverConnection.sendCommand(
-          command,
-          new ResponseCallback {
-            override def onErrorResponse(errorResponse: LegacyWsProtocol.ErrorResponse): Unit =
-              promise.success(errorResponse)
-            override def onSuccessResponse(successResponse: LegacyWsProtocol.SuccessResponse): Unit =
-              promise.success(successResponse)
-          }
+    mainThreadExecutorService.submit(
+      serverConnection.sendCommand(
+        command,
+        new ResponseCallback {
+          override def onErrorResponse(errorResponse: LegacyWsProtocol.ErrorResponse): Unit =
+            promise.success(errorResponse)
+          override def onSuccessResponse(successResponse: LegacyWsProtocol.SuccessResponse): Unit =
+            promise.success(successResponse)
+        }
       ))
     promise.future
   }
 
   override protected def afterAll(): Unit = {
-    handlerWrapperFactory.synchronized(handlerWrappers.foreach(_.quit()))
+    mainThreadExecutorService.shutdown()
     liquidity.testkit.TestKit.delete(filesDir)
     Await.result(binding.flatMap(_.unbind()), Duration.Inf)
     akka.testkit.TestKit.shutdownActorSystem(system)
@@ -240,7 +214,7 @@ class LegacyServerConnectionSpec
     "will connect to the server and update the connection state as it does so" in { sub =>
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
@@ -253,7 +227,7 @@ class LegacyServerConnectionSpec
           sender = clientConnectionActorTestProbe.ref
         )
       sub.requestNext(ONLINE)
-      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      mainThreadExecutorService.submit(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }
@@ -288,7 +262,7 @@ class LegacyServerConnectionSpec
       )
       val connectionRequestToken = new ConnectionRequestToken
       sub.requestNext(AVAILABLE)
-      MainHandlerWrapper.post(() => serverConnection.requestConnection(connectionRequestToken, retry = false))
+      mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
       clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
       sub.requestNext(WAITING_FOR_VERSION_CHECK)
@@ -314,7 +288,7 @@ class LegacyServerConnectionSpec
           sender = clientConnectionActorTestProbe.ref
         )
       assert(response.futureValue === createZoneResponse)
-      MainHandlerWrapper.post(() => serverConnection.unrequestConnection(connectionRequestToken))
+      mainThreadExecutorService.submit(serverConnection.unrequestConnection(connectionRequestToken))
       sub.requestNext(DISCONNECTING)
       sub.requestNext(AVAILABLE)
     }

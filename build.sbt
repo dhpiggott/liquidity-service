@@ -16,7 +16,7 @@ lazy val `proto-binding` = project
   .settings(
     libraryDependencies ++= Seq(
       "com.chuusai"   %% "shapeless" % "2.3.2",
-      "org.typelevel" %% "cats"      % "0.9.0"
+      "org.typelevel" %% "cats-core" % "0.9.0"
     ))
 
 lazy val model = project

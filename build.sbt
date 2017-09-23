@@ -15,9 +15,8 @@ lazy val `proto-binding` = project
   )
   .settings(
     libraryDependencies ++= Seq(
-      "com.chuusai"       %% "shapeless"  % "2.3.2",
-      "org.typelevel"     %% "cats"       % "0.9.0",
-      "com.typesafe.akka" %% "akka-actor" % "2.5.4"
+      "com.chuusai"   %% "shapeless" % "2.3.2",
+      "org.typelevel" %% "cats"      % "0.9.0"
     ))
 
 lazy val model = project
@@ -28,7 +27,10 @@ lazy val model = project
   )
   .dependsOn(`proto-binding`)
   .settings(
-    libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0"
+    libraryDependencies ++= Seq(
+      "com.squareup.okio" % "okio"        % "1.13.0",
+      "com.typesafe.akka" %% "akka-actor" % "2.5.4"
+    )
   )
 
 lazy val `ws-protocol` = project

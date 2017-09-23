@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.boardgame
 
 import java.util.Currency
+import java.util.concurrent.Executor
 
 import cats.data.Validated.{Invalid, Valid}
 import com.dhpcs.liquidity.boardgame.BoardGame._
@@ -9,8 +10,7 @@ import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol._
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 object BoardGame {
 
@@ -256,6 +256,11 @@ class BoardGame private (serverConnection: ServerConnection,
                          private[this] var gameId: Option[Future[Long]])
     extends ServerConnection.ConnectionStateListener
     with ServerConnection.NotificationReceiptListener {
+
+  private[this] implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(new Executor {
+    override def execute(runnable: Runnable): Unit =
+      serverConnection.handlerWrapperFactory.main().post(runnable)
+  })
 
   private[this] val connectionRequestToken = new ConnectionRequestToken
 

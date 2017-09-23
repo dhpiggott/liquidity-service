@@ -86,9 +86,9 @@ object CommonSettingsPlugin extends AutoPlugin {
     ),
     dependencyOverrides ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-      "org.scala-lang" % "scala-library"  % scalaVersion.value,
-      "org.scala-lang" % "scala-reflect"  % scalaVersion.value,
-      "org.scala-lang" % "scalap"         % scalaVersion.value
+      "org.scala-lang" % "scala-library" % scalaVersion.value,
+      "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+      "org.scala-lang" % "scalap" % scalaVersion.value
     )
   )
 

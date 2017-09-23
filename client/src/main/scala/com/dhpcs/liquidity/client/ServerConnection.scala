@@ -96,7 +96,7 @@ object ServerConnection {
 
 class ServerConnection(filesDir: File,
                        connectivityStatePublisherBuilder: ConnectivityStatePublisherBuilder,
-                       handlerWrapperFactory: HandlerWrapperFactory,
+                       val handlerWrapperFactory: HandlerWrapperFactory,
                        scheme: String,
                        hostname: String,
                        port: Int)

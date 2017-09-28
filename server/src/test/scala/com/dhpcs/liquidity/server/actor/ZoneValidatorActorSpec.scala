@@ -11,7 +11,7 @@ import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
-import com.dhpcs.liquidity.ws.protocol.AuthenticationSpec
+import com.dhpcs.liquidity.testkit.TestKit
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{FreeSpec, Inside}
@@ -27,7 +27,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
   )
 
   private[this] val remoteAddress = InetAddress.getLoopbackAddress
-  private[this] val publicKey     = PublicKey(AuthenticationSpec.rsaPublicKey.getEncoded)
+  private[this] val publicKey     = PublicKey(TestKit.rsaPublicKey.getEncoded)
 
   "A ZoneValidatorActor" - {
     "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in {

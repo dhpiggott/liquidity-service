@@ -1,23 +1,20 @@
 package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
-import java.security.KeyStore
-import java.security.cert.X509Certificate
 import java.time.Instant
-import javax.net.ssl._
 
 import akka.actor.{ActorRef, ActorSystem, CoordinatedShutdown, ExtendedActorSystem, PoisonPill, Scheduler}
 import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
+import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.Message
-import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.pattern.ask
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
-import akka.stream.{ActorMaterializer, Materializer, TLSClientAuth}
+import akka.stream.{ActorMaterializer, Materializer}
 import akka.typed.SupervisorStrategy
 import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.AskPattern._
@@ -36,7 +33,6 @@ import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.actor._
 import com.typesafe.config.ConfigFactory
 
-import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -55,44 +51,22 @@ object LiquidityServer {
     clusterHttpManagement.start()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseClusterExitingDone, "clusterHttpManagementStop")(() =>
       clusterHttpManagement.stop())
-    val keyStore = KeyStore.getInstance("PKCS12")
-    keyStore.load(
-      getClass.getClassLoader.getResourceAsStream("liquidity.dhpcs.com.keystore.p12"),
-      Array.emptyCharArray
-    )
-    val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
-    keyManagerFactory.init(
-      keyStore,
-      Array.emptyCharArray
-    )
     val server = new LiquidityServer(
       pingInterval = FiniteDuration(config.getDuration("liquidity.server.ping-interval", SECONDS), SECONDS),
-      keyManagers = keyManagerFactory.getKeyManagers,
-      httpsInterface = config.getString("liquidity.server.https.interface"),
-      httpsPort = config.getInt("liquidity.server.https.port"),
       httpInterface = config.getString("liquidity.server.http.interface"),
       httpPort = config.getInt("liquidity.server.http.port"),
       analyticsKeyspace = config.getString("liquidity.analytics.cassandra.keyspace")
     )
-    val httpBinding  = server.bindHttp()
-    val httpsBinding = server.bindHttps()
+    val httpBinding = server.bindHttp()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>
-      for {
-        _ <- httpsBinding.flatMap(_.unbind())
-        _ <- httpBinding.flatMap(_.unbind())
-      } yield Done)
+      for (_ <- httpBinding.flatMap(_.unbind())) yield Done)
   }
 }
 
-class LiquidityServer(pingInterval: FiniteDuration,
-                      keyManagers: Array[KeyManager],
-                      httpsInterface: String,
-                      httpsPort: Int,
-                      httpInterface: String,
-                      httpPort: Int,
-                      analyticsKeyspace: String)(implicit system: ActorSystem, mat: Materializer)
-    extends HttpController
-    with LegacyHttpsController {
+class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpPort: Int, analyticsKeyspace: String)(
+    implicit system: ActorSystem,
+    mat: Materializer)
+    extends HttpController {
 
   private[this] val readJournal =
     PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
@@ -152,50 +126,10 @@ class LiquidityServer(pingInterval: FiniteDuration,
     )
   }
 
-  private[this] val httpsConnectionContext = {
-    val sslContext = SSLContext.getInstance("TLS")
-    sslContext.init(
-      keyManagers,
-      Array(new X509TrustManager {
-        override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-        override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-        override def getAcceptedIssuers: Array[X509Certificate]                                = Array.empty
-      }),
-      null
-    )
-    ConnectionContext.https(
-      sslContext,
-      enabledCipherSuites = Some(
-        Seq(
-          // Recommended by https://typesafehub.github.io/ssl-config/CipherSuites.html#id4
-          "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
-          "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-          // For Android 4.1 (see https://www.ssllabs.com/ssltest/viewClient.html?name=Android&version=4.1.1)
-          "TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
-          "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
-        )),
-      enabledProtocols = Some(
-        Seq(
-          "TLSv1.2",
-          "TLSv1.1",
-          // For Android 4.1 (see https://www.ssllabs.com/ssltest/viewClient.html?name=Android&version=4.1.1)
-          "TLSv1"
-        )),
-      clientAuth = Some(TLSClientAuth.Want)
-    )
-  }
-
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
     httpRoutes(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
     httpInterface,
     httpPort
-  )
-
-  def bindHttps(): Future[Http.ServerBinding] = Http().bindAndHandle(
-    httpsRoutes(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
-    httpsInterface,
-    httpsPort,
-    httpsConnectionContext
   )
 
   override protected[this] def events(persistenceId: String,
@@ -237,11 +171,5 @@ class LiquidityServer(pingInterval: FiniteDuration,
 
   override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]] =
     futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId)(ec, system.asInstanceOf[ExtendedActorSystem]))
-
-  override protected[this] def legacyWebSocketApi(remoteAddress: InetAddress,
-                                                  publicKey: PublicKey): Flow[Message, Message, NotUsed] =
-    LegacyClientConnectionActor.webSocketFlow(
-      props = LegacyClientConnectionActor.props(remoteAddress, publicKey, zoneValidatorShardRegion, pingInterval)
-    )
 
 }

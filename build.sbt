@@ -43,17 +43,7 @@ lazy val `ws-protocol` = project
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
   .dependsOn(model)
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
-
-lazy val `ws-legacy-protocol` = project
-  .in(file("ws-legacy-protocol"))
-  .settings(noopPublishSetting)
-  .settings(
-    name := "liquidity-ws-legacy-protocol"
-  )
-  .dependsOn(model)
-  .settings(libraryDependencies += "com.dhpcs" %% "scala-json-rpc" % "2.0.0")
-  .dependsOn(`ws-protocol` % "test->test")
+  .dependsOn(testkit % Test)
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val `actor-protocol` = project
@@ -80,7 +70,6 @@ lazy val persistence = project
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
   .dependsOn(model)
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val testkit = project
   .in(file("testkit"))
@@ -88,7 +77,6 @@ lazy val testkit = project
   .settings(
     name := "liquidity-testkit"
   )
-  .settings(libraryDependencies += "org.bouncycastle" % "bcpkix-jdk15on" % "1.58")
 
 lazy val server = project
   .in(file("server"))
@@ -97,13 +85,13 @@ lazy val server = project
     name := "liquidity-server"
   )
   .dependsOn(`ws-protocol`)
-  .dependsOn(`ws-legacy-protocol`)
   .dependsOn(`actor-protocol`)
   .dependsOn(persistence)
   .settings(
     dependencyOverrides ++= Seq(
       "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
       "com.lihaoyi"                %% "fastparse"                   % "0.4.3",
+      "com.fasterxml.jackson.core" % "jackson-annotations"          % "2.8.9",
       "com.fasterxml.jackson.core" % "jackson-databind"             % "2.8.9",
       "com.github.jnr"             % "jnr-constants"                % "0.9.6",
       "com.github.jnr"             % "jnr-ffi"                      % "2.1.2",
@@ -141,7 +129,7 @@ lazy val server = project
     )
   )
   .dependsOn(`ws-protocol` % "test->test")
-  .dependsOn(testkit % "test")
+  .dependsOn(testkit % Test)
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest"       %% "scalatest"                 % "3.0.4"   % Test,
@@ -162,10 +150,6 @@ lazy val server = project
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
-    bashScriptExtraDefines ++= Seq(
-      "addJava -Djdk.tls.ephemeralDHKeySize=2048",
-      "addJava -Djdk.tls.rejectClientInitiatedRenegotiation=true"
-    ),
     dockerBaseImage := "openjdk:8-jre",
     daemonUser in Docker := "root"
   )
@@ -183,7 +167,7 @@ lazy val client = project
       "com.squareup.okhttp3"    % "okhttp" % "3.9.0"
     )
   )
-  .dependsOn(testkit % "test")
+  .dependsOn(testkit % Test)
   .dependsOn(server % "test->test")
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
@@ -194,19 +178,15 @@ lazy val healthcheck = project
     name := "liquidity-healthcheck"
   )
   .dependsOn(client)
-  .dependsOn(`ws-legacy-protocol`)
   .settings(
     dependencyOverrides ++= Seq(
-      "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
-      "com.typesafe.play"      %% "play-json" % "2.6.4"
+      "org.scala-lang.modules" %% "scala-xml" % "1.0.6"
     ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.4",
       "org.scalatest"     %% "scalatest"           % "3.0.4"
     )
   )
-  .dependsOn(testkit % "test")
-  .dependsOn(server % "test->test")
   .enablePlugins(JavaAppPackaging, UniversalPlugin)
 
 lazy val boardgame = project
@@ -228,7 +208,6 @@ lazy val root = project
     persistence,
     `actor-protocol`,
     `ws-protocol`,
-    `ws-legacy-protocol`,
     testkit,
     server,
     client,

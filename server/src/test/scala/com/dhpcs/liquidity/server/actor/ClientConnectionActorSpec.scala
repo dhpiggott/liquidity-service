@@ -12,6 +12,7 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
+import com.dhpcs.liquidity.testkit.TestKit
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.{Inside, Outcome, fixture}
 
@@ -19,7 +20,7 @@ import scala.concurrent.duration._
 
 class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures with Inside {
 
-  private[this] val publicKey = PublicKey(AuthenticationSpec.rsaPublicKey.getEncoded)
+  private[this] val publicKey = PublicKey(TestKit.rsaPublicKey.getEncoded)
 
   override protected type FixtureParam = (TestProbe, TestProbe, TestProbe, ActorRef)
 
@@ -59,11 +60,8 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
           keyOwnershipChallenge.value
       }
       sendMessage(sinkTestProbe, clientConnection)(
-        proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
-          Authentication
-            .createKeyOwnershipProof(AuthenticationSpec.rsaPublicKey,
-                                     AuthenticationSpec.rsaPrivateKey,
-                                     keyOwnershipChallenge))
+        proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(Authentication
+          .createKeyOwnershipProof(TestKit.rsaPublicKey, TestKit.rsaPrivateKey, keyOwnershipChallenge))
       )
       val createZoneCommand = CreateZoneCommand(
         equityOwnerPublicKey = publicKey,

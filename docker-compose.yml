@@ -34,7 +34,6 @@ services:
     build: server
     ports:
      - '80:80'
-     - '443:443'
     restart: always
     extra_hosts:
       - "client-relay-seed:127.0.0.1"

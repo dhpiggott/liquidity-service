@@ -1,6 +1,5 @@
 package com.dhpcs.liquidity.healthcheck
 
-import java.io.InputStream
 import java.nio.file.Files
 import java.util.concurrent.Executors
 
@@ -11,21 +10,16 @@ import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestKit
 import cats.data.Validated
-import com.dhpcs.liquidity.client.{LegacyServerConnection, ServerConnection}
+import com.dhpcs.liquidity.client.ServerConnection
 import com.dhpcs.liquidity.healthcheck.LiquidityHealthcheck._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol._
-import com.dhpcs.liquidity.ws.protocol.legacy.LegacyWsProtocol
 import okio.ByteString
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
 
-import scala.concurrent.{Future, Promise}
-
 object LiquidityHealthcheck {
-
-  private final val TrustStoreFilename = "liquidity.dhpcs.com.truststore.p12"
 
   private final val SentinelZone = Zone(
     id = ZoneId("4cdcdb95-5647-4d46-a2f9-a68e9294d00a"),
@@ -100,9 +94,7 @@ object LiquidityHealthcheck {
     new LiquidityHealthcheck(
       scheme = args.lift(0),
       hostname = args.lift(1),
-      port = args.lift(2).map(_.toInt),
-      legacyHostname = args.lift(3),
-      legacyPort = args.lift(4).map(_.toInt)
+      port = args.lift(2).map(_.toInt)
     ).execute(
       durations = true,
       stats = true
@@ -110,11 +102,7 @@ object LiquidityHealthcheck {
 
 }
 
-class LiquidityHealthcheck(scheme: Option[String],
-                           hostname: Option[String],
-                           port: Option[Int],
-                           legacyHostname: Option[String],
-                           legacyPort: Option[Int])
+class LiquidityHealthcheck(scheme: Option[String], hostname: Option[String], port: Option[Int])
     extends FreeSpec
     with ScalaFutures
     with Inside
@@ -140,44 +128,6 @@ class LiquidityHealthcheck(scheme: Option[String],
     hostname,
     port
   )
-  private[this] val legacyServerConnection = new LegacyServerConnection(
-    filesDir.toFile,
-    keyStoreInputStreamProvider = new LegacyServerConnection.KeyStoreInputStreamProvider {
-      override def get(): InputStream = getClass.getClassLoader.getResourceAsStream(TrustStoreFilename)
-    },
-    connectivityStatePublisherProvider = new LegacyServerConnection.ConnectivityStatePublisherProvider {
-      override def provide(
-          serverConnection: LegacyServerConnection): LegacyServerConnection.ConnectivityStatePublisher =
-        new LegacyServerConnection.ConnectivityStatePublisher {
-          override def isConnectionAvailable: Boolean = true
-          override def register(): Unit               = ()
-          override def unregister(): Unit             = ()
-        }
-    },
-    mainThreadExecutorService,
-    legacyHostname,
-    legacyPort
-  )
-
-  private[this] def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand): Future[ZoneResponse] =
-    serverConnection
-      .sendZoneCommand(
-        zoneId,
-        zoneCommand
-      )
-
-  private[this] def sendLegacyZoneCommand(command: LegacyWsProtocol.Command): Future[LegacyWsProtocol.Response] = {
-    val promise = Promise[LegacyWsProtocol.Response]
-    mainThreadExecutorService.submit(
-      legacyServerConnection.sendCommand(
-        command,
-        new LegacyServerConnection.ResponseCallback {
-          override def onErrorResponse(error: LegacyWsProtocol.ErrorResponse): Unit       = promise.success(error)
-          override def onSuccessResponse(success: LegacyWsProtocol.SuccessResponse): Unit = promise.success(success)
-        }
-      ))
-    promise.future
-  }
 
   private[this] implicit val system: ActorSystem    = ActorSystem("liquidity")
   private[this] implicit val mat: ActorMaterializer = ActorMaterializer()
@@ -210,25 +160,6 @@ class LiquidityHealthcheck(scheme: Option[String],
     }
   }
 
-  private[this] def withLegacyServerConnectionStateTestProbe(
-      test: TestSubscriber.Probe[LegacyServerConnection.ConnectionState] => Unit): Unit = {
-    val (queue, sub) = Source
-      .queue[LegacyServerConnection.ConnectionState](bufferSize = 0, overflowStrategy = OverflowStrategy.backpressure)
-      .toMat(TestSink.probe)(Keep.both)
-      .run()
-    val connectionStateListener = new LegacyServerConnection.ConnectionStateListener {
-      override def onConnectionStateChanged(connectionState: LegacyServerConnection.ConnectionState): Unit = {
-        queue.offer(connectionState); ()
-      }
-    }
-    legacyServerConnection.registerListener(connectionStateListener)
-    try test(sub)
-    finally {
-      legacyServerConnection.unregisterListener(connectionStateListener)
-      sub.cancel(); ()
-    }
-  }
-
   "The Protobuf service" - {
     "will accept connections" in withServerConnectionStateTestProbe { sub =>
       val connectionRequestToken = new ServerConnection.ConnectionRequestToken
@@ -252,7 +183,7 @@ class LiquidityHealthcheck(scheme: Option[String],
           .requestNext(ServerConnection.CONNECTING)
           .requestNext(ServerConnection.AUTHENTICATING)
           .requestNext(ServerConnection.ONLINE); ()
-        inside(sendZoneCommand(SentinelZone.id, JoinZoneCommand).futureValue) {
+        inside(serverConnection.sendZoneCommand(SentinelZone.id, JoinZoneCommand).futureValue) {
           case JoinZoneResponse(Validated.Valid((zone, connectedClients))) =>
             assert(zone === SentinelZone)
             assert(connectedClients.values.toSet === Set(serverConnection.clientKey))
@@ -262,40 +193,5 @@ class LiquidityHealthcheck(scheme: Option[String],
           .requestNext(ServerConnection.DISCONNECTING)
           .requestNext(ServerConnection.AVAILABLE); ()
       }
-  }
-  "The JSON-RPC service" - {
-    "will accept connections" in withLegacyServerConnectionStateTestProbe { sub =>
-      val connectionRequestToken = new LegacyServerConnection.ConnectionRequestToken
-      sub.requestNext(LegacyServerConnection.AVAILABLE); ()
-      mainThreadExecutorService.submit(legacyServerConnection.requestConnection(connectionRequestToken, retry = false))
-      sub
-        .requestNext(LegacyServerConnection.CONNECTING)
-        .requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
-        .requestNext(LegacyServerConnection.ONLINE); ()
-      mainThreadExecutorService.submit(legacyServerConnection.unrequestConnection(connectionRequestToken))
-      sub
-        .requestNext(LegacyServerConnection.DISCONNECTING)
-        .requestNext(LegacyServerConnection.AVAILABLE); ()
-    }
-    s"will admit joining the sentinel zone, ${SentinelZone.id} and recover the expected state" in withLegacyServerConnectionStateTestProbe {
-      sub =>
-        val connectionRequestToken = new LegacyServerConnection.ConnectionRequestToken
-        sub.requestNext(LegacyServerConnection.AVAILABLE); ()
-        mainThreadExecutorService.submit(
-          legacyServerConnection.requestConnection(connectionRequestToken, retry = false))
-        sub
-          .requestNext(LegacyServerConnection.CONNECTING)
-          .requestNext(LegacyServerConnection.WAITING_FOR_VERSION_CHECK)
-          .requestNext(LegacyServerConnection.ONLINE); ()
-        inside(sendLegacyZoneCommand(LegacyWsProtocol.JoinZoneCommand(SentinelZone.id)).futureValue) {
-          case LegacyWsProtocol.JoinZoneResponse(zone, connectedClients) =>
-            assert(zone === SentinelZone)
-            assert(connectedClients === Set(legacyServerConnection.clientKey))
-        }
-        mainThreadExecutorService.submit(legacyServerConnection.unrequestConnection(connectionRequestToken))
-        sub
-          .requestNext(LegacyServerConnection.DISCONNECTING)
-          .requestNext(LegacyServerConnection.AVAILABLE); ()
-    }
   }
 }

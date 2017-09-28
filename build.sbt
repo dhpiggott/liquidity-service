@@ -107,7 +107,7 @@ lazy val server = project
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.4.0",
       "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.6",
-      "com.typesafe.play"          %% "play-json"                   % "2.6.5"
+      "com.typesafe.play"          %% "play-json"                   % "2.6.6"
     ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.4",
@@ -124,8 +124,8 @@ lazy val server = project
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
       "com.typesafe.akka"      %% "akka-http"                    % "10.0.10",
       "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.2",
-      "com.typesafe.play"      %% "play-json"                    % "2.6.5",
-      "de.heikoseeberger"      %% "akka-http-play-json"          % "1.17.0"
+      "com.typesafe.play"      %% "play-json"                    % "2.6.6",
+      "de.heikoseeberger"      %% "akka-http-play-json"          % "1.18.0"
     )
   )
   .dependsOn(`ws-protocol` % "test->test")

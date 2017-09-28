@@ -29,7 +29,7 @@ object CommonSettingsPlugin extends AutoPlugin {
   )
 
   private lazy val scalafmtBuildSettings = Seq(
-    ScalafmtCorePlugin.autoImport.scalafmtVersion := "1.2.0"
+    ScalafmtCorePlugin.autoImport.scalafmtVersion := "1.3.0"
   )
 
   private lazy val scalaBuildSettings = Seq(

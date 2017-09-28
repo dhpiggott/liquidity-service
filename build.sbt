@@ -179,9 +179,6 @@ lazy val healthcheck = project
   )
   .dependsOn(client)
   .settings(
-    dependencyOverrides ++= Seq(
-      "org.scala-lang.modules" %% "scala-xml" % "1.0.6"
-    ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.4",
       "org.scalatest"     %% "scalatest"           % "3.0.4"

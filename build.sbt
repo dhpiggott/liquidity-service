@@ -29,7 +29,7 @@ lazy val model = project
   .settings(
     libraryDependencies ++= Seq(
       "com.squareup.okio" % "okio"        % "1.13.0",
-      "com.typesafe.akka" %% "akka-actor" % "2.5.4"
+      "com.typesafe.akka" %% "akka-actor" % "2.5.6"
     )
   )
 
@@ -57,7 +57,7 @@ lazy val `actor-protocol` = project
     PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
   )
   .dependsOn(`ws-protocol`)
-  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.4")
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.6")
 
 lazy val persistence = project
   .in(file("persistence"))
@@ -90,19 +90,20 @@ lazy val server = project
   .settings(
     dependencyOverrides ++= Seq(
       "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
-      "com.lihaoyi"                %% "fastparse"                   % "0.4.3",
+      "com.lihaoyi"                %% "fastparse"                   % "0.4.4",
       "com.fasterxml.jackson.core" % "jackson-annotations"          % "2.8.9",
       "com.fasterxml.jackson.core" % "jackson-databind"             % "2.8.9",
-      "com.github.jnr"             % "jnr-constants"                % "0.9.6",
-      "com.github.jnr"             % "jnr-ffi"                      % "2.1.2",
+      "com.github.jnr"             % "jnr-constants"                % "0.9.9",
+      "com.github.jnr"             % "jnr-ffi"                      % "2.1.6",
       "org.slf4j"                  % "slf4j-api"                    % "1.7.25",
-      "com.typesafe.akka"          %% "akka-actor"                  % "2.5.4",
-      "com.typesafe.akka"          %% "akka-cluster"                % "2.5.4",
-      "com.typesafe.akka"          %% "akka-cluster-sharding"       % "2.5.4",
-      "com.typesafe.akka"          %% "akka-stream"                 % "2.5.4",
-      "com.typesafe.akka"          %% "akka-stream-testkit"         % "2.5.4",
-      "com.typesafe.akka"          %% "akka-persistence"            % "2.5.4",
-      "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.4",
+      "com.typesafe.akka"          %% "akka-actor"                  % "2.5.6",
+      "com.typesafe.akka"          %% "akka-stream"                 % "2.5.6",
+      "com.typesafe.akka"          %% "akka-stream-testkit"         % "2.5.6",
+      "com.typesafe.akka"          %% "akka-cluster"                % "2.5.6",
+      "com.typesafe.akka"          %% "akka-cluster-sharding"       % "2.5.6",
+      "com.typesafe.akka"          %% "akka-cluster-tools"          % "2.5.6",
+      "com.typesafe.akka"          %% "akka-persistence"            % "2.5.6",
+      "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.6",
       "com.typesafe.akka"          %% "akka-http"                   % "10.0.10",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.4.0",
@@ -110,15 +111,15 @@ lazy val server = project
       "com.typesafe.play"          %% "play-json"                   % "2.6.6"
     ),
     libraryDependencies ++= Seq(
-      "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.4",
+      "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.6",
       "ch.qos.logback"         % "logback-classic"               % "1.2.3",
-      "com.typesafe.akka"      %% "akka-actor"                   % "2.5.4",
-      "com.typesafe.akka"      %% "akka-cluster"                 % "2.5.4",
+      "com.typesafe.akka"      %% "akka-actor"                   % "2.5.6",
+      "com.typesafe.akka"      %% "akka-cluster"                 % "2.5.6",
       "com.lightbend.akka"     %% "akka-management-cluster-http" % "0.4",
-      "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.4",
-      "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.4",
-      "com.typesafe.akka"      %% "akka-persistence"             % "2.5.4",
-      "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.4",
+      "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.6",
+      "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.6",
+      "com.typesafe.akka"      %% "akka-persistence"             % "2.5.6",
+      "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.6",
       "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.56",
       "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
       "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
@@ -134,14 +135,14 @@ lazy val server = project
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest"       %% "scalatest"                 % "3.0.4"   % Test,
     "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.10" % Test,
-    "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.4"   % Test
+    "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.6"   % Test
   ))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .settings(inConfig(MultiJvm)(scalafmtSettings))
   .dependsOn(testkit % MultiJvm)
   .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.4" % MultiJvm,
+    "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.6" % MultiJvm,
     "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.56"  % MultiJvm
   ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
@@ -180,7 +181,7 @@ lazy val healthcheck = project
   .dependsOn(client)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.4",
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.6",
       "org.scalatest"     %% "scalatest"           % "3.0.4"
     )
   )

@@ -12,7 +12,9 @@ class AuthenticationSpec extends FreeSpec {
     "will accept valid signatures" in {
       val keyOwnershipChallengeMessage = Authentication.createKeyOwnershipChallengeMessage()
       val keyOwnershipProofMessage =
-        Authentication.createKeyOwnershipProof(TestKit.rsaPublicKey, TestKit.rsaPrivateKey, keyOwnershipChallengeMessage)
+        Authentication.createKeyOwnershipProof(TestKit.rsaPublicKey,
+                                               TestKit.rsaPrivateKey,
+                                               keyOwnershipChallengeMessage)
       assert(Authentication.isValidKeyOwnershipProof(keyOwnershipChallengeMessage, keyOwnershipProofMessage))
     }
     "will reject invalid signatures" in {

@@ -4,7 +4,6 @@ import java.net.InetAddress
 import java.time.Instant
 
 import akka.actor.{ActorRef, ActorSystem, CoordinatedShutdown, ExtendedActorSystem, PoisonPill, Scheduler}
-import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
@@ -16,6 +15,7 @@ import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.typed.SupervisorStrategy
+import akka.typed.cluster.Cluster
 import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
@@ -47,7 +47,7 @@ object LiquidityServer {
     implicit val system: ActorSystem  = ActorSystem("liquidity")
     implicit val mat: Materializer    = ActorMaterializer()
     implicit val ec: ExecutionContext = ExecutionContext.global
-    val clusterHttpManagement         = ClusterHttpManagement(Cluster(system))
+    val clusterHttpManagement         = ClusterHttpManagement(akka.cluster.Cluster(system))
     clusterHttpManagement.start()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseClusterExitingDone, "clusterHttpManagementStop")(() =>
       clusterHttpManagement.stop())
@@ -76,7 +76,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   private[this] implicit val ec: ExecutionContext = system.dispatcher
 
   private[this] val zoneValidatorShardRegion =
-    if (Cluster(system).selfRoles.contains(ZoneHostRole))
+    if (Cluster(system.toTyped).selfMember.roles.contains(ZoneHostRole))
       ClusterSharding(system).start(
         typeName = ZoneValidatorActor.ShardTypeName,
         entityProps = ZoneValidatorActor.props,
@@ -102,7 +102,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   private[this] val futureAnalyticsStore =
     readJournal.session.underlying().flatMap(CassandraAnalyticsStore(analyticsKeyspace)(_, ec))
 
-  if (Cluster(system).selfRoles.contains(AnalyticsRole)) {
+  if (Cluster(system.toTyped).selfMember.roles.contains(AnalyticsRole)) {
     val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
       Console.err.println("Exiting due to stream failure")
       t.printStackTrace(Console.err)
@@ -127,7 +127,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   }
 
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
-    httpRoutes(enableClientRelay = Cluster(system).selfRoles.contains(ClientRelayRole)),
+    httpRoutes(enableClientRelay = Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole)),
     httpInterface,
     httpPort
   )

@@ -6,7 +6,6 @@ import java.time.temporal.ChronoUnit
 
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.cluster.Cluster
 import akka.cluster.MemberStatus.Up
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, WebSocketRequest, Message => WsMessage}
@@ -16,7 +15,9 @@ import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbac
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
+import akka.typed.scaladsl.adapter._
 import akka.stream.{ActorMaterializer, Materializer}
+import akka.typed.cluster.{Cluster, Join, JoinSeedNodes}
 import akka.util.ByteString
 import cats.data.Validated
 import com.dhpcs.liquidity.model.ProtoBindings._
@@ -30,6 +31,7 @@ import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{BeforeAndAfterAll, FreeSpecLike, Inside}
 
+import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext}
 
@@ -150,14 +152,14 @@ sealed abstract class LiquidityServerSpec
 
   "The test nodes" - (
     "will form a cluster" in {
-      val cluster            = Cluster(system)
+      val cluster            = Cluster(system.toTyped)
       val zoneHostAddress    = node(zoneHostNode).address
       val clientRelayAddress = node(clientRelayNode).address
       runOn(zoneHostNode)(
-        cluster.join(zoneHostAddress)
+        cluster.manager ! JoinSeedNodes(Seq(zoneHostAddress))
       )
       runOn(clientRelayNode)(
-        cluster.join(zoneHostAddress)
+        cluster.manager ! Join(zoneHostAddress)
       )
       runOn(zoneHostNode, clientRelayNode)(
         awaitCond(

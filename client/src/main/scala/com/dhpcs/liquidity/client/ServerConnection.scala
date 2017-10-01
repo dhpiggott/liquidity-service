@@ -293,7 +293,7 @@ class ServerConnection(filesDir: File,
               case _: ConnectingSubState =>
                 throw new IllegalStateException("Not connected")
               case _: AuthenticatingSubState | _: OnlineSubState =>
-                activeState.executorService.submit(protoCommand.command match {
+                protoCommand.command match {
                   case proto.ws.protocol.ClientMessage.Command.Command.Empty =>
                   case proto.ws.protocol.ClientMessage.Command.Command.PingCommand(_) =>
                     sendServerMessage(
@@ -306,7 +306,7 @@ class ServerConnection(filesDir: File,
                           )
                         ))
                     )
-                })
+                }
               case DisconnectingSubState =>
             })
           case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
@@ -316,11 +316,8 @@ class ServerConnection(filesDir: File,
               case _: AuthenticatingSubState =>
                 throw new IllegalStateException("Authenticating")
               case _: OnlineSubState =>
-                activeState.executorService.submit(pendingRequests.get(protoResponse.correlationId) match {
-                  case None =>
-                    throw new IllegalStateException(
-                      s"No pending request exists with correlationId=${protoResponse.correlationId}")
-                  case Some(promise) =>
+                pendingRequests.get(protoResponse.correlationId).foreach {
+                  promise =>
                     pendingRequests = pendingRequests - protoResponse.correlationId
                     protoResponse.response match {
                       case proto.ws.protocol.ClientMessage.Response.Response.Empty =>
@@ -331,7 +328,7 @@ class ServerConnection(filesDir: File,
                             .asScala(protoZoneResponse.zoneResponse)(())
                         promise.success(zoneResponse); ()
                     }
-                })
+                }
               case DisconnectingSubState =>
             })
           case proto.ws.protocol.ClientMessage.Message.Notification(protoNotification) =>
@@ -351,11 +348,10 @@ class ServerConnection(filesDir: File,
                   case _: AuthenticatingSubState =>
                     throw new IllegalStateException("Authenticating")
                   case _: OnlineSubState =>
-                    activeState.executorService.submit(
-                      mainThreadExecutor.submit(
-                        notificationReceiptListeners.foreach(
-                          _.onZoneNotificationReceived(ZoneId(zoneId), zoneNotification)
-                        )))
+                    mainThreadExecutor.submit(
+                      notificationReceiptListeners.foreach(
+                        _.onZoneNotificationReceived(ZoneId(zoneId), zoneNotification)
+                      ))
                   case DisconnectingSubState =>
                 }
             })

@@ -5,7 +5,7 @@ import java.net.InetAddress
 import akka.actor.ActorRef
 import akka.testkit.TestProbe
 import cats.data.Validated
-import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
+import com.dhpcs.liquidity.actor.protocol.clientconnection.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
@@ -13,6 +13,7 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.testkit.TestKit
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalatest.{Inside, Outcome, fixture}
 
@@ -77,17 +78,17 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
         zoneValidatorShardRegionTestProbe.expectMsgType[ZoneCommandEnvelope]
       assert(zoneCommandEnvelope.publicKey === publicKey)
       assert(zoneCommandEnvelope.correlationId === correlationId)
-      assert(zoneCommandEnvelope.sequenceNumber === 1L)
-      assert(zoneCommandEnvelope.deliveryId === 1L)
       val zoneId = zoneCommandEnvelope.zoneId
       val result = CreateZoneResponse({
-        val created = System.currentTimeMillis
+        val created              = System.currentTimeMillis
+        val equityAccountId      = AccountId(0.toString)
+        val equityAccountOwnerId = MemberId(0.toString)
         Validated.valid(
           Zone(
             id = zoneId,
-            equityAccountId = AccountId("0"),
-            members = Map(MemberId("0")   -> Member(MemberId("0"), Set(publicKey), name = Some("Dave"))),
-            accounts = Map(AccountId("0") -> Account(AccountId("0"), ownerMemberIds = Set(MemberId("0")))),
+            equityAccountId,
+            members = Map(equityAccountOwnerId -> Member(equityAccountOwnerId, Set(publicKey), name = Some("Dave"))),
+            accounts = Map(equityAccountId     -> Account(equityAccountId, ownerMemberIds = Set(equityAccountOwnerId))),
             transactions = Map.empty,
             created = created,
             expires = created + 2.days.toMillis,
@@ -97,7 +98,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        ZoneResponseEnvelope(correlationId, sequenceNumber = 1L, deliveryId = 1L, result)
+        ZoneResponseEnvelope(correlationId, result)
       )
       assert(expectZoneResponse(upstreamTestProbe) === result)
     }

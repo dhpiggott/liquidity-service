@@ -6,6 +6,7 @@ import shapeless._
 
 import scala.reflect.ClassTag
 
+// TODO: Only derive root instances once
 object ProtoBinding extends LowPriorityImplicits {
 
   def instance[S, P, C](apply: S => P, unapply: (P, C) => S): ProtoBinding[S, P, C] =

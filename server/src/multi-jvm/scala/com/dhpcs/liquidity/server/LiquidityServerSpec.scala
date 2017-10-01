@@ -180,38 +180,7 @@ sealed abstract class LiquidityServerSpec
               .PingCommand(com.google.protobuf.ByteString.EMPTY))
         ); ()
       }
-      "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in withProtobufWsTestProbes {
-        (sub, pub) =>
-          val correlationId = 0L
-          sendProtobufCreateZoneCommand(pub)(
-            CreateZoneCommand(
-              equityOwnerPublicKey = PublicKey(TestKit.rsaPublicKey.getEncoded),
-              equityOwnerName = Some("Dave"),
-              equityOwnerMetadata = None,
-              equityAccountName = None,
-              equityAccountMetadata = None,
-              name = Some("Dave's Game")
-            ),
-            correlationId
-          )
-          inside(expectProtobufZoneResponse(sub, correlationId)) {
-            case CreateZoneResponse(Validated.Valid(zone)) =>
-              assert(zone.equityAccountId === AccountId("0"))
-              assert(
-                zone.members(MemberId("0")) === Member(MemberId("0"),
-                                                       Set(PublicKey(TestKit.rsaPublicKey.getEncoded)),
-                                                       name = Some("Dave")))
-              assert(zone.accounts(AccountId("0")) === Account(AccountId("0"), ownerMemberIds = Set(MemberId("0"))))
-              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
-              assert(
-                zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
-              assert(zone.transactions === Map.empty)
-              assert(zone.name === Some("Dave's Game"))
-              assert(zone.metadata === None)
-          }; ()
-      }
       "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withProtobufWsTestProbes { (sub, pub) =>
-        val correlationId = 0L
         sendProtobufCreateZoneCommand(pub)(
           CreateZoneCommand(
             equityOwnerPublicKey = PublicKey(TestKit.rsaPublicKey.getEncoded),
@@ -221,16 +190,19 @@ sealed abstract class LiquidityServerSpec
             equityAccountMetadata = None,
             name = Some("Dave's Game")
           ),
-          correlationId
+          correlationId = 0L
         )
-        inside(expectProtobufZoneResponse(sub, correlationId)) {
+        inside(expectProtobufZoneResponse(sub, expectedCorrelationId = 0L)) {
           case CreateZoneResponse(Validated.Valid(zone)) =>
-            assert(zone.equityAccountId === AccountId("0"))
+            assert(zone.accounts.size === 1)
+            assert(zone.members.size === 1)
+            val equityAccount      = zone.accounts(zone.equityAccountId)
+            val equityAccountOwner = zone.members(equityAccount.ownerMemberIds.head)
+            assert(equityAccount === Account(equityAccount.id, ownerMemberIds = Set(equityAccountOwner.id)))
             assert(
-              zone.members(MemberId("0")) === Member(MemberId("0"),
-                                                     Set(PublicKey(TestKit.rsaPublicKey.getEncoded)),
-                                                     name = Some("Dave")))
-            assert(zone.accounts(AccountId("0")) === Account(AccountId("0"), ownerMemberIds = Set(MemberId("0"))))
+              equityAccountOwner === Member(equityAccountOwner.id,
+                                            Set(PublicKey(TestKit.rsaPublicKey.getEncoded)),
+                                            name = Some("Dave")))
             assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
             assert(
               zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
@@ -240,9 +212,9 @@ sealed abstract class LiquidityServerSpec
             sendProtobufZoneCommand(pub)(
               zone.id,
               JoinZoneCommand,
-              correlationId
+              correlationId = 1L
             )
-            inside(expectProtobufZoneResponse(sub, correlationId)) {
+            inside(expectProtobufZoneResponse(sub, expectedCorrelationId = 1L)) {
               case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
                 val (_zone, _connectedClients) = zoneAndConnectedClients
                 assert(_zone === zone)

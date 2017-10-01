@@ -1,7 +1,5 @@
 package com.dhpcs.liquidity.model
 
-import java.util.UUID
-
 import akka.actor.ActorRef
 import okio.ByteString
 
@@ -48,8 +46,6 @@ object ZoneId {
 
   def fromPersistenceId(persistenceId: String): ZoneId =
     ZoneId(persistenceId.stripPrefix(PersistenceIdPrefix))
-
-  def generate: ZoneId = ZoneId(UUID.randomUUID.toString)
 
 }
 

@@ -5,6 +5,7 @@ import java.security.KeyFactory
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
+import java.util.UUID
 
 import akka.actor._
 import akka.cluster.pubsub.DistributedPubSub
@@ -22,7 +23,8 @@ import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.instances.option._
 import cats.instances.set._
 import cats.syntax.cartesian._
-import com.dhpcs.liquidity.actor.protocol.clientconnection._
+import cats.syntax.validated._
+import com.dhpcs.liquidity.actor.protocol.clientconnection.{ZoneNotificationEnvelope, ZoneResponseEnvelope}
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
@@ -47,8 +49,8 @@ object ZoneValidatorActor {
   private final val NumberOfShards = 10
 
   val extractShardId: ShardRegion.ExtractShardId = {
-    case GetZoneStateCommand(zoneId)                   => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
-    case ZoneCommandEnvelope(zoneId, _, _, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
+    case GetZoneStateCommand(zoneId)             => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
+    case ZoneCommandEnvelope(zoneId, _, _, _, _) => (math.abs(zoneId.id.hashCode) % NumberOfShards).toString
   }
 
   private case object PublishStatusTimerKey
@@ -78,7 +80,7 @@ object ZoneValidatorActor {
     else
       publicKeys
         .map(validatePublicKey)
-        .foldLeft(Validated.valid[NonEmptyList[ZoneResponse.Error], Set[PublicKey]](Set.empty))(
+        .foldLeft(Set.empty[PublicKey].valid[NonEmptyList[ZoneResponse.Error]])(
           (validatedPublicKeys, validatedPublicKey) => validatedPublicKeys.combine(validatedPublicKey.map(Set(_))))
   }
 
@@ -93,7 +95,7 @@ object ZoneValidatorActor {
     else
       memberIds
         .map(validateMemberId)
-        .foldLeft(Validated.valid[NonEmptyList[ZoneResponse.Error], Set[MemberId]](Set.empty))(
+        .foldLeft(Set.empty[MemberId].valid[NonEmptyList[ZoneResponse.Error]])(
           (validatedMemberIds, validatedMemberId) => validatedMemberIds.combine(validatedMemberId.map(Set(_))))
   }
 
@@ -199,7 +201,8 @@ object ZoneValidatorActor {
         Validated.valid(metadata)
     }
 
-  private def update(passivationCountdownActor: ActorRef,
+  private def update(context: ActorContext,
+                     passivationCountdownActor: ActorRef,
                      state: ZoneState,
                      eventEnvelope: ZoneEventEnvelope): ZoneState =
     eventEnvelope.zoneEvent match {
@@ -215,6 +218,7 @@ object ZoneValidatorActor {
           case None =>
             state
           case Some((publicKey, clientConnectionActorRef)) =>
+            context.watch(clientConnectionActorRef)
             if (state.connectedClients.isEmpty) passivationCountdownActor ! PassivationCountdownActor.Stop
             val updatedClientConnections = state.connectedClients + (clientConnectionActorRef -> publicKey)
             state.copy(
@@ -228,6 +232,7 @@ object ZoneValidatorActor {
           case Some(clientConnectionActorRef) =>
             val updatedClientConnections = state.connectedClients - clientConnectionActorRef
             if (updatedClientConnections.isEmpty) passivationCountdownActor ! PassivationCountdownActor.Start
+            context.unwatch(clientConnectionActorRef)
             state.copy(
               connectedClients = updatedClientConnections
             )
@@ -307,10 +312,12 @@ object ZoneValidatorActor {
   }
 }
 
-class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastOnceDelivery with Timers {
+// TODO: Convert to an akka-typed behaviour
+// (see https://github.com/akka/akka/pull/23674/files and https://github.com/akka/akka/pull/23700/files)
+class ZoneValidatorActor extends PersistentActor with ActorLogging with Timers {
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
-  // TODO: Eliminate when AtLeastOnceDelivery is removed?
+  // TODO: Eliminate now that AtLeastOnceDelivery is removed?
   private[this] val passivationCountdownActor = context.spawn(
     akka.typed.scaladsl.Actor
       .supervise(PassivationCountdownActor.behaviour(self))
@@ -321,9 +328,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
   private[this] val id    = ZoneId.fromPersistenceId(self.path.name)
   private[this] var state = ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty)
 
-  private[this] var nextExpectedCommandSequenceNumbers = Map.empty[ActorRef, Long].withDefaultValue(1L)
-  private[this] var messageSequenceNumbers             = Map.empty[ActorRef, Long].withDefaultValue(1L)
-  private[this] var pendingDeliveries                  = Map.empty[ActorRef, Set[Long]].withDefaultValue(Set.empty)
+  private[this] var notificationSequenceNumbers = Map.empty[ActorRef, Long]
 
   timers.startPeriodicTimer(PublishStatusTimerKey, PublishStatusTick, 30.seconds)
 
@@ -344,7 +349,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       state = zoneState
 
     case eventEnvelope: ZoneEventEnvelope =>
-      state = update(passivationCountdownActor.toUntyped, state, eventEnvelope)
+      state = update(context, passivationCountdownActor.toUntyped, state, eventEnvelope)
   }
 
   override def receiveCommand: Receive = {
@@ -373,40 +378,24 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       deleteSnapshots(SnapshotSelectionCriteria(maxSequenceNr = metadata.sequenceNr - 1))
 
     case GetZoneStateCommand(_) =>
-      sender() ! GetZoneStateResponse(state)
+      sender() ! state
 
-    case ZoneCommandEnvelope(_, remoteAddress, publicKey, correlationId, sequenceNumber, deliveryId, command) =>
+    case ZoneCommandEnvelope(_, remoteAddress, publicKey, correlationId, command) =>
       passivationCountdownActor ! PassivationCountdownActor.CommandReceivedEvent
-      context.watch(sender())
-      val nextExpectedCommandSequenceNumber = nextExpectedCommandSequenceNumbers(sender())
-      if (sequenceNumber <= nextExpectedCommandSequenceNumber)
-        sender() ! ZoneCommandReceivedConfirmation(id, deliveryId)
-      if (sequenceNumber == nextExpectedCommandSequenceNumber) {
-        nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers + (sender() -> (sequenceNumber + 1))
-        handleCommand(remoteAddress, publicKey, correlationId, command)
-      }
-
-    case MessageReceivedConfirmation(deliveryId) =>
-      confirmDelivery(deliveryId)
-      pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(sender()) - deliveryId))
-      if (pendingDeliveries(sender()).isEmpty)
-        pendingDeliveries = pendingDeliveries - sender()
+      handleCommand(remoteAddress, publicKey, correlationId, command)
 
     case Terminated(clientConnection) =>
       state.connectedClients
         .get(clientConnection)
-        .foreach(
-          publicKey =>
-            acceptCommand(
-              InetAddress.getLoopbackAddress,
-              publicKey,
-              ClientQuitEvent(Some(sender())),
-              correlationId = -1
-          ))
-      nextExpectedCommandSequenceNumbers = nextExpectedCommandSequenceNumbers - clientConnection
-      messageSequenceNumbers = messageSequenceNumbers - clientConnection
-      pendingDeliveries(clientConnection).foreach(confirmDelivery)
-      pendingDeliveries = pendingDeliveries - clientConnection
+        .foreach { publicKey =>
+          notificationSequenceNumbers -= clientConnection
+          acceptCommand(
+            InetAddress.getLoopbackAddress,
+            publicKey,
+            ClientQuitEvent(Some(sender())),
+            correlationId = -1
+          )
+        }
   }
 
   private[this] def handleCommand(remoteAddress: InetAddress,
@@ -425,40 +414,39 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
           name,
           metadata
           ) =>
-        state.zone match {
-          case Some(_) =>
-            val sequenceNumber = messageSequenceNumbers(sender())
-            messageSequenceNumbers = messageSequenceNumbers + (sender() -> (sequenceNumber + 1))
-            deliver(sender().path) { deliveryId =>
-              pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(sender()) + deliveryId))
-              CreateZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneAlreadyExists))
-            }
-          case None =>
-            val validatedParams = {
-              val validatedEquityOwnerName       = validateTag(equityOwnerName)
-              val validatedEquityOwnerMetadata   = validateMetadata(equityOwnerMetadata)
-              val validatedEquityAccountName     = validateTag(equityAccountName)
-              val validatedEquityAccountMetadata = validateMetadata(equityAccountMetadata)
-              val validatedName                  = validateTag(name)
-              val validatedMetadata              = validateMetadata(metadata)
-              (validatedEquityOwnerName |@| validatedEquityOwnerMetadata |@| validatedEquityAccountName |@|
-                validatedEquityAccountMetadata |@| validatedName |@| validatedMetadata).tupled
-            }
-            validatedParams match {
-              case Invalid(errors) =>
+        val validatedEquityOwnerName = validateTag(equityOwnerName)
+        val validatedParams = {
+          val validatedEquityOwnerMetadata   = validateMetadata(equityOwnerMetadata)
+          val validatedEquityAccountName     = validateTag(equityAccountName)
+          val validatedEquityAccountMetadata = validateMetadata(equityAccountMetadata)
+          val validatedName                  = validateTag(name)
+          val validatedMetadata              = validateMetadata(metadata)
+          (validatedEquityOwnerName |@| validatedEquityOwnerMetadata |@| validatedEquityAccountName |@|
+            validatedEquityAccountMetadata |@| validatedName |@| validatedMetadata).tupled
+        }
+        validatedParams match {
+          case Invalid(errors) =>
+            deliverResponse(
+              CreateZoneResponse(Validated.invalid(errors)),
+              correlationId
+            )
+          case Valid(_) =>
+            state.zone match {
+              case Some(zone) =>
+                // We already accepted the command; this was just a redelivery
                 deliverResponse(
-                  CreateZoneResponse(Validated.invalid(errors)),
+                  CreateZoneResponse(zone.valid),
                   correlationId
                 )
-              case Valid(_) =>
+              case None =>
                 val equityOwner = Member(
-                  MemberId(0.toString),
+                  MemberId(UUID.randomUUID.toString),
                   Set(equityOwnerPublicKey),
                   equityOwnerName,
                   equityOwnerMetadata
                 )
                 val equityAccount = Account(
-                  AccountId(0.toString),
+                  AccountId(UUID.randomUUID.toString),
                   Set(equityOwner.id),
                   equityAccountName,
                   equityAccountMetadata
@@ -468,12 +456,8 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                 val zone = Zone(
                   id,
                   equityAccount.id,
-                  Map(
-                    equityOwner.id -> equityOwner
-                  ),
-                  Map(
-                    equityAccount.id -> equityAccount
-                  ),
+                  Map(equityOwner.id   -> equityOwner),
+                  Map(equityAccount.id -> equityAccount),
                   Map.empty,
                   created,
                   expires,
@@ -496,13 +480,18 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
-          case Some(_) =>
+          case Some(zone) =>
             if (state.connectedClients.contains(sender()))
+              // We already accepted the command; this was just a redelivery
               deliverResponse(
-                JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneAlreadyJoined)),
+                JoinZoneResponse((zone, state.connectedClients.map {
+                  case (clientConnectionActorRef, _publicKey) =>
+                    Serialization.serializedActorPath(clientConnectionActorRef) -> _publicKey
+                }).valid),
                 correlationId
               )
             else {
+              notificationSequenceNumbers += sender() -> 0
               acceptCommand(
                 remoteAddress,
                 publicKey,
@@ -521,11 +510,13 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
             )
           case Some(_) =>
             if (!state.connectedClients.contains(sender()))
+              // We already accepted the command; this was just a redelivery
               deliverResponse(
-                QuitZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneNotJoined)),
+                QuitZoneResponse(().valid),
                 correlationId
               )
             else {
+              notificationSequenceNumbers -= sender()
               acceptCommand(
                 remoteAddress,
                 publicKey,
@@ -542,7 +533,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               ChangeZoneNameResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)),
               correlationId
             )
-          case Some(_) =>
+          case Some(zone) =>
             val validatedParams = validateTag(name)
             validatedParams match {
               case Invalid(errors) =>
@@ -553,12 +544,20 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   correlationId
                 )
               case Valid(_) =>
-                acceptCommand(
-                  remoteAddress,
-                  publicKey,
-                  ZoneNameChangedEvent(name),
-                  correlationId
-                )
+                // We probably already accepted the command and this was just a redelivery. In any case, we don't need
+                // to persist anything.
+                if (zone.name == name)
+                  deliverResponse(
+                    ChangeZoneNameResponse(().valid),
+                    correlationId
+                  )
+                else
+                  acceptCommand(
+                    remoteAddress,
+                    publicKey,
+                    ZoneNameChangedEvent(name),
+                    correlationId
+                  )
             }
         }
 
@@ -570,9 +569,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
+            val memberId = MemberId(zone.members.size.toString)
             val validatedParams = {
-              val validatedMemberId =
-                Validated.valid[NonEmptyList[ZoneResponse.Error], MemberId](MemberId(zone.members.size.toString))
+              val validatedMemberId        = memberId.valid[NonEmptyList[ZoneResponse.Error]]
               val validatedOwnerPublicKeys = validatePublicKeys(ownerPublicKeys)
               val validatedName            = validateTag(name)
               val validatedMetadata        = validateMetadata(metadata)
@@ -587,11 +586,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   correlationId
                 )
               case Valid(params) =>
-                val member = Member.tupled(params)
                 acceptCommand(
                   remoteAddress,
                   publicKey,
-                  MemberCreatedEvent(member),
+                  MemberCreatedEvent(Member.tupled(params)),
                   correlationId
                 )
             }
@@ -620,12 +618,20 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   correlationId
                 )
               case Valid(_) =>
-                acceptCommand(
-                  remoteAddress,
-                  publicKey,
-                  MemberUpdatedEvent(member),
-                  correlationId
-                )
+                if (member == zone.members(member.id))
+                  // We probably already accepted the command and this was just a redelivery. In any case, we don't
+                  // need to persist anything.
+                  deliverResponse(
+                    UpdateMemberResponse(().valid),
+                    correlationId
+                  )
+                else
+                  acceptCommand(
+                    remoteAddress,
+                    publicKey,
+                    MemberUpdatedEvent(member),
+                    correlationId
+                  )
             }
         }
 
@@ -637,9 +643,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
+            val accountId = AccountId(zone.accounts.size.toString)
             val validatedParams = {
-              val validatedAccountId =
-                Validated.valid[NonEmptyList[ZoneResponse.Error], AccountId](AccountId(zone.accounts.size.toString))
+              val validatedAccountId      = accountId.valid[NonEmptyList[ZoneResponse.Error]]
               val validatedOwnerMemberIds = validateMemberIds(zone, owners)
               val validatedTag            = validateTag(name)
               val validatedMetadata       = validateMetadata(metadata)
@@ -654,11 +660,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   correlationId
                 )
               case Valid(params) =>
-                val account = Account.tupled(params)
                 acceptCommand(
                   remoteAddress,
                   publicKey,
-                  AccountCreatedEvent(account),
+                  AccountCreatedEvent(Account.tupled(params)),
                   correlationId
                 )
             }
@@ -687,12 +692,20 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   correlationId
                 )
               case Valid(_) =>
-                acceptCommand(
-                  remoteAddress,
-                  publicKey,
-                  AccountUpdatedEvent(Some(actingAs), account),
-                  correlationId
-                )
+                if (account == zone.accounts(account.id))
+                  // We probably already accepted the command and this was just a redelivery. In any case, we don't
+                  // need to persist anything.
+                  deliverResponse(
+                    UpdateAccountResponse(().valid),
+                    correlationId
+                  )
+                else
+                  acceptCommand(
+                    remoteAddress,
+                    publicKey,
+                    AccountUpdatedEvent(Some(actingAs), account),
+                    correlationId
+                  )
             }
         }
 
@@ -704,6 +717,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
               correlationId
             )
           case Some(zone) =>
+            val transactionId = TransactionId(zone.transactions.size.toString)
             val validatedParams = validateCanDebitAccount(zone, publicKey, actingAs, from)
               .andThen { _ =>
                 val validatedFromAndTo   = validateFromAndTo(from, to, zone)
@@ -711,18 +725,9 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                 val validatedMetadata    = validateMetadata(metadata)
                 (validatedFromAndTo |@| validatedDescription |@| validatedMetadata).tupled
               }
-              .andThen(
-                _ =>
-                  validateValue(from, value, zone, state.balances)
-                    .map(
-                      (TransactionId(zone.transactions.size.toString),
-                       from,
-                       to,
-                       _,
-                       actingAs,
-                       System.currentTimeMillis,
-                       description,
-                       metadata)))
+              .andThen(_ =>
+                validateValue(from, value, zone, state.balances)
+                  .map((transactionId, from, to, _, actingAs, System.currentTimeMillis, description, metadata)))
             validatedParams match {
               case Invalid(errors) =>
                 deliverResponse(
@@ -730,11 +735,10 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
                   correlationId
                 )
               case Valid(params) =>
-                val transaction = Transaction.tupled(params)
                 acceptCommand(
                   remoteAddress,
                   publicKey,
-                  TransactionAddedEvent(transaction),
+                  TransactionAddedEvent(Transaction.tupled(params)),
                   correlationId
                 )
             }
@@ -752,7 +756,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
         timestamp = Instant.now(),
         event
       )) { zoneEventEnvelope =>
-      state = update(passivationCountdownActor.toUntyped, state, zoneEventEnvelope)
+      state = update(context, passivationCountdownActor.toUntyped, state, zoneEventEnvelope)
       if (lastSequenceNr % SnapShotInterval == 0 && lastSequenceNr != 0)
         saveSnapshot(ZoneSnapshot(state))
       val response = event match {
@@ -816,28 +820,18 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with AtLeastO
       self ! PublishStatusTick
     }
 
-  private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit = {
-    val sequenceNumber = messageSequenceNumbers(sender())
-    messageSequenceNumbers = messageSequenceNumbers + (sender() -> (sequenceNumber + 1))
-    deliver(sender().path) { deliveryId =>
-      pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(sender()) + deliveryId))
-      ZoneResponseEnvelope(
-        correlationId,
-        sequenceNumber,
-        deliveryId,
-        response
-      )
-    }
-  }
+  private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit =
+    sender() ! ZoneResponseEnvelope(
+      correlationId,
+      response
+    )
 
   private[this] def deliverNotification(notification: ZoneNotification): Unit =
     state.connectedClients.keys.foreach { clientConnection =>
-      val sequenceNumber = messageSequenceNumbers(clientConnection)
-      messageSequenceNumbers = messageSequenceNumbers + (clientConnection -> (sequenceNumber + 1))
-      deliver(clientConnection.path) { deliveryId =>
-        pendingDeliveries = pendingDeliveries + (sender() -> (pendingDeliveries(clientConnection) + deliveryId))
-        ZoneNotificationEnvelope(id, sequenceNumber, deliveryId, notification)
-      }
+      val sequenceNumber = notificationSequenceNumbers(clientConnection)
+      clientConnection ! ZoneNotificationEnvelope(id, sequenceNumber, notification)
+      val nextSequenceNumber = sequenceNumber + 1
+      notificationSequenceNumbers += clientConnection -> nextSequenceNumber
     }
 
 }

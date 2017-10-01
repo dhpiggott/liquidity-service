@@ -4,6 +4,15 @@ package dhpcs.liquidity.actor.protocol.clientconnection;
 
 option java_package = "com.dhpcs.liquidity.proto.actor.protocol.clientconnection";
 
-message MessageReceivedConfirmation {
-    int64 delivery_id = 1;
+import "dhpcs/liquidity/ws-protocol.proto";
+
+message ZoneResponseEnvelope {
+    int64 correlation_id = 1;
+    dhpcs.liquidity.ws.protocol.ZoneResponse response = 2;
+}
+
+message ZoneNotificationEnvelope {
+    string zone_id = 1;
+    int64 sequence_number = 2;
+    dhpcs.liquidity.ws.protocol.ZoneNotification notification = 3;
 }

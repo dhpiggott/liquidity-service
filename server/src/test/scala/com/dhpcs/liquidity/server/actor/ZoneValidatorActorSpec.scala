@@ -3,6 +3,7 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
@@ -33,15 +34,13 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
     "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = 0L
-      val sequenceNumber                      = 1L
-      send(clientConnectionTestProbe, zoneId)(
+      clientConnectionTestProbe.send(
+        zoneValidatorShardRegion,
         ZoneCommandEnvelope(
           zoneId,
           remoteAddress,
           publicKey,
           correlationId,
-          sequenceNumber,
-          deliveryId = 1L,
           CreateZoneCommand(
             equityOwnerPublicKey = publicKey,
             equityOwnerName = Some("Dave"),
@@ -52,11 +51,14 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
           )
         )
       )
-      inside(expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber)) {
+      inside(expectResponse(clientConnectionTestProbe, correlationId)) {
         case CreateZoneResponse(Validated.Valid(zone)) =>
-          assert(zone.equityAccountId === AccountId("0"))
-          assert(zone.members(MemberId("0")) === Member(MemberId("0"), Set(publicKey), name = Some("Dave")))
-          assert(zone.accounts(AccountId("0")) === Account(AccountId("0"), ownerMemberIds = Set(MemberId("0"))))
+          assert(zone.accounts.size === 1)
+          assert(zone.members.size === 1)
+          val equityAccount      = zone.accounts(zone.equityAccountId)
+          val equityAccountOwner = zone.members(equityAccount.ownerMemberIds.head)
+          assert(equityAccount === Account(equityAccount.id, ownerMemberIds = Set(equityAccountOwner.id)))
+          assert(equityAccountOwner === Member(equityAccountOwner.id, Set(publicKey), name = Some("Dave")))
           assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
           assert(
             zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
@@ -68,20 +70,18 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
     "will reply with an Error when sending a JoinZoneCommand and no zone has been created" in {
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = 0L
-      val sequenceNumber                      = 1L
-      send(clientConnectionTestProbe, zoneId)(
+      clientConnectionTestProbe.send(
+        zoneValidatorShardRegion,
         ZoneCommandEnvelope(
           zoneId,
           remoteAddress,
           publicKey,
           correlationId,
-          sequenceNumber,
-          deliveryId = 1L,
           JoinZoneCommand
         )
       )
       assert(
-        expectResponse(clientConnectionTestProbe, correlationId, sequenceNumber) === JoinZoneResponse(
+        expectResponse(clientConnectionTestProbe, correlationId) === JoinZoneResponse(
           Validated.invalidNel(
             ZoneResponse.Error(
               code = 0,
@@ -94,34 +94,13 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
 
   private[this] def setup(): (TestProbe, ZoneId) = {
     val clientConnectionTestProbe = TestProbe()
-    val zoneId                    = ZoneId.generate
+    val zoneId                    = ZoneId(UUID.randomUUID.toString)
     (clientConnectionTestProbe, zoneId)
   }
 
-  private[this] def send(clientConnectionTestProbe: TestProbe, zoneId: ZoneId)(
-      zoneCommandEnvelope: ZoneCommandEnvelope): Unit = {
-    val deliveryId = zoneCommandEnvelope.deliveryId
-    send(clientConnectionTestProbe, message = zoneCommandEnvelope, zoneId, deliveryId)
-  }
-
-  private[this] def send(clientConnectionTestProbe: TestProbe, message: Any, zoneId: ZoneId, deliveryId: Long): Unit = {
-    clientConnectionTestProbe.send(
-      zoneValidatorShardRegion,
-      message
-    )
-    clientConnectionTestProbe.expectMsg(ZoneCommandReceivedConfirmation(zoneId, deliveryId)); ()
-  }
-
-  private[this] def expectResponse(clientConnectionTestProbe: TestProbe,
-                                   correlationId: Long,
-                                   sequenceNumber: Long): ZoneResponse = {
+  private[this] def expectResponse(clientConnectionTestProbe: TestProbe, correlationId: Long): ZoneResponse = {
     val responseWithIds = clientConnectionTestProbe.expectMsgType[ZoneResponseEnvelope]
     assert(responseWithIds.correlationId === correlationId)
-    assert(responseWithIds.sequenceNumber === sequenceNumber)
-    clientConnectionTestProbe.send(
-      clientConnectionTestProbe.lastSender,
-      MessageReceivedConfirmation(responseWithIds.deliveryId)
-    )
     responseWithIds.zoneResponse
   }
 }

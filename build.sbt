@@ -111,22 +111,24 @@ lazy val server = project
       "com.typesafe.play"          %% "play-json"                   % "2.6.6"
     ),
     libraryDependencies ++= Seq(
-      "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.6",
-      "ch.qos.logback"         % "logback-classic"               % "1.2.3",
-      "com.typesafe.akka"      %% "akka-actor"                   % "2.5.6",
-      "com.typesafe.akka"      %% "akka-cluster"                 % "2.5.6",
-      "com.lightbend.akka"     %% "akka-management-cluster-http" % "0.4",
-      "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.6",
-      "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.6",
-      "com.typesafe.akka"      %% "akka-persistence"             % "2.5.6",
-      "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.6",
-      "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.56",
-      "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
-      "com.datastax.cassandra" % "cassandra-driver-core"         % "3.2.0",
-      "com.typesafe.akka"      %% "akka-http"                    % "10.0.10",
-      "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.2",
-      "com.typesafe.play"      %% "play-json"                    % "2.6.6",
-      "de.heikoseeberger"      %% "akka-http-play-json"          % "1.18.0"
+      "com.typesafe.akka"  %% "akka-slf4j"                   % "2.5.6",
+      "ch.qos.logback"     % "logback-classic"               % "1.2.3",
+      "com.typesafe.akka"  %% "akka-actor"                   % "2.5.6",
+      "com.typesafe.akka"  %% "akka-cluster"                 % "2.5.6",
+      "com.lightbend.akka" %% "akka-management-cluster-http" % "0.4",
+      "com.typesafe.akka"  %% "akka-cluster-sharding"        % "2.5.6",
+      "com.typesafe.akka"  %% "akka-cluster-tools"           % "2.5.6",
+      "com.typesafe.akka"  %% "akka-persistence"             % "2.5.6",
+      "com.typesafe.akka"  %% "akka-persistence-query"       % "2.5.6",
+      // TODO: Switch to akka-persistence-jdbc
+      "com.typesafe.akka" %% "akka-persistence-cassandra"  % "0.56",
+      "io.netty"          % "netty-transport-native-epoll" % "4.1.12.Final" classifier "linux-x86_64",
+      // TODO: Switch to doobie
+      "com.datastax.cassandra" % "cassandra-driver-core" % "3.2.0",
+      "com.typesafe.akka"      %% "akka-http"            % "10.0.10",
+      "com.trueaccord.scalapb" %% "scalapb-json4s"       % "0.3.2",
+      "com.typesafe.play"      %% "play-json"            % "2.6.6",
+      "de.heikoseeberger"      %% "akka-http-play-json"  % "1.18.0"
     )
   )
   .dependsOn(`ws-protocol` % "test->test")

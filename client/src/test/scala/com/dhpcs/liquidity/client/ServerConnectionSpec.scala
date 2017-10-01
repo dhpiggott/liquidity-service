@@ -3,6 +3,7 @@ package com.dhpcs.liquidity.client
 import java.net.InetAddress
 import java.nio.file.Files
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.Executors
 
 import akka.NotUsed
@@ -208,7 +209,7 @@ class ServerConnectionSpec
       val createZoneResponse = CreateZoneResponse(
         Validated.valid(
           Zone(
-            id = ZoneId.generate,
+            id = ZoneId(UUID.randomUUID.toString),
             equityAccountId = AccountId("0"),
             members = Map(
               MemberId("0") -> Member(MemberId("0"),

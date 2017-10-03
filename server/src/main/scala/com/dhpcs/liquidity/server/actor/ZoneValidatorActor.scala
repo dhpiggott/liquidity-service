@@ -298,15 +298,23 @@ object ZoneValidatorActor {
     def behaviour(parent: ActorRef): Behavior[PassivationCountdownMessage] =
       typed.scaladsl.Actor.deferred { context =>
         context.self ! Start
-        typed.scaladsl.Actor.immutable[PassivationCountdownMessage] { (_, message) =>
+        typed.scaladsl.Actor.immutable[PassivationCountdownMessage]((_, message) =>
           message match {
-            case Start                => context.setReceiveTimeout(PassivationTimeout, RequestPassivate)
-            case Stop                 => context.cancelReceiveTimeout()
-            case CommandReceivedEvent => ()
-            case RequestPassivate     => parent ! RequestPassivate
-          }
-          typed.scaladsl.Actor.same
-        }
+            case Start =>
+              context.setReceiveTimeout(PassivationTimeout, RequestPassivate)
+              typed.scaladsl.Actor.same
+
+            case Stop =>
+              context.cancelReceiveTimeout()
+              typed.scaladsl.Actor.same
+
+            case CommandReceivedEvent =>
+              typed.scaladsl.Actor.same
+
+            case RequestPassivate =>
+              parent ! RequestPassivate
+              typed.scaladsl.Actor.same
+        })
       }
 
   }
@@ -318,12 +326,8 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with Timers {
 
   private[this] val mediator = DistributedPubSub(context.system).mediator
   // TODO: Eliminate now that AtLeastOnceDelivery is removed?
-  private[this] val passivationCountdownActor = context.spawn(
-    akka.typed.scaladsl.Actor
-      .supervise(PassivationCountdownActor.behaviour(self))
-      .onFailure[Exception](akka.typed.SupervisorStrategy.restart),
-    "passivation-countdown"
-  )
+  private[this] val passivationCountdownActor =
+    context.watch(context.spawn(PassivationCountdownActor.behaviour(self), "passivation-countdown").toUntyped)
 
   private[this] val id    = ZoneId.fromPersistenceId(self.path.name)
   private[this] var state = ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty)
@@ -349,7 +353,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with Timers {
       state = zoneState
 
     case eventEnvelope: ZoneEventEnvelope =>
-      state = update(context, passivationCountdownActor.toUntyped, state, eventEnvelope)
+      state = update(context, passivationCountdownActor, state, eventEnvelope)
   }
 
   override def receiveCommand: Receive = {
@@ -384,11 +388,11 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with Timers {
       passivationCountdownActor ! PassivationCountdownActor.CommandReceivedEvent
       handleCommand(remoteAddress, publicKey, correlationId, command)
 
-    case Terminated(clientConnection) =>
+    case Terminated(actor) if actor != passivationCountdownActor =>
       state.connectedClients
-        .get(clientConnection)
+        .get(actor)
         .foreach { publicKey =>
-          notificationSequenceNumbers -= clientConnection
+          notificationSequenceNumbers -= actor
           acceptCommand(
             InetAddress.getLoopbackAddress,
             publicKey,
@@ -756,7 +760,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with Timers {
         timestamp = Instant.now(),
         event
       )) { zoneEventEnvelope =>
-      state = update(context, passivationCountdownActor.toUntyped, state, zoneEventEnvelope)
+      state = update(context, passivationCountdownActor, state, zoneEventEnvelope)
       if (lastSequenceNr % SnapShotInterval == 0 && lastSequenceNr != 0)
         saveSnapshot(ZoneSnapshot(state))
       val response = event match {
@@ -822,6 +826,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with Timers {
 
   private[this] def deliverResponse(response: ZoneResponse, correlationId: Long): Unit =
     sender() ! ZoneResponseEnvelope(
+      self,
       correlationId,
       response
     )
@@ -829,7 +834,7 @@ class ZoneValidatorActor extends PersistentActor with ActorLogging with Timers {
   private[this] def deliverNotification(notification: ZoneNotification): Unit =
     state.connectedClients.keys.foreach { clientConnection =>
       val sequenceNumber = notificationSequenceNumbers(clientConnection)
-      clientConnection ! ZoneNotificationEnvelope(id, sequenceNumber, notification)
+      clientConnection ! ZoneNotificationEnvelope(self, id, sequenceNumber, notification)
       val nextSequenceNumber = sequenceNumber + 1
       notificationSequenceNumbers += clientConnection -> nextSequenceNumber
     }

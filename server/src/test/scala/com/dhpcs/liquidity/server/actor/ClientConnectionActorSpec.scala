@@ -4,8 +4,9 @@ import java.net.InetAddress
 
 import akka.actor.ActorRef
 import akka.testkit.TestProbe
+import akka.typed.scaladsl.adapter._
 import cats.data.Validated
-import com.dhpcs.liquidity.actor.protocol.clientconnection.ZoneResponseEnvelope
+import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
@@ -28,35 +29,36 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
   override protected def withFixture(test: OneArgTest): Outcome = {
     val sinkTestProbe                     = TestProbe()
     val zoneValidatorShardRegionTestProbe = TestProbe()
-    val upstreamTestProbe                 = TestProbe()
-    val clientConnection = system.actorOf(
-      ClientConnectionActor.props(InetAddress.getLoopbackAddress,
-                                  zoneValidatorShardRegionTestProbe.ref,
-                                  pingInterval = 3.seconds)(upstreamTestProbe.ref)
+    val webSocketOutTestProbe             = TestProbe()
+    val clientConnection = system.spawnAnonymous(
+      ClientConnectionActor.behaviour(pingInterval = 3.seconds,
+                                      zoneValidatorShardRegionTestProbe.ref,
+                                      InetAddress.getLoopbackAddress)(webSocketOutTestProbe.ref)
     )
-    sinkTestProbe.send(clientConnection, ClientConnectionActor.ActorSinkInit)
-    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck)
+    sinkTestProbe.send(clientConnection.toUntyped, ActorSinkInit(sinkTestProbe.ref))
+    sinkTestProbe.expectMsg(ActorSinkAck)
     try withFixture(
-      test.toNoArgTest((sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection))
+      test.toNoArgTest(
+        (sinkTestProbe, zoneValidatorShardRegionTestProbe, webSocketOutTestProbe, clientConnection.toUntyped))
     )
-    finally system.stop(clientConnection)
+    finally system.stop(clientConnection.toUntyped)
   }
 
   "A ClientConnectionActor" - {
     "will send a PingCommand when left idle" in { fixture =>
-      val (_, _, upstreamTestProbe, _) = fixture
-      inside(expectMessage(upstreamTestProbe)) {
+      val (_, _, webSocketOutTestProbe, _) = fixture
+      inside(expectMessage(webSocketOutTestProbe)) {
         case proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge(_) => ()
       }
-      upstreamTestProbe.within(3.5.seconds)(
+      webSocketOutTestProbe.within(3.5.seconds)(
         assert(
-          expectClientCommand(upstreamTestProbe) === proto.ws.protocol.ClientMessage.Command.Command
+          expectClientCommand(webSocketOutTestProbe) === proto.ws.protocol.ClientMessage.Command.Command
             .PingCommand(com.google.protobuf.ByteString.EMPTY))
       )
     }
     "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
-      val (sinkTestProbe, zoneValidatorShardRegionTestProbe, upstreamTestProbe, clientConnection) = fixture
-      val keyOwnershipChallenge = inside(expectMessage(upstreamTestProbe)) {
+      val (sinkTestProbe, zoneValidatorShardRegionTestProbe, webSocketOutTestProbe, clientConnection) = fixture
+      val keyOwnershipChallenge = inside(expectMessage(webSocketOutTestProbe)) {
         case keyOwnershipChallenge: proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge =>
           keyOwnershipChallenge.value
       }
@@ -98,14 +100,15 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       })
       zoneValidatorShardRegionTestProbe.send(
         clientConnection,
-        ZoneResponseEnvelope(correlationId, result)
+        ZoneResponseEnvelope(zoneValidatorShardRegionTestProbe.ref, correlationId, result)
       )
-      assert(expectZoneResponse(upstreamTestProbe) === result)
+      assert(expectZoneResponse(webSocketOutTestProbe) === result)
     }
   }
 
-  private[this] def expectClientCommand(upstreamTestProbe: TestProbe): proto.ws.protocol.ClientMessage.Command.Command =
-    inside(upstreamTestProbe.expectMsgType[proto.ws.protocol.ClientMessage].message) {
+  private[this] def expectClientCommand(
+      webSocketOutTestProbe: TestProbe): proto.ws.protocol.ClientMessage.Command.Command =
+    inside(webSocketOutTestProbe.expectMsgType[proto.ws.protocol.ClientMessage].message) {
       case proto.ws.protocol.ClientMessage.Message.Command(proto.ws.protocol.ClientMessage.Command(_, protoCommand)) =>
         protoCommand
     }
@@ -125,13 +128,13 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       message: proto.ws.protocol.ServerMessage.Message): Unit = {
     sinkTestProbe.send(
       clientConnection,
-      proto.ws.protocol.ServerMessage(message)
+      WrappedServerMessage(sinkTestProbe.ref, proto.ws.protocol.ServerMessage(message))
     )
-    sinkTestProbe.expectMsg(ClientConnectionActor.ActorSinkAck); ()
+    sinkTestProbe.expectMsg(ActorSinkAck); ()
   }
 
-  private[this] def expectZoneResponse(upstreamTestProbe: TestProbe): ZoneResponse =
-    inside(expectMessage(upstreamTestProbe)) {
+  private[this] def expectZoneResponse(webSocketOutTestProbe: TestProbe): ZoneResponse =
+    inside(expectMessage(webSocketOutTestProbe)) {
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
@@ -140,7 +143,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
         }
     }
 
-  private[this] def expectMessage(upstreamTestProbe: TestProbe): proto.ws.protocol.ClientMessage.Message =
-    upstreamTestProbe.expectMsgType[proto.ws.protocol.ClientMessage].message
+  private[this] def expectMessage(webSocketOutTestProbe: TestProbe): proto.ws.protocol.ClientMessage.Message =
+    webSocketOutTestProbe.expectMsgType[proto.ws.protocol.ClientMessage].message
 
 }

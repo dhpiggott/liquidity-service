@@ -5,6 +5,7 @@ import akka.typed
 import com.dhpcs.liquidity.model.{Account, Member, PublicKey, Transaction, ZoneId}
 
 sealed abstract class ZoneMonitorMessage extends Serializable
+
 final case class UpsertActiveZoneSummary(zoneValidatorActorRef: ActorRef, activeZoneSummary: ActiveZoneSummary)
     extends ZoneMonitorMessage
 case object LogActiveZonesCount                                                          extends ZoneMonitorMessage

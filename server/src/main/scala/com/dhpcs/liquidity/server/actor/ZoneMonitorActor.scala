@@ -17,19 +17,19 @@ object ZoneMonitorActor {
 
   private case object LogActiveZonesCountTimerKey
 
-  def behaviour: Behavior[ZoneMonitorMessage] = Actor.deferred { context =>
-    val log      = Logging(context.system.toUntyped, context.self.toUntyped)
-    val mediator = DistributedPubSub(context.system.toUntyped).mediator
-    mediator ! Subscribe(ZoneStatusTopic, context.self.toUntyped)
-    Actor.withTimers { timers =>
-      timers.startPeriodicTimer(LogActiveZonesCountTimerKey, LogActiveZonesCount, 5.minutes)
-      withSummaries(log, Map.empty)
-    }
-  }
+  def behaviour: Behavior[ZoneMonitorMessage] =
+    Actor.deferred(context =>
+      Actor.withTimers { timers =>
+        val log      = Logging(context.system.toUntyped, context.self.toUntyped)
+        val mediator = DistributedPubSub(context.system.toUntyped).mediator
+        mediator ! Subscribe(ZoneStatusTopic, context.self.toUntyped)
+        timers.startPeriodicTimer(LogActiveZonesCountTimerKey, LogActiveZonesCount, 5.minutes)
+        withSummaries(log, Map.empty)
+    })
 
   private def withSummaries(log: LoggingAdapter,
                             activeZoneSummaries: Map[ActorRef, ActiveZoneSummary]): Behavior[ZoneMonitorMessage] =
-    Actor.immutable[ZoneMonitorMessage] { (context, message) =>
+    Actor.immutable[ZoneMonitorMessage]((context, message) =>
       message match {
         case UpsertActiveZoneSummary(zoneValidatorActorRef, activeZoneSummary) =>
           if (!activeZoneSummaries.contains(zoneValidatorActorRef))
@@ -43,8 +43,7 @@ object ZoneMonitorActor {
         case GetActiveZoneSummaries(replyTo) =>
           replyTo ! activeZoneSummaries.values.toSet
           Actor.same
-      }
-    } onSignal {
+    }) onSignal {
       case (_, Terminated(ref)) =>
         withSummaries(log, activeZoneSummaries - ref.toUntyped)
     }

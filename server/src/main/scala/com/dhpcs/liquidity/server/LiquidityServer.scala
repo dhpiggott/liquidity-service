@@ -25,7 +25,7 @@ import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
-import com.dhpcs.liquidity.model.{ZoneState, _}
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone.ZoneEventEnvelope
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -155,7 +155,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionActor.props(remoteAddress, zoneValidatorShardRegion, pingInterval)
+      behaviour = ClientConnectionActor.behaviour(pingInterval, zoneValidatorShardRegion, remoteAddress)
     )
 
   override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =

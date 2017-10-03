@@ -29,7 +29,7 @@ lazy val model = project
   .settings(
     libraryDependencies ++= Seq(
       "com.squareup.okio" % "okio"        % "1.13.0",
-      "com.typesafe.akka" %% "akka-actor" % "2.5.6"
+      "com.typesafe.akka" %% "akka-typed" % "2.5.6"
     )
   )
 
@@ -57,7 +57,6 @@ lazy val `actor-protocol` = project
     PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
   )
   .dependsOn(`ws-protocol`)
-  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.6")
 
 lazy val persistence = project
   .in(file("persistence"))
@@ -113,7 +112,6 @@ lazy val server = project
     libraryDependencies ++= Seq(
       "com.typesafe.akka"  %% "akka-slf4j"                   % "2.5.6",
       "ch.qos.logback"     % "logback-classic"               % "1.2.3",
-      "com.typesafe.akka"  %% "akka-actor"                   % "2.5.6",
       "com.typesafe.akka"  %% "akka-cluster"                 % "2.5.6",
       "com.lightbend.akka" %% "akka-management-cluster-http" % "0.4",
       "com.typesafe.akka"  %% "akka-cluster-sharding"        % "2.5.6",

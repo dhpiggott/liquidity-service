@@ -71,7 +71,7 @@ trait HttpController {
         marshaller(entity)
     })
 
-  private def version: Route =
+  private[this] def version: Route =
     path("version")(
       get(
         complete(

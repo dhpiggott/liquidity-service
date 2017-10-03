@@ -6,8 +6,7 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
 
-import akka.NotUsed
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws
 import akka.stream.scaladsl.{Flow, Keep, Source}
@@ -15,8 +14,12 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestProbe
+import akka.typed.Behavior
+import akka.typed.scaladsl.adapter._
+import akka.{NotUsed, typed}
 import cats.data.Validated
 import com.dhpcs.liquidity
+import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.client.ServerConnection._
@@ -29,7 +32,6 @@ import com.dhpcs.liquidity.proto.model.ZoneState
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor
-import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
@@ -41,21 +43,26 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
 object ServerConnectionSpec {
-
   object ClientConnectionTestProbeForwarderActor {
-    def props(clientConnectionActorTestProbe: ActorRef)(upstream: ActorRef): Props =
-      Props(new ClientConnectionTestProbeForwarderActor(clientConnectionActorTestProbe, upstream))
-  }
 
-  class ClientConnectionTestProbeForwarderActor(clientConnectionActorTestProbe: ActorRef, upstream: ActorRef)
-      extends Actor {
-    override def receive: Receive = {
-      case message if sender() == clientConnectionActorTestProbe =>
-        upstream ! message
-      case message =>
-        sender() ! ActorSinkAck
-        clientConnectionActorTestProbe ! message
-    }
+    def behaviour(clientConnectionActorTestProbe: ActorRef)(webSocketOut: ActorRef): Behavior[Any] =
+      typed.scaladsl.Actor.immutable[Any]((context, message) =>
+        message match {
+          case actorSinkInit @ ActorSinkInit(webSocketIn) =>
+            webSocketIn ! ActorSinkAck
+            clientConnectionActorTestProbe.tell(actorSinkInit, context.self.toUntyped)
+            typed.scaladsl.Actor.same
+
+          case WrappedServerMessage(webSocketIn, serverMessage) =>
+            webSocketIn ! ActorSinkAck
+            clientConnectionActorTestProbe.tell(serverMessage, context.self.toUntyped)
+            typed.scaladsl.Actor.same
+
+          case other =>
+            webSocketOut ! other
+            typed.scaladsl.Actor.same
+      })
+
   }
 }
 
@@ -97,7 +104,7 @@ class ServerConnectionSpec
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      props = ClientConnectionTestProbeForwarderActor.props(clientConnectionActorTestProbe.ref)
+      behaviour = ClientConnectionTestProbeForwarderActor.behaviour(clientConnectionActorTestProbe.ref)
     )
 
   override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
@@ -176,7 +183,7 @@ class ServerConnectionSpec
       sub.requestNext(AVAILABLE)
       mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
-      clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
+      clientConnectionActorTestProbe.expectMsgType[ActorSinkInit]
       sub.requestNext(AUTHENTICATING)
       val keyOwnershipChallenge = Authentication.createKeyOwnershipChallengeMessage()
       clientConnectionActorTestProbe
@@ -229,7 +236,7 @@ class ServerConnectionSpec
       sub.requestNext(AVAILABLE)
       mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
-      clientConnectionActorTestProbe.expectMsg(ActorSinkInit)
+      clientConnectionActorTestProbe.expectMsgType[ActorSinkInit]
       sub.requestNext(AUTHENTICATING)
       val keyOwnershipChallenge = Authentication.createKeyOwnershipChallengeMessage()
       clientConnectionActorTestProbe

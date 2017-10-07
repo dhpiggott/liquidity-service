@@ -4,19 +4,18 @@ import java.net.InetAddress
 import java.time.Instant
 
 import akka.actor.{ActorRef, ActorSystem, CoordinatedShutdown, ExtendedActorSystem, PoisonPill, Scheduler}
+import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.Message
-import akka.pattern.ask
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
-import akka.typed.SupervisorStrategy
-import akka.typed.cluster.Cluster
-import akka.typed.scaladsl.Actor
+import akka.typed
+import akka.typed.Props
 import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
 import akka.util.Timeout
@@ -75,34 +74,24 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
 
-  private[this] val zoneValidatorShardRegion =
-    if (Cluster(system.toTyped).selfMember.roles.contains(ZoneHostRole))
-      ClusterSharding(system).start(
-        typeName = ZoneValidatorActor.ShardTypeName,
-        entityProps = ZoneValidatorActor.props,
-        settings = ClusterShardingSettings(system).withRole(ZoneHostRole),
-        extractEntityId = ZoneValidatorActor.extractEntityId,
-        extractShardId = ZoneValidatorActor.extractShardId
-      )
-    else
-      ClusterSharding(system).startProxy(
-        typeName = ZoneValidatorActor.ShardTypeName,
-        role = Some(ZoneHostRole),
-        extractEntityId = ZoneValidatorActor.extractEntityId,
-        extractShardId = ZoneValidatorActor.extractShardId
-      )
+  private[this] val zoneValidatorShardRegion = typed.cluster.sharding
+    .ClusterSharding(system.toTyped)
+    .spawn(
+      behavior = ZoneValidatorActor.shardingBehaviour,
+      entityProps = Props.empty,
+      typeKey = ZoneValidatorActor.ShardingTypeName,
+      settings = typed.cluster.sharding.ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
+      messageExtractor = ZoneValidatorActor.messageExtractor,
+      handOffStopMessage = PassivateZone
+    )
 
-  private[this] val clientMonitorActor = system.spawn(
-    Actor.supervise(ClientMonitorActor.behaviour).onFailure[Exception](SupervisorStrategy.restart),
-    "client-monitor")
-  private[this] val zoneMonitorActor = system.spawn(
-    Actor.supervise(ZoneMonitorActor.behaviour).onFailure[Exception](SupervisorStrategy.restart),
-    "zone-monitor")
+  private[this] val clientMonitorActor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
+  private[this] val zoneMonitorActor   = system.spawn(ZoneMonitorActor.behavior, "zone-monitor")
 
   private[this] val futureAnalyticsStore =
     readJournal.session.underlying().flatMap(CassandraAnalyticsStore(analyticsKeyspace)(_, ec))
 
-  if (Cluster(system.toTyped).selfMember.roles.contains(AnalyticsRole)) {
+  if (Cluster(system).selfMember.roles.contains(AnalyticsRole)) {
     val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
       Console.err.println("Exiting due to stream failure")
       t.printStackTrace(Console.err)
@@ -128,7 +117,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
 
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
     // TODO: Logging
-    httpRoutes(enableClientRelay = Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole)),
+    httpRoutes(enableClientRelay = Cluster(system).selfMember.roles.contains(ClientRelayRole)),
     httpInterface,
     httpPort
   )
@@ -148,14 +137,14 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
           HttpController.EventEnvelope(sequenceNr, protoEvent)
       }
 
-  override protected[this] def zoneState(zoneId: ZoneId): Future[proto.model.ZoneState] =
-    (zoneValidatorShardRegion ? GetZoneStateCommand(zoneId))
-      .mapTo[ZoneState]
-      .map(zoneState => ProtoBinding[ZoneState, proto.model.ZoneState, ExtendedActorSystem].asProto(zoneState))
+  override protected[this] def zoneState(zoneId: ZoneId): Future[proto.model.ZoneState] = {
+    val zoneState: Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(_, zoneId))
+    zoneState.map(ProtoBinding[ZoneState, proto.model.ZoneState, ExtendedActorSystem].asProto)
+  }
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      behaviour = ClientConnectionActor.behaviour(pingInterval, zoneValidatorShardRegion, remoteAddress)
+      behavior = ClientConnectionActor.behavior(pingInterval, zoneValidatorShardRegion, remoteAddress)
     )
 
   override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =

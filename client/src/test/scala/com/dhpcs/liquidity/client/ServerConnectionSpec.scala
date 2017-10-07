@@ -45,8 +45,8 @@ import scala.concurrent.{Await, Future}
 object ServerConnectionSpec {
   object ClientConnectionTestProbeForwarderActor {
 
-    def behaviour(clientConnectionActorTestProbe: ActorRef)(webSocketOut: ActorRef): Behavior[Any] =
-      typed.scaladsl.Actor.immutable[Any]((context, message) =>
+    def behavior(clientConnectionActorTestProbe: ActorRef)(webSocketOut: ActorRef): Behavior[Any] =
+      typed.scaladsl.Actor.immutable((context, message) =>
         message match {
           case actorSinkInit @ ActorSinkInit(webSocketIn) =>
             webSocketIn ! ActorSinkAck
@@ -79,10 +79,7 @@ class ServerConnectionSpec
     .parseString("""
       |akka {
       |  loglevel = "WARNING"
-      |  http.server {
-      |    remote-address-header = on
-      |    parsing.tls-session-info-header = on
-      |  }
+      |  http.server.remote-address-header = on
       |}
     """.stripMargin)
     .resolve()
@@ -104,7 +101,7 @@ class ServerConnectionSpec
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      behaviour = ClientConnectionTestProbeForwarderActor.behaviour(clientConnectionActorTestProbe.ref)
+      behavior = ClientConnectionTestProbeForwarderActor.behavior(clientConnectionActorTestProbe.ref)
     )
 
   override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =

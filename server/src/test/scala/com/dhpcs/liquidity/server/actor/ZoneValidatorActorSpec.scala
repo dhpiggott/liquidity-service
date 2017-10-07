@@ -5,8 +5,10 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.testkit.TestProbe
+import akka.typed.Props
+import akka.typed.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.typed.scaladsl.adapter._
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
@@ -19,12 +21,14 @@ import org.scalatest.{FreeSpec, Inside}
 
 class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures with Inside {
 
-  private[this] val zoneValidatorShardRegion = ClusterSharding(system).start(
-    typeName = ZoneValidatorActor.ShardTypeName,
-    entityProps = ZoneValidatorActor.props,
-    settings = ClusterShardingSettings(system),
-    extractEntityId = ZoneValidatorActor.extractEntityId,
-    extractShardId = ZoneValidatorActor.extractShardId
+  // TODO: Don't involve sharding in this test - leave that to the integration test
+  private[this] val zoneValidatorShardRegion = ClusterSharding(system.toTyped).spawn(
+    behavior = ZoneValidatorActor.shardingBehaviour,
+    entityProps = Props.empty,
+    typeKey = ZoneValidatorActor.ShardingTypeName,
+    settings = ClusterShardingSettings(system.toTyped),
+    messageExtractor = ZoneValidatorActor.messageExtractor,
+    handOffStopMessage = PassivateZone
   )
 
   private[this] val remoteAddress = InetAddress.getLoopbackAddress
@@ -35,8 +39,9 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = 0L
       clientConnectionTestProbe.send(
-        zoneValidatorShardRegion,
+        zoneValidatorShardRegion.toUntyped,
         ZoneCommandEnvelope(
+          clientConnectionTestProbe.ref,
           zoneId,
           remoteAddress,
           publicKey,
@@ -71,8 +76,9 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
       val (clientConnectionTestProbe, zoneId) = setup()
       val correlationId                       = 0L
       clientConnectionTestProbe.send(
-        zoneValidatorShardRegion,
+        zoneValidatorShardRegion.toUntyped,
         ZoneCommandEnvelope(
+          clientConnectionTestProbe.ref,
           zoneId,
           remoteAddress,
           publicKey,

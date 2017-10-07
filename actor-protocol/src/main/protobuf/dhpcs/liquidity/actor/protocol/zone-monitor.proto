@@ -18,6 +18,6 @@ message ActiveZoneSummary {
 }
 
 message UpsertActiveZoneSummary {
-    string zone_validator_actor_ref = 1;
+    string zone_validator = 1;
     ActiveZoneSummary active_zone_summary = 2;
 }

@@ -17,7 +17,7 @@ object ClientMonitorActor {
 
   private case object LogActiveClientsCountTimerKey
 
-  def behaviour: Behavior[ClientMonitorMessage] =
+  def behavior: Behavior[ClientMonitorMessage] =
     Actor.deferred(context =>
       Actor.withTimers { timers =>
         val log      = Logging(context.system.toUntyped, context.self.toUntyped)
@@ -32,11 +32,6 @@ object ClientMonitorActor {
     : Behavior[ClientMonitorMessage] =
     Actor.immutable[ClientMonitorMessage]((context, message) =>
       message match {
-        case UpsertActiveClientSummary(clientConnectionActorRef, activeClientSummary) =>
-          if (!activeClientSummaries.contains(clientConnectionActorRef))
-            context.watch(clientConnectionActorRef)
-          withSummaries(log, activeClientSummaries + (clientConnectionActorRef -> activeClientSummary))
-
         case LogActiveClientsCount =>
           log.info(s"${activeClientSummaries.size} clients are active")
           Actor.same
@@ -44,6 +39,10 @@ object ClientMonitorActor {
         case GetActiveClientSummaries(replyTo) =>
           replyTo ! activeClientSummaries.values.toSet
           Actor.same
+        case UpsertActiveClientSummary(clientConnectionActorRef, activeClientSummary) =>
+          if (!activeClientSummaries.contains(clientConnectionActorRef))
+            context.watch(clientConnectionActorRef)
+          withSummaries(log, activeClientSummaries + (clientConnectionActorRef -> activeClientSummary))
     }) onSignal {
       case (_, Terminated(ref)) =>
         withSummaries(log, activeClientSummaries - ref.toUntyped)

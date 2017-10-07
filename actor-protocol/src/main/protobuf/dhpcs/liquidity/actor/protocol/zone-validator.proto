@@ -7,13 +7,15 @@ option java_package = "com.dhpcs.liquidity.proto.actor.protocol.zonevalidator";
 import "dhpcs/liquidity/ws-protocol.proto";
 
 message GetZoneStateCommand {
-    string zone_id = 1;
+    string reply_to = 1;
+    string zone_id = 2;
 }
 
 message ZoneCommandEnvelope {
-    string zone_id = 1;
-    bytes remote_address = 2;
-    bytes public_key = 3;
-    int64 correlation_id = 4;
-    dhpcs.liquidity.ws.protocol.ZoneCommand command = 5;
+    string reply_to = 1;
+    string zone_id = 2;
+    bytes remote_address = 3;
+    bytes public_key = 4;
+    int64 correlation_id = 5;
+    dhpcs.liquidity.ws.protocol.ZoneCommand command = 6;
 }

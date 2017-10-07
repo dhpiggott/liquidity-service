@@ -9,6 +9,6 @@ message ActiveClientSummary {
 }
 
 message UpsertActiveClientSummary {
-    string client_connection_actor_ref = 1;
+    string client_connection = 1;
     ActiveClientSummary active_client_summary = 2;
 }

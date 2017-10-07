@@ -54,10 +54,10 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |    }
        |    serialization-bindings {
        |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
-       |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.ZoneValidatorMessage" = zone-validator-message
-       |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.ZoneMonitorMessage" = zone-monitor-message
-       |      "com.dhpcs.liquidity.actor.protocol.clientconnection.ClientConnectionMessage" = client-connection-message
-       |      "com.dhpcs.liquidity.actor.protocol.clientmonitor.ClientMonitorMessage" = client-monitor-message
+       |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.SerializableZoneValidatorMessage" = zone-validator-message
+       |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.SerializableZoneMonitorMessage" = zone-monitor-message
+       |      "com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage" = client-connection-message
+       |      "com.dhpcs.liquidity.actor.protocol.clientmonitor.SerializableClientMonitorMessage" = client-monitor-message
        |    }
        |    allow-java-serialization = off
        |  }

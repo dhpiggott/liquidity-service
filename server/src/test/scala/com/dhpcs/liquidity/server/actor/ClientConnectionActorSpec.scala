@@ -31,9 +31,9 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
     val zoneValidatorShardRegionTestProbe = TestProbe()
     val webSocketOutTestProbe             = TestProbe()
     val clientConnection = system.spawnAnonymous(
-      ClientConnectionActor.behaviour(pingInterval = 3.seconds,
-                                      zoneValidatorShardRegionTestProbe.ref,
-                                      InetAddress.getLoopbackAddress)(webSocketOutTestProbe.ref)
+      ClientConnectionActor.behavior(pingInterval = 3.seconds,
+                                     zoneValidatorShardRegionTestProbe.ref,
+                                     InetAddress.getLoopbackAddress)(webSocketOutTestProbe.ref)
     )
     sinkTestProbe.send(clientConnection.toUntyped, ActorSinkInit(sinkTestProbe.ref))
     sinkTestProbe.expectMsg(ActorSinkAck)

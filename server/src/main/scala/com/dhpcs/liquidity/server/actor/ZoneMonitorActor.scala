@@ -7,7 +7,6 @@ import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.adapter._
 import akka.typed.{ActorRef, Behavior, Terminated}
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
-import com.dhpcs.liquidity.actor.protocol.zonevalidator.ZoneValidatorMessage
 
 import scala.concurrent.duration._
 
@@ -29,7 +28,7 @@ object ZoneMonitorActor {
 
   private def withSummaries(
       log: LoggingAdapter,
-      activeZoneSummaries: Map[ActorRef[ZoneValidatorMessage], ActiveZoneSummary]): Behavior[ZoneMonitorMessage] =
+      activeZoneSummaries: Map[ActorRef[Nothing], ActiveZoneSummary]): Behavior[ZoneMonitorMessage] =
     Actor.immutable[ZoneMonitorMessage]((context, message) =>
       message match {
         case LogActiveZonesCount =>
@@ -46,7 +45,7 @@ object ZoneMonitorActor {
           withSummaries(log, activeZoneSummaries + (zoneValidatorActorRef -> activeZoneSummary))
     }) onSignal {
       case (_, Terminated(ref)) =>
-        withSummaries(log, activeZoneSummaries - ref.toUntyped)
+        withSummaries(log, activeZoneSummaries - ref)
     }
 
 }

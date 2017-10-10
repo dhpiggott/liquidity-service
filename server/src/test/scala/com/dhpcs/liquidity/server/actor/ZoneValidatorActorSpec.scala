@@ -28,7 +28,7 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
     typeKey = ZoneValidatorActor.ShardingTypeName,
     settings = ClusterShardingSettings(system.toTyped),
     messageExtractor = ZoneValidatorActor.messageExtractor,
-    handOffStopMessage = PassivateZone
+    handOffStopMessage = StopZone
   )
 
   private[this] val remoteAddress = InetAddress.getLoopbackAddress

@@ -6,18 +6,16 @@ import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
 import java.util.UUID
 
-import akka.actor.ActorRef
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.event.Logging
 import akka.serialization.Serialization
-import akka.typed
 import akka.typed.cluster.sharding.{EntityTypeKey, ShardingMessageExtractor}
 import akka.typed.persistence.scaladsl.PersistentActor
 import akka.typed.persistence.scaladsl.PersistentActor._
 import akka.typed.scaladsl.adapter._
 import akka.typed.scaladsl.{Actor, ActorContext}
-import akka.typed.{Behavior, PostStop, Terminated}
+import akka.typed.{ActorRef, Behavior, PostStop, Terminated}
 import cats.Cartesian
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
@@ -48,7 +46,7 @@ object ZoneValidatorActor {
         // This has to be part of SerializableZoneValidatorMessage because the akka-typed sharding API requires that
         // the hand-off stop-message is a subtype of the ShardingMessageExtractor Envelope type. Of course, hand-off
         // stop-messages are sent directly to the entity to be stopped, so this extractor won't actually encounter them.
-        case PassivateZone                              => throw new IllegalArgumentException("Received PassivateZone")
+        case StopZone                                   => throw new IllegalArgumentException("Received StopZone")
         case GetZoneStateCommand(_, zoneId)             => zoneId.id
         case ZoneCommandEnvelope(_, zoneId, _, _, _, _) => zoneId.id
       }
@@ -69,25 +67,25 @@ object ZoneValidatorActor {
     case object CommandReceivedEvent extends PassivationCountdownMessage
     case object ReceiveTimeout       extends PassivationCountdownMessage
 
-    def behavior(zoneValidator: typed.ActorRef[ZoneValidatorMessage]): Behavior[PassivationCountdownMessage] =
-      typed.scaladsl.Actor.deferred { context =>
+    def behavior(zoneValidator: ActorRef[ZoneValidatorMessage]): Behavior[PassivationCountdownMessage] =
+      Actor.deferred { context =>
         context.self ! Start
-        typed.scaladsl.Actor.immutable[PassivationCountdownMessage]((_, message) =>
+        Actor.immutable[PassivationCountdownMessage]((_, message) =>
           message match {
             case Start =>
               context.setReceiveTimeout(PassivationTimeout, ReceiveTimeout)
-              typed.scaladsl.Actor.same
+              Actor.same
 
             case Stop =>
               context.cancelReceiveTimeout()
-              typed.scaladsl.Actor.same
+              Actor.same
 
             case CommandReceivedEvent =>
-              typed.scaladsl.Actor.same
+              Actor.same
 
             case ReceiveTimeout =>
-              zoneValidator ! PassivateZone
-              typed.scaladsl.Actor.same
+              zoneValidator ! StopZone
+              Actor.same
         })
       }
 
@@ -101,7 +99,7 @@ object ZoneValidatorActor {
         val log = Logging(context.system.toUntyped, context.self.toUntyped)
         log.info("Starting")
         val persistenceId               = context.self.path.name
-        val notificationSequenceNumbers = mutable.Map.empty[ActorRef, Long]
+        val notificationSequenceNumbers = mutable.Map.empty[ActorRef[Nothing], Long]
         val mediator                    = DistributedPubSub(context.system.toUntyped).mediator
         // TODO: Eliminate now that AtLeastOnceDelivery is removed?
         val passivationCountdownActor =
@@ -126,9 +124,10 @@ object ZoneValidatorActor {
       .narrow[SerializableZoneValidatorMessage]
 
   private def persistentBehaviour(id: ZoneId,
-                                  notificationSequenceNumbers: mutable.Map[ActorRef, Long],
-                                  mediator: ActorRef,
-                                  passivationCountdown: ActorRef): Behavior[ZoneValidatorMessage] =
+                                  notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
+                                  mediator: ActorRef[Publish],
+                                  passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])
+    : Behavior[ZoneValidatorMessage] =
     PersistentActor.immutable[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
       persistenceId = id.persistenceId,
       initialState = ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty),
@@ -153,7 +152,7 @@ object ZoneValidatorActor {
               ))
             PersistNothing()
 
-          case PassivateZone =>
+          case StopZone =>
             Stop()
 
           case GetZoneStateCommand(replyTo, _) =>
@@ -193,7 +192,7 @@ object ZoneValidatorActor {
 
   private def handleCommand(context: ActorContext[ZoneValidatorMessage],
                             id: ZoneId,
-                            notificationSequenceNumbers: mutable.Map[ActorRef, Long],
+                            notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
                             state: ZoneState,
                             zoneCommandEnvelope: ZoneCommandEnvelope): Effect[ZoneEventEnvelope, ZoneState] =
     zoneCommandEnvelope.zoneCommand match {
@@ -293,13 +292,13 @@ object ZoneValidatorActor {
                 zoneCommandEnvelope.replyTo,
                 zoneCommandEnvelope.correlationId,
                 JoinZoneResponse((zone, state.connectedClients.map {
-                  case (clientConnectionActorRef, _publicKey) =>
-                    Serialization.serializedActorPath(clientConnectionActorRef) -> _publicKey
+                  case (clientConnection, _publicKey) =>
+                    Serialization.serializedActorPath(clientConnection.toUntyped) -> _publicKey
                 }).valid)
               )
               PersistNothing()
             } else {
-              notificationSequenceNumbers += zoneCommandEnvelope.replyTo.toUntyped -> 0
+              notificationSequenceNumbers += zoneCommandEnvelope.replyTo -> 0
               context.watch(zoneCommandEnvelope.replyTo)
               acceptCommand(
                 context.self,
@@ -615,7 +614,9 @@ object ZoneValidatorActor {
         }
     }
 
-  private def applyEvent(passivationCountdown: ActorRef)(event: ZoneEventEnvelope, state: ZoneState): ZoneState =
+  private def applyEvent(passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])(
+      event: ZoneEventEnvelope,
+      state: ZoneState): ZoneState =
     event.zoneEvent match {
       case EmptyZoneEvent =>
         state
@@ -628,24 +629,24 @@ object ZoneValidatorActor {
             .toMap
         )
 
-      case ClientJoinedEvent(maybeClientConnectionActorRef) =>
-        Cartesian[Option].product(event.publicKey, maybeClientConnectionActorRef) match {
+      case ClientJoinedEvent(maybeClientConnection) =>
+        Cartesian[Option].product(event.publicKey, maybeClientConnection) match {
           case None =>
             state
-          case Some((publicKey, clientConnectionActorRef)) =>
+          case Some((publicKey, clientConnection)) =>
             if (state.connectedClients.isEmpty) passivationCountdown ! PassivationCountdownActor.Stop
-            val updatedClientConnections = state.connectedClients + (clientConnectionActorRef -> publicKey)
+            val updatedClientConnections = state.connectedClients + (clientConnection -> publicKey)
             state.copy(
               connectedClients = updatedClientConnections
             )
         }
 
-      case ClientQuitEvent(maybeClientConnectionActorRef) =>
-        maybeClientConnectionActorRef match {
+      case ClientQuitEvent(maybeClientConnection) =>
+        maybeClientConnection match {
           case None =>
             state
-          case Some(clientConnectionActorRef) =>
-            val updatedClientConnections = state.connectedClients - clientConnectionActorRef
+          case Some(clientConnection) =>
+            val updatedClientConnections = state.connectedClients - clientConnection.toUntyped
             if (updatedClientConnections.isEmpty) passivationCountdown ! PassivationCountdownActor.Start
             state.copy(
               connectedClients = updatedClientConnections
@@ -850,9 +851,9 @@ object ZoneValidatorActor {
         Validated.valid(metadata)
     }
 
-  private def acceptCommand(self: typed.ActorRef[ZoneValidatorMessage],
+  private def acceptCommand(self: ActorRef[ZoneValidatorMessage],
                             id: ZoneId,
-                            notificationSequenceNumbers: mutable.Map[ActorRef, Long],
+                            notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
                             zoneCommandEnvelope: ZoneCommandEnvelope,
                             event: ZoneEvent): Effect[ZoneEventEnvelope, ZoneState] =
     Persist[ZoneEventEnvelope, ZoneState](
@@ -880,8 +881,8 @@ object ZoneValidatorActor {
                   (
                     state.zone.get,
                     state.connectedClients.map {
-                      case (clientConnectionActorRef, _publicKey) =>
-                        Serialization.serializedActorPath(clientConnectionActorRef) -> _publicKey
+                      case (clientConnection, _publicKey) =>
+                        Serialization.serializedActorPath(clientConnection.toUntyped) -> _publicKey
                     }
                   )))
 
@@ -916,16 +917,16 @@ object ZoneValidatorActor {
           case ZoneCreatedEvent(_) =>
             None
 
-          case ClientJoinedEvent(maybeClientConnectionActorRef) =>
-            maybeClientConnectionActorRef.map(
-              clientConnectionActorRef =>
-                ClientJoinedNotification(Serialization.serializedActorPath(clientConnectionActorRef),
+          case ClientJoinedEvent(maybeClientConnection) =>
+            maybeClientConnection.map(
+              clientConnection =>
+                ClientJoinedNotification(Serialization.serializedActorPath(clientConnection.toUntyped),
                                          zoneCommandEnvelope.publicKey))
 
-          case ClientQuitEvent(maybeClientConnectionActorRef) =>
-            maybeClientConnectionActorRef.map(
-              clientConnectionActorRef =>
-                ClientQuitNotification(Serialization.serializedActorPath(clientConnectionActorRef),
+          case ClientQuitEvent(maybeClientConnection) =>
+            maybeClientConnection.map(
+              clientConnection =>
+                ClientQuitNotification(Serialization.serializedActorPath(clientConnection.toUntyped),
                                        zoneCommandEnvelope.publicKey))
 
           case ZoneNameChangedEvent(name) =>
@@ -952,8 +953,8 @@ object ZoneValidatorActor {
         maybeNotification.foreach(deliverNotification(self, id, state, notificationSequenceNumbers, _))
       }
 
-  private def deliverResponse(self: typed.ActorRef[ZoneValidatorMessage],
-                              clientConnection: typed.ActorRef[ZoneResponseEnvelope],
+  private def deliverResponse(self: ActorRef[ZoneValidatorMessage],
+                              clientConnection: ActorRef[ZoneResponseEnvelope],
                               correlationId: Long,
                               response: ZoneResponse): Unit =
     clientConnection ! ZoneResponseEnvelope(
@@ -962,10 +963,10 @@ object ZoneValidatorActor {
       response
     )
 
-  private def deliverNotification(self: typed.ActorRef[ZoneValidatorMessage],
+  private def deliverNotification(self: ActorRef[ZoneValidatorMessage],
                                   id: ZoneId,
                                   state: ZoneState,
-                                  notificationSequenceNumbers: mutable.Map[ActorRef, Long],
+                                  notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
                                   notification: ZoneNotification): Unit =
     state.connectedClients.keys.foreach { clientConnection =>
       val sequenceNumber = notificationSequenceNumbers(clientConnection)

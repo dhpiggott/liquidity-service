@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 import java.util.UUID
 
-import akka.actor._
+import akka.actor.{Actor, ActorRefFactory, PoisonPill, Props, Status, SupervisorStrategy}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.event.{Logging, LoggingAdapter}
@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.ws.{BinaryMessage, Message => WsMessage}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.typed.scaladsl.adapter._
-import akka.typed.{Behavior, PostStop, Terminated}
+import akka.typed.{ActorRef, Behavior, PostStop, Terminated}
 import akka.util.ByteString
 import akka.{NotUsed, typed}
 import cats.data.Validated.Valid
@@ -29,8 +29,8 @@ import scala.concurrent.duration._
 
 object ClientConnectionActor {
 
-  def webSocketFlow[A](behavior: ActorRef => Behavior[A])(implicit factory: ActorRefFactory,
-                                                          mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
+  def webSocketFlow[A](behavior: ActorRef[Any] => Behavior[A])(implicit factory: ActorRefFactory,
+                                                               mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
       .via(actorFlow[A](behavior))
       .via(OutFlow)
@@ -47,7 +47,7 @@ object ClientConnectionActor {
       serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
     )
 
-  private def actorFlow[A](behavior: ActorRef => Behavior[A])(
+  private def actorFlow[A](behavior: ActorRef[Any] => Behavior[A])(
       implicit factory: ActorRefFactory,
       mat: Materializer): Flow[proto.ws.protocol.ServerMessage, proto.ws.protocol.ClientMessage, NotUsed] = {
     val (outActor, publisher) = Source
@@ -57,6 +57,7 @@ object ClientConnectionActor {
     // TODO: Switch to fromSinkAndSourceCoupled?
     Flow.fromSinkAndSource(
       Sink.actorRefWithAck(
+        // TODO: Switch to typed?
         factory.actorOf(
           Props(new Actor {
 
@@ -116,7 +117,7 @@ object ClientConnectionActor {
 
   def behavior(pingInterval: FiniteDuration,
                zoneValidatorShardRegion: typed.ActorRef[SerializableZoneValidatorMessage],
-               remoteAddress: InetAddress)(webSocketOut: ActorRef): Behavior[ClientConnectionMessage] =
+               remoteAddress: InetAddress)(webSocketOut: ActorRef[Any]): Behavior[ClientConnectionMessage] =
     typed.scaladsl.Actor.deferred(context =>
       typed.scaladsl.Actor.withTimers { timers =>
         val log = Logging(context.system.toUntyped, context.self.toUntyped)
@@ -136,9 +137,9 @@ object ClientConnectionActor {
   def waitingForActorSinkInit(
       zoneValidatorShardRegion: typed.ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
-      webSocketOut: ActorRef,
+      webSocketOut: ActorRef[Any],
       log: LoggingAdapter,
-      mediator: ActorRef,
+      mediator: ActorRef[Publish],
       pingGeneratorActor: typed.ActorRef[PingGeneratorActor.PingGeneratorMessage]): Behavior[ClientConnectionMessage] =
     typed.scaladsl.Actor.immutable[ClientConnectionMessage]((_, message) =>
       message match {
@@ -178,9 +179,9 @@ object ClientConnectionActor {
   private def waitingForKeyOwnershipProof(
       zoneValidatorShardRegion: typed.ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
-      webSocketOut: ActorRef,
+      webSocketOut: ActorRef[Any],
       log: LoggingAdapter,
-      mediator: ActorRef,
+      mediator: ActorRef[Publish],
       pingGeneratorActor: typed.ActorRef[PingGeneratorActor.PingGeneratorMessage],
       keyOwnershipChallengeMessage: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge)
     : Behavior[ClientConnectionMessage] =
@@ -249,9 +250,9 @@ object ClientConnectionActor {
   private def receiveActorSinkMessages(
       zoneValidatorShardRegion: typed.ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
-      webSocketOut: ActorRef,
+      webSocketOut: ActorRef[Any],
       log: LoggingAdapter,
-      mediator: ActorRef,
+      mediator: ActorRef[Publish],
       pingGeneratorActor: typed.ActorRef[PingGeneratorActor.PingGeneratorMessage],
       publicKey: PublicKey,
       notificationSequenceNumbers: Map[typed.ActorRef[ZoneValidatorMessage], Long]): Behavior[ClientConnectionMessage] =
@@ -423,7 +424,7 @@ object ClientConnectionActor {
         typed.scaladsl.Actor.stopped
     }
 
-  private def sendPingCommand(webSocketOut: ActorRef,
+  private def sendPingCommand(webSocketOut: ActorRef[Any],
                               pingGeneratorActor: typed.ActorRef[PingGeneratorActor.PingGeneratorMessage]): Unit =
     sendClientMessage(
       webSocketOut,
@@ -435,7 +436,7 @@ object ClientConnectionActor {
         ))
     )
 
-  private def sendClientMessage(webSocketOut: ActorRef,
+  private def sendClientMessage(webSocketOut: ActorRef[Any],
                                 pingGeneratorActor: typed.ActorRef[PingGeneratorActor.PingGeneratorMessage],
                                 clientMessage: proto.ws.protocol.ClientMessage.Message): Unit = {
     webSocketOut ! proto.ws.protocol.ClientMessage(clientMessage)

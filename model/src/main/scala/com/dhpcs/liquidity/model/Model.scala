@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.model
 
-import akka.actor.ActorRef
+import akka.typed.ActorRef
 import okio.ByteString
 
 final case class PublicKey(value: ByteString) {
@@ -61,4 +61,5 @@ final case class Zone(id: ZoneId,
 
 final case class ZoneState(zone: Option[Zone],
                            balances: Map[AccountId, BigDecimal],
-                           connectedClients: Map[ActorRef, PublicKey])
+                           // TODO: Not Any!
+                           connectedClients: Map[ActorRef[Any], PublicKey])

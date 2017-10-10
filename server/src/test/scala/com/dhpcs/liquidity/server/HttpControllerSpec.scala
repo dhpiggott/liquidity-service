@@ -4,7 +4,6 @@ import java.net.InetAddress
 import java.time.Instant
 
 import akka.NotUsed
-import akka.actor.ActorRef
 import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.headers.`Remote-Address`
@@ -12,6 +11,7 @@ import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.model.{ContentType, RemoteAddress, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.{Flow, Source}
+import akka.typed.ActorRef
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
@@ -96,7 +96,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(Map.empty)
 
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]] =
+  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
     Future.successful(Map.empty)
 
 }

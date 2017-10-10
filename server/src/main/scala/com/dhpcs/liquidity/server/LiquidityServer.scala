@@ -3,23 +3,20 @@ package com.dhpcs.liquidity.server
 import java.net.InetAddress
 import java.time.Instant
 
-import akka.actor.{ActorRef, ActorSystem, CoordinatedShutdown, ExtendedActorSystem, PoisonPill, Scheduler}
+import akka.actor.{ActorSystem, CoordinatedShutdown, ExtendedActorSystem, Scheduler}
 import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
-import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
-import akka.cluster.singleton.{ClusterSingletonManager, ClusterSingletonManagerSettings}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.Message
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
-import akka.typed
-import akka.typed.Props
 import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
+import akka.typed.{ActorRef, Props}
 import akka.util.Timeout
-import akka.{Done, NotUsed}
+import akka.{Done, NotUsed, typed}
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
@@ -29,6 +26,8 @@ import com.dhpcs.liquidity.persistence.zone.ZoneEventEnvelope
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
+import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
+import com.dhpcs.liquidity.server.actor.ZoneAnalyticsStarterActor.StopZoneAnalyticsStarter
 import com.dhpcs.liquidity.server.actor._
 import com.typesafe.config.ConfigFactory
 
@@ -70,9 +69,9 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   private[this] val readJournal =
     PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
 
-  private[this] implicit val askTimeout: Timeout  = Timeout(5.seconds)
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
+  private[this] implicit val askTimeout: Timeout  = Timeout(30.seconds)
 
   private[this] val zoneValidatorShardRegion = typed.cluster.sharding
     .ClusterSharding(system.toTyped)
@@ -82,7 +81,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
       typeKey = ZoneValidatorActor.ShardingTypeName,
       settings = typed.cluster.sharding.ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
       messageExtractor = ZoneValidatorActor.messageExtractor,
-      handOffStopMessage = PassivateZone
+      handOffStopMessage = StopZone
     )
 
   private[this] val clientMonitorActor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
@@ -91,29 +90,33 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   private[this] val futureAnalyticsStore =
     readJournal.session.underlying().flatMap(CassandraAnalyticsStore(analyticsKeyspace)(_, ec))
 
-  if (Cluster(system).selfMember.roles.contains(AnalyticsRole)) {
-    val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
-      Console.err.println("Exiting due to stream failure")
-      t.printStackTrace(Console.err)
-      System.exit(1)
-    }
-    val zoneAnalyticsShardRegion = ClusterSharding(system).start(
-      typeName = ZoneAnalyticsActor.ShardTypeName,
-      entityProps = ZoneAnalyticsActor.props(readJournal, futureAnalyticsStore, streamFailureHandler),
-      settings = ClusterShardingSettings(system).withRole(AnalyticsRole),
-      extractEntityId = ZoneAnalyticsActor.extractEntityId,
-      extractShardId = ZoneAnalyticsActor.extractShardId
-    )
-    system.actorOf(
-      ClusterSingletonManager.props(
-        singletonProps = ZoneAnalyticsStarterActor.props(readJournal, zoneAnalyticsShardRegion, streamFailureHandler),
-        terminationMessage = PoisonPill,
-        settings =
-          ClusterSingletonManagerSettings(system).withSingletonName("zone-analytics-starter").withRole(AnalyticsRole)
-      ),
-      name = "zone-analytics-starter-singleton"
-    )
+  private[this] val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
+    Console.err.println("Exiting due to stream failure")
+    t.printStackTrace(Console.err)
+    System.exit(1)
   }
+
+  private[this] val zoneAnalyticsShardRegion = typed.cluster.sharding
+    .ClusterSharding(system.toTyped)
+    .spawn(
+      behavior = ZoneAnalyticsActor.shardingBehavior(readJournal, futureAnalyticsStore, streamFailureHandler),
+      entityProps = Props.empty,
+      typeKey = ZoneAnalyticsActor.ShardingTypeName,
+      settings = typed.cluster.sharding.ClusterShardingSettings(system.toTyped).withRole(AnalyticsRole),
+      messageExtractor = ZoneAnalyticsActor.messageExtractor,
+      handOffStopMessage = StopZoneAnalytics
+    )
+
+  typed.cluster
+    .ClusterSingleton(system.toTyped)
+    .spawn(
+      behavior =
+        ZoneAnalyticsStarterActor.singletonBehavior(readJournal, zoneAnalyticsShardRegion, streamFailureHandler),
+      singletonName = "zone-analytics-starter-singleton",
+      props = Props.empty,
+      settings = typed.cluster.ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
+      terminationMessage = StopZoneAnalyticsStarter
+    )
 
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
     // TODO: Logging
@@ -159,7 +162,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     futureAnalyticsStore.flatMap(_.balanceStore.retrieve(zoneId))
 
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]] =
+  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
     futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId)(ec, system.asInstanceOf[ExtendedActorSystem]))
 
 }

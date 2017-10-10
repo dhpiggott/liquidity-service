@@ -6,7 +6,8 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.NotUsed
+import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws
 import akka.stream.scaladsl.{Flow, Keep, Source}
@@ -14,9 +15,9 @@ import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.testkit.TestProbe
-import akka.typed.Behavior
+import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.adapter._
-import akka.{NotUsed, typed}
+import akka.typed.{ActorRef, Behavior}
 import cats.data.Validated
 import com.dhpcs.liquidity
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
@@ -45,22 +46,22 @@ import scala.concurrent.{Await, Future}
 object ServerConnectionSpec {
   object ClientConnectionTestProbeForwarderActor {
 
-    def behavior(clientConnectionActorTestProbe: ActorRef)(webSocketOut: ActorRef): Behavior[Any] =
-      typed.scaladsl.Actor.immutable((context, message) =>
+    def behavior(clientConnectionActorTestProbe: akka.actor.ActorRef)(webSocketOut: ActorRef[Any]): Behavior[Any] =
+      Actor.immutable((context, message) =>
         message match {
           case actorSinkInit @ ActorSinkInit(webSocketIn) =>
             webSocketIn ! ActorSinkAck
             clientConnectionActorTestProbe.tell(actorSinkInit, context.self.toUntyped)
-            typed.scaladsl.Actor.same
+            Actor.same
 
           case WrappedServerMessage(webSocketIn, serverMessage) =>
             webSocketIn ! ActorSinkAck
             clientConnectionActorTestProbe.tell(serverMessage, context.self.toUntyped)
-            typed.scaladsl.Actor.same
+            Actor.same
 
           case other =>
             webSocketOut ! other
-            typed.scaladsl.Actor.same
+            Actor.same
       })
 
   }
@@ -115,7 +116,7 @@ class ServerConnectionSpec
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(Map.empty)
 
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]] =
+  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
     Future.successful(Map.empty)
 
   private[this] val binding = Http().bindAndHandle(

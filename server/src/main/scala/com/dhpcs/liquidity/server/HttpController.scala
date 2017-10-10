@@ -4,7 +4,6 @@ import java.net.InetAddress
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 
-import akka.actor.ActorRef
 import akka.http.scaladsl.common.{EntityStreamingSupport, JsonEntityStreamingSupport}
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.StatusCodes._
@@ -14,6 +13,8 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.serialization.Serialization
 import akka.stream.scaladsl.{Flow, Source}
+import akka.typed.ActorRef
+import akka.typed.scaladsl.adapter._
 import akka.{Done, NotUsed}
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor.ActiveZoneSummary
@@ -163,7 +164,7 @@ trait HttpController {
     get(complete(getClients(ZoneId(id)).map(clients =>
       Json.obj(clients.map {
         case (actorRef, (lastJoined, publicKey)) =>
-          Serialization.serializedActorPath(actorRef) -> toJsFieldJsValueWrapper(
+          Serialization.serializedActorPath(actorRef.toUntyped) -> toJsFieldJsValueWrapper(
             Json.obj(
               "lastJoined"  -> DateTimeFormatter.ISO_INSTANT.format(lastJoined),
               "fingerprint" -> publicKey.fingerprint
@@ -186,6 +187,6 @@ trait HttpController {
 
   protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
 
-  protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef, (Instant, PublicKey)]]
+  protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]]
 
 }

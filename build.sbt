@@ -6,8 +6,6 @@ lazy val protobufSettings = Seq(
     com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
 )
 
-lazy val noopPublishSetting = publishM2 := {}
-
 lazy val `proto-binding` = project
   .in(file("proto-binding"))
   .settings(
@@ -60,7 +58,6 @@ lazy val `actor-protocol` = project
 
 lazy val persistence = project
   .in(file("persistence"))
-  .settings(noopPublishSetting)
   .settings(protobufSettings)
   .settings(
     name := "liquidity-persistence"
@@ -72,14 +69,12 @@ lazy val persistence = project
 
 lazy val testkit = project
   .in(file("testkit"))
-  .settings(noopPublishSetting)
   .settings(
     name := "liquidity-testkit"
   )
 
 lazy val server = project
   .in(file("server"))
-  .settings(noopPublishSetting)
   .settings(
     name := "liquidity-server"
   )
@@ -174,7 +169,6 @@ lazy val client = project
 
 lazy val healthcheck = project
   .in(file("healthcheck"))
-  .settings(noopPublishSetting)
   .settings(
     name := "liquidity-healthcheck"
   )
@@ -196,16 +190,15 @@ lazy val boardgame = project
 
 lazy val root = project
   .in(file("."))
-  .settings(noopPublishSetting)
   .settings(
     name := "liquidity"
   )
   .aggregate(
     `proto-binding`,
     model,
-    persistence,
-    `actor-protocol`,
     `ws-protocol`,
+    `actor-protocol`,
+    persistence,
     testkit,
     server,
     client,

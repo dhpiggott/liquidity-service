@@ -4,8 +4,10 @@ import java.nio.ByteBuffer
 import java.time.Instant
 import java.util.Date
 
-import akka.actor.{ActorRef, ExtendedActorSystem}
+import akka.actor.ExtendedActorSystem
 import akka.serialization.Serialization
+import akka.typed.ActorRef
+import akka.typed.scaladsl.adapter._
 import com.datastax.driver.core.{PreparedStatement, ResultSet, Row, Session}
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.CassandraAnalyticsStore.ZoneStore._
@@ -682,14 +684,14 @@ object CassandraAnalyticsStore {
         """.stripMargin)
 
     def retrieve(zoneId: ZoneId)(implicit ec: ExecutionContext,
-                                 system: ExtendedActorSystem): Future[Map[ActorRef, (Instant, PublicKey)]] =
+                                 system: ExtendedActorSystem): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
       for (resultSet <- retrieveStatement.execute(zoneId.id))
         yield
           (for {
             row <- resultSet.iterator.asScala if !row.isNull("current_actor_ref")
-            publicKey       = PublicKey(ByteString.of(row.getBytes("public_key")))
-            lastJoined      = row.getTimestamp("last_joined").toInstant
-            currentActorRef = system.provider.resolveActorRef(row.getString("current_actor_ref"))
+            publicKey                          = PublicKey(ByteString.of(row.getBytes("public_key")))
+            lastJoined                         = row.getTimestamp("last_joined").toInstant
+            currentActorRef: ActorRef[Nothing] = system.provider.resolveActorRef(row.getString("current_actor_ref"))
           } yield currentActorRef -> (lastJoined -> publicKey)).toMap
 
     private[this] val createOrUpdateStatement = prepareStatement(s"""
@@ -697,7 +699,7 @@ object CassandraAnalyticsStore {
                        |  VALUES (?, ?, ?, ?, ?, null)
         """.stripMargin)
 
-    def createOrUpdate(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef)(
+    def createOrUpdate(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef[Nothing])(
         implicit ec: ExecutionContext): Future[Unit] =
       for {
         _ <- openSession(zoneId, publicKey, joined, actorRef)
@@ -706,7 +708,7 @@ object CassandraAnalyticsStore {
           publicKey.value.asByteBuffer,
           publicKey.fingerprint,
           Date.from(joined),
-          Serialization.serializedActorPath(actorRef)
+          Serialization.serializedActorPath(actorRef.toUntyped)
         )
       } yield ()
 
@@ -716,7 +718,7 @@ object CassandraAnalyticsStore {
                        |  WHERE zone_id = ? AND public_key = ?
         """.stripMargin)
 
-    def update(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef, quit: Instant)(
+    def update(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef[Nothing], quit: Instant)(
         implicit ec: ExecutionContext): Future[Unit] =
       for {
         _ <- closeSession(zoneId, publicKey, joined, actorRef, quit)
@@ -732,13 +734,13 @@ object CassandraAnalyticsStore {
                          |  VALUES (?, ?, ?, ?)
           """.stripMargin)
 
-    private[this] def openSession(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef)(
+    private[this] def openSession(zoneId: ZoneId, publicKey: PublicKey, joined: Instant, actorRef: ActorRef[Nothing])(
         implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- openSessionStatement.execute(
              zoneId.id,
              publicKey.fingerprint,
              Date.from(joined),
-             Serialization.serializedActorPath(actorRef)
+             Serialization.serializedActorPath(actorRef.toUntyped)
            )) yield ()
 
     private[this] val closeSessionStatement = prepareStatement(s"""
@@ -750,14 +752,14 @@ object CassandraAnalyticsStore {
     private[this] def closeSession(zoneId: ZoneId,
                                    publicKey: PublicKey,
                                    joined: Instant,
-                                   actorRef: ActorRef,
+                                   actorRef: ActorRef[Nothing],
                                    quit: Instant)(implicit ec: ExecutionContext): Future[Unit] =
       for (_ <- closeSessionStatement.execute(
              Date.from(quit),
              zoneId.id,
              publicKey.fingerprint,
              Date.from(joined),
-             Serialization.serializedActorPath(actorRef)
+             Serialization.serializedActorPath(actorRef.toUntyped)
            )) yield ()
 
   }

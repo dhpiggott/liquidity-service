@@ -61,5 +61,6 @@ final case class Zone(id: ZoneId,
 
 final case class ZoneState(zone: Option[Zone],
                            balances: Map[AccountId, BigDecimal],
-                           // TODO: Not Any!
+                           // TODO: Change to SerializableClientConnectionMessage if/when module dependencies are
+                           // restructured such that it can be on the classpath here
                            connectedClients: Map[ActorRef[Any], PublicKey])

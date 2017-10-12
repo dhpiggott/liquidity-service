@@ -86,8 +86,8 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
       handOffStopMessage = StopZone
     )
 
-  private[this] val clientMonitorActor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
-  private[this] val zoneMonitorActor   = system.spawn(ZoneMonitorActor.behavior, "zone-monitor")
+  private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
+  private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zone-monitor")
 
   private[this] val futureAnalyticsStore =
     readJournal.session.underlying().flatMap(CassandraAnalyticsStore(analyticsKeyspace)(_, ec))
@@ -153,10 +153,10 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
     )
 
   override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
-    clientMonitorActor ? GetActiveClientSummaries
+    clientMonitor ? GetActiveClientSummaries
 
   override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
-    zoneMonitorActor ? GetActiveZoneSummaries
+    zoneMonitor ? GetActiveZoneSummaries
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
     futureAnalyticsStore.flatMap(_.zoneStore.retrieveOpt(zoneId))

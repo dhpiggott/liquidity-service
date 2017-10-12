@@ -192,6 +192,7 @@ sealed abstract class LiquidityServerSpec
           ),
           correlationId = 0L
         )
+        // TODO: Resolve intermittent timeout failures
         inside(expectProtobufZoneResponse(sub, expectedCorrelationId = 0L)) {
           case CreateZoneResponse(Validated.Valid(zone)) =>
             assert(zone.accounts.size === 1)

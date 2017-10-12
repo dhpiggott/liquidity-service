@@ -17,7 +17,8 @@ final case class ZoneEventEnvelope(remoteAddress: Option[InetAddress],
 sealed abstract class ZoneEvent
 case object EmptyZoneEvent                    extends ZoneEvent
 final case class ZoneCreatedEvent(zone: Zone) extends ZoneEvent
-// TODO: Not Any!
+// TODO: Change from Any to SerializableClientConnectionMessage if/when module dependencies are restructured such that
+// it can be on the classpath here
 final case class ClientJoinedEvent(clientConnectionActorRef: Option[ActorRef[Any]]) extends ZoneEvent
 final case class ClientQuitEvent(clientConnectionActorRef: Option[ActorRef[Any]])   extends ZoneEvent
 final case class ZoneNameChangedEvent(name: Option[String])                         extends ZoneEvent

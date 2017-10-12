@@ -10,10 +10,10 @@ class ClientMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
 
   "A ClientMonitorActor" - {
     "will provide a summary of the active clients" in {
-      val clientMonitorActor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
-      val testProbe          = TestProbe()
+      val clientMonitor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
+      val testProbe     = TestProbe()
       testProbe.send(
-        clientMonitorActor.toUntyped,
+        clientMonitor.toUntyped,
         GetActiveClientSummaries(testProbe.ref)
       )
       testProbe.expectMsg(Set.empty)

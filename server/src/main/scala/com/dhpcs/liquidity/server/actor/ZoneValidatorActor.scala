@@ -101,18 +101,18 @@ object ZoneValidatorActor {
         val persistenceId               = context.self.path.name
         val notificationSequenceNumbers = mutable.Map.empty[ActorRef[Nothing], Long]
         val mediator                    = DistributedPubSub(context.system.toUntyped).mediator
-        // TODO: Eliminate now that AtLeastOnceDelivery is removed?
-        val passivationCountdownActor =
+        val passivationCountdown =
           context.spawn(PassivationCountdownActor.behavior(context.self), "passivation-countdown").toUntyped
-        val zoneValidatorActor = context.spawnAnonymous(
+        val zoneValidator = context.spawnAnonymous(
           persistentBehaviour(ZoneId.fromPersistenceId(persistenceId),
                               notificationSequenceNumbers,
                               mediator,
-                              passivationCountdownActor))
+                              passivationCountdown)
+        )
         Actor.withTimers { timers =>
           timers.startPeriodicTimer(PublishStatusTimerKey, PublishZoneStatusTick, 30.seconds)
           Actor.immutable[ZoneValidatorMessage] { (_, zoneValidatorMessage) =>
-            zoneValidatorActor ! zoneValidatorMessage
+            zoneValidator ! zoneValidatorMessage
             Actor.same
           } onSignal {
             case (_, PostStop) =>

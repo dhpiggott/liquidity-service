@@ -6,8 +6,10 @@ import java.time.Instant
 import akka.actor.{ActorSystem, CoordinatedShutdown, ExtendedActorSystem, Scheduler}
 import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
+import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.Message
+import akka.http.scaladsl.server.Directives.logRequestResult
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
@@ -119,8 +121,8 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
     )
 
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
-    // TODO: Logging
-    httpRoutes(enableClientRelay = Cluster(system).selfMember.roles.contains(ClientRelayRole)),
+    logRequestResult(("HTTP API", Logging.InfoLevel))(
+      httpRoutes(enableClientRelay = Cluster(system).selfMember.roles.contains(ClientRelayRole))),
     httpInterface,
     httpPort
   )

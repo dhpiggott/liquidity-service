@@ -46,21 +46,22 @@ import scala.concurrent.{Await, Future}
 object ServerConnectionSpec {
   object ClientConnectionTestProbeForwarderActor {
 
-    def behavior(clientConnectionActorTestProbe: akka.actor.ActorRef)(webSocketOut: ActorRef[Any]): Behavior[Any] =
+    def behavior(clientConnectionActorTestProbe: akka.actor.ActorRef)(
+        webSocketOut: ActorRef[proto.ws.protocol.ClientMessage]): Behavior[Any] =
       Actor.immutable((context, message) =>
         message match {
-          case actorSinkInit @ ActorSinkInit(webSocketIn) =>
+          case actorSinkInit @ InitActorSink(webSocketIn) =>
             webSocketIn ! ActorSinkAck
             clientConnectionActorTestProbe.tell(actorSinkInit, context.self.toUntyped)
             Actor.same
 
-          case WrappedServerMessage(webSocketIn, serverMessage) =>
+          case ActorFlowServerMessage(webSocketIn, serverMessage) =>
             webSocketIn ! ActorSinkAck
             clientConnectionActorTestProbe.tell(serverMessage, context.self.toUntyped)
             Actor.same
 
-          case other =>
-            webSocketOut ! other
+          case clientMessage: proto.ws.protocol.ClientMessage =>
+            webSocketOut ! clientMessage
             Actor.same
       })
 
@@ -181,7 +182,7 @@ class ServerConnectionSpec
       sub.requestNext(AVAILABLE)
       mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
-      clientConnectionActorTestProbe.expectMsgType[ActorSinkInit]
+      clientConnectionActorTestProbe.expectMsgType[InitActorSink]
       sub.requestNext(AUTHENTICATING)
       val keyOwnershipChallenge = Authentication.createKeyOwnershipChallengeMessage()
       clientConnectionActorTestProbe
@@ -234,7 +235,7 @@ class ServerConnectionSpec
       sub.requestNext(AVAILABLE)
       mainThreadExecutorService.submit(serverConnection.requestConnection(connectionRequestToken, retry = false))
       sub.requestNext(CONNECTING)
-      clientConnectionActorTestProbe.expectMsgType[ActorSinkInit]
+      clientConnectionActorTestProbe.expectMsgType[InitActorSink]
       sub.requestNext(AUTHENTICATING)
       val keyOwnershipChallenge = Authentication.createKeyOwnershipChallengeMessage()
       clientConnectionActorTestProbe

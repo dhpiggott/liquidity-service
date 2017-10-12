@@ -9,11 +9,11 @@ import com.dhpcs.liquidity.ws.protocol.{ZoneNotification, ZoneResponse}
 case object ActorSinkAck
 
 sealed abstract class ClientConnectionMessage
-final case class ActorSinkInit(webSocketIn: ActorRef[ActorSinkAck.type]) extends ClientConnectionMessage
+final case class InitActorSink(webSocketIn: ActorRef[ActorSinkAck.type]) extends ClientConnectionMessage
 case object PublishClientStatusTick                                      extends ClientConnectionMessage
 case object SendPingTick                                                 extends ClientConnectionMessage
 // TODO: Not Any!
-final case class WrappedServerMessage(webSocketIn: ActorRef[Any], serverMessage: proto.ws.protocol.ServerMessage)
+final case class ActorFlowServerMessage(webSocketIn: ActorRef[Any], serverMessage: proto.ws.protocol.ServerMessage)
     extends ClientConnectionMessage
 
 sealed abstract class SerializableClientConnectionMessage extends ClientConnectionMessage with Serializable

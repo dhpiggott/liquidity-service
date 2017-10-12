@@ -35,7 +35,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
                                      zoneValidatorShardRegionTestProbe.ref,
                                      InetAddress.getLoopbackAddress)(webSocketOutTestProbe.ref)
     )
-    sinkTestProbe.send(clientConnection.toUntyped, ActorSinkInit(sinkTestProbe.ref))
+    sinkTestProbe.send(clientConnection.toUntyped, InitActorSink(sinkTestProbe.ref))
     sinkTestProbe.expectMsg(ActorSinkAck)
     try withFixture(
       test.toNoArgTest(
@@ -128,7 +128,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       message: proto.ws.protocol.ServerMessage.Message): Unit = {
     sinkTestProbe.send(
       clientConnection,
-      WrappedServerMessage(sinkTestProbe.ref, proto.ws.protocol.ServerMessage(message))
+      ActorFlowServerMessage(sinkTestProbe.ref, proto.ws.protocol.ServerMessage(message))
     )
     sinkTestProbe.expectMsg(ActorSinkAck); ()
   }

@@ -1,13 +1,13 @@
 package com.dhpcs.liquidity.server
 
 import akka.actor.ActorSystem
-import com.dhpcs.liquidity
+import com.dhpcs.liquidity.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
 trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
-  private[this] val akkaRemotingPort = liquidity.testkit.TestKit.freePort()
+  private[this] val akkaRemotingPort = TestKit.freePort()
   private[this] val config           = ConfigFactory.parseString(s"""
        |akka {
        |  loglevel = "WARNING"
@@ -27,23 +27,15 @@ trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |  }
        |  cluster {
        |    metrics.enabled = off
-       |    roles = ["zone-host", "client-relay"]
        |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
        |    jmx.multi-mbeans-in-same-jvm = on
        |  }
-       |  extensions += "akka.persistence.Persistence"
        |  persistence {
-       |    journal {
-       |      auto-start-journals = ["inmemory-journal"]
-       |      plugin = "inmemory-journal"
-       |    }
-       |    snapshot-store {
-       |      auto-start-journals = ["inmemory-snapshot-store"]
-       |      plugin = "inmemory-snapshot-store"
-       |    }
+       |    journal.plugin = "inmemory-journal"
+       |    snapshot-store.plugin = "inmemory-snapshot-store"
        |  }
        |}
-     """.stripMargin).resolve()
+     """.stripMargin)
 
   protected[this] implicit val system: ActorSystem = ActorSystem("liquidity", config)
 

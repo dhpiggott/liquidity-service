@@ -6,8 +6,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.testkit.TestProbe
-import akka.typed.Props
-import akka.typed.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
+import akka.typed
 import akka.typed.scaladsl.adapter._
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
@@ -17,29 +16,31 @@ import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.testkit.TestKit
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalactic.TripleEqualsSupport.Spread
-import org.scalatest.{FreeSpec, Inside}
+import org.scalatest.{Inside, Outcome, fixture}
 
-class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures with Inside {
-
-  // TODO: Don't involve sharding in this test - leave that to the integration test
-  private[this] val zoneValidatorShardRegion = ClusterSharding(system.toTyped).spawn(
-    behavior = ZoneValidatorActor.shardingBehaviour,
-    entityProps = Props.empty,
-    typeKey = ZoneValidatorActor.ShardingTypeName,
-    settings = ClusterShardingSettings(system.toTyped),
-    messageExtractor = ZoneValidatorActor.messageExtractor,
-    handOffStopMessage = StopZone
-  )
+class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures with Inside {
 
   private[this] val remoteAddress = InetAddress.getLoopbackAddress
   private[this] val publicKey     = PublicKey(TestKit.rsaPublicKey.getEncoded)
 
+  override protected type FixtureParam = (TestProbe, ZoneId, typed.ActorRef[SerializableZoneValidatorMessage])
+
+  override protected def withFixture(test: OneArgTest): Outcome = {
+    val clientConnectionTestProbe = TestProbe()
+    val zoneId                    = ZoneId(UUID.randomUUID.toString)
+    val zoneValidator             = system.spawn(ZoneValidatorActor.shardingBehaviour, name = zoneId.persistenceId)
+    try withFixture(
+      test.toNoArgTest((clientConnectionTestProbe, zoneId, zoneValidator))
+    )
+    finally system.stop(zoneValidator.toUntyped)
+  }
+
   "A ZoneValidatorActor" - {
-    "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in {
-      val (clientConnectionTestProbe, zoneId) = setup()
-      val correlationId                       = 0L
+    "will reply with a CreateZoneResponse when sending a CreateZoneCommand" in { fixture =>
+      val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
+      val correlationId                                      = 0L
       clientConnectionTestProbe.send(
-        zoneValidatorShardRegion.toUntyped,
+        zoneValidator.toUntyped,
         ZoneCommandEnvelope(
           clientConnectionTestProbe.ref,
           zoneId,
@@ -72,11 +73,11 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
           assert(zone.metadata === None)
       }
     }
-    "will reply with an Error when sending a JoinZoneCommand and no zone has been created" in {
-      val (clientConnectionTestProbe, zoneId) = setup()
-      val correlationId                       = 0L
+    "will reply with an Error when sending a JoinZoneCommand and no zone has been created" in { fixture =>
+      val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
+      val correlationId                                      = 0L
       clientConnectionTestProbe.send(
-        zoneValidatorShardRegion.toUntyped,
+        zoneValidator.toUntyped,
         ZoneCommandEnvelope(
           clientConnectionTestProbe.ref,
           zoneId,
@@ -96,12 +97,6 @@ class ZoneValidatorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtur
           ))
       )
     }
-  }
-
-  private[this] def setup(): (TestProbe, ZoneId) = {
-    val clientConnectionTestProbe = TestProbe()
-    val zoneId                    = ZoneId(UUID.randomUUID.toString)
-    (clientConnectionTestProbe, zoneId)
   }
 
   private[this] def expectResponse(clientConnectionTestProbe: TestProbe, correlationId: Long): ZoneResponse = {

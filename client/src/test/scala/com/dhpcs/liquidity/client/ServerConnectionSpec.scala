@@ -19,7 +19,6 @@ import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.adapter._
 import akka.typed.{ActorRef, Behavior}
 import cats.data.Validated
-import com.dhpcs.liquidity
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
@@ -33,6 +32,7 @@ import com.dhpcs.liquidity.proto.model.ZoneState
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor
+import com.dhpcs.liquidity.testkit.TestKit
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
@@ -74,7 +74,7 @@ class ServerConnectionSpec
     with ScalaFutures
     with Inside {
 
-  private[this] val akkaHttpPort = liquidity.testkit.TestKit.freePort()
+  private[this] val akkaHttpPort = TestKit.freePort()
 
   private[this] val config = ConfigFactory
     .parseString("""
@@ -146,7 +146,7 @@ class ServerConnectionSpec
 
   override protected def afterAll(): Unit = {
     mainThreadExecutorService.shutdown()
-    liquidity.testkit.TestKit.delete(filesDir)
+    TestKit.delete(filesDir)
     Await.result(binding.flatMap(_.unbind()), Duration.Inf)
     akka.testkit.TestKit.shutdownActorSystem(system)
     super.afterAll()

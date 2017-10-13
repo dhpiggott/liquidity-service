@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.server
 import java.net.InetAddress
 import java.time.Instant
 
-import akka.actor.{ActorSystem, CoordinatedShutdown, ExtendedActorSystem, Scheduler}
+import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.Cluster
 import akka.cluster.http.management.ClusterHttpManagement
 import akka.event.Logging
@@ -14,6 +14,7 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
+import akka.typed.cluster.ActorRefResolver
 import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
 import akka.typed.{ActorRef, Props}
@@ -137,7 +138,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
         case EventEnvelope(_, _, sequenceNr, event) =>
           val protoEvent = event match {
             case zoneEventEnvelope: ZoneEventEnvelope =>
-              ProtoBinding[ZoneEventEnvelope, proto.persistence.zone.ZoneEventEnvelope, ExtendedActorSystem]
+              ProtoBinding[ZoneEventEnvelope, proto.persistence.zone.ZoneEventEnvelope, ActorRefResolver]
                 .asProto(zoneEventEnvelope)
           }
           HttpController.EventEnvelope(sequenceNr, protoEvent)
@@ -145,7 +146,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
 
   override protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] = {
     val zoneState: Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(_, zoneId))
-    zoneState.map(ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ExtendedActorSystem].asProto)
+    zoneState.map(ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ActorRefResolver].asProto)
   }
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
@@ -166,6 +167,6 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
     futureAnalyticsStore.flatMap(_.balanceStore.retrieve(zoneId))
 
   override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
-    futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId)(ec, system.asInstanceOf[ExtendedActorSystem]))
+    futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId)(ec, ActorRefResolver(system.toTyped)))
 
 }

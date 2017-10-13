@@ -2,12 +2,12 @@ package com.dhpcs.liquidity.server.actor
 
 import java.time.Instant
 
-import akka.actor.ExtendedActorSystem
 import akka.pattern.pipe
 import akka.persistence.query.EventEnvelope
 import akka.persistence.query.scaladsl.{CurrentEventsByPersistenceIdQuery, EventsByPersistenceIdQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
+import akka.typed.cluster.ActorRefResolver
 import akka.typed.cluster.sharding.{EntityTypeKey, ShardingMessageExtractor}
 import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.adapter._
@@ -63,7 +63,7 @@ object ZoneAnalyticsActor {
               }
               previousBalances <- analyticsStore.balanceStore.retrieve(zoneId)
               previousClients <- analyticsStore.clientStore
-                .retrieve(zoneId)(context.executionContext, context.system.asInstanceOf[ExtendedActorSystem])
+                .retrieve(zoneId)(context.executionContext, ActorRefResolver(context.system))
               (currentSequenceNumber, currentZone, currentBalances, currentClients) <- readJournal
                 .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber, Long.MaxValue)
                 .runFoldAsync((previousSequenceNumber, previousZone, previousBalances, previousClients))(

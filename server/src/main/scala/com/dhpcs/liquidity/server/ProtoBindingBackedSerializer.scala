@@ -6,6 +6,8 @@ import java.util.concurrent.atomic.AtomicReference
 import akka.actor.ExtendedActorSystem
 import akka.remote.serialization.ProtobufSerializer
 import akka.serialization.SerializerWithStringManifest
+import akka.typed.cluster.ActorRefResolver
+import akka.typed.scaladsl.adapter._
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.ProtoBindingBackedSerializer.AnyRefProtoBinding
 
@@ -19,15 +21,15 @@ object ProtoBindingBackedSerializer {
   object AnyRefProtoBinding {
     def apply[S, P](implicit scalaClassTag: ClassTag[S],
                     protoClassTag: ClassTag[P],
-                    protoBinding: ProtoBinding[S, P, ExtendedActorSystem]): AnyRefProtoBinding[S, P] =
+                    protoBinding: ProtoBinding[S, P, ActorRefResolver]): AnyRefProtoBinding[S, P] =
       new AnyRefProtoBinding(scalaClassTag, protoClassTag, protoBinding)
   }
 
   class AnyRefProtoBinding[S, P](val scalaClassTag: ClassTag[S],
                                  val protoClassTag: ClassTag[P],
-                                 protoBinding: ProtoBinding[S, P, ExtendedActorSystem]) {
+                                 protoBinding: ProtoBinding[S, P, ActorRefResolver]) {
     def anyRefScalaAsAnyRefProto(s: AnyRef): AnyRef = protoBinding.asProto(s.asInstanceOf[S]).asInstanceOf[AnyRef]
-    def anyRefProtoAsAnyRefScala(p: AnyRef)(implicit system: ExtendedActorSystem): AnyRef =
+    def anyRefProtoAsAnyRefScala(p: AnyRef)(implicit resolver: ActorRefResolver): AnyRef =
       protoBinding.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]
   }
 }
@@ -36,6 +38,8 @@ abstract class ProtoBindingBackedSerializer(system: ExtendedActorSystem,
                                             protoBindings: Seq[AnyRefProtoBinding[_, _]],
                                             override val identifier: Int)
     extends SerializerWithStringManifest {
+
+  private[this] val resolver = ActorRefResolver(system.toTyped)
 
   private[this] val scalaClassToProtoBinding: Map[Class[_], AnyRefProtoBinding[_, _]] = {
     val scalaClasses = protoBindings.map(_.scalaClassTag.runtimeClass)
@@ -86,6 +90,6 @@ abstract class ProtoBindingBackedSerializer(system: ExtendedActorSystem,
       .getOrElse(protoClass, throw new IllegalArgumentException(s"No ProtoBinding registered for [$protoClass]"))
       .anyRefProtoAsAnyRefScala(
         protobufSerializer.fromBinary(bytes, Some(protoClass))
-      )(system)
+      )(resolver)
   }
 }

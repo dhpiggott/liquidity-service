@@ -4,9 +4,9 @@ import java.nio.ByteBuffer
 import java.time.Instant
 import java.util.Date
 
-import akka.actor.ExtendedActorSystem
 import akka.serialization.Serialization
 import akka.typed.ActorRef
+import akka.typed.cluster.ActorRefResolver
 import akka.typed.scaladsl.adapter._
 import com.datastax.driver.core.{PreparedStatement, ResultSet, Row, Session}
 import com.dhpcs.liquidity.model._
@@ -684,14 +684,14 @@ object CassandraAnalyticsStore {
         """.stripMargin)
 
     def retrieve(zoneId: ZoneId)(implicit ec: ExecutionContext,
-                                 system: ExtendedActorSystem): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
+                                 resolver: ActorRefResolver): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
       for (resultSet <- retrieveStatement.execute(zoneId.id))
         yield
           (for {
             row <- resultSet.iterator.asScala if !row.isNull("current_actor_ref")
             publicKey                          = PublicKey(ByteString.of(row.getBytes("public_key")))
             lastJoined                         = row.getTimestamp("last_joined").toInstant
-            currentActorRef: ActorRef[Nothing] = system.provider.resolveActorRef(row.getString("current_actor_ref"))
+            currentActorRef: ActorRef[Nothing] = resolver.resolveActorRef(row.getString("current_actor_ref"))
           } yield currentActorRef -> (lastJoined -> publicKey)).toMap
 
     private[this] val createOrUpdateStatement = prepareStatement(s"""

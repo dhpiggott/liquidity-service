@@ -65,9 +65,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
           val equityAccountOwner = zone.members(equityAccount.ownerMemberIds.head)
           assert(equityAccount === Account(equityAccount.id, ownerMemberIds = Set(equityAccountOwner.id)))
           assert(equityAccountOwner === Member(equityAccountOwner.id, Set(publicKey), name = Some("Dave")))
-          assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
+          assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 5000L))
           assert(
-            zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
+            zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 5000L))
           assert(zone.transactions === Map.empty)
           assert(zone.name === Some("Dave's Game"))
           assert(zone.metadata === None)

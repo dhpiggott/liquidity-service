@@ -192,7 +192,6 @@ sealed abstract class LiquidityServerSpec
           ),
           correlationId = 0L
         )
-        // TODO: Resolve intermittent timeout failures
         inside(expectProtobufZoneResponse(sub, expectedCorrelationId = 0L)) {
           case CreateZoneResponse(Validated.Valid(zone)) =>
             assert(zone.accounts.size === 1)
@@ -204,9 +203,9 @@ sealed abstract class LiquidityServerSpec
               equityAccountOwner === Member(equityAccountOwner.id,
                                             Set(PublicKey(TestKit.rsaPublicKey.getEncoded)),
                                             name = Some("Dave")))
-            assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 1000L))
+            assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 5000L))
             assert(
-              zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 1000L))
+              zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 5000L))
             assert(zone.transactions === Map.empty)
             assert(zone.name === Some("Dave's Game"))
             assert(zone.metadata === None)

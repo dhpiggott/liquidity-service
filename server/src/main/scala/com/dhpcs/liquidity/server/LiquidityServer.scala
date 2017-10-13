@@ -19,12 +19,13 @@ import akka.typed.scaladsl.adapter._
 import akka.typed.{ActorRef, Props}
 import akka.util.Timeout
 import akka.{Done, NotUsed, typed}
+import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.persistence.zone.ZoneEventEnvelope
+import com.dhpcs.liquidity.persistence.zone.{ZoneEventEnvelope, ZoneState}
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
@@ -142,9 +143,9 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
           HttpController.EventEnvelope(sequenceNr, protoEvent)
       }
 
-  override protected[this] def zoneState(zoneId: ZoneId): Future[proto.model.ZoneState] = {
+  override protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] = {
     val zoneState: Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(_, zoneId))
-    zoneState.map(ProtoBinding[ZoneState, proto.model.ZoneState, ExtendedActorSystem].asProto)
+    zoneState.map(ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ExtendedActorSystem].asProto)
   }
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =

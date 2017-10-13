@@ -43,9 +43,3 @@ message Zone {
     google.protobuf.StringValue name = 8;
     google.protobuf.Struct metadata = 9;
 }
-
-message ZoneState {
-    dhpcs.liquidity.model.Zone zone = 1;
-    map<string, string> balances = 2;
-    map<string, bytes> connected_clients = 3;
-}

@@ -8,8 +8,14 @@ import "google/protobuf/wrappers.proto";
 
 import "dhpcs/liquidity/model.proto";
 
+message ZoneState {
+    dhpcs.liquidity.model.Zone zone = 1;
+    map<string, string> balances = 2;
+    map<string, bytes> connected_clients = 3;
+}
+
 message ZoneSnapshot {
-    dhpcs.liquidity.model.ZoneState zone_state = 1;
+    ZoneState zone_state = 1;
 }
 
 message ZoneEventEnvelope {

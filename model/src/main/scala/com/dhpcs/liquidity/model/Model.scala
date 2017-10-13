@@ -1,6 +1,5 @@
 package com.dhpcs.liquidity.model
 
-import akka.typed.ActorRef
 import okio.ByteString
 
 final case class PublicKey(value: ByteString) {
@@ -58,9 +57,3 @@ final case class Zone(id: ZoneId,
                       expires: Long,
                       name: Option[String] = None,
                       metadata: Option[com.google.protobuf.struct.Struct] = None)
-
-final case class ZoneState(zone: Option[Zone],
-                           balances: Map[AccountId, BigDecimal],
-                           // TODO: Change to SerializableClientConnectionMessage if/when module dependencies are
-                           // restructured such that it can be on the classpath here
-                           connectedClients: Map[ActorRef[Any], PublicKey])

@@ -24,12 +24,7 @@ lazy val model = project
     name := "liquidity-model"
   )
   .dependsOn(`proto-binding`)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.squareup.okio" % "okio"        % "1.13.0",
-      "com.typesafe.akka" %% "akka-typed" % "2.5.6"
-    )
-  )
+  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0")
 
 lazy val `ws-protocol` = project
   .in(file("ws-protocol"))
@@ -41,6 +36,7 @@ lazy val `ws-protocol` = project
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
   .dependsOn(model)
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.6")
   .dependsOn(testkit % Test)
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
@@ -56,17 +52,6 @@ lazy val `actor-protocol` = project
   )
   .dependsOn(`ws-protocol`)
 
-lazy val persistence = project
-  .in(file("persistence"))
-  .settings(protobufSettings)
-  .settings(
-    name := "liquidity-persistence"
-  )
-  .settings(
-    PB.includePaths in Compile += file("model/src/main/protobuf")
-  )
-  .dependsOn(model)
-
 lazy val testkit = project
   .in(file("testkit"))
   .settings(
@@ -80,7 +65,6 @@ lazy val server = project
   )
   .dependsOn(`ws-protocol`)
   .dependsOn(`actor-protocol`)
-  .dependsOn(persistence)
   .settings(
     dependencyOverrides ++= Seq(
       "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
@@ -198,7 +182,6 @@ lazy val root = project
     model,
     `ws-protocol`,
     `actor-protocol`,
-    persistence,
     testkit,
     server,
     client,

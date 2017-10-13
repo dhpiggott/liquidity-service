@@ -3,11 +3,6 @@ package com.dhpcs.liquidity.model
 import java.net.InetAddress
 import java.time.Instant
 
-import akka.actor
-import akka.actor.ExtendedActorSystem
-import akka.serialization.Serialization
-import akka.typed.ActorRef
-import akka.typed.scaladsl.adapter._
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 
 object ProtoBindings {
@@ -74,13 +69,6 @@ object ProtoBindings {
     ProtoBinding.instance(
       _.values.map(protoBinding.asProto).toSeq,
       (seq, system) => seq.map(protoBinding.asScala(_)(system)).map(s => entityIdExtractor.extractId(s) -> s).toMap)
-
-  implicit final val UntypedActorRefProtoBinding: ProtoBinding[actor.ActorRef, String, ExtendedActorSystem] =
-    ProtoBinding.instance(Serialization.serializedActorPath, (s, system) => system.provider.resolveActorRef(s))
-
-  implicit def actorRefProtoBinding[A]: ProtoBinding[ActorRef[A], String, ExtendedActorSystem] =
-    ProtoBinding.instance(actorRef => Serialization.serializedActorPath(actorRef.toUntyped),
-                          (s, system) => system.provider.resolveActorRef(s))
 
   implicit def mapProtoBinding[SK, SV, PK, PV, C](
       implicit kBinding: ProtoBinding[SK, PK, C],

@@ -28,7 +28,6 @@ import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
-import com.dhpcs.liquidity.proto.model.ZoneState
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActor
@@ -98,8 +97,8 @@ class ServerConnectionSpec
                                       toSequenceNr: Long): Source[EventEnvelope, NotUsed] =
     Source.empty[EventEnvelope]
 
-  override protected[this] def zoneState(zoneId: ZoneId): Future[ZoneState] =
-    Future.successful(ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty))
+  override protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] =
+    Future.successful(proto.persistence.zone.ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty))
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[ws.Message, ws.Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(

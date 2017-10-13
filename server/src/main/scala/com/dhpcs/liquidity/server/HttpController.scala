@@ -175,7 +175,7 @@ trait HttpController {
                              fromSequenceNr: Long,
                              toSequenceNr: Long): Source[EventEnvelope, NotUsed]
 
-  protected[this] def zoneState(zoneId: ZoneId): Future[proto.model.ZoneState]
+  protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
 
   protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed]
 

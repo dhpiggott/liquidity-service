@@ -15,7 +15,7 @@ import akka.typed.ActorRef
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.{AccountId, PublicKey, Zone, ZoneId}
-import com.dhpcs.liquidity.proto.model.ZoneState
+import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
@@ -80,8 +80,8 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
                                       toSequenceNr: Long): Source[EventEnvelope, NotUsed] =
     Source.empty[EventEnvelope]
 
-  override protected[this] def zoneState(zoneId: ZoneId): Future[ZoneState] =
-    Future.successful(ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty))
+  override protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] =
+    Future.successful(proto.persistence.zone.ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty))
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] = Flow[Message]
 

@@ -5,6 +5,7 @@ import java.net.InetAddress
 import akka.typed.ActorRef
 import com.dhpcs.liquidity.actor.protocol.clientconnection.ZoneResponseEnvelope
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.persistence.zone.ZoneState
 import com.dhpcs.liquidity.ws.protocol.ZoneCommand
 
 sealed abstract class ZoneValidatorMessage

@@ -289,7 +289,7 @@ sealed abstract class LiquidityServerSpec
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
           ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any]
-            .asProto(createZoneCommand)
+            .asProto(createZoneCommand)(())
         )
       )))
 
@@ -304,7 +304,7 @@ sealed abstract class LiquidityServerSpec
           proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
             zoneId.id.toString,
             Some(
-              ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any].asProto(zoneCommand)
+              ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any].asProto(zoneCommand)(())
             )))
       )))
 

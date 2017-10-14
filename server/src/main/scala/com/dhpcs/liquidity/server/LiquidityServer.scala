@@ -139,14 +139,16 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
           val protoEvent = event match {
             case zoneEventEnvelope: ZoneEventEnvelope =>
               ProtoBinding[ZoneEventEnvelope, proto.persistence.zone.ZoneEventEnvelope, ActorRefResolver]
-                .asProto(zoneEventEnvelope)
+                .asProto(zoneEventEnvelope)(ActorRefResolver(system.toTyped))
           }
           HttpController.EventEnvelope(sequenceNr, protoEvent)
       }
 
   override protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] = {
     val zoneState: Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(_, zoneId))
-    zoneState.map(ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ActorRefResolver].asProto)
+    zoneState.map(
+      ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ActorRefResolver]
+        .asProto(_)(ActorRefResolver(system.toTyped)))
   }
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =

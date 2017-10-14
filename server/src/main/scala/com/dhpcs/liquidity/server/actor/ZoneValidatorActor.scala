@@ -102,7 +102,7 @@ object ZoneValidatorActor {
         val passivationCountdown =
           context.spawn(PassivationCountdownActor.behavior(context.self), "passivation-countdown").toUntyped
         // Workaround for the limitation described in https://github.com/akka/akka/pull/23674
-        // TODO: Remove this once that limitation is resolved?
+        // TODO: Remove this once that limitation is resolved
         val zoneValidator = context.spawnAnonymous(
           persistentBehaviour(ZoneId.fromPersistenceId(persistenceId),
                               notificationSequenceNumbers,

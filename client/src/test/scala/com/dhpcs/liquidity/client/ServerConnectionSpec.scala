@@ -269,7 +269,7 @@ class ServerConnectionSpec
               correlationId = 0L,
               proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.ws.protocol.ZoneResponse(
                 ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
-                  .asProto(createZoneResponse)
+                  .asProto(createZoneResponse)(())
               ))
             ))),
           sender = clientConnectionActorTestProbe.ref

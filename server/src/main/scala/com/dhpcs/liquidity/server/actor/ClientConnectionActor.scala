@@ -334,7 +334,7 @@ object ClientConnectionActor {
             proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
               correlationId,
               proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(
-                ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asProto(zoneResponse)
+                ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asProto(zoneResponse)(())
               )
             ))
           )
@@ -387,7 +387,7 @@ object ClientConnectionActor {
                           proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(
                             zoneId.id.toString,
                             Some(ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any]
-                              .asProto(zoneNotification))
+                              .asProto(zoneNotification)(()))
                           ))
                     ))
                 )

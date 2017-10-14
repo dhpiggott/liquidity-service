@@ -121,7 +121,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
         correlationId,
         proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
           ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any]
-            .asProto(createZoneCommand))
+            .asProto(createZoneCommand)(()))
       )))
 
   private[this] def sendMessage(sinkTestProbe: TestProbe, clientConnection: ActorRef)(

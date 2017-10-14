@@ -98,7 +98,7 @@ lazy val server = project
       "com.typesafe.akka"  %% "akka-persistence"             % "2.5.6",
       "com.typesafe.akka"  %% "akka-persistence-query"       % "2.5.6",
       // TODO: Switch to akka-persistence-jdbc
-      "com.typesafe.akka" %% "akka-persistence-cassandra"  % "0.56",
+      "com.typesafe.akka" %% "akka-persistence-cassandra"  % "0.58",
       "io.netty"          % "netty-transport-native-epoll" % "4.1.12.Final" classifier "linux-x86_64",
       // TODO: Switch to doobie
       "com.datastax.cassandra" % "cassandra-driver-core" % "3.2.0",
@@ -122,7 +122,7 @@ lazy val server = project
   .dependsOn(testkit % MultiJvm)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.6" % MultiJvm,
-    "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.56"  % MultiJvm
+    "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.58"  % MultiJvm
   ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(

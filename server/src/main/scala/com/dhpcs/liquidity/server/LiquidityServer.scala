@@ -14,7 +14,8 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
-import akka.typed.cluster.ActorRefResolver
+import akka.typed.cluster.{ActorRefResolver, ClusterSingleton}
+import akka.typed.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
 import akka.typed.{ActorRef, Props}
@@ -49,7 +50,7 @@ object LiquidityServer {
     implicit val system: ActorSystem  = ActorSystem("liquidity")
     implicit val mat: Materializer    = ActorMaterializer()
     implicit val ec: ExecutionContext = ExecutionContext.global
-    val clusterHttpManagement         = ClusterHttpManagement(akka.cluster.Cluster(system))
+    val clusterHttpManagement         = ClusterHttpManagement(Cluster(system))
     clusterHttpManagement.start()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseClusterExitingDone, "clusterHttpManagementStop")(() =>
       clusterHttpManagement.stop())
@@ -77,16 +78,14 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   private[this] implicit val ec: ExecutionContext = system.dispatcher
   private[this] implicit val askTimeout: Timeout  = Timeout(30.seconds)
 
-  private[this] val zoneValidatorShardRegion = typed.cluster.sharding
-    .ClusterSharding(system.toTyped)
-    .spawn(
-      behavior = ZoneValidatorActor.shardingBehaviour,
-      entityProps = Props.empty,
-      typeKey = ZoneValidatorActor.ShardingTypeName,
-      settings = typed.cluster.sharding.ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
-      messageExtractor = ZoneValidatorActor.messageExtractor,
-      handOffStopMessage = StopZone
-    )
+  private[this] val zoneValidatorShardRegion = ClusterSharding(system.toTyped).spawn(
+    behavior = ZoneValidatorActor.shardingBehaviour,
+    entityProps = Props.empty,
+    typeKey = ZoneValidatorActor.ShardingTypeName,
+    settings = ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
+    messageExtractor = ZoneValidatorActor.messageExtractor,
+    handOffStopMessage = StopZone
+  )
 
   private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
   private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zone-monitor")
@@ -100,27 +99,22 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
     System.exit(1)
   }
 
-  private[this] val zoneAnalyticsShardRegion = typed.cluster.sharding
-    .ClusterSharding(system.toTyped)
-    .spawn(
-      behavior = ZoneAnalyticsActor.shardingBehavior(readJournal, futureAnalyticsStore, streamFailureHandler),
-      entityProps = Props.empty,
-      typeKey = ZoneAnalyticsActor.ShardingTypeName,
-      settings = typed.cluster.sharding.ClusterShardingSettings(system.toTyped).withRole(AnalyticsRole),
-      messageExtractor = ZoneAnalyticsActor.messageExtractor,
-      handOffStopMessage = StopZoneAnalytics
-    )
+  private[this] val zoneAnalyticsShardRegion = ClusterSharding(system.toTyped).spawn(
+    behavior = ZoneAnalyticsActor.shardingBehavior(readJournal, futureAnalyticsStore, streamFailureHandler),
+    entityProps = Props.empty,
+    typeKey = ZoneAnalyticsActor.ShardingTypeName,
+    settings = ClusterShardingSettings(system.toTyped).withRole(AnalyticsRole),
+    messageExtractor = ZoneAnalyticsActor.messageExtractor,
+    handOffStopMessage = StopZoneAnalytics
+  )
 
-  typed.cluster
-    .ClusterSingleton(system.toTyped)
-    .spawn(
-      behavior =
-        ZoneAnalyticsStarterActor.singletonBehavior(readJournal, zoneAnalyticsShardRegion, streamFailureHandler),
-      singletonName = "zone-analytics-starter-singleton",
-      props = Props.empty,
-      settings = typed.cluster.ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
-      terminationMessage = StopZoneAnalyticsStarter
-    )
+  ClusterSingleton(system.toTyped).spawn(
+    behavior = ZoneAnalyticsStarterActor.singletonBehavior(readJournal, zoneAnalyticsShardRegion, streamFailureHandler),
+    singletonName = "zone-analytics-starter-singleton",
+    props = Props.empty,
+    settings = typed.cluster.ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
+    terminationMessage = StopZoneAnalyticsStarter
+  )
 
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
     logRequestResult(("HTTP API", Logging.InfoLevel))(

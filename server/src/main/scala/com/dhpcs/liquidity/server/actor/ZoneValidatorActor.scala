@@ -100,7 +100,7 @@ object ZoneValidatorActor {
         val notificationSequenceNumbers = mutable.Map.empty[ActorRef[Nothing], Long]
         val mediator                    = DistributedPubSub(context.system.toUntyped).mediator
         val passivationCountdown =
-          context.spawn(PassivationCountdownActor.behavior(context.self), "passivation-countdown").toUntyped
+          context.spawn(PassivationCountdownActor.behavior(context.self), "passivation-countdown")
         // Workaround for the limitation described in https://github.com/akka/akka/pull/23674
         // TODO: Remove this once that limitation is resolved
         val zoneValidator = context.spawnAnonymous(
@@ -139,7 +139,7 @@ object ZoneValidatorActor {
                 mediator ! Publish(
                   ZoneMonitorActor.ZoneStatusTopic,
                   UpsertActiveZoneSummary(
-                    context.self.toUntyped,
+                    context.self,
                     ActiveZoneSummary(
                       id,
                       zone.members.values.toSet,
@@ -164,17 +164,17 @@ object ZoneValidatorActor {
             handleCommand(context, id, notificationSequenceNumbers, state, zoneCommandEnvelope)
       }) onSignal {
         case (context, Terminated(actor), state) if actor != passivationCountdown =>
-          state.connectedClients.get(actor.toUntyped) match {
+          state.connectedClients.get(actor.upcast) match {
             case None =>
               PersistNothing()
             case Some(publicKey) =>
-              notificationSequenceNumbers -= actor.toUntyped
+              notificationSequenceNumbers -= actor
               Persist(
                 ZoneEventEnvelope(
                   remoteAddress = None,
                   Some(publicKey),
                   timestamp = Instant.now(),
-                  ClientQuitEvent(Some(actor.toUntyped))
+                  ClientQuitEvent(Some(actor.upcast))
                 )
               ).andThen(
                 deliverNotification(
@@ -285,7 +285,7 @@ object ZoneValidatorActor {
             )
             PersistNothing()
           case Some(zone) =>
-            if (state.connectedClients.contains(zoneCommandEnvelope.replyTo.toUntyped)) {
+            if (state.connectedClients.contains(zoneCommandEnvelope.replyTo.upcast)) {
               // We already accepted the command; this was just a redelivery
               deliverResponse(
                 context.self,
@@ -305,7 +305,7 @@ object ZoneValidatorActor {
                 id,
                 notificationSequenceNumbers,
                 zoneCommandEnvelope,
-                ClientJoinedEvent(Some(zoneCommandEnvelope.replyTo.toUntyped))
+                ClientJoinedEvent(Some(zoneCommandEnvelope.replyTo.upcast))
               )
             }
         }
@@ -321,7 +321,7 @@ object ZoneValidatorActor {
             )
             PersistNothing()
           case Some(_) =>
-            if (!state.connectedClients.contains(zoneCommandEnvelope.replyTo.toUntyped)) {
+            if (!state.connectedClients.contains(zoneCommandEnvelope.replyTo.upcast)) {
               // We already accepted the command; this was just a redelivery
               deliverResponse(
                 context.self,
@@ -331,14 +331,14 @@ object ZoneValidatorActor {
               )
               PersistNothing()
             } else {
-              notificationSequenceNumbers -= zoneCommandEnvelope.replyTo.toUntyped
+              notificationSequenceNumbers -= zoneCommandEnvelope.replyTo
               context.unwatch(zoneCommandEnvelope.replyTo)
               acceptCommand(
                 context.self,
                 id,
                 notificationSequenceNumbers,
                 zoneCommandEnvelope,
-                ClientQuitEvent(Some(zoneCommandEnvelope.replyTo.toUntyped))
+                ClientQuitEvent(Some(zoneCommandEnvelope.replyTo.upcast))
               )
             }
         }
@@ -646,7 +646,7 @@ object ZoneValidatorActor {
           case None =>
             state
           case Some(clientConnection) =>
-            val updatedClientConnections = state.connectedClients - clientConnection.toUntyped
+            val updatedClientConnections = state.connectedClients - clientConnection
             if (updatedClientConnections.isEmpty) passivationCountdown ! PassivationCountdownActor.Start
             state.copy(
               connectedClients = updatedClientConnections

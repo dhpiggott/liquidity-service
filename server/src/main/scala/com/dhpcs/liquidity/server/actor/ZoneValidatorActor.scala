@@ -97,7 +97,7 @@ object ZoneValidatorActor {
         val log = Logging(context.system.toUntyped, context.self.toUntyped)
         log.info("Starting")
         val persistenceId               = context.self.path.name
-        val notificationSequenceNumbers = mutable.Map.empty[ActorRef[Nothing], Long]
+        val notificationSequenceNumbers = mutable.Map.empty[ActorRef[SerializableClientConnectionMessage], Long]
         val mediator                    = DistributedPubSub(context.system.toUntyped).mediator
         val passivationCountdown =
           context.spawn(PassivationCountdownActor.behavior(context.self), "passivation-countdown")
@@ -123,10 +123,11 @@ object ZoneValidatorActor {
       }
       .narrow[SerializableZoneValidatorMessage]
 
-  private def persistentBehaviour(id: ZoneId,
-                                  notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
-                                  mediator: ActorRef[Publish],
-                                  passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])
+  private def persistentBehaviour(
+      id: ZoneId,
+      notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
+      mediator: ActorRef[Publish],
+      passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])
     : Behavior[ZoneValidatorMessage] =
     PersistentActor.immutable[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
       persistenceId = id.persistenceId,
@@ -173,7 +174,6 @@ object ZoneValidatorActor {
             case None =>
               PersistNothing()
             case Some(publicKey) =>
-              notificationSequenceNumbers -= actor
               Persist(
                 ZoneEventEnvelope(
                   remoteAddress = None,
@@ -181,26 +181,26 @@ object ZoneValidatorActor {
                   timestamp = Instant.now(),
                   ClientQuitEvent(Some(actor.upcast))
                 )
-              ).andThen(
+              ).andThen(state =>
                 deliverNotification(
                   context.self,
                   id,
-                  state,
+                  state.connectedClients.keys,
                   notificationSequenceNumbers,
                   ClientQuitNotification(ActorRefResolver(context.system).toSerializationFormat(actor), publicKey)
-                )
-              )
+              ))
           }
       },
       applyEvent(notificationSequenceNumbers, passivationCountdown)
     )
 
-  private def handleCommand(context: ActorContext[ZoneValidatorMessage],
-                            id: ZoneId,
-                            actorRefResolver: ActorRefResolver,
-                            notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
-                            state: ZoneState,
-                            zoneCommandEnvelope: ZoneCommandEnvelope): Effect[ZoneEventEnvelope, ZoneState] =
+  private def handleCommand(
+      context: ActorContext[ZoneValidatorMessage],
+      id: ZoneId,
+      actorRefResolver: ActorRefResolver,
+      notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
+      state: ZoneState,
+      zoneCommandEnvelope: ZoneCommandEnvelope): Effect[ZoneEventEnvelope, ZoneState] =
     zoneCommandEnvelope.zoneCommand match {
       case EmptyZoneCommand =>
         PersistNothing()
@@ -768,12 +768,13 @@ object ZoneValidatorActor {
         Validated.valid(metadata)
     }
 
-  private def acceptCommand(self: ActorRef[ZoneValidatorMessage],
-                            id: ZoneId,
-                            actorRefResolver: ActorRefResolver,
-                            notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
-                            zoneCommandEnvelope: ZoneCommandEnvelope,
-                            event: ZoneEvent): Effect[ZoneEventEnvelope, ZoneState] =
+  private def acceptCommand(
+      self: ActorRef[ZoneValidatorMessage],
+      id: ZoneId,
+      actorRefResolver: ActorRefResolver,
+      notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
+      zoneCommandEnvelope: ZoneCommandEnvelope,
+      event: ZoneEvent): Effect[ZoneEventEnvelope, ZoneState] =
     Persist[ZoneEventEnvelope, ZoneState](
       ZoneEventEnvelope(
         Some(zoneCommandEnvelope.remoteAddress),
@@ -795,14 +796,13 @@ object ZoneValidatorActor {
 
             case ClientJoinedEvent(_) =>
               JoinZoneResponse(
-                Validated.valid(
-                  (
-                    state.zone.get,
-                    state.connectedClients.map {
-                      case (clientConnection, _publicKey) =>
-                        actorRefResolver.toSerializationFormat(clientConnection) -> _publicKey
-                    }
-                  )))
+                Validated.valid((
+                  state.zone.get,
+                  state.connectedClients.map {
+                    case (clientConnection, _publicKey) =>
+                      actorRefResolver.toSerializationFormat(clientConnection) -> _publicKey
+                  }
+                )))
 
             case ClientQuitEvent(_) =>
               QuitZoneResponse(Validated.valid(()))
@@ -826,9 +826,11 @@ object ZoneValidatorActor {
               AddTransactionResponse(Validated.valid(transaction))
           }
       ))
-      .andThen { state =>
+      .andThen(
         self ! PublishZoneStatusTick
-        val maybeNotification = event match {
+      )
+      .andThen(state =>
+        (event match {
           case EmptyZoneEvent =>
             None
 
@@ -836,16 +838,14 @@ object ZoneValidatorActor {
             None
 
           case ClientJoinedEvent(maybeClientConnection) =>
-            maybeClientConnection.map(
-              clientConnection =>
-                ClientJoinedNotification(actorRefResolver.toSerializationFormat(clientConnection),
-                                         zoneCommandEnvelope.publicKey))
+            maybeClientConnection.map(clientConnection =>
+              ClientJoinedNotification(actorRefResolver.toSerializationFormat(clientConnection),
+                                       zoneCommandEnvelope.publicKey))
 
           case ClientQuitEvent(maybeClientConnection) =>
-            maybeClientConnection.map(
-              clientConnection =>
-                ClientQuitNotification(actorRefResolver.toSerializationFormat(clientConnection),
-                                       zoneCommandEnvelope.publicKey))
+            maybeClientConnection.map(clientConnection =>
+              ClientQuitNotification(actorRefResolver.toSerializationFormat(clientConnection),
+                                     zoneCommandEnvelope.publicKey))
 
           case ZoneNameChangedEvent(name) =>
             Some(ZoneNameChangedNotification(name))
@@ -867,9 +867,9 @@ object ZoneValidatorActor {
 
           case TransactionAddedEvent(transaction) =>
             Some(TransactionAddedNotification(transaction))
-        }
-        maybeNotification.foreach(deliverNotification(self, id, state, notificationSequenceNumbers, _))
-      }
+        }).foreach(
+          deliverNotification(self, id, state.connectedClients.keys, notificationSequenceNumbers, _)
+      ))
 
   private def deliverResponse(self: ActorRef[ZoneValidatorMessage],
                               clientConnection: ActorRef[ZoneResponseEnvelope],
@@ -881,19 +881,20 @@ object ZoneValidatorActor {
       response
     )
 
-  private def deliverNotification(self: ActorRef[ZoneValidatorMessage],
-                                  id: ZoneId,
-                                  state: ZoneState,
-                                  notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
-                                  notification: ZoneNotification): Unit =
-    state.connectedClients.keys.foreach { clientConnection =>
+  private def deliverNotification(
+      self: ActorRef[ZoneValidatorMessage],
+      id: ZoneId,
+      clientConnections: Iterable[ActorRef[SerializableClientConnectionMessage]],
+      notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
+      notification: ZoneNotification): Unit =
+    clientConnections.foreach { clientConnection =>
       val sequenceNumber = notificationSequenceNumbers(clientConnection)
       clientConnection ! ZoneNotificationEnvelope(self, id, sequenceNumber, notification)
       val nextSequenceNumber = sequenceNumber + 1
       notificationSequenceNumbers += clientConnection -> nextSequenceNumber
     }
 
-  private def applyEvent(notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
+  private def applyEvent(notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
                          passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])(
       event: ZoneEventEnvelope,
       state: ZoneState): ZoneState =

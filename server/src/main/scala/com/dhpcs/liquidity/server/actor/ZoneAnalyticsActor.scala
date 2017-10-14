@@ -42,7 +42,7 @@ object ZoneAnalyticsActor {
   final case class StartZoneAnalytics(replyTo: ActorRef[Unit], zoneId: ZoneId) extends ZoneAnalyticsMessage
 
   def shardingBehavior(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
-                       futureAnalyticsStore: Future[CassandraAnalyticsStore],
+                       futureAnalyticsStore: => Future[CassandraAnalyticsStore],
                        streamFailureHandler: PartialFunction[Throwable, Unit])(
       implicit ec: ExecutionContext,
       mat: Materializer): Behavior[ZoneAnalyticsMessage] =

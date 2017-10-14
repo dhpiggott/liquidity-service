@@ -89,7 +89,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
   private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zone-monitor")
 
-  private[this] val futureAnalyticsStore =
+  private[this] lazy val futureAnalyticsStore =
     readJournal.session.underlying().flatMap(CassandraAnalyticsStore(analyticsKeyspace)(_, ec))
 
   private[this] val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>

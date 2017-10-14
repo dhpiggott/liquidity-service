@@ -25,7 +25,6 @@ import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone.{ZoneEventEnvelope, ZoneState}
 import com.dhpcs.liquidity.proto

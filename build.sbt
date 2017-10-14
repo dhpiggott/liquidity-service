@@ -23,8 +23,19 @@ lazy val model = project
   .settings(
     name := "liquidity-model"
   )
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.squareup.okio" % "okio"       % "1.13.0",
+      "org.typelevel"     %% "cats-core" % "0.9.0"
+    ))
+
+lazy val `model-proto-binding` = project
+  .in(file("model-proto-binding"))
+  .settings(
+    name := "liquidity-model-proto-binding"
+  )
   .dependsOn(`proto-binding`)
-  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0")
+  .dependsOn(`model`)
 
 lazy val `ws-protocol` = project
   .in(file("ws-protocol"))
@@ -40,6 +51,15 @@ lazy val `ws-protocol` = project
   .dependsOn(testkit % Test)
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
+lazy val `ws-protocol-proto-binding` = project
+  .in(file("ws-protocol-proto-binding"))
+  .settings(
+    name := "liquidity-ws-protocol-proto-binding"
+  )
+  .dependsOn(`proto-binding`)
+  .dependsOn(`model-proto-binding`)
+  .dependsOn(`ws-protocol`)
+
 lazy val `actor-protocol` = project
   .in(file("actor-protocol"))
   .settings(protobufSettings)
@@ -50,7 +70,18 @@ lazy val `actor-protocol` = project
     PB.includePaths in Compile += file("model/src/main/protobuf"),
     PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
   )
+  .dependsOn(model)
   .dependsOn(`ws-protocol`)
+
+lazy val `actor-protocol-proto-binding` = project
+  .in(file("actor-protocol-proto-binding"))
+  .settings(
+    name := "liquidity-actor-protocol-proto-binding"
+  )
+  .dependsOn(`proto-binding`)
+  .dependsOn(`model-proto-binding`)
+  .dependsOn(`ws-protocol-proto-binding`)
+  .dependsOn(`actor-protocol`)
 
 lazy val testkit = project
   .in(file("testkit"))
@@ -64,7 +95,9 @@ lazy val server = project
     name := "liquidity-server"
   )
   .dependsOn(`ws-protocol`)
+  .dependsOn(`ws-protocol-proto-binding`)
   .dependsOn(`actor-protocol`)
+  .dependsOn(`actor-protocol-proto-binding`)
   .settings(
     dependencyOverrides ++= Seq(
       "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
@@ -140,6 +173,7 @@ lazy val client = project
     name := "liquidity-client"
   )
   .dependsOn(`ws-protocol`)
+  .dependsOn(`ws-protocol-proto-binding`)
   .settings(
     dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
     libraryDependencies ++= Seq(
@@ -181,7 +215,9 @@ lazy val root = project
     `proto-binding`,
     model,
     `ws-protocol`,
+    `ws-protocol-proto-binding`,
     `actor-protocol`,
+    `actor-protocol-proto-binding`,
     testkit,
     server,
     client,

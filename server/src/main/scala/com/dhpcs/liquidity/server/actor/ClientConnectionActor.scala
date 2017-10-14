@@ -19,7 +19,6 @@ import cats.data.Validated.Valid
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -294,10 +293,15 @@ object ClientConnectionActor {
                   Actor.same
 
                 case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
-                    proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(zoneId, protoZoneCommand)
+                    proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(_, None)
+                    ) =>
+                  Actor.same
+
+                case proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
+                    proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(zoneId, Some(protoZoneCommand))
                     ) =>
                   val zoneCommand =
-                    ProtoBinding[ZoneCommand, Option[proto.ws.protocol.ZoneCommand], Any].asScala(protoZoneCommand)(())
+                    ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any].asScala(protoZoneCommand)(())
                   zoneCommand match {
                     case _: CreateZoneCommand =>
                       log.warning(s"Stopping due to receipt of illegally enveloped CreateZoneCommand")

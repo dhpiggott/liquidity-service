@@ -8,7 +8,6 @@ import akka.typed.scaladsl.adapter._
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -138,8 +137,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
-              .asScala(protoZoneResponse.zoneResponse)(())
+            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asScala(protoZoneResponse)(())
         }
     }
 

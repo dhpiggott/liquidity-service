@@ -5,7 +5,6 @@ import java.util.concurrent.{Executor, ExecutorService, Executors}
 import javax.net.ssl._
 
 import com.dhpcs.liquidity.client.ServerConnection._
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -324,8 +323,7 @@ class ServerConnection(filesDir: File,
                         throw new IllegalStateException("Empty or unsupported response")
                       case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
                         val zoneResponse =
-                          ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
-                            .asScala(protoZoneResponse.zoneResponse)(())
+                          ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asScala(protoZoneResponse)(())
                         promise.success(zoneResponse); ()
                     }
                 }
@@ -335,13 +333,14 @@ class ServerConnection(filesDir: File,
             activeState.executorService.submit(protoNotification.notification match {
               case proto.ws.protocol.ClientMessage.Notification.Notification.Empty =>
               case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotificationEnvelope(
+                  proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(_, None)) =>
+              case proto.ws.protocol.ClientMessage.Notification.Notification.ZoneNotificationEnvelope(
                   proto.ws.protocol.ClientMessage.Notification.ZoneNotificationEnvelope(
                     zoneId,
-                    protoZoneNotification
+                    Some(protoZoneNotification)
                   )) =>
-                val zoneNotification =
-                  ProtoBinding[ZoneNotification, Option[proto.ws.protocol.ZoneNotification], Any]
-                    .asScala(protoZoneNotification)(())
+                val zoneNotification = ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any]
+                  .asScala(protoZoneNotification)(())
                 activeState.subState match {
                   case _: ConnectingSubState =>
                     throw new IllegalStateException("Not connected")

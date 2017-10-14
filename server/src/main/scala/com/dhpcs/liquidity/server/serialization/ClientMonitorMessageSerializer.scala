@@ -3,7 +3,6 @@ package com.dhpcs.liquidity.server.serialization
 import akka.actor.ExtendedActorSystem
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.server.ProtoBindingBackedSerializer
 import com.dhpcs.liquidity.server.ProtoBindingBackedSerializer.AnyRefProtoBinding

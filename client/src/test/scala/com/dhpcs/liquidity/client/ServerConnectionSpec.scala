@@ -24,7 +24,6 @@ import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.client.ServerConnection._
 import com.dhpcs.liquidity.client.ServerConnectionSpec._
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -268,8 +267,9 @@ class ServerConnectionSpec
             proto.ws.protocol.ClientMessage.Message.Response(proto.ws.protocol.ClientMessage.Response(
               correlationId = 0L,
               proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(proto.ws.protocol.ZoneResponse(
-                ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
+                ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
                   .asProto(createZoneResponse)(())
+                  .zoneResponse
               ))
             ))),
           sender = clientConnectionActorTestProbe.ref

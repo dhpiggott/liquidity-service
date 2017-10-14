@@ -20,7 +20,6 @@ import akka.stream.{ActorMaterializer, Materializer}
 import akka.typed.cluster.{Cluster, Join, JoinSeedNodes}
 import akka.util.ByteString
 import cats.data.Validated
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -322,8 +321,7 @@ sealed abstract class LiquidityServerSpec
         assert(protoResponse.correlationId == expectedCorrelationId)
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse.ZoneResponse, Any]
-              .asScala(protoZoneResponse.zoneResponse)(())
+            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asScala(protoZoneResponse)(())
         }
     }
 

@@ -192,7 +192,7 @@ object ZoneValidatorActor {
               )
           }
       },
-      applyEvent(passivationCountdown)
+      applyEvent(notificationSequenceNumbers, passivationCountdown)
     )
 
   private def handleCommand(context: ActorContext[ZoneValidatorMessage],
@@ -305,7 +305,6 @@ object ZoneValidatorActor {
               )
               PersistNothing()
             } else {
-              notificationSequenceNumbers += zoneCommandEnvelope.replyTo -> 0
               context.watch(zoneCommandEnvelope.replyTo)
               acceptCommand(
                 context.self,
@@ -339,7 +338,6 @@ object ZoneValidatorActor {
               )
               PersistNothing()
             } else {
-              notificationSequenceNumbers -= zoneCommandEnvelope.replyTo
               context.unwatch(zoneCommandEnvelope.replyTo)
               acceptCommand(
                 context.self,
@@ -629,102 +627,6 @@ object ZoneValidatorActor {
         }
     }
 
-  private def applyEvent(passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])(
-      event: ZoneEventEnvelope,
-      state: ZoneState): ZoneState =
-    event.zoneEvent match {
-      case EmptyZoneEvent =>
-        state
-
-      case zoneCreatedEvent: ZoneCreatedEvent =>
-        state.copy(
-          zone = Some(zoneCreatedEvent.zone),
-          balances = state.balances ++ zoneCreatedEvent.zone.accounts.values
-            .map(_.id -> BigDecimal(0))
-            .toMap
-        )
-
-      case ClientJoinedEvent(maybeClientConnection) =>
-        Cartesian[Option].product(event.publicKey, maybeClientConnection) match {
-          case None =>
-            state
-          case Some((publicKey, clientConnection)) =>
-            if (state.connectedClients.isEmpty) passivationCountdown ! PassivationCountdownActor.Stop
-            val updatedClientConnections = state.connectedClients + (clientConnection -> publicKey)
-            state.copy(
-              connectedClients = updatedClientConnections
-            )
-        }
-
-      case ClientQuitEvent(maybeClientConnection) =>
-        maybeClientConnection match {
-          case None =>
-            state
-          case Some(clientConnection) =>
-            val updatedClientConnections = state.connectedClients - clientConnection
-            if (updatedClientConnections.isEmpty) passivationCountdown ! PassivationCountdownActor.Start
-            state.copy(
-              connectedClients = updatedClientConnections
-            )
-        }
-
-      case ZoneNameChangedEvent(name) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              name = name
-            ))
-        )
-
-      case MemberCreatedEvent(member) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              members = state.zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
-            ))
-        )
-
-      case MemberUpdatedEvent(member) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              members = state.zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
-            ))
-        )
-
-      case AccountCreatedEvent(account) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              accounts = state.zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
-            )),
-          balances = state.balances + (account.id -> BigDecimal(0))
-        )
-
-      case AccountUpdatedEvent(_, account) =>
-        state.copy(
-          zone = state.zone.map(
-            _.copy(
-              accounts = state.zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
-            ))
-        )
-
-      case TransactionAddedEvent(transaction) =>
-        val updatedSourceBalance      = state.balances(transaction.from) - transaction.value
-        val updatedDestinationBalance = state.balances(transaction.to) + transaction.value
-        state.copy(
-          balances = state.balances +
-            (transaction.from -> updatedSourceBalance) +
-            (transaction.to   -> updatedDestinationBalance),
-          zone = state.zone.map(
-            _.copy(
-              transactions = state.zone
-                .map(_.transactions)
-                .getOrElse(Map.empty) + (transaction.id -> transaction)
-            ))
-        )
-    }
-
   private def validatePublicKeys(publicKeys: Set[PublicKey]): ValidatedNel[ZoneResponse.Error, Set[PublicKey]] = {
     def validatePublicKey(publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
       Try(
@@ -989,6 +891,105 @@ object ZoneValidatorActor {
       clientConnection ! ZoneNotificationEnvelope(self, id, sequenceNumber, notification)
       val nextSequenceNumber = sequenceNumber + 1
       notificationSequenceNumbers += clientConnection -> nextSequenceNumber
+    }
+
+  private def applyEvent(notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
+                         passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])(
+      event: ZoneEventEnvelope,
+      state: ZoneState): ZoneState =
+    event.zoneEvent match {
+      case EmptyZoneEvent =>
+        state
+
+      case zoneCreatedEvent: ZoneCreatedEvent =>
+        state.copy(
+          zone = Some(zoneCreatedEvent.zone),
+          balances = state.balances ++ zoneCreatedEvent.zone.accounts.values
+            .map(_.id -> BigDecimal(0))
+            .toMap
+        )
+
+      case ClientJoinedEvent(maybeClientConnection) =>
+        Cartesian[Option].product(event.publicKey, maybeClientConnection) match {
+          case None =>
+            state
+          case Some((publicKey, clientConnection)) =>
+            notificationSequenceNumbers += clientConnection -> 0
+            if (state.connectedClients.isEmpty) passivationCountdown ! PassivationCountdownActor.Stop
+            val updatedClientConnections = state.connectedClients + (clientConnection -> publicKey)
+            state.copy(
+              connectedClients = updatedClientConnections
+            )
+        }
+
+      case ClientQuitEvent(maybeClientConnection) =>
+        maybeClientConnection match {
+          case None =>
+            state
+          case Some(clientConnection) =>
+            notificationSequenceNumbers -= clientConnection
+            val updatedClientConnections = state.connectedClients - clientConnection
+            if (updatedClientConnections.isEmpty) passivationCountdown ! PassivationCountdownActor.Start
+            state.copy(
+              connectedClients = updatedClientConnections
+            )
+        }
+
+      case ZoneNameChangedEvent(name) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              name = name
+            ))
+        )
+
+      case MemberCreatedEvent(member) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              members = state.zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
+            ))
+        )
+
+      case MemberUpdatedEvent(member) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              members = state.zone.map(_.members).getOrElse(Map.empty) + (member.id -> member)
+            ))
+        )
+
+      case AccountCreatedEvent(account) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              accounts = state.zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
+            )),
+          balances = state.balances + (account.id -> BigDecimal(0))
+        )
+
+      case AccountUpdatedEvent(_, account) =>
+        state.copy(
+          zone = state.zone.map(
+            _.copy(
+              accounts = state.zone.map(_.accounts).getOrElse(Map.empty) + (account.id -> account)
+            ))
+        )
+
+      case TransactionAddedEvent(transaction) =>
+        val updatedSourceBalance      = state.balances(transaction.from) - transaction.value
+        val updatedDestinationBalance = state.balances(transaction.to) + transaction.value
+        state.copy(
+          balances = state.balances +
+            (transaction.from -> updatedSourceBalance) +
+            (transaction.to   -> updatedDestinationBalance),
+          zone = state.zone.map(
+            _.copy(
+              transactions = state.zone
+                .map(_.transactions)
+                .getOrElse(Map.empty) + (transaction.id -> transaction)
+            ))
+        )
     }
 
 }

@@ -138,12 +138,16 @@ object ZoneValidatorActor {
                               passivationCountdown,
                               clientConnectionWatcher)
         )
+        context.watch(zoneValidator)
         Actor.withTimers { timers =>
           timers.startPeriodicTimer(PublishStatusTimerKey, PublishZoneStatusTick, 30.seconds)
           Actor.immutable[ZoneValidatorMessage] { (_, zoneValidatorMessage) =>
             zoneValidator ! zoneValidatorMessage
             Actor.same
           } onSignal {
+            case (_, Terminated(_)) =>
+              Actor.stopped
+
             case (_, PostStop) =>
               log.info("Stopped")
               Actor.same

@@ -91,6 +91,32 @@ object ZoneValidatorActor {
 
   }
 
+  private object ClientConnectionWatcherActor {
+
+    sealed abstract class ClientConnectionWatcherMessage
+    final case class Watch(clientConnection: ActorRef[SerializableClientConnectionMessage])
+        extends ClientConnectionWatcherMessage
+    final case class Unwatch(clientConnection: ActorRef[SerializableClientConnectionMessage])
+        extends ClientConnectionWatcherMessage
+
+    def behavior(zoneValidator: ActorRef[ZoneValidatorMessage]): Behavior[ClientConnectionWatcherMessage] =
+      Actor.immutable[ClientConnectionWatcherMessage]((context, message) =>
+        message match {
+          case Watch(clientConnection) =>
+            context.watch(clientConnection)
+            Actor.same
+
+          case Unwatch(clientConnection) =>
+            context.watch(clientConnection)
+            Actor.same
+      }) onSignal {
+        case (_, Terminated(ref)) =>
+          zoneValidator ! RemoveClient(ref.upcast)
+          Actor.same
+      }
+
+  }
+
   def shardingBehaviour: Behavior[SerializableZoneValidatorMessage] =
     Actor
       .deferred[ZoneValidatorMessage] { context =>
@@ -99,15 +125,18 @@ object ZoneValidatorActor {
         val persistenceId               = context.self.path.name
         val notificationSequenceNumbers = mutable.Map.empty[ActorRef[SerializableClientConnectionMessage], Long]
         val mediator                    = DistributedPubSub(context.system.toUntyped).mediator
+        // Workarounds for the limitation described in https://github.com/akka/akka/pull/23674
+        // TODO: Remove these once that limitation is resolved
         val passivationCountdown =
           context.spawn(PassivationCountdownActor.behavior(context.self), "passivation-countdown")
-        // Workaround for the limitation described in https://github.com/akka/akka/pull/23674
-        // TODO: Remove this once that limitation is resolved
+        val clientConnectionWatcher =
+          context.spawn(ClientConnectionWatcherActor.behavior(context.self), "client-connection-watcher")
         val zoneValidator = context.spawnAnonymous(
           persistentBehaviour(ZoneId.fromPersistenceId(persistenceId),
                               notificationSequenceNumbers,
                               mediator,
-                              passivationCountdown)
+                              passivationCountdown,
+                              clientConnectionWatcher)
         )
         Actor.withTimers { timers =>
           timers.startPeriodicTimer(PublishStatusTimerKey, PublishZoneStatusTick, 30.seconds)
@@ -127,7 +156,8 @@ object ZoneValidatorActor {
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
       mediator: ActorRef[Publish],
-      passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])
+      passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage],
+      clientConnectionWatcher: ActorRef[ClientConnectionWatcherActor.ClientConnectionWatcherMessage])
     : Behavior[ZoneValidatorMessage] =
     PersistentActor.immutable[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
       persistenceId = id.persistenceId,
@@ -168,30 +198,33 @@ object ZoneValidatorActor {
                           notificationSequenceNumbers,
                           state,
                           zoneCommandEnvelope)
-      }) onSignal {
-        case (context, Terminated(actor), state) if actor != passivationCountdown =>
-          state.connectedClients.get(actor.upcast) match {
-            case None =>
-              PersistNothing()
-            case Some(publicKey) =>
-              Persist(
-                ZoneEventEnvelope(
-                  remoteAddress = None,
-                  Some(publicKey),
-                  timestamp = Instant.now(),
-                  ClientQuitEvent(Some(actor.upcast))
-                )
-              ).andThen(state =>
-                deliverNotification(
-                  context.self,
-                  id,
-                  state.connectedClients.keys,
-                  notificationSequenceNumbers,
-                  ClientQuitNotification(ActorRefResolver(context.system).toSerializationFormat(actor), publicKey)
-              ))
-          }
-      },
-      applyEvent(notificationSequenceNumbers, passivationCountdown)
+
+          case RemoveClient(clientConnection) =>
+            state.connectedClients.get(clientConnection) match {
+              case None =>
+                PersistNothing()
+              case Some(publicKey) =>
+                Persist(
+                  ZoneEventEnvelope(
+                    remoteAddress = None,
+                    Some(publicKey),
+                    timestamp = Instant.now(),
+                    ClientQuitEvent(Some(clientConnection))
+                  )
+                ).andThen(state =>
+                  deliverNotification(
+                    context.self,
+                    id,
+                    state.connectedClients.keys,
+                    notificationSequenceNumbers,
+                    ClientQuitNotification(
+                      ActorRefResolver(context.system).toSerializationFormat(clientConnection),
+                      publicKey
+                    )
+                ))
+            }
+      }),
+      applyEvent(notificationSequenceNumbers, passivationCountdown, clientConnectionWatcher)
     )
 
   private def handleCommand(
@@ -304,8 +337,7 @@ object ZoneValidatorActor {
                 }).valid)
               )
               PersistNothing()
-            } else {
-              context.watch(zoneCommandEnvelope.replyTo)
+            } else
               acceptCommand(
                 context.self,
                 id,
@@ -314,7 +346,6 @@ object ZoneValidatorActor {
                 zoneCommandEnvelope,
                 ClientJoinedEvent(Some(zoneCommandEnvelope.replyTo.upcast))
               )
-            }
         }
 
       case QuitZoneCommand =>
@@ -337,8 +368,7 @@ object ZoneValidatorActor {
                 QuitZoneResponse(().valid)
               )
               PersistNothing()
-            } else {
-              context.unwatch(zoneCommandEnvelope.replyTo)
+            } else
               acceptCommand(
                 context.self,
                 id,
@@ -347,7 +377,6 @@ object ZoneValidatorActor {
                 zoneCommandEnvelope,
                 ClientQuitEvent(Some(zoneCommandEnvelope.replyTo.upcast))
               )
-            }
         }
 
       case ChangeZoneNameCommand(name) =>
@@ -894,8 +923,10 @@ object ZoneValidatorActor {
       notificationSequenceNumbers += clientConnection -> nextSequenceNumber
     }
 
-  private def applyEvent(notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
-                         passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage])(
+  private def applyEvent(
+      notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
+      passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage],
+      clientConnectionWatcher: ActorRef[ClientConnectionWatcherActor.ClientConnectionWatcherMessage])(
       event: ZoneEventEnvelope,
       state: ZoneState): ZoneState =
     event.zoneEvent match {
@@ -915,6 +946,7 @@ object ZoneValidatorActor {
           case None =>
             state
           case Some((publicKey, clientConnection)) =>
+            clientConnectionWatcher ! ClientConnectionWatcherActor.Watch(clientConnection)
             notificationSequenceNumbers += clientConnection -> 0
             if (state.connectedClients.isEmpty) passivationCountdown ! PassivationCountdownActor.Stop
             val updatedClientConnections = state.connectedClients + (clientConnection -> publicKey)
@@ -928,6 +960,7 @@ object ZoneValidatorActor {
           case None =>
             state
           case Some(clientConnection) =>
+            clientConnectionWatcher ! ClientConnectionWatcherActor.Unwatch(clientConnection)
             notificationSequenceNumbers -= clientConnection
             val updatedClientConnections = state.connectedClients - clientConnection
             if (updatedClientConnections.isEmpty) passivationCountdown ! PassivationCountdownActor.Start

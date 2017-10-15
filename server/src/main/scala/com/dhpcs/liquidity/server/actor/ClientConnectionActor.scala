@@ -414,8 +414,8 @@ object ClientConnectionActor {
         log.info(s"Stopped for $remoteAddress")
         Actor.same
 
-      case (_, Terminated(zoneValidator)) =>
-        log.warning(s"Stopping due to termination of joined zone $zoneValidator")
+      case (_, Terminated(ref)) =>
+        log.warning(s"Stopping due to termination of joined zone $ref")
         Actor.stopped
     }
 

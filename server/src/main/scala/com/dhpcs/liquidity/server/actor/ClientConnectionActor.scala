@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 import java.util.UUID
 
-import akka.actor.{ActorRefFactory, Props, SupervisorStrategy}
+import akka.actor.{ActorRefFactory, Props}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.event.{Logging, LoggingAdapter}
@@ -62,8 +62,6 @@ object ClientConnectionActor {
         factory.actorOf(Props(new akka.actor.Actor {
 
           private[this] val flow = context.watch(context.spawnAnonymous(behavior(outActor)).toUntyped)
-
-          override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
 
           override def receive: Receive = {
             case InitActorSink(_) =>

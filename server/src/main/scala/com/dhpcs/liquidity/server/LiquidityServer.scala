@@ -26,7 +26,7 @@ import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.persistence.zone.{ZoneEventEnvelope, ZoneState}
+import com.dhpcs.liquidity.persistence.zone.{ZoneEventEnvelope, ZoneSnapshot, ZoneState}
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
@@ -138,10 +138,11 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
       }
 
   override protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] = {
-    val zoneState: Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(_, zoneId))
-    zoneState.map(
-      ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ActorRefResolver]
-        .asProto(_)(ActorRefResolver(system.toTyped)))
+    val zoneSnapshot: Future[ZoneSnapshot] = zoneValidatorShardRegion ? (GetZoneStateCommand(_, zoneId))
+    zoneSnapshot.map(
+      zoneSnapshot =>
+        ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ActorRefResolver]
+          .asProto(zoneSnapshot.zoneState)(ActorRefResolver(system.toTyped)))
   }
 
   override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =

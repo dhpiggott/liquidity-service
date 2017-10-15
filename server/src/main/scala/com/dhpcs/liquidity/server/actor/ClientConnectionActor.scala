@@ -406,7 +406,6 @@ object ClientConnectionActor {
                   publicKey,
                   notificationSequenceNumbers + (zoneValidator -> nextExpectedSequenceNumber)
                 )
-                Actor.same
               }
           }
       }

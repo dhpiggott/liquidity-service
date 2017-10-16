@@ -14,10 +14,6 @@ message ZoneState {
     map<string, bytes> connected_clients = 3;
 }
 
-message ZoneSnapshot {
-    ZoneState zone_state = 1;
-}
-
 message ZoneEventEnvelope {
     message ZoneEvent {
         oneof event {

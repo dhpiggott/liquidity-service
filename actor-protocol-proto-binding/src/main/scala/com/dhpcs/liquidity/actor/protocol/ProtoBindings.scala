@@ -65,7 +65,4 @@ object ProtoBindings {
   implicit final val ZoneStateProtoBinding
     : ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ActorRefResolver] = cachedImplicit
 
-  implicit final val ZoneSnapshotProtoBinding
-    : ProtoBinding[ZoneSnapshot, proto.persistence.zone.ZoneSnapshot, ActorRefResolver] = cachedImplicit
-
 }

@@ -191,7 +191,7 @@ object ZoneValidatorActor {
             Stop()
 
           case GetZoneStateCommand(replyTo, _) =>
-            replyTo ! ZoneSnapshot(state)
+            replyTo ! state
             PersistNothing()
 
           case zoneCommandEnvelope: ZoneCommandEnvelope =>

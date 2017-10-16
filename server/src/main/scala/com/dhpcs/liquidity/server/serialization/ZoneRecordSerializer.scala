@@ -13,7 +13,7 @@ class ZoneRecordSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(
-        AnyRefProtoBinding[ZoneSnapshot, proto.persistence.zone.ZoneSnapshot],
+        AnyRefProtoBinding[ZoneState, proto.persistence.zone.ZoneState],
         AnyRefProtoBinding[ZoneEventEnvelope, proto.persistence.zone.ZoneEventEnvelope]
       ),
       identifier = 694082575

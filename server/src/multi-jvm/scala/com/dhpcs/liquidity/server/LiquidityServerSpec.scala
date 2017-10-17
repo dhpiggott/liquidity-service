@@ -191,7 +191,7 @@ sealed abstract class LiquidityServerSpec
           ),
           correlationId = 0L
         )
-        inside(expectProtobufZoneResponse(sub, expectedCorrelationId = 0L)) {
+        sub.within(10.seconds)(inside(expectProtobufZoneResponse(sub, expectedCorrelationId = 0L)) {
           case CreateZoneResponse(Validated.Valid(zone)) =>
             assert(zone.accounts.size === 1)
             assert(zone.members.size === 1)
@@ -219,7 +219,7 @@ sealed abstract class LiquidityServerSpec
                 assert(_zone === zone)
                 assert(_connectedClients.values.toSet === Set(PublicKey(TestKit.rsaPublicKey.getEncoded)))
             }
-        }; ()
+        }); ()
       }
     }
   }

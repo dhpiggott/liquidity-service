@@ -5,6 +5,11 @@ services:
     restart: always
     volumes:
     - cassandra-data:/var/lib/cassandra
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: cassandra
   zone-host-seed:
     build: server
     restart: always

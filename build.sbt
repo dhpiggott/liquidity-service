@@ -138,7 +138,7 @@ lazy val server = project
       "com.typesafe.akka"      %% "akka-http"            % "10.0.10",
       "com.trueaccord.scalapb" %% "scalapb-json4s"       % "0.3.3",
       "com.typesafe.play"      %% "play-json"            % "2.6.6",
-      "de.heikoseeberger"      %% "akka-http-play-json"  % "1.18.0"
+      "de.heikoseeberger"      %% "akka-http-play-json"  % "1.18.1"
     )
   )
   .dependsOn(`ws-protocol` % "test->test")

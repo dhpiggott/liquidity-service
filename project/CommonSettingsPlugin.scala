@@ -33,7 +33,7 @@ object CommonSettingsPlugin extends AutoPlugin {
   )
 
   private lazy val scalaBuildSettings = Seq(
-    scalaVersion := "2.12.3",
+    scalaVersion := "2.12.4",
     // See https://tpolecat.github.io/2017/04/25/scalac-flags.html for explanations.
     scalacOptions ++= Seq(
       "-deprecation",
@@ -46,8 +46,7 @@ object CommonSettingsPlugin extends AutoPlugin {
       "-language:higherKinds",
       "-language:implicitConversions",
       "-unchecked",
-      // TODO: Re-enable this when Scala 2.12.4 is released (see https://github.com/scala/scala/pull/6024).
-      // "-Xcheckinit",
+      "-Xcheckinit",
       "-Xfatal-warnings",
       "-Xfuture",
       "-Xlint:adapted-args",

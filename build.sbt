@@ -163,7 +163,7 @@ lazy val server = project
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
-    dockerBaseImage := "openjdk:8-jre",
+    dockerBaseImage := "openjdk:9-jre",
     daemonUser in Docker := "root"
   )
 

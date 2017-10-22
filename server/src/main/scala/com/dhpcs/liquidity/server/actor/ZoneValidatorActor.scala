@@ -21,7 +21,7 @@ import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.instances.option._
 import cats.instances.set._
-import cats.syntax.cartesian._
+import cats.syntax.apply._
 import cats.syntax.validated._
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor.{ActiveZoneSummary, UpsertActiveZoneSummary}
@@ -258,8 +258,12 @@ object ZoneValidatorActor {
           val validatedEquityAccountMetadata = validateMetadata(equityAccountMetadata)
           val validatedName                  = validateTag(name)
           val validatedMetadata              = validateMetadata(metadata)
-          (validatedEquityOwnerName |@| validatedEquityOwnerMetadata |@| validatedEquityAccountName |@|
-            validatedEquityAccountMetadata |@| validatedName |@| validatedMetadata).tupled
+          (validatedEquityOwnerName,
+           validatedEquityOwnerMetadata,
+           validatedEquityAccountName,
+           validatedEquityAccountMetadata,
+           validatedName,
+           validatedMetadata).tupled
         }
         validatedParams match {
           case Invalid(errors) =>
@@ -446,7 +450,7 @@ object ZoneValidatorActor {
               val validatedOwnerPublicKeys = validatePublicKeys(ownerPublicKeys)
               val validatedName            = validateTag(name)
               val validatedMetadata        = validateMetadata(metadata)
-              (validatedMemberId |@| validatedOwnerPublicKeys |@| validatedName |@| validatedMetadata).tupled
+              (validatedMemberId, validatedOwnerPublicKeys, validatedName, validatedMetadata).tupled
             }
             validatedParams match {
               case Invalid(errors) =>
@@ -486,7 +490,7 @@ object ZoneValidatorActor {
               val validatedOwnerPublicKeys = validatePublicKeys(member.ownerPublicKeys)
               val validatedTag             = validateTag(member.name)
               val validatedMetadata        = validateMetadata(member.metadata)
-              (validatedOwnerPublicKeys |@| validatedTag |@| validatedMetadata).tupled
+              (validatedOwnerPublicKeys, validatedTag, validatedMetadata).tupled
             }
             validatedParams match {
               case Invalid(errors) =>
@@ -539,7 +543,7 @@ object ZoneValidatorActor {
               val validatedOwnerMemberIds = validateMemberIds(zone, owners)
               val validatedTag            = validateTag(name)
               val validatedMetadata       = validateMetadata(metadata)
-              (validatedAccountId |@| validatedOwnerMemberIds |@| validatedTag |@| validatedMetadata).tupled
+              (validatedAccountId, validatedOwnerMemberIds, validatedTag, validatedMetadata).tupled
             }
             validatedParams match {
               case Invalid(errors) =>
@@ -580,7 +584,7 @@ object ZoneValidatorActor {
                 val validatedOwnerMemberIds = validateMemberIds(zone, account.ownerMemberIds)
                 val validatedTag            = validateTag(account.name)
                 val validatedMetadata       = validateMetadata(account.metadata)
-                (validatedOwnerMemberIds |@| validatedTag |@| validatedMetadata).tupled
+                (validatedOwnerMemberIds, validatedTag, validatedMetadata).tupled
               }
             validatedParams match {
               case Invalid(errors) =>
@@ -633,7 +637,7 @@ object ZoneValidatorActor {
                 val validatedFromAndTo   = validateFromAndTo(from, to, zone)
                 val validatedDescription = validateTag(description)
                 val validatedMetadata    = validateMetadata(metadata)
-                (validatedFromAndTo |@| validatedDescription |@| validatedMetadata).tupled
+                (validatedFromAndTo, validatedDescription, validatedMetadata).tupled
               }
               .andThen(_ =>
                 validateValue(from, value, zone, state.balances)
@@ -762,7 +766,7 @@ object ZoneValidatorActor {
       if (!zone.accounts.contains(to))
         Validated.invalidNel(ZoneResponse.Error.destinationAccountDoesNotExist)
       else Validated.valid(to)
-    (validatedTo |@| validatedFrom).tupled.andThen {
+    (validatedTo, validatedFrom).tupled.andThen {
       case (validTo, validFrom) if validTo == validFrom =>
         Validated.invalidNel(ZoneResponse.Error.reflexiveTransaction)
       case _ =>

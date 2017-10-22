@@ -14,7 +14,7 @@ lazy val `proto-binding` = project
   .settings(
     libraryDependencies ++= Seq(
       "com.chuusai"   %% "shapeless" % "2.3.2",
-      "org.typelevel" %% "cats-core" % "0.9.0"
+      "org.typelevel" %% "cats-core" % "1.0.0-MF"
     ))
 
 lazy val model = project
@@ -43,7 +43,7 @@ lazy val `ws-protocol` = project
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
   .dependsOn(model)
-  .settings(libraryDependencies += "org.typelevel" %% "cats-core" % "0.9.0")
+  .settings(libraryDependencies += "org.typelevel" %% "cats-core" % "1.0.0-MF")
   .dependsOn(testkit % Test)
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 

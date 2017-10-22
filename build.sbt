@@ -23,11 +23,7 @@ lazy val model = project
   .settings(
     name := "liquidity-model"
   )
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.squareup.okio" % "okio"       % "1.13.0",
-      "org.typelevel"     %% "cats-core" % "0.9.0"
-    ))
+  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0")
 
 lazy val `model-proto-binding` = project
   .in(file("model-proto-binding"))
@@ -47,7 +43,7 @@ lazy val `ws-protocol` = project
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
   .dependsOn(model)
-  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.6")
+  .settings(libraryDependencies += "org.typelevel" %% "cats-core" % "0.9.0")
   .dependsOn(testkit % Test)
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
@@ -71,6 +67,7 @@ lazy val `actor-protocol` = project
     PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
   )
   .dependsOn(model)
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.6")
   .dependsOn(`ws-protocol`)
 
 lazy val `actor-protocol-proto-binding` = project

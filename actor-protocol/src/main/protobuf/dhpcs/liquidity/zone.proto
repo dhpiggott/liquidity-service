@@ -39,11 +39,11 @@ message ZoneCreatedEvent {
 }
 
 message ClientJoinedEvent {
-    google.protobuf.StringValue client_connection_actor_ref = 1;
+    google.protobuf.StringValue actor_ref = 1;
 }
 
 message ClientQuitEvent {
-    google.protobuf.StringValue client_connection_actor_ref = 1;
+    google.protobuf.StringValue actor_ref = 1;
 }
 
 message ZoneNameChangedEvent {

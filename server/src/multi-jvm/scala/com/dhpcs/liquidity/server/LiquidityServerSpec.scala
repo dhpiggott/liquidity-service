@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.server
 
 import java.nio.file.Files
+import java.sql.Connection
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -20,6 +21,8 @@ import akka.stream.{ActorMaterializer, Materializer}
 import akka.typed.cluster.{Cluster, Join, JoinSeedNodes}
 import akka.util.ByteString
 import cats.data.Validated
+import cats.effect.IO
+import cats.syntax.applicative._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -27,6 +30,7 @@ import com.dhpcs.liquidity.testkit.TestKit
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
+import doobie._
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{BeforeAndAfterAll, FreeSpecLike, Inside}
 
@@ -110,10 +114,15 @@ sealed abstract class LiquidityServerSpec
   private[this] val akkaHttpPort = TestKit.freePort()
 
   private[this] val server = new LiquidityServer(
+    transactor = Transactor[IO, Connection](
+      kernel0 = null,
+      connect0 = _.pure[IO],
+      free.KleisliInterpreter[IO].ConnectionInterpreter,
+      util.transactor.Strategy.void
+    ),
     pingInterval = 3.seconds,
     httpInterface = "0.0.0.0",
-    httpPort = akkaHttpPort,
-    analyticsKeyspace = "liquidity_analytics"
+    httpPort = akkaHttpPort
   )
 
   private[this] val httpBinding = server.bindHttp()

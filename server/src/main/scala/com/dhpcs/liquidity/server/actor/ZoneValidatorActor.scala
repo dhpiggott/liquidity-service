@@ -234,7 +234,7 @@ object ZoneValidatorActor {
   private def handleCommand(
       context: ActorContext[ZoneValidatorMessage],
       id: ZoneId,
-      actorRefResolver: ActorRefResolver,
+      resolver: ActorRefResolver,
       notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
       state: ZoneState,
       zoneCommandEnvelope: ZoneCommandEnvelope): Effect[ZoneEventEnvelope, ZoneState] =
@@ -314,7 +314,7 @@ object ZoneValidatorActor {
                 acceptCommand(
                   context.self,
                   id,
-                  actorRefResolver,
+                  resolver,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
                   ZoneCreatedEvent(zone)
@@ -341,7 +341,7 @@ object ZoneValidatorActor {
                 zoneCommandEnvelope.correlationId,
                 JoinZoneResponse((zone, state.connectedClients.map {
                   case (clientConnection, _publicKey) =>
-                    actorRefResolver.toSerializationFormat(clientConnection) -> _publicKey
+                    resolver.toSerializationFormat(clientConnection) -> _publicKey
                 }).valid)
               )
               PersistNothing()
@@ -349,7 +349,7 @@ object ZoneValidatorActor {
               acceptCommand(
                 context.self,
                 id,
-                actorRefResolver,
+                resolver,
                 notificationSequenceNumbers,
                 zoneCommandEnvelope,
                 ClientJoinedEvent(Some(zoneCommandEnvelope.replyTo.upcast))
@@ -380,7 +380,7 @@ object ZoneValidatorActor {
               acceptCommand(
                 context.self,
                 id,
-                actorRefResolver,
+                resolver,
                 notificationSequenceNumbers,
                 zoneCommandEnvelope,
                 ClientQuitEvent(Some(zoneCommandEnvelope.replyTo.upcast))
@@ -425,7 +425,7 @@ object ZoneValidatorActor {
                   acceptCommand(
                     context.self,
                     id,
-                    actorRefResolver,
+                    resolver,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
                     ZoneNameChangedEvent(name)
@@ -467,7 +467,7 @@ object ZoneValidatorActor {
                 acceptCommand(
                   context.self,
                   id,
-                  actorRefResolver,
+                  resolver,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
                   MemberCreatedEvent(Member.tupled(params))
@@ -518,7 +518,7 @@ object ZoneValidatorActor {
                   acceptCommand(
                     context.self,
                     id,
-                    actorRefResolver,
+                    resolver,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
                     MemberUpdatedEvent(member)
@@ -560,7 +560,7 @@ object ZoneValidatorActor {
                 acceptCommand(
                   context.self,
                   id,
-                  actorRefResolver,
+                  resolver,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
                   AccountCreatedEvent(Account.tupled(params))
@@ -612,7 +612,7 @@ object ZoneValidatorActor {
                   acceptCommand(
                     context.self,
                     id,
-                    actorRefResolver,
+                    resolver,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
                     AccountUpdatedEvent(Some(actingAs), account)
@@ -655,7 +655,7 @@ object ZoneValidatorActor {
                 acceptCommand(
                   context.self,
                   id,
-                  actorRefResolver,
+                  resolver,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
                   TransactionAddedEvent(Transaction.tupled(params))
@@ -808,7 +808,7 @@ object ZoneValidatorActor {
   private def acceptCommand(
       self: ActorRef[ZoneValidatorMessage],
       id: ZoneId,
-      actorRefResolver: ActorRefResolver,
+      resolver: ActorRefResolver,
       notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
       zoneCommandEnvelope: ZoneCommandEnvelope,
       event: ZoneEvent): Effect[ZoneEventEnvelope, ZoneState] =
@@ -837,7 +837,7 @@ object ZoneValidatorActor {
                   state.zone.get,
                   state.connectedClients.map {
                     case (clientConnection, _publicKey) =>
-                      actorRefResolver.toSerializationFormat(clientConnection) -> _publicKey
+                      resolver.toSerializationFormat(clientConnection) -> _publicKey
                   }
                 )))
 
@@ -876,13 +876,11 @@ object ZoneValidatorActor {
 
           case ClientJoinedEvent(maybeClientConnection) =>
             maybeClientConnection.map(clientConnection =>
-              ClientJoinedNotification(actorRefResolver.toSerializationFormat(clientConnection),
-                                       zoneCommandEnvelope.publicKey))
+              ClientJoinedNotification(resolver.toSerializationFormat(clientConnection), zoneCommandEnvelope.publicKey))
 
           case ClientQuitEvent(maybeClientConnection) =>
             maybeClientConnection.map(clientConnection =>
-              ClientQuitNotification(actorRefResolver.toSerializationFormat(clientConnection),
-                                     zoneCommandEnvelope.publicKey))
+              ClientQuitNotification(resolver.toSerializationFormat(clientConnection), zoneCommandEnvelope.publicKey))
 
           case ZoneNameChangedEvent(name) =>
             Some(ZoneNameChangedNotification(name))

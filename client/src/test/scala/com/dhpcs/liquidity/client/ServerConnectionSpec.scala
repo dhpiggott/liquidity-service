@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.client
 
 import java.net.InetAddress
 import java.nio.file.Files
-import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -110,13 +109,9 @@ class ServerConnectionSpec
   override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
     Future.successful(Set.empty)
 
-  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
+  override protected[this] def getZone(zoneId: ZoneId): Option[Zone] = None
 
-  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
-    Future.successful(Map.empty)
-
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
-    Future.successful(Map.empty)
+  override protected[this] def getBalances(zoneId: ZoneId): Map[AccountId, BigDecimal] = Map.empty
 
   private[this] val binding = Http().bindAndHandle(
     httpRoutes(enableClientRelay = true),

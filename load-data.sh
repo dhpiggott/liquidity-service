@@ -10,20 +10,14 @@ fi
 
 for keyspace in "liquidity_journal_v4" "liquidity_snapshot_store_v4"
 do
-    docker run --rm \
+    docker-compose run -T --rm \
         --volume $1/$keyspace.schema.cql:/mnt/import \
-        --net=liquidity_default \
-        --link liquidity_cassandra_1:cassandra \
-        cassandra:3 sh -c 'exec cqlsh -f /mnt/import cassandra'
-    for table in $(docker run --rm \
-                       --net=liquidity_default \
-                       --link liquidity_cassandra_1:cassandra \
-                       cassandra:3 sh -c 'exec cqlsh -e "USE '$keyspace'; DESCRIBE TABLES;" cassandra')
+        cassandra sh -c 'exec cqlsh -f /mnt/import cassandra'
+    for table in $(docker-compose run -T --rm \
+                       cassandra sh -c 'exec cqlsh -e "USE '$keyspace'; DESCRIBE TABLES;" cassandra')
     do
-        docker run --rm \
+        docker-compose run -T --rm \
             --volume $1/$keyspace.$table.csv:/mnt/import \
-            --net=liquidity_default \
-            --link liquidity_cassandra_1:cassandra \
-            cassandra:3 sh -c 'exec cqlsh -e "COPY '$keyspace'.'$table' FROM '\''/mnt/import'\'' WITH NULL='\''null'\'';" cassandra'
+            cassandra sh -c 'exec cqlsh -e "COPY '$keyspace'.'$table' FROM '\''/mnt/import'\'' WITH NULL='\''null'\'';" cassandra'
     done
 done

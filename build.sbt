@@ -128,14 +128,15 @@ lazy val server = project
       "com.typesafe.akka"  %% "akka-persistence"             % "2.5.6",
       "com.typesafe.akka"  %% "akka-persistence-query"       % "2.5.6",
       // TODO: Switch to akka-persistence-jdbc
-      "com.typesafe.akka" %% "akka-persistence-cassandra"  % "0.58",
-      "io.netty"          % "netty-transport-native-epoll" % "4.1.12.Final" classifier "linux-x86_64",
-      // TODO: Switch to doobie
-      "com.datastax.cassandra" % "cassandra-driver-core" % "3.2.0",
-      "com.typesafe.akka"      %% "akka-http"            % "10.0.10",
-      "com.trueaccord.scalapb" %% "scalapb-json4s"       % "0.3.3",
-      "com.typesafe.play"      %% "play-json"            % "2.6.6",
-      "de.heikoseeberger"      %% "akka-http-play-json"  % "1.18.1"
+      "com.typesafe.akka"      %% "akka-persistence-cassandra"  % "0.58",
+      "io.netty"               % "netty-transport-native-epoll" % "4.1.12.Final" classifier "linux-x86_64",
+      "org.tpolecat"           %% "doobie-core"                 % "0.5.0-M8",
+      "org.tpolecat"           %% "doobie-hikari"               % "0.5.0-M8",
+      "mysql"                  % "mysql-connector-java"         % "5.1.44",
+      "com.typesafe.akka"      %% "akka-http"                   % "10.0.10",
+      "com.trueaccord.scalapb" %% "scalapb-json4s"              % "0.3.3",
+      "com.typesafe.play"      %% "play-json"                   % "2.6.6",
+      "de.heikoseeberger"      %% "akka-http-play-json"         % "1.18.1"
     )
   )
   .dependsOn(`ws-protocol` % "test->test")

@@ -13,21 +13,15 @@ mkdir --parents $1
 for keyspace in "liquidity_journal_v4" "liquidity_snapshot_store_v4"
 do
     touch $1/$keyspace.schema.cql
-    docker run --rm \
+    docker-compose run -T --rm \
         --volume $1/$keyspace.schema.cql:/mnt/export \
-        --net=liquidity_default \
-        --link liquidity_cassandra_1:cassandra \
-        cassandra:3 sh -c 'exec cqlsh -e "DESCRIBE KEYSPACE '$keyspace';" cassandra > /mnt/export'
-    for table in $(docker run --rm \
-                       --net=liquidity_default \
-                       --link liquidity_cassandra_1:cassandra \
-                       cassandra:3 sh -c 'exec cqlsh -e "USE '$keyspace'; DESCRIBE TABLES;" cassandra')
+        cassandra sh -c 'exec cqlsh -e "DESCRIBE KEYSPACE '$keyspace';" cassandra > /mnt/export'
+    for table in $(docker-compose run -T --rm \
+                       cassandra sh -c 'exec cqlsh -e "USE '$keyspace'; DESCRIBE TABLES;" cassandra')
     do
         touch $1/$keyspace.$table.csv
-        docker run --rm \
+        docker-compose run -T --rm \
             --volume $1/$keyspace.$table.csv:/mnt/export \
-            --net=liquidity_default \
-            --link liquidity_cassandra_1:cassandra \
-            cassandra:3 sh -c 'exec cqlsh -e "COPY '$keyspace'.'$table' TO '\''/mnt/export'\'' WITH NULL='\''null'\'';" cassandra'
+            cassandra sh -c 'exec cqlsh -e "COPY '$keyspace'.'$table' TO '\''/mnt/export'\'' WITH NULL='\''null'\'';" cassandra'
     done
 done

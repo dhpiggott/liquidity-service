@@ -21,6 +21,8 @@ mkdir $DIR/image-stage
 
 cp --recursive $DIR/server/target/docker/stage $DIR/image-stage/server
 cp $DIR/docker-compose.yml $DIR/image-stage/
+cp $DIR/analytics.sql $DIR/image-stage/
+cp $DIR/init-analytics.sh $DIR/image-stage/
 cp $DIR/load-data.sh $DIR/image-stage/
 cp $DIR/save-data.sh $DIR/image-stage/
 

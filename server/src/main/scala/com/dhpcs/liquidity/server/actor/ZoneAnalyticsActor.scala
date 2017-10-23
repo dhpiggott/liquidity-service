@@ -1,9 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
-import java.time.Instant
-
 import akka.pattern.pipe
-import akka.persistence.query.EventEnvelope
 import akka.persistence.query.scaladsl.{CurrentEventsByPersistenceIdQuery, EventsByPersistenceIdQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
@@ -12,13 +9,16 @@ import akka.typed.cluster.sharding.{EntityTypeKey, ShardingMessageExtractor}
 import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.adapter._
 import akka.typed.{ActorRef, Behavior, PostStop}
-import cats.Cartesian
-import cats.instances.option._
+import cats.effect.IO
+import cats.syntax.applicative._
+import cats.syntax.apply._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone._
-import com.dhpcs.liquidity.server.CassandraAnalyticsStore
+import com.dhpcs.liquidity.server.SqlAnalyticsStore
+import doobie._
+import doobie.implicits._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 object ZoneAnalyticsActor {
 
@@ -42,7 +42,7 @@ object ZoneAnalyticsActor {
   final case class StartZoneAnalytics(replyTo: ActorRef[Unit], zoneId: ZoneId) extends ZoneAnalyticsMessage
 
   def shardingBehavior(readJournal: ReadJournal with CurrentEventsByPersistenceIdQuery with EventsByPersistenceIdQuery,
-                       futureAnalyticsStore: => Future[CassandraAnalyticsStore],
+                       transactor: Transactor[IO],
                        streamFailureHandler: PartialFunction[Throwable, Unit])(
       implicit ec: ExecutionContext,
       mat: Materializer): Behavior[ZoneAnalyticsMessage] =
@@ -54,31 +54,31 @@ object ZoneAnalyticsActor {
             Actor.stopped
 
           case StartZoneAnalytics(replyTo, zoneId) =>
+            implicit val actorRefResolver: ActorRefResolver = ActorRefResolver(context.system)
+            val (previousSequenceNumber, previousBalances, previousClientSessions) =
+              (SqlAnalyticsStore.JournalSequenceNumberStore.retrieve(zoneId).map(_.getOrElse(0L)),
+               SqlAnalyticsStore.AccountsStore.retrieveAllBalances(zoneId),
+               SqlAnalyticsStore.ClientSessionsStore.retrieveAll(zoneId)).tupled.transact(transactor).unsafeRunSync()
             val currentJournalState = for {
-              analyticsStore         <- futureAnalyticsStore
-              previousSequenceNumber <- analyticsStore.journalSequenceNumberStore.retrieve(zoneId)
-              previousZone <- previousSequenceNumber match {
-                case 0L => Future.successful(null)
-                case _  => analyticsStore.zoneStore.retrieve(zoneId)
-              }
-              previousBalances <- analyticsStore.balanceStore.retrieve(zoneId)
-              previousClients <- analyticsStore.clientStore
-                .retrieve(zoneId)(context.executionContext, ActorRefResolver(context.system))
-              (currentSequenceNumber, currentZone, currentBalances, currentClients) <- readJournal
-                .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber, Long.MaxValue)
-                .runFoldAsync((previousSequenceNumber, previousZone, previousBalances, previousClients))(
-                  updateStoreAndApplyEvent(analyticsStore, zoneId))
-            } yield (analyticsStore, currentSequenceNumber, currentZone, currentBalances, currentClients)
+              (currentBalances, currentClientSessions, currentSequenceNumber) <- readJournal
+                .currentEventsByPersistenceId(zoneId.persistenceId, previousSequenceNumber + 1, Long.MaxValue)
+                .map(_.event.asInstanceOf[ZoneEventEnvelope])
+                // TODO: Be stateless
+                .runFold((previousBalances, previousClientSessions, previousSequenceNumber))(
+                  applyEventAndUpdateStore(transactor, zoneId))
+            } yield (currentBalances, currentClientSessions, currentSequenceNumber)
             currentJournalState.map(_ => ()).pipeTo(replyTo.toUntyped)
             val done = Source
               .fromFuture(currentJournalState)
               .via(killSwitch.flow)
               .flatMapConcat {
-                case (analyticsStore, currentSequenceNumber, currentZone, currentBalances, currentClients) =>
+                case (currentBalances, currentClientSessions, currentSequenceNumber) =>
                   readJournal
-                    .eventsByPersistenceId(zoneId.persistenceId, currentSequenceNumber, Long.MaxValue)
-                    .foldAsync((currentSequenceNumber, currentZone, currentBalances, currentClients))(
-                      updateStoreAndApplyEvent(analyticsStore, zoneId))
+                    .eventsByPersistenceId(zoneId.persistenceId, currentSequenceNumber + 1, Long.MaxValue)
+                    .map(_.event.asInstanceOf[ZoneEventEnvelope])
+                    // TODO: Be stateless
+                    .fold((currentBalances, currentClientSessions, currentSequenceNumber))(
+                      applyEventAndUpdateStore(transactor, zoneId))
               }
               .toMat(Sink.ignore)(Keep.right)
               .run()
@@ -91,165 +91,101 @@ object ZoneAnalyticsActor {
       }
     }
 
-  private def updateStoreAndApplyEvent(analyticsStore: CassandraAnalyticsStore, zoneId: ZoneId)(
-      previousSequenceNumberZoneBalancesAndClients: (Long,
-                                                     Zone,
-                                                     Map[AccountId, BigDecimal],
-                                                     Map[ActorRef[Nothing], (Instant, PublicKey)]),
-      envelope: EventEnvelope)(implicit ec: ExecutionContext)
-    : Future[(Long, Zone, Map[AccountId, BigDecimal], Map[ActorRef[Nothing], (Instant, PublicKey)])] = {
-    val (_, previousZone, previousBalances, previousClients) =
-      previousSequenceNumberZoneBalancesAndClients
-    val (maybePublicKey, timestamp, zoneEvent) = envelope.event match {
-      case zoneEventEnvelope: ZoneEventEnvelope =>
-        (zoneEventEnvelope.publicKey, zoneEventEnvelope.timestamp, zoneEventEnvelope.zoneEvent)
-    }
-    val updatedZone = zoneEvent match {
-      case ZoneCreatedEvent(zone) =>
-        zone
+  private def applyEventAndUpdateStore(transactor: Transactor[IO], zoneId: ZoneId)(
+      implicit actorRefResolver: ActorRefResolver)
+    : ((Map[AccountId, BigDecimal], Map[ActorRef[Nothing], Long], Long),
+       ZoneEventEnvelope) => (Map[AccountId, BigDecimal], Map[ActorRef[Nothing], Long], Long) =
+    (previousBalancesClientSessionsAndSequenceNumber, zoneEventEnvelope) => {
+      val (previousBalances, previousClientSessions, previousSequenceNumber) =
+        previousBalancesClientSessionsAndSequenceNumber
+      (for {
+        updatedBalancesAndClientSessions <- zoneEventEnvelope.zoneEvent match {
+          case EmptyZoneEvent =>
+            (previousBalances, previousClientSessions).pure[ConnectionIO]
 
-      case ZoneNameChangedEvent(name) =>
-        previousZone.copy(name = name)
+          case ZoneCreatedEvent(zone) =>
+            for (_ <- SqlAnalyticsStore.ZoneStore.insert(zone))
+              yield (previousBalances ++ zone.accounts.mapValues(_ => BigDecimal(0)), previousClientSessions)
 
-      case MemberCreatedEvent(member) =>
-        previousZone.copy(members = previousZone.members + (member.id -> member))
+          case ClientJoinedEvent(maybeActorRef) =>
+            maybeActorRef match {
+              case None =>
+                (previousBalances, previousClientSessions).pure[ConnectionIO]
 
-      case MemberUpdatedEvent(member) =>
-        previousZone.copy(members = previousZone.members + (member.id -> member))
+              case Some(actorRef) =>
+                for (sessionId <- SqlAnalyticsStore.ClientSessionsStore.insert(zoneId,
+                                                                               zoneEventEnvelope.remoteAddress,
+                                                                               actorRef,
+                                                                               zoneEventEnvelope.publicKey,
+                                                                               joined = zoneEventEnvelope.timestamp))
+                  yield (previousBalances, previousClientSessions + (actorRef -> sessionId))
+            }
 
-      case AccountCreatedEvent(account) =>
-        previousZone.copy(accounts = previousZone.accounts + (account.id -> account))
+          case ClientQuitEvent(maybeActorRef) =>
+            maybeActorRef match {
+              case None =>
+                (previousBalances, previousClientSessions).pure[ConnectionIO]
 
-      case AccountUpdatedEvent(_, account) =>
-        previousZone.copy(accounts = previousZone.accounts + (account.id -> account))
+              case Some(actorRef) =>
+                previousClientSessions.get(actorRef) match {
+                  case None =>
+                    (previousBalances, previousClientSessions).pure[ConnectionIO]
 
-      case TransactionAddedEvent(transaction) =>
-        previousZone.copy(transactions = previousZone.transactions + (transaction.id -> transaction))
+                  case Some(sessionId) =>
+                    for (_ <- SqlAnalyticsStore.ClientSessionsStore.update(sessionId,
+                                                                           quit = zoneEventEnvelope.timestamp))
+                      yield (previousBalances, previousClientSessions - actorRef)
+                }
+            }
 
-      case _ =>
-        previousZone
-    }
+          case ZoneNameChangedEvent(name) =>
+            for (_ <- SqlAnalyticsStore.ZoneNameChangeStore.insert(zoneId, changed = zoneEventEnvelope.timestamp, name))
+              yield (previousBalances, previousClientSessions)
 
-    val updatedClients = zoneEvent match {
-      case ClientJoinedEvent(maybeClientConnection) =>
-        Cartesian[Option].product(maybeClientConnection, maybePublicKey) match {
-          case None =>
-            previousClients
-          case Some((clientConnection, publicKey)) =>
-            previousClients + (clientConnection -> (timestamp -> publicKey))
+          case MemberCreatedEvent(member) =>
+            for (_ <- SqlAnalyticsStore.MembersStore.insert(zoneId, member, created = zoneEventEnvelope.timestamp))
+              yield (previousBalances, previousClientSessions)
+
+          case MemberUpdatedEvent(member) =>
+            for (_ <- SqlAnalyticsStore.MemberUpdatesStore.insert(zoneId,
+                                                                  member,
+                                                                  updated = zoneEventEnvelope.timestamp))
+              yield (previousBalances, previousClientSessions)
+
+          case AccountCreatedEvent(account) =>
+            for (_ <- SqlAnalyticsStore.AccountsStore.insert(zoneId,
+                                                             account,
+                                                             created = zoneEventEnvelope.timestamp,
+                                                             balance = BigDecimal(0)))
+              yield (previousBalances + (account.id -> BigDecimal(0)), previousClientSessions)
+
+          case AccountUpdatedEvent(_, account) =>
+            for (_ <- SqlAnalyticsStore.AccountUpdatesStore.insert(zoneId,
+                                                                   account,
+                                                                   updated = zoneEventEnvelope.timestamp))
+              yield (previousBalances, previousClientSessions)
+
+          case TransactionAddedEvent(transaction) =>
+            val updatedSourceBalance      = previousBalances(transaction.from) - transaction.value
+            val updatedDestinationBalance = previousBalances(transaction.to) + transaction.value
+            for {
+              _ <- SqlAnalyticsStore.TransactionsStore.insert(zoneId, transaction)
+              _ <- SqlAnalyticsStore.AccountsStore.update(zoneId, transaction.from, updatedSourceBalance)
+              _ <- SqlAnalyticsStore.AccountsStore.update(zoneId, transaction.to, updatedDestinationBalance)
+            } yield
+              (previousBalances + (transaction.from -> updatedSourceBalance) + (transaction.to -> updatedDestinationBalance),
+               previousClientSessions)
         }
+        (updatedBalances, updatedClientSessions) = updatedBalancesAndClientSessions
+        _ <- SqlAnalyticsStore.ZoneStore.update(zoneId, modified = zoneEventEnvelope.timestamp)
+        updatedSequenceNumber <- zoneEventEnvelope.zoneEvent match {
+          case ZoneCreatedEvent(_) =>
+            SqlAnalyticsStore.JournalSequenceNumberStore.insert(zoneId, previousSequenceNumber + 1)
 
-      case ClientQuitEvent(maybeClientConnection) =>
-        maybeClientConnection match {
-          case None =>
-            previousClients
-          case Some(clientConnection) =>
-            previousClients - clientConnection
+          case _ =>
+            SqlAnalyticsStore.JournalSequenceNumberStore.update(zoneId, previousSequenceNumber + 1)
         }
-
-      case _ =>
-        previousClients
+      } yield (updatedBalances, updatedClientSessions, updatedSequenceNumber)).transact(transactor).unsafeRunSync()
     }
 
-    val updatedBalances = zoneEvent match {
-      case ZoneCreatedEvent(zone) =>
-        previousBalances ++ zone.accounts.mapValues(_ => BigDecimal(0))
-
-      case AccountCreatedEvent(account) =>
-        previousBalances + (account.id -> BigDecimal(0))
-
-      case TransactionAddedEvent(transaction) =>
-        val updatedSourceBalance      = previousBalances(transaction.from) - transaction.value
-        val updatedDestinationBalance = previousBalances(transaction.to) + transaction.value
-        previousBalances + (transaction.from -> updatedSourceBalance) + (transaction.to -> updatedDestinationBalance)
-
-      case _ => previousBalances
-    }
-
-    for {
-      _ <- zoneEvent match {
-        case EmptyZoneEvent =>
-          Future.successful(())
-
-        case ZoneCreatedEvent(zone) =>
-          for {
-            _ <- analyticsStore.zoneStore.create(zone)
-            _ <- analyticsStore.balanceStore.create(zone, BigDecimal(0), zone.accounts.values)
-          } yield ()
-
-        case ClientJoinedEvent(maybeClientConnection) =>
-          Cartesian[Option].product(maybeClientConnection, maybePublicKey) match {
-            case None =>
-              Future.successful(())
-            case Some((clientConnection, publicKey)) =>
-              analyticsStore.clientStore.createOrUpdate(zoneId,
-                                                        publicKey,
-                                                        joined = timestamp,
-                                                        actorRef = clientConnection)
-          }
-
-        case ClientQuitEvent(maybeClientConnection) =>
-          maybeClientConnection match {
-            case None =>
-              Future.successful(())
-            case Some(clientConnection) =>
-              previousClients.get(clientConnection) match {
-                case None =>
-                  Future.successful(())
-                case Some((joined, publicKey)) =>
-                  analyticsStore.clientStore.update(zoneId,
-                                                    publicKey,
-                                                    joined,
-                                                    actorRef = clientConnection,
-                                                    quit = timestamp)
-              }
-          }
-
-        case ZoneNameChangedEvent(name) =>
-          analyticsStore.zoneStore.changeName(zoneId, modified = timestamp, name)
-
-        case MemberCreatedEvent(member) =>
-          analyticsStore.zoneStore.memberStore.create(zoneId, created = timestamp)(member)
-
-        case MemberUpdatedEvent(member) =>
-          for {
-            _ <- analyticsStore.zoneStore.memberStore.update(zoneId, modified = timestamp, member)
-            updatedAccounts = previousZone.accounts.values.filter(_.ownerMemberIds.contains(member.id))
-            _ <- analyticsStore.zoneStore.accountStore.update(previousZone, updatedAccounts)
-            updatedTransactions = previousZone.transactions.values.filter(transaction =>
-              updatedAccounts.exists(_.id == transaction.from) || updatedAccounts.exists(_.id == transaction.to))
-            _ <- analyticsStore.zoneStore.transactionStore.update(previousZone, updatedTransactions)
-            _ <- analyticsStore.balanceStore.update(previousZone, updatedAccounts, previousBalances)
-          } yield ()
-
-        case AccountCreatedEvent(account) =>
-          for {
-            _ <- analyticsStore.zoneStore.accountStore.create(previousZone, created = timestamp)(account)
-            _ <- analyticsStore.balanceStore.create(previousZone, BigDecimal(0))(account)
-          } yield ()
-
-        case AccountUpdatedEvent(_, account) =>
-          for {
-            _ <- analyticsStore.zoneStore.accountStore.update(previousZone, modified = timestamp, account)
-            updatedTransactions = previousZone.transactions.values.filter(transaction =>
-              transaction.from == account.id || transaction.to == account.id)
-            _ <- analyticsStore.zoneStore.transactionStore.update(previousZone, updatedTransactions)
-            _ <- analyticsStore.balanceStore.update(previousZone)(account -> previousBalances(account.id))
-          } yield ()
-
-        case TransactionAddedEvent(transaction) =>
-          for {
-            _ <- analyticsStore.zoneStore.transactionStore.add(previousZone)(transaction)
-            updatedSourceBalance      = previousBalances(transaction.from) - transaction.value
-            updatedDestinationBalance = previousBalances(transaction.to) + transaction.value
-            _ <- analyticsStore.balanceStore.update(previousZone)(
-              previousZone.accounts(transaction.from) -> updatedSourceBalance)
-            _ <- analyticsStore.balanceStore.update(previousZone)(
-              previousZone.accounts(transaction.to) -> updatedDestinationBalance)
-          } yield ()
-      }
-      _ <- analyticsStore.zoneStore.updateModified(zoneId, timestamp)
-      _ <- analyticsStore.journalSequenceNumberStore.update(zoneId, envelope.sequenceNr)
-    } yield (envelope.sequenceNr, updatedZone, updatedBalances, updatedClients)
-  }
 }

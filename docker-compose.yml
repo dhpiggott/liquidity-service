@@ -5,11 +5,13 @@ services:
     restart: always
     volumes:
     - cassandra-data:/var/lib/cassandra
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: liquidity
-        awslogs-stream: cassandra
+  mysql:
+    image: mysql:8
+    restart: always
+    volumes:
+    - mysql-data:/var/lib/mysql
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
   zone-host-seed:
     build: server
     restart: always
@@ -34,6 +36,7 @@ services:
         -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host-seed:2552
     links:
       - cassandra
+      - mysql
       - zone-host-seed
   client-relay-seed:
     build: server
@@ -52,3 +55,4 @@ services:
       - zone-host-seed
 volumes:
   cassandra-data:
+  mysql-data:

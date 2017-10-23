@@ -1,8 +1,6 @@
 package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
-import java.time.Instant
-import java.time.format.DateTimeFormatter
 
 import akka.http.scaladsl.common.{EntityStreamingSupport, JsonEntityStreamingSupport}
 import akka.http.scaladsl.marshalling._
@@ -11,10 +9,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.serialization.Serialization
 import akka.stream.scaladsl.{Flow, Source}
-import akka.typed.ActorRef
-import akka.typed.scaladsl.adapter._
 import akka.{Done, NotUsed}
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor.ActiveZoneSummary
@@ -141,35 +136,20 @@ trait HttpController {
             )
         )))
 
-  private[this] def analytics(implicit ec: ExecutionContext): Route =
+  private[this] def analytics: Route =
     pathPrefix("analytics")(
-      pathPrefix("zones")(
-        pathPrefix(JavaUUID)(
-          id =>
-            pathEnd(zone(id.toString)) ~
-              path("balances")(balances(id.toString)) ~
-              path("clients")(clients(id.toString)))))
+      pathPrefix("zones")(pathPrefix(JavaUUID)(id =>
+        pathEnd(zone(id.toString)) ~
+          path("balances")(balances(id.toString)))))
 
-  private[this] def zone(id: String)(implicit ec: ExecutionContext): Route =
-    get(complete(getZone(ZoneId(id)).map(_.map(zone =>
-      Json.parse(JsonFormat.toJsonString(ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(())))))))
+  private[this] def zone(id: String): Route =
+    get(complete(getZone(ZoneId(id)).map(zone =>
+      Json.parse(JsonFormat.toJsonString(ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(()))))))
 
-  private[this] def balances(id: String)(implicit ec: ExecutionContext): Route =
-    get(complete(getBalances(ZoneId(id)).map(balances =>
-      Json.obj(balances.map {
-        case (accountId, balance) => accountId.id.toString -> toJsFieldJsValueWrapper(balance)
-      }.toSeq: _*))))
-
-  private[this] def clients(id: String)(implicit ec: ExecutionContext): Route =
-    get(complete(getClients(ZoneId(id)).map(clients =>
-      Json.obj(clients.map {
-        case (actorRef, (lastJoined, publicKey)) =>
-          Serialization.serializedActorPath(actorRef.toUntyped) -> toJsFieldJsValueWrapper(
-            Json.obj(
-              "lastJoined"  -> DateTimeFormatter.ISO_INSTANT.format(lastJoined),
-              "fingerprint" -> publicKey.fingerprint
-            ))
-      }.toSeq: _*))))
+  private[this] def balances(id: String): Route =
+    get(complete(Json.obj(getBalances(ZoneId(id)).map {
+      case (accountId, balance) => accountId.id.toString -> toJsFieldJsValueWrapper(balance)
+    }.toSeq: _*)))
 
   protected[this] def events(persistenceId: String,
                              fromSequenceNr: Long,
@@ -183,10 +163,8 @@ trait HttpController {
 
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
 
-  protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
+  protected[this] def getZone(zoneId: ZoneId): Option[Zone]
 
-  protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
-
-  protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]]
+  protected[this] def getBalances(zoneId: ZoneId): Map[AccountId, BigDecimal]
 
 }

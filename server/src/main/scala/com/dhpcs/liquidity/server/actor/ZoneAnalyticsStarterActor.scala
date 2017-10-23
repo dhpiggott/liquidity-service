@@ -32,9 +32,8 @@ object ZoneAnalyticsStarterActor {
       val killSwitch = {
         val currentZoneIds = readJournal
           .currentPersistenceIds()
-          .map(ZoneId(_))
-          .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId =>
-            startZoneAnalyticsActor(zoneAnalyticsShardRegion, zoneId).map(_ => zoneId))
+          .map(ZoneId.fromPersistenceId)
+          .mapAsync(1)(zoneId => startZoneAnalyticsActor(zoneAnalyticsShardRegion, zoneId).map(_ => zoneId))
           .runFold(Set.empty[ZoneId])(_ + _)
         currentZoneIds.foreach(currentZones => log.info(s"Initialized ${currentZones.size} zone views"))
         val (killSwitch, done) = Source
@@ -46,7 +45,7 @@ object ZoneAnalyticsStarterActor {
                 .persistenceIds()
                 .map(ZoneId.fromPersistenceId)
                 .filterNot(currentZoneIds.contains)
-                .mapAsyncUnordered(sys.runtime.availableProcessors)(zoneId =>
+                .mapAsync(1)(zoneId =>
                   startZoneAnalyticsActor(zoneAnalyticsShardRegion, zoneId).map(_ =>
                     log.info(s"Initialized zone view for ${zoneId.id}"))))
           .toMat(Sink.ignore)(Keep.both)

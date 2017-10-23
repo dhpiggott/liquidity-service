@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
-import java.time.Instant
 
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.Cluster
@@ -14,13 +13,14 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
+import akka.typed.Props
 import akka.typed.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
 import akka.typed.cluster.{ActorRefResolver, ClusterSingleton}
 import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
-import akka.typed.{ActorRef, Props}
 import akka.util.Timeout
 import akka.{Done, NotUsed, typed}
+import cats.effect.IO
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
@@ -34,6 +34,10 @@ import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsStarterActor.StopZoneAnalyticsStarter
 import com.dhpcs.liquidity.server.actor._
 import com.typesafe.config.ConfigFactory
+import doobie._
+import doobie.hikari._
+import doobie.hikari.implicits._
+import doobie.implicits._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -53,11 +57,35 @@ object LiquidityServer {
     clusterHttpManagement.start()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseClusterExitingDone, "clusterHttpManagementStop")(() =>
       clusterHttpManagement.stop())
+    val transactor = (for {
+      transactor <- HikariTransactor[IO](
+        driverClassName = "com.mysql.jdbc.Driver",
+        url = "jdbc:mysql://mysql/liquidity_analytics",
+        user = "root",
+        pass = ""
+      )
+      _ <- transactor.configure { hikariDataSource =>
+        hikariDataSource.addDataSourceProperty("useSSL", false)
+        hikariDataSource.addDataSourceProperty("cachePrepStmts", true)
+        hikariDataSource.addDataSourceProperty("prepStmtCacheSize", 250)
+        hikariDataSource.addDataSourceProperty("prepStmtCacheSqlLimit", 2048)
+        hikariDataSource.addDataSourceProperty("useServerPrepStmts", true)
+        hikariDataSource.addDataSourceProperty("useLocalSessionState", true)
+        hikariDataSource.addDataSourceProperty("useLocalTransactionState", true)
+        hikariDataSource.addDataSourceProperty("rewriteBatchedStatements", true)
+        hikariDataSource.addDataSourceProperty("cacheResultSetMetadata", true)
+        hikariDataSource.addDataSourceProperty("cacheServerConfiguration", true)
+        hikariDataSource.addDataSourceProperty("elideSetAutoCommits", true)
+        hikariDataSource.addDataSourceProperty("maintainTimeStats", false)
+      }
+    } yield transactor).unsafeRunSync()
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>
+      for (_ <- transactor.shutdown.unsafeToFuture()) yield Done)
     val server = new LiquidityServer(
+      transactor,
       pingInterval = FiniteDuration(config.getDuration("liquidity.server.ping-interval", SECONDS), SECONDS),
       httpInterface = config.getString("liquidity.server.http.interface"),
-      httpPort = config.getInt("liquidity.server.http.port"),
-      analyticsKeyspace = config.getString("liquidity.analytics.cassandra.keyspace")
+      httpPort = config.getInt("liquidity.server.http.port")
     )
     val httpBinding = server.bindHttp()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>
@@ -65,7 +93,7 @@ object LiquidityServer {
   }
 }
 
-class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpPort: Int, analyticsKeyspace: String)(
+class LiquidityServer(transactor: Transactor[IO], pingInterval: FiniteDuration, httpInterface: String, httpPort: Int)(
     implicit system: ActorSystem,
     mat: Materializer)
     extends HttpController {
@@ -89,9 +117,6 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
   private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zone-monitor")
 
-  private[this] lazy val futureAnalyticsStore =
-    readJournal.session.underlying().flatMap(CassandraAnalyticsStore(analyticsKeyspace)(_, ec))
-
   private[this] val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
     Console.err.println("Exiting due to stream failure")
     t.printStackTrace(Console.err)
@@ -99,7 +124,7 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   }
 
   private[this] val zoneAnalyticsShardRegion = ClusterSharding(system.toTyped).spawn(
-    behavior = ZoneAnalyticsActor.shardingBehavior(readJournal, futureAnalyticsStore, streamFailureHandler),
+    behavior = ZoneAnalyticsActor.shardingBehavior(readJournal, transactor, streamFailureHandler),
     entityProps = Props.empty,
     typeKey = ZoneAnalyticsActor.ShardingTypeName,
     settings = ClusterShardingSettings(system.toTyped).withRole(AnalyticsRole),
@@ -155,13 +180,10 @@ class LiquidityServer(pingInterval: FiniteDuration, httpInterface: String, httpP
   override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
     zoneMonitor ? GetActiveZoneSummaries
 
-  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
-    futureAnalyticsStore.flatMap(_.zoneStore.retrieveOpt(zoneId))
+  override protected[this] def getZone(zoneId: ZoneId): Option[Zone] =
+    SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId).transact(transactor).unsafeRunSync()
 
-  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
-    futureAnalyticsStore.flatMap(_.balanceStore.retrieve(zoneId))
-
-  override protected[this] def getClients(zoneId: ZoneId): Future[Map[ActorRef[Nothing], (Instant, PublicKey)]] =
-    futureAnalyticsStore.flatMap(_.clientStore.retrieve(zoneId)(ec, ActorRefResolver(system.toTyped)))
+  override protected[this] def getBalances(zoneId: ZoneId): Map[AccountId, BigDecimal] =
+    SqlAnalyticsStore.AccountsStore.retrieveAllBalances(zoneId).transact(transactor).unsafeRunSync()
 
 }

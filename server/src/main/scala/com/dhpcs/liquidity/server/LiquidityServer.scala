@@ -33,7 +33,6 @@ import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsStarterActor.StopZoneAnalyticsStarter
 import com.dhpcs.liquidity.server.actor._
-import com.typesafe.config.ConfigFactory
 import doobie._
 import doobie.hikari._
 import doobie.hikari.implicits._
@@ -49,7 +48,6 @@ object LiquidityServer {
   private final val AnalyticsRole   = "analytics"
 
   def main(args: Array[String]): Unit = {
-    val config                        = ConfigFactory.load
     implicit val system: ActorSystem  = ActorSystem("liquidity")
     implicit val mat: Materializer    = ActorMaterializer()
     implicit val ec: ExecutionContext = ExecutionContext.global
@@ -83,9 +81,9 @@ object LiquidityServer {
       for (_ <- transactor.shutdown.unsafeToFuture()) yield Done)
     val server = new LiquidityServer(
       transactor,
-      pingInterval = FiniteDuration(config.getDuration("liquidity.server.ping-interval", SECONDS), SECONDS),
-      httpInterface = config.getString("liquidity.server.http.interface"),
-      httpPort = config.getInt("liquidity.server.http.port")
+      pingInterval = 30.seconds,
+      httpInterface = "0.0.0.0",
+      httpPort = 80
     )
     val httpBinding = server.bindHttp()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>

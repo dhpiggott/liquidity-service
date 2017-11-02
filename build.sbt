@@ -14,7 +14,7 @@ lazy val `proto-binding` = project
   .settings(
     libraryDependencies ++= Seq(
       "com.chuusai"   %% "shapeless" % "2.3.2",
-      "org.typelevel" %% "cats-core" % "1.0.0-MF"
+      "org.typelevel" %% "cats-core" % "1.0.0-RC1"
     ))
 
 lazy val model = project
@@ -43,7 +43,7 @@ lazy val `ws-protocol` = project
     PB.includePaths in Compile += file("model/src/main/protobuf")
   )
   .dependsOn(model)
-  .settings(libraryDependencies += "org.typelevel" %% "cats-core" % "1.0.0-MF")
+  .settings(libraryDependencies += "org.typelevel" %% "cats-core" % "1.0.0-RC1")
   .dependsOn(testkit % Test)
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
@@ -130,8 +130,8 @@ lazy val server = project
       // TODO: Switch to akka-persistence-jdbc
       "com.typesafe.akka"      %% "akka-persistence-cassandra"  % "0.58",
       "io.netty"               % "netty-transport-native-epoll" % "4.1.12.Final" classifier "linux-x86_64",
-      "org.tpolecat"           %% "doobie-core"                 % "0.5.0-M8",
-      "org.tpolecat"           %% "doobie-hikari"               % "0.5.0-M8",
+      "org.tpolecat"           %% "doobie-core"                 % "0.5.0-M9",
+      "org.tpolecat"           %% "doobie-hikari"               % "0.5.0-M9",
       "mysql"                  % "mysql-connector-java"         % "5.1.44",
       "com.typesafe.akka"      %% "akka-http"                   % "10.0.10",
       "com.trueaccord.scalapb" %% "scalapb-json4s"              % "0.3.3",

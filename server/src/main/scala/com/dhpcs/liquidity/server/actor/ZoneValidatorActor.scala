@@ -16,7 +16,7 @@ import akka.typed.persistence.scaladsl.PersistentActor._
 import akka.typed.scaladsl.adapter._
 import akka.typed.scaladsl.{Actor, ActorContext}
 import akka.typed.{ActorRef, Behavior, PostStop, Terminated}
-import cats.Cartesian
+import cats.Semigroupal
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.instances.option._
@@ -948,7 +948,7 @@ object ZoneValidatorActor {
         )
 
       case ClientJoinedEvent(maybeClientConnection) =>
-        Cartesian[Option].product(event.publicKey, maybeClientConnection) match {
+        Semigroupal[Option].product(event.publicKey, maybeClientConnection) match {
           case None =>
             state
           case Some((publicKey, clientConnection)) =>

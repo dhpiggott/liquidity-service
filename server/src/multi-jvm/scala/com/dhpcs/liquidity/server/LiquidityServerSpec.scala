@@ -120,7 +120,7 @@ sealed abstract class LiquidityServerSpec
       free.KleisliInterpreter[IO].ConnectionInterpreter,
       util.transactor.Strategy.void
     ),
-    pingInterval = 3.seconds,
+    pingInterval = 5.seconds,
     httpInterface = "0.0.0.0",
     httpPort = akkaHttpPort
   )
@@ -182,7 +182,7 @@ sealed abstract class LiquidityServerSpec
   runOn(clientRelayNode) {
     "The LiquidityServer Protobuf WebSocket API" - {
       "will send a PingCommand when left idle" in withProtobufWsTestProbes { (sub, _) =>
-        sub.within(3.5.seconds)(
+        sub.within(10.seconds)(
           assert(
             expectProtobufCommand(sub) === proto.ws.protocol.ClientMessage.Command.Command
               .PingCommand(com.google.protobuf.ByteString.EMPTY))

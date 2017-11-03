@@ -164,6 +164,11 @@ object SqlAnalyticsStore {
       for (_ <- sql"UPDATE accounts SET balance = $balance WHERE zone_id = $zoneId AND account_id = $accountId".update.run)
         yield ()
 
+    def retrieveBalance(zoneId: ZoneId, accountId: AccountId): ConnectionIO[BigDecimal] =
+      sql"SELECT balance FROM accounts WHERE zone_id = $zoneId AND account_id = $accountId"
+        .query[BigDecimal]
+        .unique
+
     def retrieveAll(zoneId: ZoneId): ConnectionIO[Map[AccountId, Account]] =
       for {
         accountIds <- sql"SELECT account_id FROM accounts WHERE zone_id = $zoneId".query[AccountId].vector
@@ -249,13 +254,12 @@ object SqlAnalyticsStore {
     def update(sessionId: Long, quit: Instant): ConnectionIO[Unit] =
       for (_ <- sql"UPDATE client_sessions SET quit = $quit WHERE session_id = $sessionId".update.run) yield ()
 
-    def retrieveAll(zoneId: ZoneId)(implicit resolver: ActorRefResolver): ConnectionIO[Map[ActorRef[Nothing], Long]] =
-      sql"SELECT actor_ref, session_id FROM client_sessions WHERE zone_id = $zoneId AND quit IS NULL"
-        .query[(String, Long)]
+    def retrieve(zoneId: ZoneId, actorRef: ActorRef[Nothing])(
+        implicit resolver: ActorRefResolver): ConnectionIO[Option[Long]] =
+      sql"SELECT session_id FROM client_sessions WHERE zone_id = $zoneId AND actor_ref = ${resolver.toSerializationFormat(actorRef)} AND quit IS NULL"
+        .query[Long]
         .vector
-        .map(_.map {
-          case (actorRef, sessionId) => resolver.resolveActorRef(actorRef) -> sessionId
-        }.toMap)
+        .map(_.headOption)
 
   }
 

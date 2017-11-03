@@ -15,11 +15,11 @@ import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.typed.Props
 import akka.typed.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
-import akka.typed.cluster.{ActorRefResolver, ClusterSingleton}
+import akka.typed.cluster.{ActorRefResolver, ClusterSingleton, ClusterSingletonSettings}
 import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
 import akka.util.Timeout
-import akka.{Done, NotUsed, typed}
+import akka.{Done, NotUsed}
 import cats.effect.IO
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
@@ -31,7 +31,6 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
-import com.dhpcs.liquidity.server.actor.ZoneAnalyticsStarterActor.StopZoneAnalyticsStarter
 import com.dhpcs.liquidity.server.actor._
 import doobie._
 import doobie.hikari._
@@ -121,21 +120,12 @@ class LiquidityServer(transactor: Transactor[IO], pingInterval: FiniteDuration, 
     System.exit(1)
   }
 
-  private[this] val zoneAnalyticsShardRegion = ClusterSharding(system.toTyped).spawn(
-    behavior = ZoneAnalyticsActor.shardingBehavior(readJournal, transactor, streamFailureHandler),
-    entityProps = Props.empty,
-    typeKey = ZoneAnalyticsActor.ShardingTypeName,
-    settings = ClusterShardingSettings(system.toTyped).withRole(AnalyticsRole),
-    messageExtractor = ZoneAnalyticsActor.messageExtractor,
-    handOffStopMessage = StopZoneAnalytics
-  )
-
   ClusterSingleton(system.toTyped).spawn(
-    behavior = ZoneAnalyticsStarterActor.singletonBehavior(readJournal, zoneAnalyticsShardRegion, streamFailureHandler),
-    singletonName = "zone-analytics-starter-singleton",
+    behavior = ZoneAnalyticsActor.singletonBehavior(readJournal, transactor, streamFailureHandler),
+    singletonName = "zone-analytics-singleton",
     props = Props.empty,
-    settings = typed.cluster.ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
-    terminationMessage = StopZoneAnalyticsStarter
+    settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
+    terminationMessage = StopZoneAnalytics
   )
 
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(

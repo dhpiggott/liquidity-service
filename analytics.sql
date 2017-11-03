@@ -114,9 +114,8 @@ CREATE TABLE client_sessions (
   FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
 );
 
-CREATE TABLE journal_sequence_numbers (
-  zone_id VARCHAR(36) NOT NULL,
-  sequence_number INT NOT NULL,
-  PRIMARY KEY (zone_id),
-  FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
+CREATE TABLE tag_offsets (
+  tag VARCHAR(10) NOT NULL,
+  offset CHAR(36) NOT NULL,
+  PRIMARY KEY (tag)
 );

@@ -35,6 +35,14 @@ trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |    snapshot-store.plugin = "inmemory-snapshot-store"
        |  }
        |}
+       |inmemory-journal {
+       |  event-adapters {
+       |    zone-event = "com.dhpcs.liquidity.server.ZoneEventAdapter"
+       |  }
+       |  event-adapter-bindings {
+       |    "com.dhpcs.liquidity.persistence.zone.ZoneEventEnvelope" = zone-event
+       |  }
+       |}
      """.stripMargin)
 
   protected[this] implicit val system: ActorSystem = ActorSystem("liquidity", config)

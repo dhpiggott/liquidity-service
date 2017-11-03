@@ -2,7 +2,9 @@ package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
 import java.time.Instant
+import java.util.UUID
 
+import akka.persistence.query.TimeBasedUUID
 import akka.typed.ActorRef
 import akka.typed.cluster.ActorRefResolver
 import cats.instances.list._
@@ -16,9 +18,9 @@ import doobie.implicits._
 import okio.ByteString
 
 object SqlAnalyticsStore {
+
   implicit val PublicKeyMeta: Meta[PublicKey] =
     Meta[Array[Byte]].xmap(bytes => PublicKey(ByteString.of(bytes: _*)), _.value.toByteArray)
-
   implicit val InetAddressMeta: Meta[InetAddress]     = Meta[String].xmap(InetAddress.getByName, _.getHostAddress)
   implicit val ZoneIdMeta: Meta[ZoneId]               = Meta[String].xmap(ZoneId(_), _.id)
   implicit val MemberIdMeta: Meta[MemberId]           = Meta[String].xmap(MemberId, _.id)
@@ -27,6 +29,8 @@ object SqlAnalyticsStore {
   implicit val StructMeta: Meta[com.google.protobuf.struct.Struct] = Meta[String].xmap(
     JsonFormat.fromJsonString[com.google.protobuf.struct.Struct],
     JsonFormat.toJsonString[com.google.protobuf.struct.Struct])
+  implicit val TimeBasedUUIDMeta: Meta[TimeBasedUUID] =
+    Meta[String].xmap(stringValue => TimeBasedUUID(UUID.fromString(stringValue)), _.value.toString)
 
   object ZoneStore {
 
@@ -263,18 +267,16 @@ object SqlAnalyticsStore {
 
   }
 
-  object JournalSequenceNumberStore {
+  object TagOffsetsStore {
 
-    def insert(zoneId: ZoneId, sequenceNumber: Long): ConnectionIO[Long] =
-      for (_ <- sql"INSERT INTO journal_sequence_numbers (zone_id, sequence_number) VALUES ($zoneId, $sequenceNumber)".update.run)
-        yield sequenceNumber
+    def insert(tag: String, offset: TimeBasedUUID): ConnectionIO[Unit] =
+      for (_ <- sql"INSERT INTO tag_offsets (tag, offset) VALUES ($tag, $offset)".update.run) yield ()
 
-    def retrieve(zoneId: ZoneId): ConnectionIO[Option[Long]] =
-      sql"SELECT sequence_number FROM journal_sequence_numbers WHERE zone_id = $zoneId".query[Long].option
+    def retrieve(tag: String): ConnectionIO[Option[TimeBasedUUID]] =
+      sql"SELECT offset FROM tag_offsets WHERE tag = $tag".query[TimeBasedUUID].option
 
-    def update(zoneId: ZoneId, sequenceNumber: Long): ConnectionIO[Long] =
-      for (_ <- sql"UPDATE journal_sequence_numbers SET sequence_number = $sequenceNumber WHERE zone_id = $zoneId".update.run)
-        yield sequenceNumber
+    def update(tag: String, offset: TimeBasedUUID): ConnectionIO[Unit] =
+      for (_ <- sql"UPDATE tag_offsets SET offset = $offset WHERE tag = $tag".update.run) yield ()
 
   }
 }

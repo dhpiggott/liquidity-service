@@ -78,6 +78,14 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |  }
        |  http.server.remote-address-header = on
        |}
+       |cassandra-journal {
+       |  event-adapters {
+       |    zone-event = "com.dhpcs.liquidity.server.ZoneEventAdapter"
+       |  }
+       |  event-adapter-bindings {
+       |    "com.dhpcs.liquidity.persistence.zone.ZoneEventEnvelope" = zone-event
+       |  }
+       |}
      """.stripMargin))
 
   nodeConfig(zoneHostNode)(

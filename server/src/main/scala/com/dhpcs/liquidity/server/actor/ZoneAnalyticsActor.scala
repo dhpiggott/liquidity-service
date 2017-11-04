@@ -58,8 +58,12 @@ object ZoneAnalyticsActor {
             } yield ()
             transaction.transact(transactor).unsafeRunSync()
           }
+          .zipWithIndex
           .groupedWithin(n = 1000, d = 30.seconds)
-          .map(group => log.info(s"Projected ${group.size} zone events"))
+          .map { group =>
+            val (_, index) = group.last
+            log.info(s"Projected ${group.size} zone events (total: ${index + 1})")
+          }
           .toMat(Sink.ignore)(Keep.both)
           .run()
       done.failed.foreach(t => streamFailureHandler.applyOrElse(t, throw _: Throwable))

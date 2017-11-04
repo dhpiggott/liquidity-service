@@ -1,0 +1,32 @@
+version: '3'
+services:
+  cassandra:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: cassandra
+  mysql:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: mysql
+  zone-host:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: zone-host
+  analytics:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: analytics
+  client-relay:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: client-relay

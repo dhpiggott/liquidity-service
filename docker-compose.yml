@@ -5,11 +5,6 @@ services:
     restart: always
     volumes:
     - cassandra-data:/var/lib/cassandra
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: liquidity
-        awslogs-stream: cassandra
   mysql:
     image: mysql:8
     restart: always
@@ -17,11 +12,6 @@ services:
     - mysql-data:/var/lib/mysql
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "true"
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: liquidity
-        awslogs-stream: mysql
   zone-host:
     build: server
     restart: always
@@ -34,11 +24,6 @@ services:
         -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
     links:
       - cassandra
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: liquidity
-        awslogs-stream: zone-host
   analytics:
     build: server
     restart: always
@@ -53,11 +38,6 @@ services:
       - cassandra
       - mysql
       - zone-host
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: liquidity
-        awslogs-stream: analytics
   client-relay:
     build: server
     ports:
@@ -73,11 +53,6 @@ services:
     links:
       - cassandra
       - zone-host
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: liquidity
-        awslogs-stream: client-relay
 volumes:
   cassandra-data:
   mysql-data:

@@ -113,30 +113,31 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-persistence"            % "2.5.6",
       "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.6",
       "com.typesafe.akka"          %% "akka-http"                   % "10.0.10",
+      "com.zaxxer"                 % "HikariCP"                     % "2.7.2",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.4.0",
       "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.6",
       "com.typesafe.play"          %% "play-json"                   % "2.6.6"
     ),
     libraryDependencies ++= Seq(
-      "com.typesafe.akka"  %% "akka-slf4j"                   % "2.5.6",
-      "ch.qos.logback"     % "logback-classic"               % "1.2.3",
-      "com.typesafe.akka"  %% "akka-cluster"                 % "2.5.6",
-      "com.lightbend.akka" %% "akka-management-cluster-http" % "0.5",
-      "com.typesafe.akka"  %% "akka-cluster-sharding"        % "2.5.6",
-      "com.typesafe.akka"  %% "akka-cluster-tools"           % "2.5.6",
-      "com.typesafe.akka"  %% "akka-persistence"             % "2.5.6",
-      "com.typesafe.akka"  %% "akka-persistence-query"       % "2.5.6",
-      // TODO: Switch to akka-persistence-jdbc
-      "com.typesafe.akka"      %% "akka-persistence-cassandra"  % "0.58",
-      "io.netty"               % "netty-transport-native-epoll" % "4.1.12.Final" classifier "linux-x86_64",
-      "org.tpolecat"           %% "doobie-core"                 % "0.5.0-M9",
-      "org.tpolecat"           %% "doobie-hikari"               % "0.5.0-M9",
-      "mysql"                  % "mysql-connector-java"         % "5.1.44",
-      "com.typesafe.akka"      %% "akka-http"                   % "10.0.10",
-      "com.trueaccord.scalapb" %% "scalapb-json4s"              % "0.3.3",
-      "com.typesafe.play"      %% "play-json"                   % "2.6.7",
-      "de.heikoseeberger"      %% "akka-http-play-json"         % "1.18.1"
+      "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.6",
+      "ch.qos.logback"         % "logback-classic"               % "1.2.3",
+      "com.typesafe.akka"      %% "akka-cluster"                 % "2.5.6",
+      "com.lightbend.akka"     %% "akka-management-cluster-http" % "0.5",
+      "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.6",
+      "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.6",
+      "com.typesafe.akka"      %% "akka-persistence"             % "2.5.6",
+      "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.6",
+      "com.github.dnvriend"    %% "akka-persistence-jdbc"        % "3.0.1",
+      "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.58",
+      "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
+      "org.tpolecat"           %% "doobie-core"                  % "0.5.0-M9",
+      "org.tpolecat"           %% "doobie-hikari"                % "0.5.0-M9",
+      "mysql"                  % "mysql-connector-java"          % "5.1.44",
+      "com.typesafe.akka"      %% "akka-http"                    % "10.0.10",
+      "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.3",
+      "com.typesafe.play"      %% "play-json"                    % "2.6.7",
+      "de.heikoseeberger"      %% "akka-http-play-json"          % "1.18.1"
     )
   )
   .dependsOn(`ws-protocol` % "test->test")
@@ -152,8 +153,8 @@ lazy val server = project
   .settings(inConfig(MultiJvm)(scalafmtSettings))
   .dependsOn(testkit % MultiJvm)
   .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-multi-node-testkit"             % "2.5.6" % MultiJvm,
-    "com.typesafe.akka" %% "akka-persistence-cassandra-launcher" % "0.58"  % MultiJvm
+    "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.5.6"   % MultiJvm,
+    "com.h2database"    % "h2"                       % "1.4.196" % MultiJvm
   ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(
@@ -161,6 +162,7 @@ lazy val server = project
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
+    mainClass in Compile := Some("com.dhpcs.liquidity.server.LiquidityServer"),
     dockerBaseImage := "openjdk:8-jre",
     daemonUser in Docker := "root"
   )

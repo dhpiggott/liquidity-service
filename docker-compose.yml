@@ -7,11 +7,18 @@ services:
     - cassandra-data:/var/lib/cassandra
   mysql:
     image: mysql:5
+    command: ["--max_connections=500"]
     restart: always
     volumes:
     - mysql-data:/var/lib/mysql
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+  journal-migration:
+    build: server
+    command: ["-main", "com.dhpcs.liquidity.server.JournalMigration"]
+    depends_on:
+      - cassandra
+      - mysql
   zone-host:
     build: server
     restart: always
@@ -22,8 +29,8 @@ services:
       JAVA_OPTS: >
         -Dakka.cluster.roles.0=zone-host
         -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
-    links:
-      - cassandra
+    depends_on:
+      - mysql
   analytics:
     build: server
     restart: always
@@ -34,8 +41,7 @@ services:
       JAVA_OPTS: >
         -Dakka.cluster.roles.0=analytics
         -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
-    links:
-      - cassandra
+    depends_on:
       - mysql
       - zone-host
   client-relay:
@@ -50,8 +56,8 @@ services:
       JAVA_OPTS: >
         -Dakka.cluster.roles.0=client-relay
         -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
-    links:
-      - cassandra
+    depends_on:
+      - mysql
       - zone-host
 volumes:
   cassandra-data:

@@ -118,6 +118,6 @@ CREATE TABLE client_sessions (
 
 CREATE TABLE tag_offsets (
   tag VARCHAR(10) NOT NULL,
-  offset CHAR(36) NOT NULL,
+  offset INT NOT NULL,
   PRIMARY KEY (tag)
 );

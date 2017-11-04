@@ -2,9 +2,8 @@ package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
 import java.time.Instant
-import java.util.UUID
 
-import akka.persistence.query.TimeBasedUUID
+import akka.persistence.query.Sequence
 import cats.instances.list._
 import cats.syntax.applicative._
 import cats.syntax.apply._
@@ -27,8 +26,6 @@ object SqlAnalyticsStore {
   implicit val StructMeta: Meta[com.google.protobuf.struct.Struct] = Meta[String].xmap(
     JsonFormat.fromJsonString[com.google.protobuf.struct.Struct],
     JsonFormat.toJsonString[com.google.protobuf.struct.Struct])
-  implicit val TimeBasedUUIDMeta: Meta[TimeBasedUUID] =
-    Meta[String].xmap(stringValue => TimeBasedUUID(UUID.fromString(stringValue)), _.value.toString)
 
   object ZoneStore {
 
@@ -266,13 +263,13 @@ object SqlAnalyticsStore {
 
   object TagOffsetsStore {
 
-    def insert(tag: String, offset: TimeBasedUUID): ConnectionIO[Unit] =
+    def insert(tag: String, offset: Sequence): ConnectionIO[Unit] =
       for (_ <- sql"INSERT INTO tag_offsets (tag, offset) VALUES ($tag, $offset)".update.run) yield ()
 
-    def retrieve(tag: String): ConnectionIO[Option[TimeBasedUUID]] =
-      sql"SELECT offset FROM tag_offsets WHERE tag = $tag".query[TimeBasedUUID].option
+    def retrieve(tag: String): ConnectionIO[Option[Sequence]] =
+      sql"SELECT offset FROM tag_offsets WHERE tag = $tag".query[Sequence].option
 
-    def update(tag: String, offset: TimeBasedUUID): ConnectionIO[Unit] =
+    def update(tag: String, offset: Sequence): ConnectionIO[Unit] =
       for (_ <- sql"UPDATE tag_offsets SET offset = $offset WHERE tag = $tag".update.run) yield ()
 
   }

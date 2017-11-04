@@ -1,8 +1,8 @@
 package com.dhpcs.liquidity.server.actor
 
 import akka.event.Logging
-import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
-import akka.persistence.query.TimeBasedUUID
+import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
+import akka.persistence.query.Sequence
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{KillSwitches, Materializer}
 import akka.typed.scaladsl.Actor
@@ -25,7 +25,7 @@ object ZoneAnalyticsActor {
   sealed abstract class ZoneAnalyticsMessage
   case object StopZoneAnalytics extends ZoneAnalyticsMessage
 
-  def singletonBehavior(readJournal: CassandraReadJournal,
+  def singletonBehavior(readJournal: JdbcReadJournal,
                         transactor: Transactor[IO],
                         streamFailureHandler: PartialFunction[Throwable, Unit])(
       implicit ec: ExecutionContext,
@@ -36,7 +36,7 @@ object ZoneAnalyticsActor {
         maybePreviousOffset <- TagOffsetsStore.retrieve(EventTags.ZoneEventTag)
         offset <- maybePreviousOffset match {
           case None =>
-            val firstOffset = TimeBasedUUID(readJournal.firstOffset)
+            val firstOffset = Sequence(0)
             for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag, firstOffset)) yield firstOffset
           case Some(previousOffset) =>
             previousOffset.pure[ConnectionIO]
@@ -49,18 +49,19 @@ object ZoneAnalyticsActor {
           .map { eventEnvelope =>
             val zoneId            = ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
             val zoneEventEnvelope = eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
-            val offset            = eventEnvelope.offset.asInstanceOf[TimeBasedUUID]
+            val offset            = eventEnvelope.offset.asInstanceOf[Sequence]
             val update = for {
               _ <- projectEvent(zoneId, zoneEventEnvelope)
               _ <- TagOffsetsStore.update(EventTags.ZoneEventTag, offset)
             } yield ()
             update.transact(transactor).unsafeRunSync()
+            offset
           }
           .zipWithIndex
           .groupedWithin(n = 1000, d = 30.seconds)
           .map { group =>
-            val (_, index) = group.last
-            log.info(s"Projected ${group.size} zone events (total: ${index + 1})")
+            val (offset, index) = group.last
+            log.info(s"Projected ${group.size} zone events (total: ${index + 1}, offset: ${offset.value})")
           }
           .toMat(Sink.ignore)(Keep.both)
           .run()

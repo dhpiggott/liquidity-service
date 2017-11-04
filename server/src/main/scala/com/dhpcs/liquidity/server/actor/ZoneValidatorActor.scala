@@ -117,7 +117,7 @@ object ZoneValidatorActor {
 
   }
 
-  def shardingBehaviour: Behavior[SerializableZoneValidatorMessage] =
+  def shardingBehavior: Behavior[SerializableZoneValidatorMessage] =
     Actor
       .deferred[ZoneValidatorMessage] { context =>
         val log = Logging(context.system.toUntyped, context.self.toUntyped)
@@ -133,11 +133,11 @@ object ZoneValidatorActor {
           context.spawn(ClientConnectionWatcherActor.behavior(context.self), "client-connection-watcher")
         implicit val resolver: ActorRefResolver = ActorRefResolver(context.system)
         val zoneValidator = context.spawnAnonymous(
-          persistentBehaviour(ZoneId.fromPersistenceId(persistenceId),
-                              notificationSequenceNumbers,
-                              mediator,
-                              passivationCountdown,
-                              clientConnectionWatcher)
+          persistentBehavior(ZoneId.fromPersistenceId(persistenceId),
+                             notificationSequenceNumbers,
+                             mediator,
+                             passivationCountdown,
+                             clientConnectionWatcher)
         )
         context.watch(zoneValidator)
         Actor.withTimers { timers =>
@@ -157,7 +157,7 @@ object ZoneValidatorActor {
       }
       .narrow[SerializableZoneValidatorMessage]
 
-  private def persistentBehaviour(
+  private def persistentBehavior(
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
       mediator: ActorRef[Publish],

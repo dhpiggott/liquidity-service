@@ -1,6 +1,5 @@
 package com.dhpcs.liquidity.server
 
-import java.nio.file.Files
 import java.sql.Connection
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -10,7 +9,6 @@ import akka.actor.ActorSystem
 import akka.cluster.MemberStatus.Up
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, WebSocketRequest, Message => WsMessage}
-import akka.persistence.cassandra.testkit.CassandraLauncher
 import akka.remote.testconductor.RoleName
 import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
 import akka.stream.scaladsl.{Flow, Keep, Source}
@@ -31,6 +29,8 @@ import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import doobie._
+import doobie.implicits._
+import org.h2.tools.Server
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{BeforeAndAfterAll, FreeSpecLike, Inside}
 
@@ -40,7 +40,7 @@ import scala.concurrent.{Await, ExecutionContext}
 
 object LiquidityServerSpecConfig extends MultiNodeConfig {
 
-  val cassandraNode: RoleName   = role("cassandra-node")
+  val h2Node: RoleName          = role("h2-node")
   val zoneHostNode: RoleName    = role("zone-host")
   val clientRelayNode: RoleName = role("client-relay")
 
@@ -68,22 +68,35 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |  extensions += "akka.persistence.Persistence"
        |  persistence {
        |    journal {
-       |      auto-start-journals = ["cassandra-journal"]
-       |      plugin = "cassandra-journal"
+       |      auto-start-journals = ["jdbc-journal"]
+       |      plugin = "jdbc-journal"
        |    }
        |    snapshot-store {
-       |      auto-start-journals = ["cassandra-snapshot-store"]
-       |      plugin = "cassandra-snapshot-store"
+       |      auto-start-journals = ["jdbc-snapshot-store"]
+       |      plugin = "jdbc-snapshot-store"
        |    }
        |  }
        |  http.server.remote-address-header = on
        |}
-       |cassandra-journal {
+       |jdbc-journal {
+       |  slick = $${slick}
        |  event-adapters {
        |    zone-event = "com.dhpcs.liquidity.server.ZoneEventAdapter"
        |  }
        |  event-adapter-bindings {
        |    "com.dhpcs.liquidity.persistence.zone.ZoneEventEnvelope" = zone-event
+       |  }
+       |}
+       |jdbc-snapshot-store.slick = $${slick}
+       |jdbc-read-journal.slick = $${slick}
+       |slick {
+       |  profile = "slick.jdbc.H2Profile$$"
+       |  db {
+       |    driver = "org.h2.Driver"
+       |    url = "jdbc:h2:tcp://localhost/mem:liquidity_journal;DATABASE_TO_UPPER=false"
+       |    user = "sa"
+       |    password = ""
+       |    connectionTestQuery = "SELECT 1"
        |  }
        |}
      """.stripMargin))
@@ -99,6 +112,38 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
       .parseString("""
           |akka.cluster.roles = ["client-relay"]
         """.stripMargin))
+
+  val initJournal: ConnectionIO[Unit] = for {
+    _ <- sql"""
+           DROP TABLE IF EXISTS PUBLIC."journal";
+         """.update.run
+    _ <- sql"""
+           DROP TABLE IF EXISTS PUBLIC."snapshot";
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE IF NOT EXISTS PUBLIC."journal" (
+             "ordering" BIGINT AUTO_INCREMENT,
+             "persistence_id" VARCHAR(255) NOT NULL,
+             "sequence_number" BIGINT NOT NULL,
+             "deleted" BOOLEAN DEFAULT FALSE,
+             "tags" VARCHAR(255) DEFAULT NULL,
+             "message" BYTEA NOT NULL,
+             PRIMARY KEY("persistence_id", "sequence_number")
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE UNIQUE INDEX "journal_ordering_idx" ON PUBLIC."journal"("ordering");
+    """.update.run
+    _ <- sql"""
+           CREATE TABLE IF NOT EXISTS PUBLIC."snapshot" (
+             "persistence_id" VARCHAR(255) NOT NULL,
+             "sequence_number" BIGINT NOT NULL,
+             "created" BIGINT NOT NULL,
+             "snapshot" BYTEA NOT NULL,
+             PRIMARY KEY("persistence_id", "sequence_number")
+           );
+         """.update.run
+  } yield ()
 
 }
 
@@ -117,12 +162,12 @@ sealed abstract class LiquidityServerSpec
 
   private[this] implicit val mat: Materializer = ActorMaterializer()
 
-  private[this] lazy val cassandraDirectory = Files.createTempDirectory("liquidity-server-spec-cassandra-data")
+  private[this] lazy val h2Server = Server.createTcpServer()
 
   private[this] val akkaHttpPort = TestKit.freePort()
 
   private[this] val server = new LiquidityServer(
-    transactor = Transactor[IO, Connection](
+    analyticsTransactor = Transactor[IO, Connection](
       kernel0 = null,
       connect0 = _.pure[IO],
       free.KleisliInterpreter[IO].ConnectionInterpreter,
@@ -137,23 +182,24 @@ sealed abstract class LiquidityServerSpec
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    runOn(cassandraNode)(
-      CassandraLauncher.start(
-        cassandraDirectory = cassandraDirectory.toFile,
-        configResource = CassandraLauncher.DefaultTestConfigResource,
-        clean = true,
-        port = 9042
+    runOn(h2Node) {
+      h2Server.start()
+      val journalTransactor = Transactor.fromDriverManager[IO](
+        driver = "org.h2.Driver",
+        url = "jdbc:h2:tcp://localhost/mem:liquidity_journal;DATABASE_TO_UPPER=false",
+        user = "sa",
+        pass = ""
       )
-    )
+      initJournal.transact(journalTransactor).unsafeRunSync()
+    }
     multiNodeSpecBeforeAll()
   }
 
   override protected def afterAll(): Unit = {
     Await.result(httpBinding.flatMap(_.unbind())(ExecutionContext.global), Duration.Inf)
     multiNodeSpecAfterAll()
-    runOn(cassandraNode) {
-      CassandraLauncher.stop()
-      TestKit.delete(cassandraDirectory)
+    runOn(h2Node) {
+      h2Server.stop()
     }
     super.afterAll()
   }

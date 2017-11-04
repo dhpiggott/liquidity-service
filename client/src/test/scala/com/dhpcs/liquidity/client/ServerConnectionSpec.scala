@@ -1,7 +1,9 @@
 package com.dhpcs.liquidity.client
 
+import java.io.IOException
 import java.net.InetAddress
-import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.{FileVisitResult, Files, Path, SimpleFileVisitor}
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -38,7 +40,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Second, Seconds, Span}
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 object ServerConnectionSpec {
   object ClientConnectionTestProbeForwarderActor {
@@ -85,8 +87,7 @@ class ServerConnectionSpec
 
   private[this] implicit val system: ActorSystem    = ActorSystem("liquidity", config)
   private[this] implicit val mat: ActorMaterializer = ActorMaterializer()
-
-  import system.dispatcher
+  private[this] implicit val ec: ExecutionContext   = ExecutionContext.global
 
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
@@ -140,7 +141,17 @@ class ServerConnectionSpec
 
   override protected def afterAll(): Unit = {
     mainThreadExecutorService.shutdown()
-    TestKit.delete(filesDir)
+    Files.walkFileTree(
+      filesDir,
+      new SimpleFileVisitor[Path]() {
+        override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
+          Files.delete(file); FileVisitResult.CONTINUE
+        }
+        override def postVisitDirectory(dir: Path, exc: IOException): FileVisitResult = {
+          Files.delete(dir); FileVisitResult.CONTINUE
+        }
+      }
+    )
     Await.result(binding.flatMap(_.unbind()), Duration.Inf)
     akka.testkit.TestKit.shutdownActorSystem(system)
     super.afterAll()

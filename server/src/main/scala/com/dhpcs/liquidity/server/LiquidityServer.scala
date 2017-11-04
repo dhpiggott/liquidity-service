@@ -9,7 +9,7 @@ import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives.logRequestResult
-import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
+import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
@@ -54,14 +54,14 @@ object LiquidityServer {
     clusterHttpManagement.start()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseClusterExitingDone, "clusterHttpManagementStop")(() =>
       clusterHttpManagement.stop())
-    val transactor = (for {
-      transactor <- HikariTransactor[IO](
+    val analyticsTransactor = (for {
+      analyticsTransactor <- HikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
         url = "jdbc:mysql://mysql/liquidity_analytics",
         user = "root",
         pass = ""
       )
-      _ <- transactor.configure { hikariDataSource =>
+      _ <- analyticsTransactor.configure { hikariDataSource =>
         hikariDataSource.addDataSourceProperty("useSSL", false)
         hikariDataSource.addDataSourceProperty("cachePrepStmts", true)
         hikariDataSource.addDataSourceProperty("prepStmtCacheSize", 250)
@@ -75,11 +75,11 @@ object LiquidityServer {
         hikariDataSource.addDataSourceProperty("elideSetAutoCommits", true)
         hikariDataSource.addDataSourceProperty("maintainTimeStats", false)
       }
-    } yield transactor).unsafeRunSync()
+    } yield analyticsTransactor).unsafeRunSync()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>
-      for (_ <- transactor.shutdown.unsafeToFuture()) yield Done)
+      for (_ <- analyticsTransactor.shutdown.unsafeToFuture()) yield Done)
     val server = new LiquidityServer(
-      transactor,
+      analyticsTransactor,
       pingInterval = 30.seconds,
       httpInterface = "0.0.0.0",
       httpPort = 80
@@ -90,20 +90,20 @@ object LiquidityServer {
   }
 }
 
-class LiquidityServer(transactor: Transactor[IO], pingInterval: FiniteDuration, httpInterface: String, httpPort: Int)(
-    implicit system: ActorSystem,
-    mat: Materializer)
+class LiquidityServer(analyticsTransactor: Transactor[IO],
+                      pingInterval: FiniteDuration,
+                      httpInterface: String,
+                      httpPort: Int)(implicit system: ActorSystem, mat: Materializer)
     extends HttpController {
 
-  private[this] val readJournal =
-    PersistenceQuery(system).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
+  private[this] val readJournal = PersistenceQuery(system).readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
 
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
   private[this] implicit val askTimeout: Timeout  = Timeout(30.seconds)
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system.toTyped).spawn(
-    behavior = ZoneValidatorActor.shardingBehaviour,
+    behavior = ZoneValidatorActor.shardingBehavior,
     entityProps = Props.empty,
     typeKey = ZoneValidatorActor.ShardingTypeName,
     settings = ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
@@ -121,7 +121,7 @@ class LiquidityServer(transactor: Transactor[IO], pingInterval: FiniteDuration, 
   }
 
   ClusterSingleton(system.toTyped).spawn(
-    behavior = ZoneAnalyticsActor.singletonBehavior(readJournal, transactor, streamFailureHandler),
+    behavior = ZoneAnalyticsActor.singletonBehavior(readJournal, analyticsTransactor, streamFailureHandler),
     singletonName = "zone-analytics-singleton",
     props = Props.empty,
     settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
@@ -169,9 +169,9 @@ class LiquidityServer(transactor: Transactor[IO], pingInterval: FiniteDuration, 
     zoneMonitor ? GetActiveZoneSummaries
 
   override protected[this] def getZone(zoneId: ZoneId): Option[Zone] =
-    SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId).transact(transactor).unsafeRunSync()
+    SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId).transact(analyticsTransactor).unsafeRunSync()
 
   override protected[this] def getBalances(zoneId: ZoneId): Map[AccountId, BigDecimal] =
-    SqlAnalyticsStore.AccountsStore.retrieveAllBalances(zoneId).transact(transactor).unsafeRunSync()
+    SqlAnalyticsStore.AccountsStore.retrieveAllBalances(zoneId).transact(analyticsTransactor).unsafeRunSync()
 
 }

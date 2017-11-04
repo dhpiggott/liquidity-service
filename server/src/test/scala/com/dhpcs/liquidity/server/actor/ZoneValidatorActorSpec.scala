@@ -28,7 +28,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
   override protected def withFixture(test: OneArgTest): Outcome = {
     val clientConnectionTestProbe = TestProbe()
     val zoneId                    = ZoneId(UUID.randomUUID.toString)
-    val zoneValidator             = system.spawn(ZoneValidatorActor.shardingBehaviour, name = zoneId.persistenceId)
+    val zoneValidator             = system.spawn(ZoneValidatorActor.shardingBehavior, name = zoneId.persistenceId)
     try withFixture(
       test.toNoArgTest((clientConnectionTestProbe, zoneId, zoneValidator))
     )

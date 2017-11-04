@@ -5,6 +5,11 @@ services:
     restart: always
     volumes:
     - cassandra-data:/var/lib/cassandra
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: cassandra
   mysql:
     image: mysql:8
     restart: always
@@ -12,47 +17,67 @@ services:
     - mysql-data:/var/lib/mysql
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "true"
-  zone-host-seed:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: mysql
+  zone-host:
     build: server
     restart: always
     extra_hosts:
-      - "zone-host-seed:127.0.0.1"
+      - "zone-host:127.0.0.1"
     environment:
-      AKKA_HOSTNAME: zone-host-seed
+      AKKA_HOSTNAME: zone-host
       JAVA_OPTS: >
         -Dakka.cluster.roles.0=zone-host
-        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host-seed:2552
+        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
     links:
       - cassandra
-  analytics-seed:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: zone-host
+  analytics:
     build: server
     restart: always
     extra_hosts:
-      - "analytics-seed:127.0.0.1"
+      - "analytics:127.0.0.1"
     environment:
-      AKKA_HOSTNAME: analytics-seed
+      AKKA_HOSTNAME: analytics
       JAVA_OPTS: >
         -Dakka.cluster.roles.0=analytics
-        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host-seed:2552
+        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
     links:
       - cassandra
       - mysql
-      - zone-host-seed
-  client-relay-seed:
+      - zone-host
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: analytics
+  client-relay:
     build: server
     ports:
      - '80:80'
     restart: always
     extra_hosts:
-      - "client-relay-seed:127.0.0.1"
+      - "client-relay:127.0.0.1"
     environment:
-      AKKA_HOSTNAME: client-relay-seed
+      AKKA_HOSTNAME: client-relay
       JAVA_OPTS: >
         -Dakka.cluster.roles.0=client-relay
-        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host-seed:2552
+        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
     links:
       - cassandra
-      - zone-host-seed
+      - zone-host
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: client-relay
 volumes:
   cassandra-data:
   mysql-data:

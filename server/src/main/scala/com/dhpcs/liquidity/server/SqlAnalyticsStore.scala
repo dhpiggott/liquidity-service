@@ -38,7 +38,7 @@ object SqlAnalyticsStore {
       for {
         _ <- sql"INSERT INTO zones (zone_id, equity_account_id, created, expires, metadata) VALUES (${zone.id}, ${zone.equityAccountId}, ${Instant
           .ofEpochMilli(zone.created)}, ${Instant.ofEpochMilli(zone.expires)}, ${zone.metadata})".update.run
-        _ <- (ZoneNameChangeStore.insert(zone.id, Instant.ofEpochMilli(zone.created), zone.name), for {
+        _ <- (ZoneNameChangeStore.insert(zone.id, zone.name, Instant.ofEpochMilli(zone.created)), for {
           _ <- zone.members.values.toList
             .map(MembersStore.insert(zone.id, _, Instant.ofEpochMilli(zone.created)))
             .sequence
@@ -86,8 +86,8 @@ object SqlAnalyticsStore {
 
   object ZoneNameChangeStore {
 
-    def insert(zoneId: ZoneId, changed: Instant, name: Option[String]): ConnectionIO[Unit] =
-      for (_ <- sql"INSERT INTO zone_name_changes (zone_id, changed, name) VALUES ($zoneId, $changed, $name)".update.run)
+    def insert(zoneId: ZoneId, name: Option[String], changed: Instant): ConnectionIO[Unit] =
+      for (_ <- sql"INSERT INTO zone_name_changes (zone_id, name, changed) VALUES ($zoneId, $name, $changed)".update.run)
         yield ()
 
     def retrieveLatest(zoneId: ZoneId): ConnectionIO[Option[String]] =

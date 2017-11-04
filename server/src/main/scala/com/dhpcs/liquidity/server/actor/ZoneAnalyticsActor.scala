@@ -52,11 +52,11 @@ object ZoneAnalyticsActor {
             val zoneId            = ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
             val zoneEventEnvelope = eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
             val offset            = eventEnvelope.offset.asInstanceOf[TimeBasedUUID]
-            val transaction = for {
+            val update = for {
               _ <- projectEvent(zoneId, zoneEventEnvelope)
               _ <- TagOffsetsStore.update(EventTags.ZoneEventTag, offset)
             } yield ()
-            transaction.transact(transactor).unsafeRunSync()
+            update.transact(transactor).unsafeRunSync()
           }
           .zipWithIndex
           .groupedWithin(n = 1000, d = 30.seconds)
@@ -115,7 +115,7 @@ object ZoneAnalyticsActor {
           }
 
         case ZoneNameChangedEvent(name) =>
-          ZoneNameChangeStore.insert(zoneId, changed = zoneEventEnvelope.timestamp, name)
+          ZoneNameChangeStore.insert(zoneId, name, changed = zoneEventEnvelope.timestamp)
 
         case MemberCreatedEvent(member) =>
           MembersStore.insert(zoneId, member, created = zoneEventEnvelope.timestamp)

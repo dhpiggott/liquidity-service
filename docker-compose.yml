@@ -6,7 +6,7 @@ services:
     volumes:
     - cassandra-data:/var/lib/cassandra
   mysql:
-    image: mysql:8
+    image: mysql:5
     restart: always
     volumes:
     - mysql-data:/var/lib/mysql

@@ -10,7 +10,7 @@ class ZoneMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures
 
   "A ZoneMonitorActor" - {
     "will provide a summary of the active zones" in {
-      val zoneMonitor = system.spawn(ZoneMonitorActor.behavior, "zone-monitor")
+      val zoneMonitor = system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
       val testProbe   = TestProbe()
       testProbe.send(
         zoneMonitor.toUntyped,

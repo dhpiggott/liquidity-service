@@ -119,7 +119,7 @@ object ClientConnectionActor {
         log.info(s"Starting for $remoteAddress")
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         timers.startPeriodicTimer(PublishStatusTimerKey, PublishClientStatusTick, 30.seconds)
-        val pingGenerator = context.spawn(PingGeneratorActor.behavior(pingInterval, context.self), "ping-generator")
+        val pingGenerator = context.spawn(PingGeneratorActor.behavior(pingInterval, context.self), "pingGenerator")
         waitingForActorSinkInit(zoneValidatorShardRegion, remoteAddress, webSocketOut, log, mediator, pingGenerator)
     })
 

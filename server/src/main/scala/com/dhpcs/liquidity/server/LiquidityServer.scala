@@ -111,8 +111,8 @@ class LiquidityServer(analyticsTransactor: Transactor[IO],
     handOffStopMessage = StopZone
   )
 
-  private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "client-monitor")
-  private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zone-monitor")
+  private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "clientMonitor")
+  private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
 
   private[this] val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
     Console.err.println("Exiting due to stream failure")
@@ -122,7 +122,7 @@ class LiquidityServer(analyticsTransactor: Transactor[IO],
 
   ClusterSingleton(system.toTyped).spawn(
     behavior = ZoneAnalyticsActor.singletonBehavior(readJournal, analyticsTransactor, streamFailureHandler),
-    singletonName = "zone-analytics-singleton",
+    singletonName = "zoneAnalyticsSingleton",
     props = Props.empty,
     settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
     terminationMessage = StopZoneAnalytics

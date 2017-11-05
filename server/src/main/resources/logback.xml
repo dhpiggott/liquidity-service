@@ -6,9 +6,6 @@
         </encoder>
     </appender>
 
-    <logger name="akka.remote" level="WARN"/>
-    <logger name="akka.cluster" level="WARN"/>
-
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>

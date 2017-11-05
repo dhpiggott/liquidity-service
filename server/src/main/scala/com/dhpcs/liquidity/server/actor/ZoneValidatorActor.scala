@@ -36,7 +36,7 @@ import scala.util.{Failure, Success, Try}
 
 object ZoneValidatorActor {
 
-  final val ShardingTypeName = EntityTypeKey[SerializableZoneValidatorMessage]("zone-validator")
+  final val ShardingTypeName = EntityTypeKey[SerializableZoneValidatorMessage]("zoneValidator")
 
   private final val MaxNumberOfShards = 10
 
@@ -128,9 +128,9 @@ object ZoneValidatorActor {
         // Workarounds for the limitation described in https://github.com/akka/akka/pull/23674
         // TODO: Remove these once that limitation is resolved
         val passivationCountdown =
-          context.spawn(PassivationCountdownActor.behavior(context.self), "passivation-countdown")
+          context.spawn(PassivationCountdownActor.behavior(context.self), "passivationCountdown")
         val clientConnectionWatcher =
-          context.spawn(ClientConnectionWatcherActor.behavior(context.self), "client-connection-watcher")
+          context.spawn(ClientConnectionWatcherActor.behavior(context.self), "clientConnectionWatcher")
         implicit val resolver: ActorRefResolver = ActorRefResolver(context.system)
         val zoneValidator = context.spawnAnonymous(
           persistentBehavior(ZoneId.fromPersistenceId(persistenceId),

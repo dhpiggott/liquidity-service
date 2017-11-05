@@ -129,8 +129,6 @@ lazy val server = project
       "com.typesafe.akka"      %% "akka-persistence"             % "2.5.6",
       "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.6",
       "com.github.dnvriend"    %% "akka-persistence-jdbc"        % "3.0.1",
-      "com.typesafe.akka"      %% "akka-persistence-cassandra"   % "0.58",
-      "io.netty"               % "netty-transport-native-epoll"  % "4.1.12.Final" classifier "linux-x86_64",
       "org.tpolecat"           %% "doobie-core"                  % "0.5.0-M9",
       "org.tpolecat"           %% "doobie-hikari"                % "0.5.0-M9",
       "mysql"                  % "mysql-connector-java"          % "5.1.44",
@@ -162,7 +160,6 @@ lazy val server = project
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
-    mainClass in Compile := Some("com.dhpcs.liquidity.server.LiquidityServer"),
     dockerBaseImage := "openjdk:8-jre",
     daemonUser in Docker := "root"
   )

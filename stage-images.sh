@@ -26,10 +26,8 @@ cp $DIR/journal.sql $DIR/image-stage/
 cp $DIR/init-journal.sh $DIR/image-stage/
 cp $DIR/analytics.sql $DIR/image-stage/
 cp $DIR/init-analytics.sh $DIR/image-stage/
-cp $DIR/save-cassandra-journal.sh $DIR/image-stage/
-cp $DIR/load-cassandra-journal.sh $DIR/image-stage/
-cp $DIR/save-mysql-journal.sh $DIR/image-stage/
-cp $DIR/load-mysql-journal.sh $DIR/image-stage/
+cp $DIR/save-journal.sh $DIR/image-stage/
+cp $DIR/load-journal.sh $DIR/image-stage/
 
 rsync --archive \
     --human-readable \

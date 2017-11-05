@@ -6,9 +6,6 @@
         </encoder>
     </appender>
 
-    <logger name="org.apache.cassandra" level="WARN"/>
-    <logger name="com.datastax" level="WARN"/>
-
     <logger name="akka.remote" level="WARN"/>
     <logger name="akka.cluster" level="WARN"/>
 

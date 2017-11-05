@@ -1,11 +1,5 @@
 version: '3'
 services:
-  cassandra:
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: liquidity
-        awslogs-stream: cassandra
   mysql:
     logging:
       driver: awslogs

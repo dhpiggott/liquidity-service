@@ -1,10 +1,5 @@
 version: '3'
 services:
-  cassandra:
-    image: cassandra:3
-    restart: always
-    volumes:
-    - cassandra-data:/var/lib/cassandra
   mysql:
     image: mysql:5
     command: ["--max_connections=500"]
@@ -13,12 +8,6 @@ services:
     - mysql-data:/var/lib/mysql
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "true"
-  journal-migration:
-    build: server
-    command: ["-main", "com.dhpcs.liquidity.server.JournalMigration"]
-    depends_on:
-      - cassandra
-      - mysql
   zone-host:
     build: server
     restart: always
@@ -60,5 +49,4 @@ services:
       - mysql
       - zone-host
 volumes:
-  cassandra-data:
   mysql-data:

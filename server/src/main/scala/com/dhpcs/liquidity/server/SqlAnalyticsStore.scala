@@ -5,8 +5,6 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.persistence.query.TimeBasedUUID
-import akka.typed.ActorRef
-import akka.typed.cluster.ActorRefResolver
 import cats.instances.list._
 import cats.syntax.applicative._
 import cats.syntax.apply._
@@ -248,19 +246,18 @@ object SqlAnalyticsStore {
 
     def insert(zoneId: ZoneId,
                remoteAddress: Option[InetAddress],
-               actorRef: ActorRef[Nothing],
+               actorRef: String,
                publicKey: Option[PublicKey],
-               joined: Instant)(implicit resolver: ActorRefResolver): ConnectionIO[Long] =
-      sql"INSERT INTO client_sessions (zone_id, remote_address, actor_ref, public_key, fingerprint, joined) VALUES ($zoneId, $remoteAddress, ${resolver
-        .toSerializationFormat(actorRef)}, $publicKey, ${publicKey.map(_.fingerprint)}, $joined)".update
+               joined: Instant): ConnectionIO[Long] =
+      sql"INSERT INTO client_sessions (zone_id, remote_address, actor_ref, public_key, fingerprint, joined) VALUES ($zoneId, $remoteAddress, $actorRef, $publicKey, ${publicKey
+        .map(_.fingerprint)}, $joined)".update
         .withUniqueGeneratedKeys[Long]("session_id")
 
     def update(sessionId: Long, quit: Instant): ConnectionIO[Unit] =
       for (_ <- sql"UPDATE client_sessions SET quit = $quit WHERE session_id = $sessionId".update.run) yield ()
 
-    def retrieve(zoneId: ZoneId, actorRef: ActorRef[Nothing])(
-        implicit resolver: ActorRefResolver): ConnectionIO[Option[Long]] =
-      sql"SELECT session_id FROM client_sessions WHERE zone_id = $zoneId AND actor_ref = ${resolver.toSerializationFormat(actorRef)} AND quit IS NULL"
+    def retrieve(zoneId: ZoneId, actorRef: String): ConnectionIO[Option[Long]] =
+      sql"SELECT session_id FROM client_sessions WHERE zone_id = $zoneId AND actor_ref = $actorRef AND quit IS NULL"
         .query[Long]
         .vector
         .map(_.headOption)

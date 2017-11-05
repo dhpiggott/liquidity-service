@@ -131,6 +131,7 @@ object ZoneValidatorActor {
           context.spawn(PassivationCountdownActor.behavior(context.self), "passivation-countdown")
         val clientConnectionWatcher =
           context.spawn(ClientConnectionWatcherActor.behavior(context.self), "client-connection-watcher")
+        implicit val resolver: ActorRefResolver = ActorRefResolver(context.system)
         val zoneValidator = context.spawnAnonymous(
           persistentBehaviour(ZoneId.fromPersistenceId(persistenceId),
                               notificationSequenceNumbers,
@@ -161,8 +162,8 @@ object ZoneValidatorActor {
       notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
       mediator: ActorRef[Publish],
       passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage],
-      clientConnectionWatcher: ActorRef[ClientConnectionWatcherActor.ClientConnectionWatcherMessage])
-    : Behavior[ZoneValidatorMessage] =
+      clientConnectionWatcher: ActorRef[ClientConnectionWatcherActor.ClientConnectionWatcherMessage])(
+      implicit resolver: ActorRefResolver): Behavior[ZoneValidatorMessage] =
     PersistentActor.immutable[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
       persistenceId = id.persistenceId,
       initialState = ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty),
@@ -196,12 +197,7 @@ object ZoneValidatorActor {
 
           case zoneCommandEnvelope: ZoneCommandEnvelope =>
             passivationCountdown ! PassivationCountdownActor.CommandReceivedEvent
-            handleCommand(context,
-                          id,
-                          ActorRefResolver(context.system),
-                          notificationSequenceNumbers,
-                          state,
-                          zoneCommandEnvelope)
+            handleCommand(context, id, notificationSequenceNumbers, state, zoneCommandEnvelope)
 
           case RemoveClient(clientConnection) =>
             state.connectedClients.get(clientConnection) match {
@@ -213,7 +209,7 @@ object ZoneValidatorActor {
                     remoteAddress = None,
                     Some(publicKey),
                     timestamp = Instant.now(),
-                    ClientQuitEvent(Some(clientConnection))
+                    ClientQuitEvent(Some(resolver.toSerializationFormat(clientConnection)))
                   )
                 ).andThen(state =>
                   deliverNotification(
@@ -234,10 +230,10 @@ object ZoneValidatorActor {
   private def handleCommand(
       context: ActorContext[ZoneValidatorMessage],
       id: ZoneId,
-      resolver: ActorRefResolver,
       notificationSequenceNumbers: mutable.Map[ActorRef[SerializableClientConnectionMessage], Long],
       state: ZoneState,
-      zoneCommandEnvelope: ZoneCommandEnvelope): Effect[ZoneEventEnvelope, ZoneState] =
+      zoneCommandEnvelope: ZoneCommandEnvelope)(
+      implicit resolver: ActorRefResolver): Effect[ZoneEventEnvelope, ZoneState] =
     zoneCommandEnvelope.zoneCommand match {
       case EmptyZoneCommand =>
         PersistNothing()
@@ -352,7 +348,7 @@ object ZoneValidatorActor {
                 resolver,
                 notificationSequenceNumbers,
                 zoneCommandEnvelope,
-                ClientJoinedEvent(Some(zoneCommandEnvelope.replyTo.upcast))
+                ClientJoinedEvent(Some(resolver.toSerializationFormat(zoneCommandEnvelope.replyTo)))
               )
         }
 
@@ -383,7 +379,7 @@ object ZoneValidatorActor {
                 resolver,
                 notificationSequenceNumbers,
                 zoneCommandEnvelope,
-                ClientQuitEvent(Some(zoneCommandEnvelope.replyTo.upcast))
+                ClientQuitEvent(Some(resolver.toSerializationFormat(zoneCommandEnvelope.replyTo)))
               )
         }
 
@@ -874,13 +870,13 @@ object ZoneValidatorActor {
           case ZoneCreatedEvent(_) =>
             None
 
-          case ClientJoinedEvent(maybeClientConnection) =>
-            maybeClientConnection.map(clientConnection =>
-              ClientJoinedNotification(resolver.toSerializationFormat(clientConnection), zoneCommandEnvelope.publicKey))
+          case ClientJoinedEvent(maybeActorRefString) =>
+            maybeActorRefString.map(actorRefString =>
+              ClientJoinedNotification(connectionId = actorRefString, zoneCommandEnvelope.publicKey))
 
-          case ClientQuitEvent(maybeClientConnection) =>
-            maybeClientConnection.map(clientConnection =>
-              ClientQuitNotification(resolver.toSerializationFormat(clientConnection), zoneCommandEnvelope.publicKey))
+          case ClientQuitEvent(maybeActorRefString) =>
+            maybeActorRefString.map(actorRefString =>
+              ClientQuitNotification(connectionId = actorRefString, zoneCommandEnvelope.publicKey))
 
           case ZoneNameChangedEvent(name) =>
             Some(ZoneNameChangedNotification(name))
@@ -934,7 +930,7 @@ object ZoneValidatorActor {
       passivationCountdown: ActorRef[PassivationCountdownActor.PassivationCountdownMessage],
       clientConnectionWatcher: ActorRef[ClientConnectionWatcherActor.ClientConnectionWatcherMessage])(
       event: ZoneEventEnvelope,
-      state: ZoneState): ZoneState =
+      state: ZoneState)(implicit resolver: ActorRefResolver): ZoneState =
     event.zoneEvent match {
       case EmptyZoneEvent =>
         state
@@ -947,28 +943,32 @@ object ZoneValidatorActor {
             .toMap
         )
 
-      case ClientJoinedEvent(maybeClientConnection) =>
-        Semigroupal[Option].product(event.publicKey, maybeClientConnection) match {
+      case ClientJoinedEvent(maybeActorRefString) =>
+        Semigroupal[Option].product(event.publicKey, maybeActorRefString) match {
           case None =>
             state
-          case Some((publicKey, clientConnection)) =>
-            clientConnectionWatcher ! ClientConnectionWatcherActor.Watch(clientConnection)
-            notificationSequenceNumbers += clientConnection -> 0
+
+          case Some((publicKey, actorRefString)) =>
+            val actorRef = resolver.resolveActorRef(actorRefString)
+            clientConnectionWatcher ! ClientConnectionWatcherActor.Watch(actorRef)
+            notificationSequenceNumbers += actorRef -> 0
             if (state.connectedClients.isEmpty) passivationCountdown ! PassivationCountdownActor.Stop
-            val updatedClientConnections = state.connectedClients + (clientConnection -> publicKey)
+            val updatedClientConnections = state.connectedClients + (actorRef -> publicKey)
             state.copy(
               connectedClients = updatedClientConnections
             )
         }
 
-      case ClientQuitEvent(maybeClientConnection) =>
-        maybeClientConnection match {
+      case ClientQuitEvent(maybeActorRefString) =>
+        maybeActorRefString match {
           case None =>
             state
-          case Some(clientConnection) =>
-            clientConnectionWatcher ! ClientConnectionWatcherActor.Unwatch(clientConnection)
-            notificationSequenceNumbers -= clientConnection
-            val updatedClientConnections = state.connectedClients - clientConnection
+
+          case Some(actorRefString) =>
+            val actorRef = resolver.resolveActorRef(actorRefString)
+            clientConnectionWatcher ! ClientConnectionWatcherActor.Unwatch(actorRef)
+            notificationSequenceNumbers -= actorRef
+            val updatedClientConnections = state.connectedClients - actorRef
             if (updatedClientConnections.isEmpty) passivationCountdown ! PassivationCountdownActor.Start
             state.copy(
               connectedClients = updatedClientConnections

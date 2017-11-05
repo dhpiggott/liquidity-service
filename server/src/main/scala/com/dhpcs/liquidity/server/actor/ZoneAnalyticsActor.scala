@@ -5,7 +5,6 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.TimeBasedUUID
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{KillSwitches, Materializer}
-import akka.typed.cluster.ActorRefResolver
 import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.adapter._
 import akka.typed.{Behavior, PostStop}
@@ -32,8 +31,7 @@ object ZoneAnalyticsActor {
       implicit ec: ExecutionContext,
       mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Actor.deferred { context =>
-      val log                                         = Logging(context.system.toUntyped, context.self.toUntyped)
-      implicit val actorRefResolver: ActorRefResolver = ActorRefResolver(context.system)
+      val log = Logging(context.system.toUntyped, context.self.toUntyped)
       val offset = for {
         maybePreviousOffset <- TagOffsetsStore.retrieve(EventTags.ZoneEventTag)
         offset <- maybePreviousOffset match {
@@ -78,8 +76,7 @@ object ZoneAnalyticsActor {
       }
     }
 
-  private[this] def projectEvent(zoneId: ZoneId, zoneEventEnvelope: ZoneEventEnvelope)(
-      implicit actorRefResolver: ActorRefResolver): ConnectionIO[Unit] =
+  private[this] def projectEvent(zoneId: ZoneId, zoneEventEnvelope: ZoneEventEnvelope): ConnectionIO[Unit] =
     for {
       _ <- zoneEventEnvelope.zoneEvent match {
         case EmptyZoneEvent =>

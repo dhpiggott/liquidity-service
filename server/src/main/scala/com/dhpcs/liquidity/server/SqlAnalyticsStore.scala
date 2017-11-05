@@ -232,10 +232,20 @@ object SqlAnalyticsStore {
         yield ()
 
     def retrieveAll(zoneId: ZoneId): ConnectionIO[Map[TransactionId, Transaction]] =
-      sql"SELECT transaction_id, transaction_id, `from`, `to`, `value`, creator, created, description, metadata FROM transactions WHERE zone_id = $zoneId"
-        .query[(TransactionId, Transaction)]
+      sql"SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata FROM transactions WHERE zone_id = $zoneId"
+        .query[(TransactionId,
+                AccountId,
+                AccountId,
+                BigDecimal,
+                MemberId,
+                Instant,
+                Option[String],
+                Option[com.google.protobuf.struct.Struct])]
         .vector
-        .map(_.toMap)
+        .map(_.map {
+          case (id, from, to, value, creator, created, description, metadata) =>
+            id -> Transaction(id, from, to, value, creator, created.toEpochMilli(), description, metadata)
+        }.toMap)
 
   }
 

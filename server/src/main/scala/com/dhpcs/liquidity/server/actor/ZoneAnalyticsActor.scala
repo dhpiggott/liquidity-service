@@ -101,15 +101,14 @@ object ZoneAnalyticsActor {
 
         case ClientQuitEvent(maybeActorRef) =>
           maybeActorRef match {
-            case None => ().pure[ConnectionIO]
+            case None =>
+              ().pure[ConnectionIO]
 
             case Some(actorRef) =>
-              for (previousSessionId <- ClientSessionsStore.retrieve(zoneId, actorRef))
-                yield
-                  previousSessionId match {
-                    case None            => ().pure[ConnectionIO]
-                    case Some(sessionId) => ClientSessionsStore.update(sessionId, quit = zoneEventEnvelope.timestamp)
-                  }
+              for {
+                previousSessionId <- ClientSessionsStore.retrieve(zoneId, actorRef)
+                _                 <- ClientSessionsStore.update(previousSessionId, quit = zoneEventEnvelope.timestamp)
+              } yield ()
           }
 
         case ZoneNameChangedEvent(name) =>

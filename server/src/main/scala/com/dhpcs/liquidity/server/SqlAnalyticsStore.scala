@@ -245,19 +245,17 @@ object SqlAnalyticsStore {
                remoteAddress: Option[InetAddress],
                actorRef: String,
                publicKey: Option[PublicKey],
-               joined: Instant): ConnectionIO[Long] =
-      sql"INSERT INTO client_sessions (zone_id, remote_address, actor_ref, public_key, fingerprint, joined) VALUES ($zoneId, $remoteAddress, $actorRef, $publicKey, ${publicKey
-        .map(_.fingerprint)}, $joined)".update
-        .withUniqueGeneratedKeys[Long]("session_id")
+               joined: Instant): ConnectionIO[Unit] =
+      for (_ <- sql"INSERT INTO client_sessions (zone_id, remote_address, actor_ref, public_key, fingerprint, joined) VALUES ($zoneId, $remoteAddress, $actorRef, $publicKey, ${publicKey
+             .map(_.fingerprint)}, $joined)".update.run) yield ()
 
     def update(sessionId: Long, quit: Instant): ConnectionIO[Unit] =
       for (_ <- sql"UPDATE client_sessions SET quit = $quit WHERE session_id = $sessionId".update.run) yield ()
 
-    def retrieve(zoneId: ZoneId, actorRef: String): ConnectionIO[Option[Long]] =
-      sql"SELECT session_id FROM client_sessions WHERE zone_id = $zoneId AND actor_ref = $actorRef AND quit IS NULL"
+    def retrieve(zoneId: ZoneId, actorRef: String): ConnectionIO[Long] =
+      sql"SELECT session_id FROM client_sessions WHERE zone_id = $zoneId AND actor_ref = $actorRef AND quit IS NULL ORDER BY session_id LIMIT 1"
         .query[Long]
-        .vector
-        .map(_.headOption)
+        .unique
 
   }
 

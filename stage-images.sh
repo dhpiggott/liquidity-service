@@ -2,13 +2,16 @@
 
 set -euo pipefail
 
-if [ $# -eq 0 ]
+if [ $# -ne 2 ]
   then
-    echo "Usage: $0 target"
+    echo "Usage: $0 target type"
     exit 1
 fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+TARGET=$1
+TYPE=$2
 
 function finish {
     rm --force --recursive $DIR/image-stage
@@ -21,7 +24,7 @@ mkdir $DIR/image-stage
 
 cp --recursive $DIR/server/target/docker/stage $DIR/image-stage/server
 cp $DIR/docker-compose.yml $DIR/image-stage/
-cp $DIR/docker-compose-ec2.yml $DIR/image-stage/docker-compose.override.yml
+cp $DIR/docker-compose.$TYPE.yml $DIR/image-stage/docker-compose.override.yml
 cp $DIR/journal.sql $DIR/image-stage/
 cp $DIR/init-journal.sh $DIR/image-stage/
 cp $DIR/analytics.sql $DIR/image-stage/
@@ -36,4 +39,4 @@ rsync --archive \
     --partial \
     --progress \
     --verbose \
-    $DIR/image-stage/ $1/liquidity
+    $DIR/image-stage/ $TARGET/liquidity

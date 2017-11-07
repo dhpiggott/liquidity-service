@@ -1,0 +1,17 @@
+version: '3'
+services:
+  zone-host:
+    environment:
+      MYSQL_URL: "jdbc:mysql://mysql/liquidity_analytics"
+      MYSQL_USERNAME: "root"
+      MYSQL_PASSWORD: ""
+  client-relay:
+    environment:
+      MYSQL_URL: "jdbc:mysql://mysql/liquidity_analytics"
+      MYSQL_USERNAME: "root"
+      MYSQL_PASSWORD: ""
+  analytics:
+    environment:
+      MYSQL_URL: "jdbc:mysql://mysql/liquidity_analytics"
+      MYSQL_USERNAME: "root"
+      MYSQL_PASSWORD: ""

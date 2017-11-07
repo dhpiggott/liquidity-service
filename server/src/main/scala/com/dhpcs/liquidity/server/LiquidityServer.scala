@@ -57,9 +57,9 @@ object LiquidityServer {
     val analyticsTransactor = (for {
       analyticsTransactor <- HikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
-        url = "jdbc:mysql://mysql/liquidity_analytics",
-        user = "root",
-        pass = ""
+        url = System.getenv("MYSQL_URL"),
+        user = System.getenv("MYSQL_USERNAME"),
+        pass = System.getenv("MYSQL_PASSWORD")
       )
       _ <- analyticsTransactor.configure { hikariDataSource =>
         hikariDataSource.addDataSourceProperty("useSSL", false)

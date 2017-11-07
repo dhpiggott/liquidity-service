@@ -1,0 +1,38 @@
+version: '3'
+services:
+  mysql:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: mysql
+  zone-host:
+    environment:
+      MYSQL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics"
+      MYSQL_USERNAME: "liquidity"
+      MYSQL_PASSWORD: "liquidity"
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: zone-host
+  client-relay:
+    environment:
+      MYSQL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics"
+      MYSQL_USERNAME: "liquidity"
+      MYSQL_PASSWORD: "liquidity"
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: client-relay
+  analytics:
+    environment:
+      MYSQL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics"
+      MYSQL_USERNAME: "liquidity"
+      MYSQL_PASSWORD: "liquidity"
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: liquidity
+        awslogs-stream: analytics

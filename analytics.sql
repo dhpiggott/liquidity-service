@@ -1,5 +1,3 @@
-SET explicit_defaults_for_timestamp = TRUE;
-
 CREATE DATABASE liquidity_analytics;
 
 USE liquidity_analytics;

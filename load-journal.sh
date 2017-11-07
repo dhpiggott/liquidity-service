@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [ $# -eq 0 ]
+if [ $# -ne 1 ]
   then
     echo "Usage: $0 input-directory"
     exit 1

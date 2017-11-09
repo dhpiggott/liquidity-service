@@ -2,14 +2,12 @@
 
 set -euo pipefail
 
-if [ $# -ne 1 ]
+if [ $# -ne 4 ]
   then
-    echo "Usage: $0 input-directory"
+    echo "Usage: $0 input-directory host username password"
     exit 1
 fi
 
-DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
-
-docker-compose --file $DIR/docker-compose.yml --project-name liquidity run -T --rm \
-    --volume $1/journal_dump.sql:/root/journal_dump.sql \
-    mysql sh -c 'mysql --host=mysql liquidity_journal < /root/journal_dump.sql'
+docker run --rm \
+    --volume $1/journal_dump.sql:/journal_dump.sql \
+    mysql:5 sh -c 'mysql --host='$2' --user='$3' --password='$4' liquidity_journal < /journal_dump.sql'

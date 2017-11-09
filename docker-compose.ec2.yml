@@ -1,16 +1,13 @@
 version: '3'
 services:
-  mysql:
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: liquidity
-        awslogs-stream: mysql
   zone-host:
     environment:
-      MYSQL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics"
-      MYSQL_USERNAME: "liquidity"
-      MYSQL_PASSWORD: "liquidity"
+      MYSQL_JOURNAL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_journal?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_JOURNAL_USERNAME: "liquidity"
+      MYSQL_JOURNAL_PASSWORD: "liquidity"
+      MYSQL_ANALYTICS_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_ANALYTICS_USERNAME: "liquidity"
+      MYSQL_ANALYTICS_PASSWORD: "liquidity"
     logging:
       driver: awslogs
       options:
@@ -18,9 +15,12 @@ services:
         awslogs-stream: zone-host
   client-relay:
     environment:
-      MYSQL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics"
-      MYSQL_USERNAME: "liquidity"
-      MYSQL_PASSWORD: "liquidity"
+      MYSQL_JOURNAL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_journal?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_JOURNAL_USERNAME: "liquidity"
+      MYSQL_JOURNAL_PASSWORD: "liquidity"
+      MYSQL_ANALYTICS_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_ANALYTICS_USERNAME: "liquidity"
+      MYSQL_ANALYTICS_PASSWORD: "liquidity"
     logging:
       driver: awslogs
       options:
@@ -28,9 +28,12 @@ services:
         awslogs-stream: client-relay
   analytics:
     environment:
-      MYSQL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics"
-      MYSQL_USERNAME: "liquidity"
-      MYSQL_PASSWORD: "liquidity"
+      MYSQL_JOURNAL_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_journal?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_JOURNAL_USERNAME: "liquidity"
+      MYSQL_JOURNAL_PASSWORD: "liquidity"
+      MYSQL_ANALYTICS_URL: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com/liquidity_analytics?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_ANALYTICS_USERNAME: "liquidity"
+      MYSQL_ANALYTICS_PASSWORD: "liquidity"
     logging:
       driver: awslogs
       options:

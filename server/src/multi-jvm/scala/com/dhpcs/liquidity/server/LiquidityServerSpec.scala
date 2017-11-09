@@ -93,10 +93,10 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
        |  profile = "slick.jdbc.H2Profile$$"
        |  db {
        |    driver = "org.h2.Driver"
-       |    url = "jdbc:h2:tcp://localhost/mem:liquidity_journal;DATABASE_TO_UPPER=false"
+       |    url = "jdbc:h2:tcp://localhost/mem:liquidity_journal"
        |    user = "sa"
        |    password = ""
-       |    connectionTestQuery = "SELECT 1"
+       |    maxConnections = 2
        |  }
        |}
      """.stripMargin))

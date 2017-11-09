@@ -1,17 +1,42 @@
 version: '3'
 services:
+  mysql:
+    image: mysql:5
+    command: ["--explicit_defaults_for_timestamp=true"]
+    restart: always
+    volumes:
+    - mysql-data:/var/lib/mysql
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORDWORD: "true"
   zone-host:
     environment:
-      MYSQL_URL: "jdbc:mysql://mysql/liquidity_analytics"
-      MYSQL_USERNAME: "root"
-      MYSQL_PASSWORD: ""
+      MYSQL_JOURNAL_URL: "jdbc:mysql://mysql/liquidity_journal?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_JOURNAL_USERNAME: "root"
+      MYSQL_JOURNAL_PASSWORD: ""
+      MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_ANALYTICS_USERNAME: "root"
+      MYSQL_ANALYTICS_PASSWORD: ""
+    depends_on:
+      - mysql
   client-relay:
     environment:
-      MYSQL_URL: "jdbc:mysql://mysql/liquidity_analytics"
-      MYSQL_USERNAME: "root"
-      MYSQL_PASSWORD: ""
+      MYSQL_JOURNAL_URL: "jdbc:mysql://mysql/liquidity_journal?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_JOURNAL_USERNAME: "root"
+      MYSQL_JOURNAL_PASSWORD: ""
+      MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_ANALYTICS_USERNAME: "root"
+      MYSQL_ANALYTICS_PASSWORD: ""
+    depends_on:
+      - mysql
   analytics:
     environment:
-      MYSQL_URL: "jdbc:mysql://mysql/liquidity_analytics"
-      MYSQL_USERNAME: "root"
-      MYSQL_PASSWORD: ""
+      MYSQL_JOURNAL_URL: "jdbc:mysql://mysql/liquidity_journal?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_JOURNAL_USERNAME: "root"
+      MYSQL_JOURNAL_PASSWORD: ""
+      MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?useSSL=false&cacheCallableStmts=true&cachePrepStmts=true&cacheResultSetMetadata=true&cacheServerConfiguration=true&useLocalSessionState=true&useLocalSessionState=true&useServerPrepStmts=true"
+      MYSQL_ANALYTICS_USERNAME: "root"
+      MYSQL_ANALYTICS_PASSWORD: ""
+    depends_on:
+      - mysql
+volumes:
+  mysql-data:

@@ -1,13 +1,5 @@
 version: '3'
 services:
-  mysql:
-    image: mysql:5
-    command: ["--explicit_defaults_for_timestamp=true"]
-    restart: always
-    volumes:
-    - mysql-data:/var/lib/mysql
-    environment:
-      MYSQL_ALLOW_EMPTY_PASSWORDWORD: "true"
   zone-host:
     build: server
     restart: always
@@ -18,8 +10,6 @@ services:
       JAVA_OPTS: >
         -Dakka.cluster.roles.0=zone-host
         -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
-    depends_on:
-      - mysql
   client-relay:
     build: server
     ports:
@@ -33,7 +23,6 @@ services:
         -Dakka.cluster.roles.0=client-relay
         -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
     depends_on:
-      - mysql
       - zone-host
   analytics:
     build: server
@@ -46,7 +35,4 @@ services:
         -Dakka.cluster.roles.0=analytics
         -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
     depends_on:
-      - mysql
       - zone-host
-volumes:
-  mysql-data:

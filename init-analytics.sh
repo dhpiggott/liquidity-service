@@ -2,17 +2,14 @@
 
 set -euo pipefail
 
-if [ $# -ne 1 ]
+if [ $# -ne 3 ]
   then
-    echo "Usage: $0 mysql-host"
+    echo "Usage: $0 host username password"
     exit 1
 fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
-read -p "Username: " USERNAME
-read -p "Password: " -s PASSWORD
-
-docker run --interactive --tty --rm \
-    --volume $DIR/analytics.sql:/root/analytics.sql \
-    mysql sh -c 'mysql --host='$1' --user='$USERNAME' --password='$PASSWORD' < /root/analytics.sql'
+docker run --rm \
+    --volume $DIR/analytics.sql:/analytics.sql \
+    mysql:5 sh -c 'mysql --host='$1' --user='$2' --password='$3' < /analytics.sql'

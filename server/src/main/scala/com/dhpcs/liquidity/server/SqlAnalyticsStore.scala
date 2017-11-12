@@ -47,6 +47,9 @@ object SqlAnalyticsStore {
     def update(zoneId: ZoneId, modified: Instant): ConnectionIO[Unit] =
       for (_ <- sql"UPDATE zones SET modified = $modified WHERE zone_id = $zoneId".update.run) yield ()
 
+    def retrieveCount: ConnectionIO[Long] =
+      sql"SELECT COUNT(*) from zones".query[Long].unique
+
     def retrieveOption(zoneId: ZoneId): ConnectionIO[Option[Zone]] =
       for {
         maybeZoneMetadata <- sql"SELECT equity_account_id, created, expires, metadata FROM zones WHERE zone_id = $zoneId"
@@ -100,6 +103,9 @@ object SqlAnalyticsStore {
         _ <- MemberUpdatesStore.insert(zoneId, member, created)
       } yield ()
 
+    def retrieveCount: ConnectionIO[Long] =
+      sql"SELECT COUNT(*) from members".query[Long].unique
+
     def retrieveAll(zoneId: ZoneId): ConnectionIO[Map[MemberId, Member]] =
       for {
         memberIds <- sql"SELECT member_id FROM members WHERE zone_id = $zoneId".query[MemberId].vector
@@ -145,6 +151,9 @@ object SqlAnalyticsStore {
         for (_ <- sql"INSERT INTO member_owners (update_id, public_key, fingerprint) VALUES ($updateId, $publicKey, ${publicKey.fingerprint})".update.run)
           yield ()
 
+      def retrieveCount: ConnectionIO[Long] =
+        sql"SELECT COUNT(DISTINCT fingerprint) from member_owners".query[Long].unique
+
       def retrieveAll(updateId: Long): ConnectionIO[Set[PublicKey]] =
         sql"SELECT public_key from member_owners WHERE update_id = $updateId".query[PublicKey].to[Set]
 
@@ -162,6 +171,9 @@ object SqlAnalyticsStore {
     def update(zoneId: ZoneId, accountId: AccountId, balance: BigDecimal): ConnectionIO[Unit] =
       for (_ <- sql"UPDATE accounts SET balance = $balance WHERE zone_id = $zoneId AND account_id = $accountId".update.run)
         yield ()
+
+    def retrieveCount: ConnectionIO[Long] =
+      sql"SELECT COUNT(*) from accounts".query[Long].unique
 
     def retrieveBalance(zoneId: ZoneId, accountId: AccountId): ConnectionIO[BigDecimal] =
       sql"SELECT balance FROM accounts WHERE zone_id = $zoneId AND account_id = $accountId"
@@ -230,6 +242,9 @@ object SqlAnalyticsStore {
       for (_ <- sql"INSERT INTO transactions (zone_id, transaction_id, `from`, `to`, `value`, creator, created, description, metadata) VALUES ($zoneId, ${transaction.id}, ${transaction.from}, ${transaction.to}, ${transaction.value}, ${transaction.creator}, ${Instant
              .ofEpochMilli(transaction.created)}, ${transaction.description}, ${transaction.metadata})".update.run)
         yield ()
+
+    def retrieveCount: ConnectionIO[Long] =
+      sql"SELECT COUNT(*) from transactions".query[Long].unique
 
     def retrieveAll(zoneId: ZoneId): ConnectionIO[Map[TransactionId, Transaction]] =
       sql"SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata FROM transactions WHERE zone_id = $zoneId"

@@ -93,9 +93,7 @@ class ServerConnectionSpec
 
   override protected[this] def events(persistenceId: String,
                                       fromSequenceNr: Long,
-                                      toSequenceNr: Long): Source[EventEnvelope, NotUsed] =
-    Source.empty[EventEnvelope]
-
+                                      toSequenceNr: Long): Source[EventEnvelope, NotUsed] = Source.empty[EventEnvelope]
   override protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] =
     Future.successful(proto.persistence.zone.ZoneState(zone = None, balances = Map.empty, connectedClients = Map.empty))
 
@@ -104,16 +102,16 @@ class ServerConnectionSpec
       behavior = ClientConnectionTestProbeForwarderActor.behavior(clientConnectionActorTestProbe.ref)
     )
 
-  override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
-    Future.successful(Set.empty)
-
-  override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
-    Future.successful(Set.empty)
-
-  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
-
+  override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] = Future.successful(Set.empty)
+  override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]     = Future.successful(Set.empty)
+  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]              = Future.successful(None)
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(Map.empty)
+  override protected[this] def getZoneCount: Future[Long]        = Future.successful(0)
+  override protected[this] def getPublicKeyCount: Future[Long]   = Future.successful(0)
+  override protected[this] def getMemberCount: Future[Long]      = Future.successful(0)
+  override protected[this] def getAccountCount: Future[Long]     = Future.successful(0)
+  override protected[this] def getTransactionCount: Future[Long] = Future.successful(0)
 
   private[this] val binding = Http().bindAndHandle(
     httpRoutes(enableClientRelay = true),

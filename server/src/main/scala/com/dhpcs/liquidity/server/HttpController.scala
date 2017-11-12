@@ -10,7 +10,9 @@ import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.{Flow, Source}
-import akka.{Done, NotUsed}
+import akka.NotUsed
+import cats.instances.future._
+import cats.syntax.apply._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
 import com.dhpcs.liquidity.actor.protocol.zonemonitor.ActiveZoneSummary
 import com.dhpcs.liquidity.model.ProtoBindings._
@@ -98,44 +100,56 @@ trait HttpController {
       case Some(remoteAddress) => handleWebSocketMessages(webSocketApi(remoteAddress))
     }))
 
-  // TODO: Include totals
   private[this] def status(implicit ec: ExecutionContext): Route =
     path("status")(
       get(
         complete(
-          for {
-            _ <- Future.successful(Done)
-            futureActiveClientSummaries = getActiveClientSummaries
-            futureActiveZoneSummaries   = getActiveZoneSummaries
-            activeClientSummaries <- futureActiveClientSummaries
-            activeZoneSummaries   <- futureActiveZoneSummaries
-          } yield
-            Json.obj(
-              "clients" -> Json.obj(
-                "count"                 -> activeClientSummaries.size,
-                "publicKeyFingerprints" -> activeClientSummaries.map(_.publicKey.fingerprint).toSeq.sorted
-              ),
-              "zones" -> Json.obj(
-                "count" -> activeZoneSummaries.size,
-                "zones" -> activeZoneSummaries.toSeq
-                  .sortBy(_.zoneId.id)
-                  .map {
-                    case ActiveZoneSummary(zoneId, members, accounts, transactions, metadata, clientConnections) =>
-                      Json.obj(
-                        "zoneIdFingerprint" -> ByteString.encodeUtf8(zoneId.id.toString).sha256.hex,
-                        "metadata"          -> metadata.map(JsonFormat.toJsonString).map(Json.parse),
-                        "members"           -> Json.obj("count" -> members.size),
-                        "accounts"          -> Json.obj("count" -> accounts.size),
-                        "transactions"      -> Json.obj("count" -> transactions.size),
-                        "clientConnections" -> Json.obj(
-                          "count"                 -> clientConnections.size,
-                          "publicKeyFingerprints" -> clientConnections.map(_.fingerprint).toSeq.sorted
+          for ((activeClientSummaries,
+                activeZoneSummaries,
+                zoneCount,
+                publicKeyCount,
+                memberCount,
+                accountCount,
+                transactionCount) <- (getActiveClientSummaries,
+                                      getActiveZoneSummaries,
+                                      getZoneCount,
+                                      getPublicKeyCount,
+                                      getMemberCount,
+                                      getAccountCount,
+                                      getTransactionCount).tupled)
+            yield
+              Json.obj(
+                "activeClients" -> Json.obj(
+                  "count"                 -> activeClientSummaries.size,
+                  "publicKeyFingerprints" -> activeClientSummaries.map(_.publicKey.fingerprint).toSeq.sorted
+                ),
+                "activeZones" -> Json.obj(
+                  "count" -> activeZoneSummaries.size,
+                  "zones" -> activeZoneSummaries.toSeq
+                    .sortBy(_.zoneId.id)
+                    .map {
+                      case ActiveZoneSummary(zoneId, members, accounts, transactions, metadata, clientConnections) =>
+                        Json.obj(
+                          "zoneIdFingerprint" -> ByteString.encodeUtf8(zoneId.id.toString).sha256.hex,
+                          "metadata"          -> metadata.map(JsonFormat.toJsonString).map(Json.parse),
+                          "members"           -> Json.obj("count" -> members.size),
+                          "accounts"          -> Json.obj("count" -> accounts.size),
+                          "transactions"      -> Json.obj("count" -> transactions.size),
+                          "clientConnections" -> Json.obj(
+                            "count"                 -> clientConnections.size,
+                            "publicKeyFingerprints" -> clientConnections.map(_.fingerprint).toSeq.sorted
+                          )
                         )
-                      )
-                  }
-              )
-            )
-        )))
+                    }
+                ),
+                "totals" -> Json.obj(
+                  "zones"        -> zoneCount,
+                  "publicKeys"   -> publicKeyCount,
+                  "members"      -> memberCount,
+                  "accounts"     -> accountCount,
+                  "transactions" -> transactionCount
+                )
+              ))))
 
   private[this] def analytics(implicit ec: ExecutionContext): Route =
     pathPrefix("analytics")(
@@ -156,17 +170,18 @@ trait HttpController {
   protected[this] def events(persistenceId: String,
                              fromSequenceNr: Long,
                              toSequenceNr: Long): Source[EventEnvelope, NotUsed]
-
   protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
 
   protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed]
 
   protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]]
-
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
-
+  protected[this] def getZoneCount: Future[Long]
+  protected[this] def getPublicKeyCount: Future[Long]
+  protected[this] def getMemberCount: Future[Long]
+  protected[this] def getAccountCount: Future[Long]
+  protected[this] def getTransactionCount: Future[Long]
   protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
-
   protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
 
 }

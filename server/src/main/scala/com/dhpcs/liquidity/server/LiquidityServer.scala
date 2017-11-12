@@ -31,6 +31,7 @@ import com.dhpcs.liquidity.persistence.zone.{ZoneEventEnvelope, ZoneState}
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
+import com.dhpcs.liquidity.server.SqlAnalyticsStore._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
 import com.dhpcs.liquidity.server.actor._
 import com.typesafe.config.ConfigFactory
@@ -225,9 +226,24 @@ class LiquidityServer(analyticsTransactor: Transactor[IO],
     zoneMonitor ? GetActiveZoneSummaries
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
-    transactIoToFuture(analyticsTransactor)(SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId))
+    transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveOption(zoneId))
 
   override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
-    transactIoToFuture(analyticsTransactor)(SqlAnalyticsStore.AccountsStore.retrieveAllBalances(zoneId))
+    transactIoToFuture(analyticsTransactor)(AccountsStore.retrieveAllBalances(zoneId))
+
+  override protected[this] def getZoneCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveCount)
+
+  override protected[this] def getPublicKeyCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(MemberUpdatesStore.MemberOwnersStore.retrieveCount)
+
+  override protected[this] def getMemberCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(MembersStore.retrieveCount)
+
+  override protected[this] def getAccountCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(AccountsStore.retrieveCount)
+
+  override protected[this] def getTransactionCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(TransactionsStore.retrieveCount)
 
 }

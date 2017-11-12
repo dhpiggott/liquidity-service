@@ -23,8 +23,7 @@ mkdir $DIR/image-stage
 (cd $DIR && sbt validate server/docker:stage)
 
 cp --recursive $DIR/server/target/docker/stage $DIR/image-stage/server
-cp $DIR/docker-compose.yml $DIR/image-stage/
-cp $DIR/docker-compose.$TYPE.yml $DIR/image-stage/docker-compose.override.yml
+cp $DIR/docker-compose.$TYPE.yml $DIR/image-stage/docker-compose.yml
 
 rsync --archive \
     --human-readable \

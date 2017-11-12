@@ -98,6 +98,7 @@ trait HttpController {
       case Some(remoteAddress) => handleWebSocketMessages(webSocketApi(remoteAddress))
     }))
 
+  // TODO: Include totals
   private[this] def status(implicit ec: ExecutionContext): Route =
     path("status")(
       get(
@@ -136,20 +137,21 @@ trait HttpController {
             )
         )))
 
-  private[this] def analytics: Route =
+  private[this] def analytics(implicit ec: ExecutionContext): Route =
     pathPrefix("analytics")(
       pathPrefix("zones")(pathPrefix(JavaUUID)(id =>
         pathEnd(zone(id.toString)) ~
           path("balances")(balances(id.toString)))))
 
-  private[this] def zone(id: String): Route =
-    get(complete(getZone(ZoneId(id)).map(zone =>
-      Json.parse(JsonFormat.toJsonString(ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(()))))))
+  private[this] def zone(id: String)(implicit ec: ExecutionContext): Route =
+    get(complete(getZone(ZoneId(id)).map(_.map(zone =>
+      Json.parse(JsonFormat.toJsonString(ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(())))))))
 
-  private[this] def balances(id: String): Route =
-    get(complete(Json.obj(getBalances(ZoneId(id)).map {
-      case (accountId, balance) => accountId.id.toString -> toJsFieldJsValueWrapper(balance)
-    }.toSeq: _*)))
+  private[this] def balances(id: String)(implicit ec: ExecutionContext): Route =
+    get(complete(getBalances(ZoneId(id)).map(balances =>
+      Json.obj(balances.map {
+        case (accountId, balance) => accountId.id.toString -> toJsFieldJsValueWrapper(balance)
+      }.toSeq: _*))))
 
   protected[this] def events(persistenceId: String,
                              fromSequenceNr: Long,
@@ -163,8 +165,8 @@ trait HttpController {
 
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
 
-  protected[this] def getZone(zoneId: ZoneId): Option[Zone]
+  protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
 
-  protected[this] def getBalances(zoneId: ZoneId): Map[AccountId, BigDecimal]
+  protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
 
 }

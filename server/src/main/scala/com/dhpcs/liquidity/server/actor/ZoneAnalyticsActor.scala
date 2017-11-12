@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.server.actor
 import akka.event.Logging
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query.Sequence
-import akka.stream.scaladsl.{Keep, Sink}
+import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import akka.typed.scaladsl.Actor
 import akka.typed.scaladsl.adapter._
@@ -13,11 +13,11 @@ import cats.syntax.applicative._
 import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.persistence.EventTags
 import com.dhpcs.liquidity.persistence.zone._
+import com.dhpcs.liquidity.server.LiquidityServer.TransactIoToFuture
 import com.dhpcs.liquidity.server.SqlAnalyticsStore._
 import doobie._
 import doobie.implicits._
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 object ZoneAnalyticsActor {
@@ -25,14 +25,13 @@ object ZoneAnalyticsActor {
   sealed abstract class ZoneAnalyticsMessage
   case object StopZoneAnalytics extends ZoneAnalyticsMessage
 
-  def singletonBehavior(readJournal: JdbcReadJournal,
-                        transactor: Transactor[IO],
-                        streamFailureHandler: PartialFunction[Throwable, Unit])(
-      implicit ec: ExecutionContext,
-      mat: Materializer): Behavior[ZoneAnalyticsMessage] =
+  def singletonBehavior(
+      readJournal: JdbcReadJournal,
+      analyticsTransactor: Transactor[IO],
+      transactIoToFuture: TransactIoToFuture)(implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Actor.deferred { context =>
       val log = Logging(context.system.toUntyped, context.self.toUntyped)
-      val offset = for {
+      val offset = transactIoToFuture(analyticsTransactor)(for {
         maybePreviousOffset <- TagOffsetsStore.retrieve(EventTags.ZoneEventTag)
         offset <- maybePreviousOffset match {
           case None =>
@@ -41,21 +40,20 @@ object ZoneAnalyticsActor {
           case Some(previousOffset) =>
             previousOffset.pure[ConnectionIO]
         }
-      } yield offset
+      } yield offset)
       val (killSwitch, done) =
-        readJournal
-          .eventsByTag(EventTags.ZoneEventTag, offset.transact(transactor).unsafeRunSync())
+        Source
+          .fromFuture(offset)
+          .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
           .viaMat(KillSwitches.single)(Keep.right)
-          .map { eventEnvelope =>
+          .mapAsync(1) { eventEnvelope =>
             val zoneId            = ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
             val zoneEventEnvelope = eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
             val offset            = eventEnvelope.offset.asInstanceOf[Sequence]
-            val update = for {
+            transactIoToFuture(analyticsTransactor)(for {
               _ <- projectEvent(zoneId, zoneEventEnvelope)
               _ <- TagOffsetsStore.update(EventTags.ZoneEventTag, offset)
-            } yield ()
-            update.transact(transactor).unsafeRunSync()
-            offset
+            } yield offset)
           }
           .zipWithIndex
           .groupedWithin(n = 1000, d = 30.seconds)
@@ -65,7 +63,10 @@ object ZoneAnalyticsActor {
           }
           .toMat(Sink.ignore)(Keep.both)
           .run()
-      done.failed.foreach(t => streamFailureHandler.applyOrElse(t, throw _: Throwable))
+      done.failed.foreach { t =>
+        log.error(t, "Analytics stream failure")
+        context.self ! StopZoneAnalytics
+      } { context.executionContext }
       Actor.immutable[ZoneAnalyticsMessage]((_, message) =>
         message match {
           case StopZoneAnalytics =>

@@ -87,7 +87,7 @@ class ServerConnectionSpec
 
   private[this] implicit val system: ActorSystem    = ActorSystem("liquidity", config)
   private[this] implicit val mat: ActorMaterializer = ActorMaterializer()
-  private[this] implicit val ec: ExecutionContext   = ExecutionContext.global
+  private[this] implicit val ec: ExecutionContext   = system.dispatcher
 
   private[this] val clientConnectionActorTestProbe = TestProbe()
 
@@ -110,9 +110,10 @@ class ServerConnectionSpec
   override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
     Future.successful(Set.empty)
 
-  override protected[this] def getZone(zoneId: ZoneId): Option[Zone] = None
+  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
 
-  override protected[this] def getBalances(zoneId: ZoneId): Map[AccountId, BigDecimal] = Map.empty
+  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
+    Future.successful(Map.empty)
 
   private[this] val binding = Http().bindAndHandle(
     httpRoutes(enableClientRelay = true),

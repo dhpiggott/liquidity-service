@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
+import java.util.concurrent.Executors
 
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.Cluster
@@ -46,6 +47,14 @@ object LiquidityServer {
   private final val ZoneHostRole    = "zone-host"
   private final val ClientRelayRole = "client-relay"
   private final val AnalyticsRole   = "analytics"
+
+  class TransactIoToFuture(ec: ExecutionContext) {
+    def apply[A](transactor: Transactor[IO])(io: ConnectionIO[A]): Future[A] =
+      (for {
+        a <- io.transact(transactor)
+        _ <- IO.shift(ec)
+      } yield a).unsafeToFuture()
+  }
 
   def main(args: Array[String]): Unit = {
     val config                        = ConfigFactory.parseString(s"""
@@ -152,6 +161,11 @@ class LiquidityServer(analyticsTransactor: Transactor[IO],
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
   private[this] implicit val askTimeout: Timeout  = Timeout(30.seconds)
+  private[this] val transactIoToFuture = new TransactIoToFuture(
+    ExecutionContext.fromExecutorService(Executors.newCachedThreadPool()))
+
+  private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "clientMonitor")
+  private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
 
   private[this] val zoneValidatorShardRegion = ClusterSharding(system.toTyped).spawn(
     behavior = ZoneValidatorActor.shardingBehavior,
@@ -162,17 +176,8 @@ class LiquidityServer(analyticsTransactor: Transactor[IO],
     handOffStopMessage = StopZone
   )
 
-  private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "clientMonitor")
-  private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
-
-  private[this] val streamFailureHandler = PartialFunction[Throwable, Unit] { t =>
-    Console.err.println("Exiting due to stream failure")
-    t.printStackTrace(Console.err)
-    System.exit(1)
-  }
-
   ClusterSingleton(system.toTyped).spawn(
-    behavior = ZoneAnalyticsActor.singletonBehavior(readJournal, analyticsTransactor, streamFailureHandler),
+    behavior = ZoneAnalyticsActor.singletonBehavior(readJournal, analyticsTransactor, transactIoToFuture),
     singletonName = "zoneAnalyticsSingleton",
     props = Props.empty,
     settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
@@ -219,10 +224,10 @@ class LiquidityServer(analyticsTransactor: Transactor[IO],
   override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
     zoneMonitor ? GetActiveZoneSummaries
 
-  override protected[this] def getZone(zoneId: ZoneId): Option[Zone] =
-    SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId).transact(analyticsTransactor).unsafeRunSync()
+  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
+    transactIoToFuture(analyticsTransactor)(SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId))
 
-  override protected[this] def getBalances(zoneId: ZoneId): Map[AccountId, BigDecimal] =
-    SqlAnalyticsStore.AccountsStore.retrieveAllBalances(zoneId).transact(analyticsTransactor).unsafeRunSync()
+  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
+    transactIoToFuture(analyticsTransactor)(SqlAnalyticsStore.AccountsStore.retrieveAllBalances(zoneId))
 
 }

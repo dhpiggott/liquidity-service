@@ -86,8 +86,9 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
 
   override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] = Future.successful(Set.empty)
 
-  override protected[this] def getZone(zoneId: ZoneId): Option[Zone] = None
+  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] = Future.successful(None)
 
-  override protected[this] def getBalances(zoneId: ZoneId): Map[AccountId, BigDecimal] = Map.empty
+  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
+    Future.successful(Map.empty)
 
 }

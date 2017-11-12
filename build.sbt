@@ -160,8 +160,11 @@ lazy val server = project
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
+    packageName in Docker := "liquidity",
+    version in Docker := version.value.replace('+', '-'),
+    daemonUser in Docker := "root",
     dockerBaseImage := "openjdk:8-jre",
-    daemonUser in Docker := "root"
+    dockerRepository := Some("837036139524.dkr.ecr.eu-west-2.amazonaws.com")
   )
 
 lazy val client = project

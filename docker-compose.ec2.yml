@@ -1,7 +1,7 @@
 version: '3'
 services:
   liquidity:
-    build: server
+    image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     ports:
      - '80:80'
     restart: always

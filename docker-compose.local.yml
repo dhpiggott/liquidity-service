@@ -9,7 +9,7 @@ services:
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORDWORD: "true"
   zone-host:
-    build: server
+    image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     restart: always
     extra_hosts:
       - "zone-host:127.0.0.1"
@@ -27,7 +27,7 @@ services:
     depends_on:
       - mysql
   client-relay:
-    build: server
+    image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     ports:
      - '80:80'
     restart: always
@@ -48,7 +48,7 @@ services:
       - mysql
       - zone-host
   analytics:
-    build: server
+    image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     restart: always
     extra_hosts:
       - "analytics:127.0.0.1"

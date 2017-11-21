@@ -67,7 +67,7 @@ lazy val `actor-protocol` = project
     PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
   )
   .dependsOn(model)
-  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.6")
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.7")
   .dependsOn(`ws-protocol`)
 
 lazy val `actor-protocol-proto-binding` = project
@@ -104,14 +104,14 @@ lazy val server = project
       "com.github.jnr"             % "jnr-constants"                % "0.9.9",
       "com.github.jnr"             % "jnr-ffi"                      % "2.1.6",
       "org.slf4j"                  % "slf4j-api"                    % "1.7.25",
-      "com.typesafe.akka"          %% "akka-actor"                  % "2.5.6",
-      "com.typesafe.akka"          %% "akka-stream"                 % "2.5.6",
-      "com.typesafe.akka"          %% "akka-stream-testkit"         % "2.5.6",
-      "com.typesafe.akka"          %% "akka-cluster"                % "2.5.6",
-      "com.typesafe.akka"          %% "akka-cluster-sharding"       % "2.5.6",
-      "com.typesafe.akka"          %% "akka-cluster-tools"          % "2.5.6",
-      "com.typesafe.akka"          %% "akka-persistence"            % "2.5.6",
-      "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.6",
+      "com.typesafe.akka"          %% "akka-actor"                  % "2.5.7",
+      "com.typesafe.akka"          %% "akka-stream"                 % "2.5.7",
+      "com.typesafe.akka"          %% "akka-stream-testkit"         % "2.5.7",
+      "com.typesafe.akka"          %% "akka-cluster"                % "2.5.7",
+      "com.typesafe.akka"          %% "akka-cluster-sharding"       % "2.5.7",
+      "com.typesafe.akka"          %% "akka-cluster-tools"          % "2.5.7",
+      "com.typesafe.akka"          %% "akka-persistence"            % "2.5.7",
+      "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.7",
       "com.typesafe.akka"          %% "akka-http"                   % "10.0.10",
       "com.zaxxer"                 % "HikariCP"                     % "2.7.2",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
@@ -120,14 +120,14 @@ lazy val server = project
       "com.typesafe.play"          %% "play-json"                   % "2.6.6"
     ),
     libraryDependencies ++= Seq(
-      "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.6",
+      "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.7",
       "ch.qos.logback"         % "logback-classic"               % "1.2.3",
-      "com.typesafe.akka"      %% "akka-cluster"                 % "2.5.6",
+      "com.typesafe.akka"      %% "akka-cluster"                 % "2.5.7",
       "com.lightbend.akka"     %% "akka-management-cluster-http" % "0.5",
-      "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.6",
-      "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.6",
-      "com.typesafe.akka"      %% "akka-persistence"             % "2.5.6",
-      "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.6",
+      "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.7",
+      "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.7",
+      "com.typesafe.akka"      %% "akka-persistence"             % "2.5.7",
+      "com.typesafe.akka"      %% "akka-persistence-query"       % "2.5.7",
       "com.github.dnvriend"    %% "akka-persistence-jdbc"        % "3.0.1",
       "org.tpolecat"           %% "doobie-core"                  % "0.5.0-M9",
       "org.tpolecat"           %% "doobie-hikari"                % "0.5.0-M9",
@@ -144,14 +144,14 @@ lazy val server = project
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest"       %% "scalatest"                 % "3.0.4"   % Test,
     "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.10" % Test,
-    "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.6"   % Test
+    "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.7"   % Test
   ))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .settings(inConfig(MultiJvm)(scalafmtSettings))
   .dependsOn(testkit % MultiJvm)
   .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.5.6"   % MultiJvm,
+    "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.5.7"   % MultiJvm,
     "com.h2database"    % "h2"                       % "1.4.196" % MultiJvm
   ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
@@ -193,7 +193,7 @@ lazy val healthcheck = project
   .dependsOn(client)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.6",
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.7",
       "org.scalatest"     %% "scalatest"           % "3.0.4"
     )
   )

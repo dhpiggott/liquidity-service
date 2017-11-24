@@ -1,12 +1,26 @@
 language: scala
-
 jdk:
   - oraclejdk8
-
+sudo: required
+services:
+  - docker
+env:
+  global:
+    - secure: FVt9g0o3of6fDGj1easGT6IB77oW6z3EShwfF50Y3daLLpNAx6K50pIjc20OictGODJSu8xLtS4B+kLif4uDh84i/u53bs6halEOmayTZbCClJbKFqOYIYh+rH9G0iRVAktRJMngtA+IYlqEXCLcJhowMNrKoMSlqF/FzcSD7Y+MVkANFis9j8Feuuum/VYYBvxO272A/44x5wSWJyAKLFy2vUqcFzLDQ+a1TXmcdvKYVqmbCwdIvbj52M7csEH9lbS50kIe7fMnKgHjwIPCQZg45d+v3+2kJmFyOEcfVBbaoXx0FHnMR42iyrZFFZ02PiXkbVcHjQw5aKMVGzAs8vM6uPsIqG4GAYnmiEeskDc/1QOXGTCig75b0EcoWRCbZQXfeZxDHT5l8LFJLaEUSlq7DD/VhD5FQOMu6sxVV2bA0OWKYwoeDsH0c+iwjQvTxF3FVctb+nDDOqNi98ArEWFh9V/q9Y9iVrAIsPHkI0/Gf72OFyh/C7fdBvHfu86Pp6BqcrGeUqpHryg7NiKJCkXSUPOXhq7WKTWIbCkrr6UYckHdFFTW/KUzE9OZ8i1y5dk6c9Y/xkRCXH/kcBT4lobHPiKFvHKCuYvPRSBmEtzUku08Xe9cB7JmiNOm87OLoKrTe5/y3Apeu3+4YGs2lFCcmyp/81Zd3fgMUuRRvAA=
+    - secure: i+Df6hDJwnvL6YMPztapzuA5Pvp5qVUg/t9O52VETHGO0yYkDana5fj+qoC047qyJj/yXWzkcDLWQR+uSSJKDryOqQgRkPf+I21EvZIqKSjLOvvsK4lylz9IyeO9rClJrl61uz6RmizpX57+CCJmK8toH6Ei9Fm51tG2YTJtLXLG91fSF7KF/JWjYRn2r9pD+GFR2F2Cx1uNut4ikO5pp6CqPpp3x18pl2nLXcEphSpounasBdQ4+2uzjRbY5AEdD5v1SZqUxlUh+Uad8jHViFDGF3ET9xHZpV6y+P75/xU90dl5CATOGac8T2nj1Faam46sn13Lr4PL+LGxkXB0helV792j7FUg4d6Zqz7a3ipLK2B7Gk4BcjHBgZ5Y985n3mUwgZxtkNUJmjZuzzgqXaqwbSk0woRRPidoUOaNpnHj5amGKyzng8Q7vYA+CnFNVZfc8wWHJW+Diu0tbfF2i6a+auJNWqj541iWEVZC9pEf1Thnmj51U9QsJkGP3khpXuJ9NfVWCfib3uuI0LBhYf1N6RMQL1d/GFunJhPIYuj3k5q4ubJLO76POty3RKa3Q9m1dSCS2iKXG3RxBnuNXvMmICboB3e6CBZsrtoDOqyexneqlwHxDgo+IZdZg2zPwv8CTVwfILRWCnC0LkO0sipEXgg5PhqVWeDfpcc4fDc=
 script:
-  - sbt ";reload plugins; sbt:scalafmt::test; scalafmt::test; reload return; sbt:scalafmt::test; scalafmt::test; test:scalafmt::test; multi-jvm:scalafmt::test"
+  - git fetch --unshallow # So that sbt-dynver derives the version correctly
+  - sbt ";reload plugins; sbt:scalafmt::test; scalafmt::test; reload return; sbt:scalafmt::test;
+    scalafmt::test; test:scalafmt::test; multi-jvm:scalafmt::test"
   - sbt ";compile"
   - sbt ";coverage; test; multi-jvm:test; coverageReport"
-
 after_success:
   - bash <(curl -s https://codecov.io/bash)
+  - |
+    if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
+      docker --version;
+      pip install --user awscli;
+      export PATH=$PATH:$HOME/.local/bin;
+      eval $(aws ecr get-login --no-include-email --region eu-west-2);
+      sbt ";clean; server/docker:publish"; # The clean is to remove the scoverage instrumentation
+    fi

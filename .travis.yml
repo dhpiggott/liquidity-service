@@ -14,7 +14,6 @@ script:
     scalafmt::test; test:scalafmt::test; multi-jvm:scalafmt::test"
   - sbt ";compile"
   - sbt ";coverage; test; multi-jvm:test; coverageReport"
-after_success:
   - bash <(curl -s https://codecov.io/bash)
   - |
     if [ $TRAVIS_PULL_REQUEST = 'false' ]; then

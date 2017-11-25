@@ -205,22 +205,3 @@ lazy val boardgame = project
     name := "liquidity-boardgame"
   )
   .dependsOn(client)
-
-lazy val root = project
-  .in(file("."))
-  .settings(
-    name := "liquidity"
-  )
-  .aggregate(
-    `proto-binding`,
-    model,
-    `ws-protocol`,
-    `ws-protocol-proto-binding`,
-    `actor-protocol`,
-    `actor-protocol-proto-binding`,
-    testkit,
-    server,
-    client,
-    healthcheck,
-    boardgame
-  )

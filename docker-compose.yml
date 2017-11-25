@@ -7,7 +7,7 @@ services:
     volumes:
     - mysql-data:/var/lib/mysql
     environment:
-      MYSQL_ALLOW_EMPTY_PASSWORDWORD: "true"
+      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
   zone-host:
     image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     restart: always

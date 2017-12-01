@@ -112,7 +112,7 @@ lazy val server = project
       "com.typesafe.akka"          %% "akka-cluster-tools"          % "2.5.7",
       "com.typesafe.akka"          %% "akka-persistence"            % "2.5.7",
       "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.7",
-      "com.typesafe.akka"          %% "akka-http"                   % "10.0.10",
+      "com.typesafe.akka"          %% "akka-http"                   % "10.0.11",
       "com.zaxxer"                 % "HikariCP"                     % "2.7.2",
       "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
       "com.google.protobuf"        % "protobuf-java"                % "3.4.0",
@@ -132,7 +132,7 @@ lazy val server = project
       "org.tpolecat"           %% "doobie-core"                  % "0.5.0-M9",
       "org.tpolecat"           %% "doobie-hikari"                % "0.5.0-M9",
       "mysql"                  % "mysql-connector-java"          % "5.1.44",
-      "com.typesafe.akka"      %% "akka-http"                    % "10.0.10",
+      "com.typesafe.akka"      %% "akka-http"                    % "10.0.11",
       "com.trueaccord.scalapb" %% "scalapb-json4s"               % "0.3.3",
       "com.typesafe.play"      %% "play-json"                    % "2.6.7",
       "de.heikoseeberger"      %% "akka-http-play-json"          % "1.18.1"
@@ -143,7 +143,7 @@ lazy val server = project
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest"       %% "scalatest"                 % "3.0.4"   % Test,
-    "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.10" % Test,
+    "com.typesafe.akka"   %% "akka-http-testkit"         % "10.0.11" % Test,
     "com.typesafe.akka"   %% "akka-stream-testkit"       % "2.5.7"   % Test
   ))
   .enablePlugins(MultiJvmPlugin)

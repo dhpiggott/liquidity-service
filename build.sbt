@@ -198,10 +198,3 @@ lazy val healthcheck = project
     )
   )
   .enablePlugins(JavaAppPackaging, UniversalPlugin)
-
-lazy val boardgame = project
-  .in(file("boardgame"))
-  .settings(
-    name := "liquidity-boardgame"
-  )
-  .dependsOn(client)

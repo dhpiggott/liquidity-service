@@ -29,3 +29,10 @@ jobs:
           export PATH=$PATH:$HOME/.local/bin &&
           eval $(aws ecr get-login --no-include-email --region eu-west-2) &&
           sbt ";server/docker:publish"
+before_cache:
+  - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
+  - find $HOME/.sbt -name "*.lock" -print -delete
+cache:
+  directories:
+    - $HOME/.ivy2/cache
+    - $HOME/.sbt

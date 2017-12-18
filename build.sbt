@@ -143,34 +143,3 @@ lazy val server = project
     dockerBaseImage := "openjdk:8-jre",
     dockerRepository := Some("837036139524.dkr.ecr.eu-west-2.amazonaws.com")
   )
-
-lazy val client = project
-  .in(file("client"))
-  .settings(
-    name := "liquidity-client"
-  )
-  .dependsOn(`ws-protocol`)
-  .dependsOn(`ws-protocol-proto-binding`)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.madgag.spongycastle" % "pkix"   % "1.54.0.0",
-      "com.squareup.okhttp3"    % "okhttp" % "3.9.1"
-    )
-  )
-  .dependsOn(testkit % Test)
-  .dependsOn(server % "test->test")
-  .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
-
-lazy val healthcheck = project
-  .in(file("healthcheck"))
-  .settings(
-    name := "liquidity-healthcheck"
-  )
-  .dependsOn(client)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.8",
-      "org.scalatest"     %% "scalatest"           % "3.0.4"
-    )
-  )
-  .enablePlugins(JavaAppPackaging, UniversalPlugin)

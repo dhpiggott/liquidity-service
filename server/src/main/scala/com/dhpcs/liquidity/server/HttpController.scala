@@ -95,7 +95,7 @@ trait HttpController {
     path("ws")(extractClientIP(_.toOption match {
       case None =>
         complete(
-          (InternalServerError, s"Could not extract remote address. Check akka.http.server.remote-address-header = on.")
+          (InternalServerError, "Could not extract remote address. Check akka.http.server.remote-address-header = on.")
         )
       case Some(remoteAddress) => handleWebSocketMessages(webSocketApi(remoteAddress))
     }))

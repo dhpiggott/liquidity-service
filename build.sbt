@@ -96,29 +96,6 @@ lazy val server = project
   .dependsOn(`actor-protocol`)
   .dependsOn(`actor-protocol-proto-binding`)
   .settings(
-    dependencyOverrides ++= Seq(
-      "org.scala-lang.modules"     %% "scala-xml"                   % "1.0.6",
-      "com.lihaoyi"                %% "fastparse"                   % "0.4.4",
-      "com.fasterxml.jackson.core" % "jackson-annotations"          % "2.8.9",
-      "com.fasterxml.jackson.core" % "jackson-databind"             % "2.8.9",
-      "com.github.jnr"             % "jnr-constants"                % "0.9.9",
-      "com.github.jnr"             % "jnr-ffi"                      % "2.1.6",
-      "org.slf4j"                  % "slf4j-api"                    % "1.7.25",
-      "com.typesafe.akka"          %% "akka-actor"                  % "2.5.8",
-      "com.typesafe.akka"          %% "akka-stream"                 % "2.5.8",
-      "com.typesafe.akka"          %% "akka-stream-testkit"         % "2.5.8",
-      "com.typesafe.akka"          %% "akka-cluster"                % "2.5.8",
-      "com.typesafe.akka"          %% "akka-cluster-sharding"       % "2.5.8",
-      "com.typesafe.akka"          %% "akka-cluster-tools"          % "2.5.8",
-      "com.typesafe.akka"          %% "akka-persistence"            % "2.5.8",
-      "com.typesafe.akka"          %% "akka-persistence-query"      % "2.5.8",
-      "com.typesafe.akka"          %% "akka-http"                   % "10.0.11",
-      "com.zaxxer"                 % "HikariCP"                     % "2.7.2",
-      "io.netty"                   % "netty-transport-native-epoll" % "4.0.44.Final",
-      "com.google.protobuf"        % "protobuf-java"                % "3.4.0",
-      "com.trueaccord.scalapb"     %% "scalapb-runtime"             % "0.6.6",
-      "com.typesafe.play"          %% "play-json"                   % "2.6.6"
-    ),
     libraryDependencies ++= Seq(
       "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.8",
       "ch.qos.logback"         % "logback-classic"               % "1.2.3",
@@ -175,7 +152,6 @@ lazy val client = project
   .dependsOn(`ws-protocol`)
   .dependsOn(`ws-protocol-proto-binding`)
   .settings(
-    dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
     libraryDependencies ++= Seq(
       "com.madgag.spongycastle" % "pkix"   % "1.54.0.0",
       "com.squareup.okhttp3"    % "okhttp" % "3.9.1"

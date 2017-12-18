@@ -16,17 +16,11 @@ object CommonSettingsPlugin extends AutoPlugin {
     )
 
   override def buildSettings: Seq[Setting[_]] =
-    resolverBuildSettings ++
-      scalaBuildSettings ++
+    scalaBuildSettings ++
       scalafmtBuildSettings ++
       testBuildSettings ++
       coverageBuildSettings ++
       publishBuildSettings
-
-  private lazy val resolverBuildSettings = Seq(
-    resolvers += Resolver.bintrayRepo("dhpcs", "maven"),
-    conflictManager := ConflictManager.strict
-  )
 
   private lazy val scalafmtBuildSettings = Seq(
     ScalafmtCorePlugin.autoImport.scalafmtVersion := "1.3.0"
@@ -82,12 +76,6 @@ object CommonSettingsPlugin extends AutoPlugin {
       "-Ywarn-unused:patvars",
       "-Ywarn-unused:privates",
       "-Ywarn-value-discard"
-    ),
-    dependencyOverrides ++= Seq(
-      "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-      "org.scala-lang" % "scala-library" % scalaVersion.value,
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scala-lang" % "scalap" % scalaVersion.value
     )
   )
 

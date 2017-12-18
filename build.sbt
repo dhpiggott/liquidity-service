@@ -100,7 +100,7 @@ lazy val server = project
       "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.8",
       "ch.qos.logback"         % "logback-classic"               % "1.2.3",
       "com.typesafe.akka"      %% "akka-cluster"                 % "2.5.8",
-      "com.lightbend.akka"     %% "akka-management-cluster-http" % "0.5",
+      "com.lightbend.akka"     %% "akka-management-cluster-http" % "0.6",
       "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.8",
       "com.typesafe.akka"      %% "akka-cluster-tools"           % "2.5.8",
       "com.typesafe.akka"      %% "akka-persistence"             % "2.5.8",

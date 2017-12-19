@@ -2,7 +2,6 @@ import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys._
 import sbt.Keys._
 import sbt._
-import scoverage.ScoverageKeys._
 
 object CommonSettingsPlugin extends AutoPlugin {
 
@@ -19,7 +18,6 @@ object CommonSettingsPlugin extends AutoPlugin {
     scalaBuildSettings ++
       scalafmtBuildSettings ++
       testBuildSettings ++
-      coverageBuildSettings ++
       publishBuildSettings
 
   private lazy val scalafmtBuildSettings = Seq(
@@ -82,10 +80,6 @@ object CommonSettingsPlugin extends AutoPlugin {
   private lazy val testBuildSettings = Seq(
     testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"),
     testOptions in MultiJvm += Tests.Argument(TestFrameworks.ScalaTest, "-oDF")
-  )
-
-  private lazy val coverageBuildSettings = Seq(
-    coverageExcludedFiles := ".*/target/.*"
   )
 
   private lazy val publishBuildSettings = Seq(

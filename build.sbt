@@ -1,4 +1,12 @@
-lazy val protobufSettings = Seq(
+lazy val protobufPublishSettings = Seq(
+  libraryDependencies := Seq.empty,
+  coverageEnabled := false,
+  crossPaths := false,
+  unmanagedResourceDirectories in Compile ++= (PB.protoSources in Compile).value.map(_.asFile)
+)
+
+def protobufScalaSettings(project: Project) = Seq(
+  PB.protoSources in Compile ++= (PB.protoSources in project in Compile).value,
   PB.targets in Compile := Seq(
     scalapb.gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value
   ),
@@ -6,79 +14,47 @@ lazy val protobufSettings = Seq(
     com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
 )
 
-lazy val `proto-binding` = project
-  .in(file("proto-binding"))
-  .settings(
-    name := "liquidity-proto-binding"
-  )
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.chuusai"   %% "shapeless" % "2.3.2",
-      "org.typelevel" %% "cats-core" % "1.0.0-RC1"
-    ))
-
-lazy val model = project
-  .in(file("model"))
-  .settings(protobufSettings)
-  .settings(
-    name := "liquidity-model"
-  )
-  .settings(libraryDependencies += "com.squareup.okio" % "okio" % "1.13.0")
-
-lazy val `model-proto-binding` = project
-  .in(file("model-proto-binding"))
-  .settings(
-    name := "liquidity-model-proto-binding"
-  )
-  .dependsOn(`proto-binding`)
-  .dependsOn(`model`)
-
 lazy val `ws-protocol` = project
   .in(file("ws-protocol"))
-  .settings(protobufSettings)
   .settings(
     name := "liquidity-ws-protocol"
   )
+  .disablePlugins(ScalafmtCorePlugin)
+  .settings(protobufPublishSettings)
+
+lazy val `ws-protocol-scala-binding` = project
+  .in(file("ws-protocol-scala-binding"))
   .settings(
-    PB.includePaths in Compile += file("model/src/main/protobuf")
+    name := "liquidity-ws-protocol-scala-binding"
   )
-  .dependsOn(model)
-  .settings(libraryDependencies += "org.typelevel" %% "cats-core" % "1.0.0-RC1")
+  .settings(protobufScalaSettings(`ws-protocol`))
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.typelevel"     %% "cats-core" % "1.0.0-RC1",
+      "com.squareup.okio" % "okio"       % "1.13.0"
+    ))
   .dependsOn(testkit % Test)
   .settings(libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
-lazy val `ws-protocol-proto-binding` = project
-  .in(file("ws-protocol-proto-binding"))
-  .settings(
-    name := "liquidity-ws-protocol-proto-binding"
-  )
-  .dependsOn(`proto-binding`)
-  .dependsOn(`model-proto-binding`)
-  .dependsOn(`ws-protocol`)
-
 lazy val `actor-protocol` = project
   .in(file("actor-protocol"))
-  .settings(protobufSettings)
   .settings(
     name := "liquidity-actor-protocol"
   )
+  .dependsOn(`ws-protocol`)
+  .disablePlugins(ScalafmtCorePlugin)
+
+lazy val `actor-protocol-scala-binding` = project
+  .in(file("actor-protocol-scala-binding"))
+  .settings(protobufScalaSettings(`actor-protocol`))
   .settings(
-    PB.includePaths in Compile += file("model/src/main/protobuf"),
+    name := "liquidity-actor-protocol-scala-binding"
+  )
+  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.8")
+  .dependsOn(`ws-protocol-scala-binding`)
+  .settings(
     PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
   )
-  .dependsOn(model)
-  .settings(libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.8")
-  .dependsOn(`ws-protocol`)
-
-lazy val `actor-protocol-proto-binding` = project
-  .in(file("actor-protocol-proto-binding"))
-  .settings(
-    name := "liquidity-actor-protocol-proto-binding"
-  )
-  .dependsOn(`proto-binding`)
-  .dependsOn(`model-proto-binding`)
-  .dependsOn(`ws-protocol-proto-binding`)
-  .dependsOn(`actor-protocol`)
 
 lazy val testkit = project
   .in(file("testkit"))
@@ -92,13 +68,15 @@ lazy val server = project
     name := "liquidity-server"
   )
   .dependsOn(`ws-protocol`)
-  .dependsOn(`ws-protocol-proto-binding`)
+  .dependsOn(`ws-protocol-scala-binding`)
   .dependsOn(`actor-protocol`)
-  .dependsOn(`actor-protocol-proto-binding`)
+  .dependsOn(`actor-protocol-scala-binding`)
   .settings(
     libraryDependencies ++= Seq(
       "com.typesafe.akka"      %% "akka-slf4j"                   % "2.5.8",
       "ch.qos.logback"         % "logback-classic"               % "1.2.3",
+      "com.chuusai"            %% "shapeless"                    % "2.3.2",
+      "org.typelevel"          %% "cats-core"                    % "1.0.0-RC1",
       "com.typesafe.akka"      %% "akka-cluster"                 % "2.5.8",
       "com.lightbend.akka"     %% "akka-management-cluster-http" % "0.6",
       "com.typesafe.akka"      %% "akka-cluster-sharding"        % "2.5.8",

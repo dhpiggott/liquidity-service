@@ -8,6 +8,8 @@ env:
   global:
     - secure: FVt9g0o3of6fDGj1easGT6IB77oW6z3EShwfF50Y3daLLpNAx6K50pIjc20OictGODJSu8xLtS4B+kLif4uDh84i/u53bs6halEOmayTZbCClJbKFqOYIYh+rH9G0iRVAktRJMngtA+IYlqEXCLcJhowMNrKoMSlqF/FzcSD7Y+MVkANFis9j8Feuuum/VYYBvxO272A/44x5wSWJyAKLFy2vUqcFzLDQ+a1TXmcdvKYVqmbCwdIvbj52M7csEH9lbS50kIe7fMnKgHjwIPCQZg45d+v3+2kJmFyOEcfVBbaoXx0FHnMR42iyrZFFZ02PiXkbVcHjQw5aKMVGzAs8vM6uPsIqG4GAYnmiEeskDc/1QOXGTCig75b0EcoWRCbZQXfeZxDHT5l8LFJLaEUSlq7DD/VhD5FQOMu6sxVV2bA0OWKYwoeDsH0c+iwjQvTxF3FVctb+nDDOqNi98ArEWFh9V/q9Y9iVrAIsPHkI0/Gf72OFyh/C7fdBvHfu86Pp6BqcrGeUqpHryg7NiKJCkXSUPOXhq7WKTWIbCkrr6UYckHdFFTW/KUzE9OZ8i1y5dk6c9Y/xkRCXH/kcBT4lobHPiKFvHKCuYvPRSBmEtzUku08Xe9cB7JmiNOm87OLoKrTe5/y3Apeu3+4YGs2lFCcmyp/81Zd3fgMUuRRvAA=
     - secure: i+Df6hDJwnvL6YMPztapzuA5Pvp5qVUg/t9O52VETHGO0yYkDana5fj+qoC047qyJj/yXWzkcDLWQR+uSSJKDryOqQgRkPf+I21EvZIqKSjLOvvsK4lylz9IyeO9rClJrl61uz6RmizpX57+CCJmK8toH6Ei9Fm51tG2YTJtLXLG91fSF7KF/JWjYRn2r9pD+GFR2F2Cx1uNut4ikO5pp6CqPpp3x18pl2nLXcEphSpounasBdQ4+2uzjRbY5AEdD5v1SZqUxlUh+Uad8jHViFDGF3ET9xHZpV6y+P75/xU90dl5CATOGac8T2nj1Faam46sn13Lr4PL+LGxkXB0helV792j7FUg4d6Zqz7a3ipLK2B7Gk4BcjHBgZ5Y985n3mUwgZxtkNUJmjZuzzgqXaqwbSk0woRRPidoUOaNpnHj5amGKyzng8Q7vYA+CnFNVZfc8wWHJW+Diu0tbfF2i6a+auJNWqj541iWEVZC9pEf1Thnmj51U9QsJkGP3khpXuJ9NfVWCfib3uuI0LBhYf1N6RMQL1d/GFunJhPIYuj3k5q4ubJLO76POty3RKa3Q9m1dSCS2iKXG3RxBnuNXvMmICboB3e6CBZsrtoDOqyexneqlwHxDgo+IZdZg2zPwv8CTVwfILRWCnC0LkO0sipEXgg5PhqVWeDfpcc4fDc=
+    - secure: BCU14UKhyeUCWCVcF6SuidH3SeZzU1jkfAtyrx8roWpTwaMD5zrBF1zlWJHtYcDBq/b1MpdXGYY+Mq30KtBaobXKDkU/B+MHJCvN1eHHBO7NxNw+/U5IICs/2IV/jC9ANMevMO4pGQbx15DiZcGGk0uIyZiWtX7u8cGcM+i6ldLAdPoVl/8Wj2KUH9y5ZvCGn5BJBA+UJbum/watf7t6bYvlnFcesJ5ahL4TvwLMksTqp20vc7YUmO5FnnoXt4HZFhMjbr5i35MLTXoM4Z1TYbdfod0tnIs3pf2A5up+X/wOxTnmW8+p7iLeu1GsQLAtsPPXiIYqdA8TBJ7jwHPsdIbfFYyJT4lzeaXqOs5gf7LhbzU1ehMuLo7K8p9yfXiXoYW62bBJy0KCeEvBYeCrylI7Y/x9uauuowCIie/iknLC5xI0dO5Off7ModOvpXRuj0pWS8hEEXH0eTqaNPnl7LSIp5C6kTQ2HNHUaCNWAYXx9Wf1kWJOu6k4eQVEBdg5NnMDuB2fRWCqFVSLd1MEHFnbd/Ll4SnIDo7DMk6NLPZ+aIDtYyMtvtRrg6b1P8wOGwkzxMTMtPFFdYFWEuni4IBF0wmTye781v0DQzTAmvT2WNIxwjb6kljHjlBHouVdmcKUeVSN9VQ4+D0G00Ti0SFqSp+K1wlgLNm7YuN8tvU=
+    - secure: O+QOjGKLJgCPfeQ+LGBc5JvdqsfbSRig2d6Hx5RRU9yutcYqtj+QwKqS7f4d14m5Ob9nppV7GDWTlJdgCMYyRDkpo+kSk//05t2JdwnbXcL44Wozq9O3g5ETS9mC9aPDt1BpoPXJr6P6woInBH09ysWzsk4Jt275w1CJOytZrSlnY1biTtpRexQmWp/2Zr/JEV5MdeYiX0U++/UeOwdct7IxIzz8Up3Q9NzCQaB1zxMY5RgoJebQHAjZmqCissBjGR8z26St5sgyfa4tHHBB4MaKJgdDyGg/MtnJMCmhWwEIOLU5v73r3Jnil2cvDKJAbvM1u6zAozO2i1U1UNRPX9UaWjh8ooTV3vZo+kREfUB37fWHSWcbObNKBWn7rZfhDvFR7o2zch0hqoFdJOgpuTJlJCVPr+X+YwBa+qInG/8QWyU5AIKJL/qMlNifOqTsXNqUBLe+tMNEa49u/VfR/Ybp9l3spSTdXNV56aPBWZOQjODeK6OnWCW9sYp1F387ALB1rCmcNfvDjH8wGcwZhxuFt5vdygeBIEAWDRj0XhDNa0s+rY/FFUDqf+GjAvyH6mP5o78pzGzh+YYlH8dWA/+y3+M26kq/4JpebPXC8vKqnfcrcrs+im9ALcXUm7aJG+UfpV+YS5rcJ1RRA+NrCUL0FINMd4asSpzsfbwwSvQ=
 stages:
   - test
   - name: publish
@@ -29,6 +31,10 @@ jobs:
           export PATH=$PATH:$HOME/.local/bin &&
           eval $(aws ecr get-login --no-include-email --region eu-west-2) &&
           sbt ";server/docker:publish"
+    - stage: publish
+      script: |
+        git fetch --unshallow && # So that sbt-dynver derives the version correctly
+          sbt ";ws-protocol/releaseEarly"
 cache:
   directories:
     - $HOME/.ivy2/cache

@@ -1,3 +1,5 @@
+import bintray.BintrayPlugin.autoImport._
+import ch.epfl.scala.sbt.release.ReleaseEarlyPlugin.autoImport._
 import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin
 import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys._
 import sbt.Keys._
@@ -83,7 +85,32 @@ object CommonSettingsPlugin extends AutoPlugin {
   )
 
   private lazy val publishBuildSettings = Seq(
-    organization := "com.dhpcs"
+    homepage := Some(url("https://github.com/dhpcs/liquidity/")),
+    startYear := Some(2015),
+    description := "Liquidity is a smartphone based currency built for Monopoly and all board and tabletop games.",
+    licenses += "Apache-2.0" -> url(
+      "https://www.apache.org/licenses/LICENSE-2.0.txt"),
+    organization := "com.dhpcs",
+    organizationHomepage := Some(url("https://www.dhpcs.com/")),
+    organizationName := "dhpcs",
+    developers := List(
+      Developer(
+        id = "dhpiggott",
+        name = "David Piggott",
+        email = "david@piggott.me.uk",
+        url = url("https://www.dhpiggott.net/")
+      )),
+    scmInfo := Some(
+      ScmInfo(
+        browseUrl = url("https://github.com/dhpcs/liquidity/"),
+        connection = "scm:git:https://github.com/dhpcs/liquidity.git",
+        devConnection = Some("scm:git:git@github.com:dhpcs/liquidity.git")
+      )),
+    releaseEarlyEnableInstantReleases := false,
+    releaseEarlyNoGpg := true,
+    releaseEarlyWith := BintrayPublisher,
+    releaseEarlyEnableSyncToMaven := false,
+    bintrayOrganization := Some("dhpcs")
   )
 
 }

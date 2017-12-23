@@ -178,9 +178,9 @@ object ZoneValidatorActor {
                     context.self,
                     ActiveZoneSummary(
                       id,
-                      zone.members.values.toSet,
-                      zone.accounts.values.toSet,
-                      zone.transactions.values.toSet,
+                      zone.members.size,
+                      zone.accounts.size,
+                      zone.transactions.size,
                       zone.metadata,
                       state.connectedClients.values.toSet
                     )

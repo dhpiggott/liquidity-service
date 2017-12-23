@@ -132,9 +132,9 @@ trait HttpController {
                         Json.obj(
                           "zoneIdFingerprint" -> ByteString.encodeUtf8(zoneId.id.toString).sha256.hex,
                           "metadata"          -> metadata.map(JsonFormat.toJsonString).map(Json.parse),
-                          "members"           -> Json.obj("count" -> members.size),
-                          "accounts"          -> Json.obj("count" -> accounts.size),
-                          "transactions"      -> Json.obj("count" -> transactions.size),
+                          "members"           -> members,
+                          "accounts"          -> accounts,
+                          "transactions"      -> transactions,
                           "clientConnections" -> Json.obj(
                             "count"                 -> clientConnections.size,
                             "publicKeyFingerprints" -> clientConnections.map(_.fingerprint).toSeq.sorted

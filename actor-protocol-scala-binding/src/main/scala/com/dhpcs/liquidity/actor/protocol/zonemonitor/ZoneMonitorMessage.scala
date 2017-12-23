@@ -5,9 +5,9 @@ import com.dhpcs.liquidity.actor.protocol.zonevalidator.ZoneValidatorMessage
 import com.dhpcs.liquidity.model._
 
 final case class ActiveZoneSummary(zoneId: ZoneId,
-                                   members: Set[Member],
-                                   accounts: Set[Account],
-                                   transactions: Set[Transaction],
+                                   members: Int,
+                                   accounts: Int,
+                                   transactions: Int,
                                    metadata: Option[com.google.protobuf.struct.Struct],
                                    clientConnections: Set[PublicKey])
 

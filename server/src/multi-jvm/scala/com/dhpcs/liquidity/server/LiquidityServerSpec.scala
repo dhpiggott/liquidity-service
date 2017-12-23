@@ -209,11 +209,11 @@ sealed abstract class LiquidityServerSpec
   override def initialParticipants: Int = roles.size
 
   "Each test process" - (
-    "will wait for the others to be ready to start" in enterBarrier("start")
+    "waits for the others to be ready to start" in enterBarrier("start")
   )
 
   "The test nodes" - (
-    "will form a cluster" in {
+    "form a cluster" in {
       val cluster            = Cluster(system.toTyped)
       val zoneHostAddress    = node(zoneHostNode).address
       val clientRelayAddress = node(clientRelayNode).address
@@ -235,14 +235,14 @@ sealed abstract class LiquidityServerSpec
 
   runOn(clientRelayNode) {
     "The LiquidityServer Protobuf WebSocket API" - {
-      "will send a PingCommand when left idle" in withProtobufWsTestProbes { (sub, _) =>
+      "sends a PingCommand when left idle" in withProtobufWsTestProbes { (sub, _) =>
         sub.within(10.seconds)(
           assert(
             expectProtobufCommand(sub) === proto.ws.protocol.ClientMessage.Command.Command
               .PingCommand(com.google.protobuf.ByteString.EMPTY))
         ); ()
       }
-      "will reply with a JoinZoneResponse when sending a JoinZoneCommand" in withProtobufWsTestProbes { (sub, pub) =>
+      "replies with a JoinZoneResponse when sent a JoinZoneCommand" in withProtobufWsTestProbes { (sub, pub) =>
         sendProtobufCreateZoneCommand(pub)(
           CreateZoneCommand(
             equityOwnerPublicKey = PublicKey(TestKit.rsaPublicKey.getEncoded),
@@ -288,7 +288,7 @@ sealed abstract class LiquidityServerSpec
   }
 
   "Each test process" - (
-    "will wait for the others to be ready to stop" in enterBarrier("stop")
+    "waits for the others to be ready to stop" in enterBarrier("stop")
   )
 
   private[this] def withProtobufWsTestProbes(

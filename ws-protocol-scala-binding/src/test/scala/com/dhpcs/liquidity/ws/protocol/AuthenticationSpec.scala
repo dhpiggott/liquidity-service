@@ -9,7 +9,7 @@ import scala.util.Random
 class AuthenticationSpec extends FreeSpec {
 
   "The authentication protocol" - {
-    "will accept valid signatures" in {
+    "accepts valid signatures" in {
       val keyOwnershipChallengeMessage = Authentication.createKeyOwnershipChallengeMessage()
       val keyOwnershipProofMessage =
         Authentication.createKeyOwnershipProof(TestKit.rsaPublicKey,
@@ -17,7 +17,7 @@ class AuthenticationSpec extends FreeSpec {
                                                keyOwnershipChallengeMessage)
       assert(Authentication.isValidKeyOwnershipProof(keyOwnershipChallengeMessage, keyOwnershipProofMessage))
     }
-    "will reject invalid signatures" in {
+    "rejects invalid signatures" in {
       val keyOwnershipChallengeMessage = Authentication.createKeyOwnershipChallengeMessage()
       val invalidSignature             = new Array[Byte](256)
       Random.nextBytes(invalidSignature)

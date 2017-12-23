@@ -44,7 +44,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
   }
 
   "A ClientConnectionActor" - {
-    "will send a PingCommand when left idle" in { fixture =>
+    "sends a PingCommand when left idle" in { fixture =>
       val (_, _, webSocketOutTestProbe, _) = fixture
       inside(expectMessage(webSocketOutTestProbe)) {
         case proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge(_) => ()
@@ -55,7 +55,7 @@ class ClientConnectionActorSpec extends fixture.FreeSpec with InmemoryPersistenc
             .PingCommand(com.google.protobuf.ByteString.EMPTY))
       )
     }
-    "will reply with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
+    "replies with a CreateZoneResponse when forwarding a CreateZoneCommand" in { fixture =>
       val (sinkTestProbe, zoneValidatorShardRegionTestProbe, webSocketOutTestProbe, clientConnection) = fixture
       val keyOwnershipChallenge = inside(expectMessage(webSocketOutTestProbe)) {
         case keyOwnershipChallenge: proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge =>

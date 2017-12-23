@@ -27,7 +27,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
   override def testConfig: Config = ConfigFactory.defaultReference()
 
   "The HttpController" - {
-    "will provide version information" in {
+    "provides version information" in {
       val getRequest = RequestBuilding.Get("/version")
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
@@ -38,7 +38,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
         assert(keys.contains("builtAtMillis"))
       }
     }
-    "will accept WebSocket connections" in {
+    "accepts WebSocket connections" in {
       val wsProbe = WSProbe()
       WS("/ws", wsProbe.flow)
         .addHeader(
@@ -52,7 +52,7 @@ class HttpControllerSpec extends FreeSpec with HttpController with ScalatestRout
         wsProbe.expectCompletion()
       }
     }
-    "will provide status information" in {
+    "provides status information" in {
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)

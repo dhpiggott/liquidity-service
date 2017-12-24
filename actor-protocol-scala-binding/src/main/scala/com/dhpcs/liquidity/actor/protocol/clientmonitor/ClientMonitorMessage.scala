@@ -7,10 +7,15 @@ import com.dhpcs.liquidity.model.PublicKey
 final case class ActiveClientSummary(publicKey: PublicKey)
 
 sealed abstract class ClientMonitorMessage
-case object LogActiveClientsCount                                                      extends ClientMonitorMessage
-final case class GetActiveClientSummaries(replyTo: ActorRef[Set[ActiveClientSummary]]) extends ClientMonitorMessage
+case object LogActiveClientsCount extends ClientMonitorMessage
+final case class GetActiveClientSummaries(
+    replyTo: ActorRef[Set[ActiveClientSummary]])
+    extends ClientMonitorMessage
 
-sealed abstract class SerializableClientMonitorMessage extends ClientMonitorMessage with Serializable
-final case class UpsertActiveClientSummary(clientConnection: ActorRef[ClientConnectionMessage],
-                                           activeClientSummary: ActiveClientSummary)
+sealed abstract class SerializableClientMonitorMessage
+    extends ClientMonitorMessage
+    with Serializable
+final case class UpsertActiveClientSummary(
+    clientConnection: ActorRef[ClientConnectionMessage],
+    activeClientSummary: ActiveClientSummary)
     extends SerializableClientMonitorMessage

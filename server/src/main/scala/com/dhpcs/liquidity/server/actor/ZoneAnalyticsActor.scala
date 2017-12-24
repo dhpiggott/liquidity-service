@@ -25,10 +25,10 @@ object ZoneAnalyticsActor {
   sealed abstract class ZoneAnalyticsMessage
   case object StopZoneAnalytics extends ZoneAnalyticsMessage
 
-  def singletonBehavior(
-      readJournal: JdbcReadJournal,
-      analyticsTransactor: Transactor[IO],
-      transactIoToFuture: TransactIoToFuture)(implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
+  def singletonBehavior(readJournal: JdbcReadJournal,
+                        analyticsTransactor: Transactor[IO],
+                        transactIoToFuture: TransactIoToFuture)(
+      implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Actor.deferred { context =>
       val log = Logging(context.system.toUntyped, context.self.toUntyped)
       val offset = transactIoToFuture(analyticsTransactor)(for {
@@ -36,7 +36,8 @@ object ZoneAnalyticsActor {
         offset <- maybePreviousOffset match {
           case None =>
             val firstOffset = Sequence(0)
-            for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag, firstOffset)) yield firstOffset
+            for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag,
+                                             firstOffset)) yield firstOffset
           case Some(previousOffset) =>
             previousOffset.pure[ConnectionIO]
         }
@@ -47,9 +48,10 @@ object ZoneAnalyticsActor {
           .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
           .viaMat(KillSwitches.single)(Keep.right)
           .mapAsync(1) { eventEnvelope =>
-            val zoneId            = ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
-            val zoneEventEnvelope = eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
-            val offset            = eventEnvelope.offset.asInstanceOf[Sequence]
+            val zoneId = ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
+            val zoneEventEnvelope =
+              eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
+            val offset = eventEnvelope.offset.asInstanceOf[Sequence]
             transactIoToFuture(analyticsTransactor)(for {
               _ <- projectEvent(zoneId, zoneEventEnvelope)
               _ <- TagOffsetsStore.update(EventTags.ZoneEventTag, offset)
@@ -59,7 +61,8 @@ object ZoneAnalyticsActor {
           .groupedWithin(n = 1000, d = 30.seconds)
           .map { group =>
             val (offset, index) = group.last
-            log.info(s"Projected ${group.size} zone events (total: ${index + 1}, offset: ${offset.value})")
+            log.info(
+              s"Projected ${group.size} zone events (total: ${index + 1}, offset: ${offset.value})")
           }
           .toMat(Sink.ignore)(Keep.both)
           .run()
@@ -78,7 +81,9 @@ object ZoneAnalyticsActor {
       }
     }
 
-  private[this] def projectEvent(zoneId: ZoneId, zoneEventEnvelope: ZoneEventEnvelope): ConnectionIO[Unit] =
+  private[this] def projectEvent(
+      zoneId: ZoneId,
+      zoneEventEnvelope: ZoneEventEnvelope): ConnectionIO[Unit] =
     for {
       _ <- zoneEventEnvelope.zoneEvent match {
         case EmptyZoneEvent =>
@@ -107,33 +112,53 @@ object ZoneAnalyticsActor {
 
             case Some(actorRef) =>
               for {
-                previousSessionId <- ClientSessionsStore.retrieve(zoneId, actorRef)
-                _                 <- ClientSessionsStore.update(previousSessionId, quit = zoneEventEnvelope.timestamp)
+                previousSessionId <- ClientSessionsStore.retrieve(zoneId,
+                                                                  actorRef)
+                _ <- ClientSessionsStore.update(previousSessionId,
+                                                quit =
+                                                  zoneEventEnvelope.timestamp)
               } yield ()
           }
 
         case ZoneNameChangedEvent(name) =>
-          ZoneNameChangeStore.insert(zoneId, name, changed = zoneEventEnvelope.timestamp)
+          ZoneNameChangeStore.insert(zoneId,
+                                     name,
+                                     changed = zoneEventEnvelope.timestamp)
 
         case MemberCreatedEvent(member) =>
-          MembersStore.insert(zoneId, member, created = zoneEventEnvelope.timestamp)
+          MembersStore.insert(zoneId,
+                              member,
+                              created = zoneEventEnvelope.timestamp)
 
         case MemberUpdatedEvent(member) =>
-          MemberUpdatesStore.insert(zoneId, member, updated = zoneEventEnvelope.timestamp)
+          MemberUpdatesStore.insert(zoneId,
+                                    member,
+                                    updated = zoneEventEnvelope.timestamp)
 
         case AccountCreatedEvent(account) =>
-          AccountsStore.insert(zoneId, account, created = zoneEventEnvelope.timestamp, balance = BigDecimal(0))
+          AccountsStore.insert(zoneId,
+                               account,
+                               created = zoneEventEnvelope.timestamp,
+                               balance = BigDecimal(0))
 
         case AccountUpdatedEvent(_, account) =>
-          AccountUpdatesStore.insert(zoneId, account, updated = zoneEventEnvelope.timestamp)
+          AccountUpdatesStore.insert(zoneId,
+                                     account,
+                                     updated = zoneEventEnvelope.timestamp)
 
         case TransactionAddedEvent(transaction) =>
           for {
-            _                  <- TransactionsStore.insert(zoneId, transaction)
-            sourceBalance      <- AccountsStore.retrieveBalance(zoneId, transaction.from)
-            _                  <- AccountsStore.update(zoneId, transaction.from, sourceBalance - transaction.value)
-            destinationBalance <- AccountsStore.retrieveBalance(zoneId, transaction.to)
-            _                  <- AccountsStore.update(zoneId, transaction.to, destinationBalance + transaction.value)
+            _ <- TransactionsStore.insert(zoneId, transaction)
+            sourceBalance <- AccountsStore.retrieveBalance(zoneId,
+                                                           transaction.from)
+            _ <- AccountsStore.update(zoneId,
+                                      transaction.from,
+                                      sourceBalance - transaction.value)
+            destinationBalance <- AccountsStore.retrieveBalance(zoneId,
+                                                                transaction.to)
+            _ <- AccountsStore.update(zoneId,
+                                      transaction.to,
+                                      destinationBalance + transaction.value)
           } yield ()
       }
       _ <- ZoneStore.update(zoneId, modified = zoneEventEnvelope.timestamp)

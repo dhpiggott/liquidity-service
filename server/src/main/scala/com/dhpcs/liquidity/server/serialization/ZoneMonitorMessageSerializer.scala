@@ -13,7 +13,9 @@ class ZoneMonitorMessageSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(
-        AnyRefProtoBinding[UpsertActiveZoneSummary, proto.actor.protocol.zonemonitor.UpsertActiveZoneSummary]
+        AnyRefProtoBinding[
+          UpsertActiveZoneSummary,
+          proto.actor.protocol.zonemonitor.UpsertActiveZoneSummary]
       ),
       identifier = 1135983027
     )

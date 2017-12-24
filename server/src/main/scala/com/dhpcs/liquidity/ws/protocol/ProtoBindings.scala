@@ -22,23 +22,29 @@ object ProtoBindings {
       (_, _) => QuitZoneCommand
     )
 
-  implicit final val UnitProtoBinding: ProtoBinding[Unit, com.google.protobuf.ByteString, Any] =
+  implicit final val UnitProtoBinding
+    : ProtoBinding[Unit, com.google.protobuf.ByteString, Any] =
     ProtoBinding.instance(
       (_, _) => com.google.protobuf.ByteString.EMPTY,
       (_, _) => ()
     )
 
   implicit final val CreateZoneCommandProtoBinding
-    : ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any] =
+    : ProtoBinding[CreateZoneCommand,
+                   proto.ws.protocol.ZoneCommand.CreateZoneCommand,
+                   Any] =
     cachedImplicit
 
-  implicit final val ZoneCommandProtoBinding: ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any] =
+  implicit final val ZoneCommandProtoBinding
+    : ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any] =
     cachedImplicit
 
-  implicit final val ZoneResponseProtoBinding: ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any] =
+  implicit final val ZoneResponseProtoBinding
+    : ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any] =
     cachedImplicit
 
   implicit final val ZoneNotificationProtoBinding
-    : ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any] = cachedImplicit
+    : ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any] =
+    cachedImplicit
 
 }

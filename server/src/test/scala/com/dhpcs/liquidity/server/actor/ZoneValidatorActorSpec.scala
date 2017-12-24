@@ -21,17 +21,22 @@ import org.scalatest.{Inside, Outcome, fixture}
 
 import scala.util.Random
 
-class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTestFixtures with Inside {
+class ZoneValidatorActorSpec
+    extends fixture.FreeSpec
+    with InmemoryPersistenceTestFixtures
+    with Inside {
 
   private[this] val remoteAddress = InetAddress.getLoopbackAddress
-  private[this] val publicKey     = PublicKey(TestKit.rsaPublicKey.getEncoded)
+  private[this] val publicKey = PublicKey(TestKit.rsaPublicKey.getEncoded)
 
-  override protected type FixtureParam = (TestProbe, ZoneId, typed.ActorRef[SerializableZoneValidatorMessage])
+  override protected type FixtureParam =
+    (TestProbe, ZoneId, typed.ActorRef[SerializableZoneValidatorMessage])
 
   override protected def withFixture(test: OneArgTest): Outcome = {
     val clientConnectionTestProbe = TestProbe()
-    val zoneId                    = ZoneId(UUID.randomUUID.toString)
-    val zoneValidator             = system.spawn(ZoneValidatorActor.shardingBehavior, name = zoneId.persistenceId)
+    val zoneId = ZoneId(UUID.randomUUID.toString)
+    val zoneValidator = system.spawn(ZoneValidatorActor.shardingBehavior,
+                                     name = zoneId.persistenceId)
     try withFixture(
       test.toNoArgTest((clientConnectionTestProbe, zoneId, zoneValidator))
     )
@@ -52,7 +57,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
           )
         )
         assert(
-          expectResponse(fixture) === CreateZoneResponse(Validated.invalidNel(ZoneResponse.Error.tagLengthExceeded)))
+          expectResponse(fixture) === CreateZoneResponse(
+            Validated.invalidNel(ZoneResponse.Error.tagLengthExceeded)))
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -63,7 +69,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
         sendCommand(fixture)(
           JoinZoneCommand
         )
-        assert(expectResponse(fixture) === JoinZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+        assert(
+          expectResponse(fixture) === JoinZoneResponse(
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -75,7 +83,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
         sendCommand(fixture)(
           QuitZoneCommand
         )
-        assert(expectResponse(fixture) === QuitZoneResponse(Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+        assert(
+          expectResponse(fixture) === QuitZoneResponse(
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -108,7 +118,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
             metadata = None
           )
         )
-        assert(expectResponse(fixture) === CreateMemberResponse(Validated.invalidNel(ZoneResponse.Error.noPublicKeys)))
+        assert(
+          expectResponse(fixture) === CreateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.noPublicKeys)))
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -118,7 +130,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
     "receiving update member commands" - {
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
-        val member                                             = createMember(fixture)
+        val member = createMember(fixture)
         val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
         clientConnectionTestProbe.send(
           zoneValidator.toUntyped,
@@ -132,7 +144,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
           )
         )
         assert(
-          expectResponse(fixture) === UpdateMemberResponse(Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)))
+          expectResponse(fixture) === UpdateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)))
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -151,7 +164,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
             metadata = None
           )
         )
-        assert(expectResponse(fixture) === CreateAccountResponse(Validated.invalidNel(ZoneResponse.Error.noMemberIds)))
+        assert(
+          expectResponse(fixture) === CreateAccountResponse(
+            Validated.invalidNel(ZoneResponse.Error.noMemberIds)))
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -162,7 +177,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
     "receiving update account commands" - {
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
-        val member  = createMember(fixture)
+        val member = createMember(fixture)
         val account = createAccount(fixture, member.id)
         sendCommand(fixture)(
           UpdateAccountCommand(
@@ -176,15 +191,15 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
-        val member  = createMember(fixture)
+        val member = createMember(fixture)
         val account = createAccount(fixture, member.id)
         updateAccount(fixture, account)
       }
     }
     "receiving add transaction commands" - {
       "rejects it if source has insufficient credit" in { fixture =>
-        val zone    = createZone(fixture)
-        val member  = createMember(fixture)
+        val zone = createZone(fixture)
+        val member = createMember(fixture)
         val account = createAccount(fixture, member.id)
         sendCommand(fixture)(
           AddTransactionCommand(
@@ -201,8 +216,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
             Validated.invalidNel(ZoneResponse.Error.insufficientBalance)))
       }
       "accepts it if valid" in { fixture =>
-        val zone    = createZone(fixture)
-        val member  = createMember(fixture)
+        val zone = createZone(fixture)
+        val member = createMember(fixture)
         val account = createAccount(fixture, member.id)
         addTransaction(fixture, zone, account.id)
       }
@@ -224,12 +239,23 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
       case CreateZoneResponse(Validated.Valid(zone)) =>
         assert(zone.accounts.size === 1)
         assert(zone.members.size === 1)
-        val equityAccount      = zone.accounts(zone.equityAccountId)
+        val equityAccount = zone.accounts(zone.equityAccountId)
         val equityAccountOwner = zone.members(equityAccount.ownerMemberIds.head)
-        assert(equityAccount === Account(equityAccount.id, ownerMemberIds = Set(equityAccountOwner.id)))
-        assert(equityAccountOwner === Member(equityAccountOwner.id, Set(publicKey), name = Some("Dave")))
-        assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 5000L))
-        assert(zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 5000L))
+        assert(
+          equityAccount === Account(
+            equityAccount.id,
+            ownerMemberIds = Set(equityAccountOwner.id)))
+        assert(
+          equityAccountOwner === Member(equityAccountOwner.id,
+                                        Set(publicKey),
+                                        name = Some("Dave")))
+        assert(
+          zone.created === Spread(pivot = Instant.now().toEpochMilli,
+                                  tolerance = 5000L))
+        assert(
+          zone.expires === Spread(
+            pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
+            tolerance = 5000L))
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))
         assert(zone.metadata === None)
@@ -246,22 +272,34 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
       case JoinZoneResponse(Validated.Valid((zone, connectedClients))) =>
         assert(zone.accounts.size === 1)
         assert(zone.members.size === 1)
-        val equityAccount      = zone.accounts(zone.equityAccountId)
+        val equityAccount = zone.accounts(zone.equityAccountId)
         val equityAccountOwner = zone.members(equityAccount.ownerMemberIds.head)
-        assert(equityAccount === Account(equityAccount.id, ownerMemberIds = Set(equityAccountOwner.id)))
-        assert(equityAccountOwner === Member(equityAccountOwner.id, Set(publicKey), name = Some("Dave")))
-        assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 5000L))
-        assert(zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 5000L))
+        assert(
+          equityAccount === Account(
+            equityAccount.id,
+            ownerMemberIds = Set(equityAccountOwner.id)))
+        assert(
+          equityAccountOwner === Member(equityAccountOwner.id,
+                                        Set(publicKey),
+                                        name = Some("Dave")))
+        assert(
+          zone.created === Spread(pivot = Instant.now().toEpochMilli,
+                                  tolerance = 5000L))
+        assert(
+          zone.expires === Spread(
+            pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
+            tolerance = 5000L))
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))
         assert(zone.metadata === None)
         assert(
-          connectedClients === Map(
-            ActorRefResolver(system.toTyped).toSerializationFormat(clientConnectionTestProbe.ref) -> publicKey))
+          connectedClients === Map(ActorRefResolver(system.toTyped)
+            .toSerializationFormat(clientConnectionTestProbe.ref) -> publicKey))
     }
     assert(
       expectNotification(fixture) === ClientJoinedNotification(
-        connectionId = ActorRefResolver(system.toTyped).toSerializationFormat(clientConnectionTestProbe.ref),
+        connectionId = ActorRefResolver(system.toTyped)
+          .toSerializationFormat(clientConnectionTestProbe.ref),
         publicKey
       )
     ); ()
@@ -271,14 +309,17 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
     sendCommand(fixture)(
       QuitZoneCommand
     )
-    assert(expectResponse(fixture) === QuitZoneResponse(Validated.Valid(()))); ()
+    assert(expectResponse(fixture) === QuitZoneResponse(Validated.Valid(())));
+    ()
   }
 
   private[this] def changeZoneName(fixture: FixtureParam): Unit = {
     sendCommand(fixture)(
       ChangeZoneNameCommand(None)
     )
-    assert(expectResponse(fixture) === ChangeZoneNameResponse(Validated.Valid(()))); ()
+    assert(
+      expectResponse(fixture) === ChangeZoneNameResponse(Validated.Valid(())));
+    ()
   }
 
   private[this] def createMember(fixture: FixtureParam): Member = {
@@ -297,7 +338,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
     }
   }
 
-  private[this] def updateMember(fixture: FixtureParam, member: Member): Unit = {
+  private[this] def updateMember(fixture: FixtureParam,
+                                 member: Member): Unit = {
     sendCommand(fixture)(
       UpdateMemberCommand(member.copy(name = None))
     )
@@ -306,7 +348,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
     }
   }
 
-  private[this] def updateAccount(fixture: FixtureParam, account: Account): Unit = {
+  private[this] def updateAccount(fixture: FixtureParam,
+                                  account: Account): Unit = {
     sendCommand(fixture)(
       UpdateAccountCommand(
         actingAs = account.ownerMemberIds.head,
@@ -318,7 +361,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
     }
   }
 
-  private[this] def createAccount(fixture: FixtureParam, memberId: MemberId): Account = {
+  private[this] def createAccount(fixture: FixtureParam,
+                                  memberId: MemberId): Account = {
     sendCommand(fixture)(
       CreateAccountCommand(
         ownerMemberIds = Set(memberId),
@@ -334,7 +378,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
     }
   }
 
-  private[this] def addTransaction(fixture: FixtureParam, zone: Zone, to: AccountId): Unit = {
+  private[this] def addTransaction(fixture: FixtureParam,
+                                   zone: Zone,
+                                   to: AccountId): Unit = {
     sendCommand(fixture)(
       AddTransactionCommand(
         actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
@@ -350,15 +396,22 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
         assert(transaction.from === zone.equityAccountId)
         assert(transaction.to === to)
         assert(transaction.value === BigDecimal(5000))
-        assert(transaction.creator === zone.accounts(zone.equityAccountId).ownerMemberIds.head)
-        assert(transaction.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 5000L))
+        assert(
+          transaction.creator === zone
+            .accounts(zone.equityAccountId)
+            .ownerMemberIds
+            .head)
+        assert(
+          transaction.created === Spread(pivot = Instant.now().toEpochMilli,
+                                         tolerance = 5000L))
         assert(transaction.description === Some("Jenny's Lottery Win"))
         assert(transaction.metadata === None)
         ()
     }
   }
 
-  private[this] def sendCommand(fixture: FixtureParam)(zoneCommand: ZoneCommand): Unit = {
+  private[this] def sendCommand(fixture: FixtureParam)(
+      zoneCommand: ZoneCommand): Unit = {
     val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
     clientConnectionTestProbe.send(
       zoneValidator.toUntyped,
@@ -375,14 +428,17 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with InmemoryPersistenceTe
 
   private[this] def expectResponse(fixture: FixtureParam): ZoneResponse = {
     val (clientConnectionTestProbe, _, _) = fixture
-    val responseWithIds                   = clientConnectionTestProbe.expectMsgType[ZoneResponseEnvelope]
+    val responseWithIds =
+      clientConnectionTestProbe.expectMsgType[ZoneResponseEnvelope]
     assert(responseWithIds.correlationId === 0)
     responseWithIds.zoneResponse
   }
 
-  private[this] def expectNotification(fixture: FixtureParam): ZoneNotification = {
+  private[this] def expectNotification(
+      fixture: FixtureParam): ZoneNotification = {
     val (clientConnectionTestProbe, _, _) = fixture
-    val notificationWithIds               = clientConnectionTestProbe.expectMsgType[ZoneNotificationEnvelope]
+    val notificationWithIds =
+      clientConnectionTestProbe.expectMsgType[ZoneNotificationEnvelope]
     notificationWithIds.zoneNotification
   }
 }

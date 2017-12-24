@@ -9,12 +9,14 @@ import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import org.scalatest.FreeSpec
 
-class ZoneMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures {
+class ZoneMonitorActorSpec
+    extends FreeSpec
+    with InmemoryPersistenceTestFixtures {
 
   "A ZoneMonitorActor" - {
     "provides a summary of the active zones" in {
       val zoneMonitor = system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
-      val testProbe   = TestProbe()
+      val testProbe = TestProbe()
       val activeZoneSummary = ActiveZoneSummary(
         zoneId = ZoneId(UUID.randomUUID().toString),
         members = 0,

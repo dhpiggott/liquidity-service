@@ -13,7 +13,9 @@ class ClientMonitorMessageSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(
-        AnyRefProtoBinding[UpsertActiveClientSummary, proto.actor.protocol.clientmonitor.UpsertActiveClientSummary]
+        AnyRefProtoBinding[
+          UpsertActiveClientSummary,
+          proto.actor.protocol.clientmonitor.UpsertActiveClientSummary]
       ),
       identifier = 365517741
     )

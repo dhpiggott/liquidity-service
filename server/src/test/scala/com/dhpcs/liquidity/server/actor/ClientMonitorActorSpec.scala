@@ -8,13 +8,17 @@ import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.testkit.TestKit
 import org.scalatest.FreeSpec
 
-class ClientMonitorActorSpec extends FreeSpec with InmemoryPersistenceTestFixtures {
+class ClientMonitorActorSpec
+    extends FreeSpec
+    with InmemoryPersistenceTestFixtures {
 
   "A ClientMonitorActor" - {
     "provides a summary of the active clients" in {
-      val clientMonitor       = system.spawn(ClientMonitorActor.behavior, "clientMonitor")
-      val testProbe           = TestProbe()
-      val activeClientSummary = ActiveClientSummary(PublicKey(TestKit.rsaPublicKey.getEncoded))
+      val clientMonitor =
+        system.spawn(ClientMonitorActor.behavior, "clientMonitor")
+      val testProbe = TestProbe()
+      val activeClientSummary =
+        ActiveClientSummary(PublicKey(TestKit.rsaPublicKey.getEncoded))
       testProbe.send(
         clientMonitor.toUntyped,
         UpsertActiveClientSummary(testProbe.ref, activeClientSummary)

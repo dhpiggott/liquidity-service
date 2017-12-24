@@ -16,7 +16,11 @@ import akka.stream.scaladsl.{Flow, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.typed.Props
 import akka.typed.cluster.sharding.{ClusterSharding, ClusterShardingSettings}
-import akka.typed.cluster.{ActorRefResolver, ClusterSingleton, ClusterSingletonSettings}
+import akka.typed.cluster.{
+  ActorRefResolver,
+  ClusterSingleton,
+  ClusterSingletonSettings
+}
 import akka.typed.scaladsl.AskPattern._
 import akka.typed.scaladsl.adapter._
 import akka.util.Timeout
@@ -45,9 +49,9 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object LiquidityServer {
 
-  private final val ZoneHostRole    = "zone-host"
+  private final val ZoneHostRole = "zone-host"
   private final val ClientRelayRole = "client-relay"
-  private final val AnalyticsRole   = "analytics"
+  private final val AnalyticsRole = "analytics"
 
   class TransactIoToFuture(ec: ExecutionContext) {
     def apply[A](transactor: Transactor[IO])(io: ConnectionIO[A]): Future[A] =
@@ -58,7 +62,7 @@ object LiquidityServer {
   }
 
   def main(args: Array[String]): Unit = {
-    val config                        = ConfigFactory.parseString(s"""
+    val config = ConfigFactory.parseString(s"""
         |akka {
         |  loggers = ["akka.event.slf4j.Slf4jLogger"]
         |  loglevel = "DEBUG"
@@ -121,13 +125,14 @@ object LiquidityServer {
         |  }
         |}
       """.stripMargin).resolve()
-    implicit val system: ActorSystem  = ActorSystem("liquidity", config)
-    implicit val mat: Materializer    = ActorMaterializer()
+    implicit val system: ActorSystem = ActorSystem("liquidity", config)
+    implicit val mat: Materializer = ActorMaterializer()
     implicit val ec: ExecutionContext = ExecutionContext.global
-    val clusterHttpManagement         = ClusterHttpManagement(Cluster(system))
+    val clusterHttpManagement = ClusterHttpManagement(Cluster(system))
     clusterHttpManagement.start()
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseClusterExitingDone, "clusterHttpManagementStop")(() =>
-      clusterHttpManagement.stop())
+    CoordinatedShutdown(system).addTask(
+      CoordinatedShutdown.PhaseClusterExitingDone,
+      "clusterHttpManagementStop")(() => clusterHttpManagement.stop())
     val analyticsTransactor = (for {
       analyticsTransactor <- HikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
@@ -137,7 +142,8 @@ object LiquidityServer {
       )
       _ <- analyticsTransactor.configure(_.setMaximumPoolSize(2))
     } yield analyticsTransactor).unsafeRunSync()
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
+                                        "liquidityServerUnbind")(() =>
       for (_ <- analyticsTransactor.shutdown.unsafeToFuture()) yield Done)
     val server = new LiquidityServer(
       analyticsTransactor,
@@ -146,39 +152,47 @@ object LiquidityServer {
       httpPort = 80
     )
     val httpBinding = server.bindHttp()
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind, "liquidityServerUnbind")(() =>
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
+                                        "liquidityServerUnbind")(() =>
       for (_ <- httpBinding.flatMap(_.unbind())) yield Done)
   }
 }
 
-class LiquidityServer(analyticsTransactor: Transactor[IO],
-                      pingInterval: FiniteDuration,
-                      httpInterface: String,
-                      httpPort: Int)(implicit system: ActorSystem, mat: Materializer)
+class LiquidityServer(
+    analyticsTransactor: Transactor[IO],
+    pingInterval: FiniteDuration,
+    httpInterface: String,
+    httpPort: Int)(implicit system: ActorSystem, mat: Materializer)
     extends HttpController {
 
-  private[this] val readJournal = PersistenceQuery(system).readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
+  private[this] val readJournal = PersistenceQuery(system)
+    .readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
 
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
-  private[this] implicit val askTimeout: Timeout  = Timeout(30.seconds)
+  private[this] implicit val askTimeout: Timeout = Timeout(30.seconds)
   private[this] val transactIoToFuture = new TransactIoToFuture(
     ExecutionContext.fromExecutorService(Executors.newCachedThreadPool()))
 
-  private[this] val clientMonitor = system.spawn(ClientMonitorActor.behavior, "clientMonitor")
-  private[this] val zoneMonitor   = system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
+  private[this] val clientMonitor =
+    system.spawn(ClientMonitorActor.behavior, "clientMonitor")
+  private[this] val zoneMonitor =
+    system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
 
-  private[this] val zoneValidatorShardRegion = ClusterSharding(system.toTyped).spawn(
-    behavior = ZoneValidatorActor.shardingBehavior,
-    entityProps = Props.empty,
-    typeKey = ZoneValidatorActor.ShardingTypeName,
-    settings = ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
-    messageExtractor = ZoneValidatorActor.messageExtractor,
-    handOffStopMessage = StopZone
-  )
+  private[this] val zoneValidatorShardRegion =
+    ClusterSharding(system.toTyped).spawn(
+      behavior = ZoneValidatorActor.shardingBehavior,
+      entityProps = Props.empty,
+      typeKey = ZoneValidatorActor.ShardingTypeName,
+      settings = ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
+      messageExtractor = ZoneValidatorActor.messageExtractor,
+      handOffStopMessage = StopZone
+    )
 
   ClusterSingleton(system.toTyped).spawn(
-    behavior = ZoneAnalyticsActor.singletonBehavior(readJournal, analyticsTransactor, transactIoToFuture),
+    behavior = ZoneAnalyticsActor.singletonBehavior(readJournal,
+                                                    analyticsTransactor,
+                                                    transactIoToFuture),
     singletonName = "zoneAnalyticsSingleton",
     props = Props.empty,
     settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
@@ -187,55 +201,73 @@ class LiquidityServer(analyticsTransactor: Transactor[IO],
 
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
     logRequestResult(("HTTP API", Logging.InfoLevel))(
-      httpRoutes(enableClientRelay = Cluster(system).selfMember.roles.contains(ClientRelayRole))),
+      httpRoutes(enableClientRelay =
+        Cluster(system).selfMember.roles.contains(ClientRelayRole))),
     httpInterface,
     httpPort
   )
 
-  override protected[this] def events(persistenceId: String,
-                                      fromSequenceNr: Long,
-                                      toSequenceNr: Long): Source[HttpController.EventEnvelope, NotUsed] =
+  override protected[this] def events(
+      persistenceId: String,
+      fromSequenceNr: Long,
+      toSequenceNr: Long): Source[HttpController.EventEnvelope, NotUsed] =
     readJournal
       .eventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr)
       .map {
         case EventEnvelope(_, _, sequenceNr, event) =>
           val protoEvent = event match {
             case zoneEventEnvelope: ZoneEventEnvelope =>
-              ProtoBinding[ZoneEventEnvelope, proto.persistence.zone.ZoneEventEnvelope, ActorRefResolver]
+              ProtoBinding[ZoneEventEnvelope,
+                           proto.persistence.zone.ZoneEventEnvelope,
+                           ActorRefResolver]
                 .asProto(zoneEventEnvelope)(ActorRefResolver(system.toTyped))
           }
           HttpController.EventEnvelope(sequenceNr, protoEvent)
       }
 
-  override protected[this] def zoneState(zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] = {
-    val zoneState: Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(_, zoneId))
+  override protected[this] def zoneState(
+      zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] = {
+    val zoneState
+      : Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(
+      _,
+      zoneId))
     zoneState.map(
-      ProtoBinding[ZoneState, proto.persistence.zone.ZoneState, ActorRefResolver]
+      ProtoBinding[ZoneState,
+                   proto.persistence.zone.ZoneState,
+                   ActorRefResolver]
         .asProto(_)(ActorRefResolver(system.toTyped)))
   }
 
-  override protected[this] def webSocketApi(remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
+  override protected[this] def webSocketApi(
+      remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      behavior = ClientConnectionActor.behavior(pingInterval, zoneValidatorShardRegion, remoteAddress)
+      behavior = ClientConnectionActor.behavior(pingInterval,
+                                                zoneValidatorShardRegion,
+                                                remoteAddress)
     )
 
-  override protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]] =
+  override protected[this] def getActiveClientSummaries
+    : Future[Set[ActiveClientSummary]] =
     clientMonitor ? GetActiveClientSummaries
 
-  override protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]] =
+  override protected[this] def getActiveZoneSummaries
+    : Future[Set[ActiveZoneSummary]] =
     zoneMonitor ? GetActiveZoneSummaries
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
     transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveOption(zoneId))
 
-  override protected[this] def getBalances(zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
-    transactIoToFuture(analyticsTransactor)(AccountsStore.retrieveAllBalances(zoneId))
+  override protected[this] def getBalances(
+      zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
+    transactIoToFuture(analyticsTransactor)(
+      AccountsStore.retrieveAllBalances(zoneId))
 
   override protected[this] def getZoneCount: Future[Long] =
     transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveCount)
 
   override protected[this] def getPublicKeyCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(MemberUpdatesStore.MemberOwnersStore.retrieveCount)
+    transactIoToFuture(analyticsTransactor)(
+      MemberUpdatesStore.MemberOwnersStore.retrieveCount)
 
   override protected[this] def getMemberCount: Future[Long] =
     transactIoToFuture(analyticsTransactor)(MembersStore.retrieveCount)

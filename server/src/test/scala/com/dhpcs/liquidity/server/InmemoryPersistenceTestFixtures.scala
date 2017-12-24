@@ -8,7 +8,7 @@ import org.scalatest.{BeforeAndAfterAll, Suite}
 trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
 
   private[this] val akkaRemotingPort = TestKit.freePort()
-  private[this] val config           = ConfigFactory.parseString(s"""
+  private[this] val config = ConfigFactory.parseString(s"""
        |akka {
        |  loglevel = "WARNING"
        |  actor {
@@ -45,7 +45,8 @@ trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |}
      """.stripMargin)
 
-  protected[this] implicit val system: ActorSystem = ActorSystem("liquidity", config)
+  protected[this] implicit val system: ActorSystem =
+    ActorSystem("liquidity", config)
 
   override protected def afterAll(): Unit = {
     akka.testkit.TestKit.shutdownActorSystem(system)

@@ -8,9 +8,17 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.cluster.MemberStatus.Up
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.ws.{BinaryMessage, WebSocketRequest, Message => WsMessage}
+import akka.http.scaladsl.model.ws.{
+  BinaryMessage,
+  WebSocketRequest,
+  Message => WsMessage
+}
 import akka.remote.testconductor.RoleName
-import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec, MultiNodeSpecCallbacks}
+import akka.remote.testkit.{
+  MultiNodeConfig,
+  MultiNodeSpec,
+  MultiNodeSpecCallbacks
+}
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
 import akka.stream.testkit.{TestPublisher, TestSubscriber}
@@ -40,8 +48,8 @@ import scala.concurrent.{Await, ExecutionContext}
 
 object LiquidityServerSpecConfig extends MultiNodeConfig {
 
-  val h2Node: RoleName          = role("h2-node")
-  val zoneHostNode: RoleName    = role("zone-host")
+  val h2Node: RoleName = role("h2-node")
+  val zoneHostNode: RoleName = role("zone-host")
   val clientRelayNode: RoleName = role("client-relay")
 
   commonConfig(ConfigFactory.parseString(s"""
@@ -152,7 +160,8 @@ class LiquidityServerSpecMultiJvmNode2 extends LiquidityServerSpec
 class LiquidityServerSpecMultiJvmNode3 extends LiquidityServerSpec
 
 sealed abstract class LiquidityServerSpec
-    extends MultiNodeSpec(LiquidityServerSpecConfig, config => ActorSystem("liquidity", config))
+    extends MultiNodeSpec(LiquidityServerSpecConfig,
+                          config => ActorSystem("liquidity", config))
     with MultiNodeSpecCallbacks
     with FreeSpecLike
     with BeforeAndAfterAll
@@ -186,7 +195,8 @@ sealed abstract class LiquidityServerSpec
       h2Server.start()
       val journalTransactor = Transactor.fromDriverManager[IO](
         driver = "org.h2.Driver",
-        url = "jdbc:h2:tcp://localhost/mem:liquidity_journal;DATABASE_TO_UPPER=false",
+        url =
+          "jdbc:h2:tcp://localhost/mem:liquidity_journal;DATABASE_TO_UPPER=false",
         user = "sa",
         pass = ""
       )
@@ -196,7 +206,8 @@ sealed abstract class LiquidityServerSpec
   }
 
   override protected def afterAll(): Unit = {
-    Await.result(httpBinding.flatMap(_.unbind())(ExecutionContext.global), Duration.Inf)
+    Await.result(httpBinding.flatMap(_.unbind())(ExecutionContext.global),
+                 Duration.Inf)
     multiNodeSpecAfterAll()
     runOn(h2Node) {
       h2Server.stop()
@@ -214,8 +225,8 @@ sealed abstract class LiquidityServerSpec
 
   "The test nodes" - (
     "form a cluster" in {
-      val cluster            = Cluster(system.toTyped)
-      val zoneHostAddress    = node(zoneHostNode).address
+      val cluster = Cluster(system.toTyped)
+      val zoneHostAddress = node(zoneHostNode).address
       val clientRelayAddress = node(clientRelayNode).address
       runOn(zoneHostNode)(
         cluster.manager ! JoinSeedNodes(Seq(zoneHostAddress))
@@ -225,7 +236,8 @@ sealed abstract class LiquidityServerSpec
       )
       runOn(zoneHostNode, clientRelayNode)(
         awaitCond(
-          cluster.state.members.map(_.address) == Set(zoneHostAddress, clientRelayAddress) &&
+          cluster.state.members.map(_.address) == Set(zoneHostAddress,
+                                                      clientRelayAddress) &&
             cluster.state.members.forall(_.status == Up)
         )
       )
@@ -235,54 +247,68 @@ sealed abstract class LiquidityServerSpec
 
   runOn(clientRelayNode) {
     "The LiquidityServer Protobuf WebSocket API" - {
-      "sends a PingCommand when left idle" in withProtobufWsTestProbes { (sub, _) =>
-        sub.within(10.seconds)(
-          assert(
-            expectProtobufCommand(sub) === proto.ws.protocol.ClientMessage.Command.Command
-              .PingCommand(com.google.protobuf.ByteString.EMPTY))
-        ); ()
+      "sends a PingCommand when left idle" in withProtobufWsTestProbes {
+        (sub, _) =>
+          sub.within(10.seconds)(
+            assert(
+              expectProtobufCommand(sub) === proto.ws.protocol.ClientMessage.Command.Command
+                .PingCommand(com.google.protobuf.ByteString.EMPTY))
+          ); ()
       }
-      "replies with a JoinZoneResponse when sent a JoinZoneCommand" in withProtobufWsTestProbes { (sub, pub) =>
-        sendProtobufCreateZoneCommand(pub)(
-          CreateZoneCommand(
-            equityOwnerPublicKey = PublicKey(TestKit.rsaPublicKey.getEncoded),
-            equityOwnerName = Some("Dave"),
-            equityOwnerMetadata = None,
-            equityAccountName = None,
-            equityAccountMetadata = None,
-            name = Some("Dave's Game")
-          ),
-          correlationId = 0L
-        )
-        sub.within(10.seconds)(inside(expectProtobufZoneResponse(sub, expectedCorrelationId = 0L)) {
-          case CreateZoneResponse(Validated.Valid(zone)) =>
-            assert(zone.accounts.size === 1)
-            assert(zone.members.size === 1)
-            val equityAccount      = zone.accounts(zone.equityAccountId)
-            val equityAccountOwner = zone.members(equityAccount.ownerMemberIds.head)
-            assert(equityAccount === Account(equityAccount.id, ownerMemberIds = Set(equityAccountOwner.id)))
-            assert(
-              equityAccountOwner === Member(equityAccountOwner.id,
-                                            Set(PublicKey(TestKit.rsaPublicKey.getEncoded)),
-                                            name = Some("Dave")))
-            assert(zone.created === Spread(pivot = Instant.now().toEpochMilli, tolerance = 5000L))
-            assert(
-              zone.expires === Spread(pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli, tolerance = 5000L))
-            assert(zone.transactions === Map.empty)
-            assert(zone.name === Some("Dave's Game"))
-            assert(zone.metadata === None)
-            sendProtobufZoneCommand(pub)(
-              zone.id,
-              JoinZoneCommand,
-              correlationId = 1L
-            )
-            inside(expectProtobufZoneResponse(sub, expectedCorrelationId = 1L)) {
-              case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
-                val (_zone, _connectedClients) = zoneAndConnectedClients
-                assert(_zone === zone)
-                assert(_connectedClients.values.toSet === Set(PublicKey(TestKit.rsaPublicKey.getEncoded)))
-            }
-        }); ()
+      "replies with a JoinZoneResponse when sent a JoinZoneCommand" in withProtobufWsTestProbes {
+        (sub, pub) =>
+          sendProtobufCreateZoneCommand(pub)(
+            CreateZoneCommand(
+              equityOwnerPublicKey = PublicKey(TestKit.rsaPublicKey.getEncoded),
+              equityOwnerName = Some("Dave"),
+              equityOwnerMetadata = None,
+              equityAccountName = None,
+              equityAccountMetadata = None,
+              name = Some("Dave's Game")
+            ),
+            correlationId = 0L
+          )
+          sub.within(10.seconds)(inside(
+            expectProtobufZoneResponse(sub, expectedCorrelationId = 0L)) {
+            case CreateZoneResponse(Validated.Valid(zone)) =>
+              assert(zone.accounts.size === 1)
+              assert(zone.members.size === 1)
+              val equityAccount = zone.accounts(zone.equityAccountId)
+              val equityAccountOwner =
+                zone.members(equityAccount.ownerMemberIds.head)
+              assert(
+                equityAccount === Account(equityAccount.id,
+                                          ownerMemberIds =
+                                            Set(equityAccountOwner.id)))
+              assert(
+                equityAccountOwner === Member(
+                  equityAccountOwner.id,
+                  Set(PublicKey(TestKit.rsaPublicKey.getEncoded)),
+                  name = Some("Dave")))
+              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli,
+                                             tolerance = 5000L))
+              assert(
+                zone.expires === Spread(
+                  pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
+                  tolerance = 5000L))
+              assert(zone.transactions === Map.empty)
+              assert(zone.name === Some("Dave's Game"))
+              assert(zone.metadata === None)
+              sendProtobufZoneCommand(pub)(
+                zone.id,
+                JoinZoneCommand,
+                correlationId = 1L
+              )
+              inside(
+                expectProtobufZoneResponse(sub, expectedCorrelationId = 1L)) {
+                case JoinZoneResponse(
+                    Validated.Valid(zoneAndConnectedClients)) =>
+                  val (_zone, _connectedClients) = zoneAndConnectedClients
+                  assert(_zone === zone)
+                  assert(_connectedClients.values.toSet === Set(
+                    PublicKey(TestKit.rsaPublicKey.getEncoded)))
+              }
+          }); ()
       }
     }
   }
@@ -293,7 +319,8 @@ sealed abstract class LiquidityServerSpec
 
   private[this] def withProtobufWsTestProbes(
       test: (TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-             TestPublisher.Probe[proto.ws.protocol.ServerMessage]) => Unit): Unit = {
+             TestPublisher.Probe[proto.ws.protocol.ServerMessage]) => Unit)
+    : Unit = {
     val testProbeFlow = Flow.fromSinkAndSourceMat(
       TestSink.probe[proto.ws.protocol.ClientMessage],
       TestSource.probe[proto.ws.protocol.ServerMessage]
@@ -313,7 +340,9 @@ sealed abstract class LiquidityServerSpec
     sendProtobufMessage(pub)(
       proto.ws.protocol.ServerMessage.Message
         .KeyOwnershipProof(
-          Authentication.createKeyOwnershipProof(TestKit.rsaPublicKey, TestKit.rsaPrivateKey, keyOwnershipChallenge))
+          Authentication.createKeyOwnershipProof(TestKit.rsaPublicKey,
+                                                 TestKit.rsaPrivateKey,
+                                                 keyOwnershipChallenge))
     )
     try test(sub, pub)
     finally {
@@ -321,21 +350,26 @@ sealed abstract class LiquidityServerSpec
     }
   }
 
-  private final val ProtobufInFlow: Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
-    Flow[WsMessage].flatMapConcat(wsMessage =>
-      for (byteString <- wsMessage.asBinaryMessage match {
-             case BinaryMessage.Streamed(dataStream) =>
-               dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
-             case BinaryMessage.Strict(data) => Source.single(data)
-           }) yield proto.ws.protocol.ClientMessage.parseFrom(byteString.toArray))
+  private final val ProtobufInFlow
+    : Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
+    Flow[WsMessage].flatMapConcat(
+      wsMessage =>
+        for (byteString <- wsMessage.asBinaryMessage match {
+               case BinaryMessage.Streamed(dataStream) =>
+                 dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
+               case BinaryMessage.Strict(data) => Source.single(data)
+             })
+          yield proto.ws.protocol.ClientMessage.parseFrom(byteString.toArray))
 
-  private final val ProtobufOutFlow: Flow[proto.ws.protocol.ServerMessage, WsMessage, NotUsed] =
+  private final val ProtobufOutFlow
+    : Flow[proto.ws.protocol.ServerMessage, WsMessage, NotUsed] =
     Flow[proto.ws.protocol.ServerMessage].map(
       serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
     )
 
   private[this] def expectProtobufCommand(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage]): proto.ws.protocol.ClientMessage.Command.Command =
+      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
+    : proto.ws.protocol.ClientMessage.Command.Command =
     inside(sub.requestNext().message) {
       case proto.ws.protocol.ClientMessage.Message.Command(
           proto.ws.protocol.ClientMessage.Command(_, protoCommand)
@@ -343,53 +377,65 @@ sealed abstract class LiquidityServerSpec
         protoCommand
     }
 
-  private[this] def sendProtobufCreateZoneCommand(pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
+  private[this] def sendProtobufCreateZoneCommand(
+      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
       createZoneCommand: CreateZoneCommand,
       correlationId: Long): Unit =
     sendProtobufMessage(pub)(
-      proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
-        correlationId,
-        proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-          ProtoBinding[CreateZoneCommand, proto.ws.protocol.ZoneCommand.CreateZoneCommand, Any]
-            .asProto(createZoneCommand)(())
-        )
-      )))
+      proto.ws.protocol.ServerMessage.Message.Command(
+        proto.ws.protocol.ServerMessage.Command(
+          correlationId,
+          proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
+            ProtoBinding[CreateZoneCommand,
+                         proto.ws.protocol.ZoneCommand.CreateZoneCommand,
+                         Any]
+              .asProto(createZoneCommand)(())
+          )
+        )))
 
-  private[this] def sendProtobufZoneCommand(pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
+  private[this] def sendProtobufZoneCommand(
+      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
       zoneId: ZoneId,
       zoneCommand: ZoneCommand,
       correlationId: Long): Unit =
     sendProtobufMessage(pub)(
-      proto.ws.protocol.ServerMessage.Message.Command(proto.ws.protocol.ServerMessage.Command(
-        correlationId,
-        proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
-          proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
-            zoneId.id.toString,
-            Some(
-              ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any].asProto(zoneCommand)(())
-            )))
-      )))
+      proto.ws.protocol.ServerMessage.Message.Command(
+        proto.ws.protocol.ServerMessage.Command(
+          correlationId,
+          proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
+            proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
+              zoneId.id.toString,
+              Some(
+                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
+                  .asProto(zoneCommand)(())
+              )))
+        )))
 
-  private[this] def sendProtobufMessage(pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
+  private[this] def sendProtobufMessage(
+      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
       message: proto.ws.protocol.ServerMessage.Message): Unit = {
     pub.sendNext(
       proto.ws.protocol.ServerMessage(message)
     ); ()
   }
 
-  private[this] def expectProtobufZoneResponse(sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-                                               expectedCorrelationId: Long): ZoneResponse =
+  private[this] def expectProtobufZoneResponse(
+      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
+      expectedCorrelationId: Long): ZoneResponse =
     inside(expectProtobufMessage(sub)) {
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         assert(protoResponse.correlationId == expectedCorrelationId)
         inside(protoResponse.response) {
-          case proto.ws.protocol.ClientMessage.Response.Response.ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asScala(protoZoneResponse)(())
+          case proto.ws.protocol.ClientMessage.Response.Response
+                .ZoneResponse(protoZoneResponse) =>
+            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
+              .asScala(protoZoneResponse)(())
         }
     }
 
   private[this] def expectProtobufMessage(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage]): proto.ws.protocol.ClientMessage.Message =
+      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
+    : proto.ws.protocol.ClientMessage.Message =
     sub.requestNext().message
 
 }

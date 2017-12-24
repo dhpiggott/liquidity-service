@@ -13,8 +13,12 @@ class ClientConnectionMessageSerializer(system: ExtendedActorSystem)
     extends ProtoBindingBackedSerializer(
       system,
       protoBindings = Seq(
-        AnyRefProtoBinding[ZoneResponseEnvelope, proto.actor.protocol.clientconnection.ZoneResponseEnvelope],
-        AnyRefProtoBinding[ZoneNotificationEnvelope, proto.actor.protocol.clientconnection.ZoneNotificationEnvelope]
+        AnyRefProtoBinding[
+          ZoneResponseEnvelope,
+          proto.actor.protocol.clientconnection.ZoneResponseEnvelope],
+        AnyRefProtoBinding[
+          ZoneNotificationEnvelope,
+          proto.actor.protocol.clientconnection.ZoneNotificationEnvelope]
       ),
       identifier = 1909424086
     )

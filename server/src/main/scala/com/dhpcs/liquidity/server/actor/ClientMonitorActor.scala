@@ -19,16 +19,19 @@ object ClientMonitorActor {
   def behavior: Behavior[ClientMonitorMessage] =
     Actor.deferred(context =>
       Actor.withTimers { timers =>
-        val log      = Logging(context.system.toUntyped, context.self.toUntyped)
+        val log = Logging(context.system.toUntyped, context.self.toUntyped)
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         mediator ! Subscribe(ClientStatusTopic, context.self.toUntyped)
-        timers.startPeriodicTimer(LogActiveClientsCountTimerKey, LogActiveClientsCount, 5.minutes)
+        timers.startPeriodicTimer(LogActiveClientsCountTimerKey,
+                                  LogActiveClientsCount,
+                                  5.minutes)
         withSummaries(log, Map.empty)
     })
 
   private def withSummaries(
       log: LoggingAdapter,
-      activeClientSummaries: Map[ActorRef[Nothing], ActiveClientSummary]): Behavior[ClientMonitorMessage] =
+      activeClientSummaries: Map[ActorRef[Nothing], ActiveClientSummary])
+    : Behavior[ClientMonitorMessage] =
     Actor.immutable[ClientMonitorMessage]((context, message) =>
       message match {
         case LogActiveClientsCount =>
@@ -41,7 +44,9 @@ object ClientMonitorActor {
         case UpsertActiveClientSummary(clientConnection, activeClientSummary) =>
           if (!activeClientSummaries.contains(clientConnection))
             context.watch(clientConnection)
-          withSummaries(log, activeClientSummaries + (clientConnection -> activeClientSummary))
+          withSummaries(
+            log,
+            activeClientSummaries + (clientConnection -> activeClientSummary))
     }) onSignal {
       case (_, Terminated(ref)) =>
         withSummaries(log, activeClientSummaries - ref)

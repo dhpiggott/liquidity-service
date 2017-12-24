@@ -32,7 +32,6 @@ import cats.syntax.applicative._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
-import com.dhpcs.liquidity.testkit.TestKit
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory

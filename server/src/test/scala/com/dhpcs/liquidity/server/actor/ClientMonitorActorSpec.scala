@@ -4,8 +4,7 @@ import akka.testkit.TestProbe
 import akka.typed.scaladsl.adapter._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.model.PublicKey
-import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
-import com.dhpcs.liquidity.testkit.TestKit
+import com.dhpcs.liquidity.server.{InmemoryPersistenceTestFixtures, TestKit}
 import org.scalatest.FreeSpec
 
 class ClientMonitorActorSpec

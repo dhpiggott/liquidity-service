@@ -57,13 +57,6 @@ lazy val `actor-protocol-scala-binding` = project
     PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
   )
 
-lazy val testkit = project
-  .in(file("testkit"))
-  .settings(
-    name := "liquidity-testkit"
-  )
-  .dependsOn(`ws-protocol-scala-binding`)
-
 lazy val server = project
   .in(file("server"))
   .settings(
@@ -96,7 +89,6 @@ lazy val server = project
     )
   )
   .dependsOn(`ws-protocol` % "test->test")
-  .dependsOn(testkit % Test)
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.4" % Test,
@@ -106,7 +98,6 @@ lazy val server = project
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .settings(inConfig(MultiJvm)(scalafmtSettings))
-  .dependsOn(testkit % MultiJvm)
   .settings(libraryDependencies ++= Seq(
     "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.5.8" % MultiJvm,
     "com.h2database" % "h2" % "1.4.196" % MultiJvm

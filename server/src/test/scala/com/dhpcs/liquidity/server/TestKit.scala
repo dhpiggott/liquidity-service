@@ -1,9 +1,9 @@
-package com.dhpcs.liquidity.testkit
+package com.dhpcs.liquidity.server
 
 import java.net.InetSocketAddress
 import java.nio.channels.ServerSocketChannel
-import java.security.{KeyPairGenerator, Signature}
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
+import java.security.{KeyPairGenerator, Signature}
 
 import com.dhpcs.liquidity.proto
 

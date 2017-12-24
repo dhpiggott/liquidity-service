@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.server
 
 import akka.actor.ActorSystem
-import com.dhpcs.liquidity.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, Suite}
 

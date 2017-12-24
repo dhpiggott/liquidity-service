@@ -13,8 +13,7 @@ import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
-import com.dhpcs.liquidity.testkit.TestKit
+import com.dhpcs.liquidity.server.{InmemoryPersistenceTestFixtures, TestKit}
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{Inside, Outcome, fixture}

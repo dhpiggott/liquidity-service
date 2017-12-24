@@ -140,7 +140,8 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
            );
          """.update.run
     _ <- sql"""
-           CREATE UNIQUE INDEX "journal_ordering_idx" ON PUBLIC."journal"("ordering");
+           CREATE UNIQUE INDEX "journal_ordering_idx"
+           ON PUBLIC."journal"("ordering");
     """.update.run
     _ <- sql"""
            CREATE TABLE IF NOT EXISTS PUBLIC."snapshot" (
@@ -340,9 +341,9 @@ sealed abstract class LiquidityServerSpec
     sendProtobufMessage(pub)(
       proto.ws.protocol.ServerMessage.Message
         .KeyOwnershipProof(
-          Authentication.createKeyOwnershipProof(TestKit.rsaPublicKey,
-                                                 TestKit.rsaPrivateKey,
-                                                 keyOwnershipChallenge))
+          TestKit.createKeyOwnershipProof(TestKit.rsaPublicKey,
+                                          TestKit.rsaPrivateKey,
+                                          keyOwnershipChallenge))
     )
     try test(sub, pub)
     finally {

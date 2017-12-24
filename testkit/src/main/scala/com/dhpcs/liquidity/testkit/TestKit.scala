@@ -2,8 +2,10 @@ package com.dhpcs.liquidity.testkit
 
 import java.net.InetSocketAddress
 import java.nio.channels.ServerSocketChannel
-import java.security.KeyPairGenerator
+import java.security.{KeyPairGenerator, Signature}
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
+
+import com.dhpcs.liquidity.proto
 
 object TestKit {
 
@@ -20,5 +22,26 @@ object TestKit {
     keyPairGenerator.initialize(2048)
     val keyPair = keyPairGenerator.generateKeyPair
     (keyPair.getPrivate, keyPair.getPublic)
+  }
+
+  def createKeyOwnershipProof(
+      publicKey: RSAPublicKey,
+      privateKey: RSAPrivateKey,
+      keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge)
+    : proto.ws.protocol.ServerMessage.KeyOwnershipProof = {
+    def signMessage(privateKey: RSAPrivateKey)(
+        message: Array[Byte]): Array[Byte] = {
+      val s = Signature.getInstance("SHA256withRSA")
+      s.initSign(privateKey)
+      s.update(message)
+      s.sign
+    }
+    val nonce = keyOwnershipChallenge.nonce.toByteArray
+    proto.ws.protocol.ServerMessage.KeyOwnershipProof(
+      com.google.protobuf.ByteString.copyFrom(publicKey.getEncoded),
+      com.google.protobuf.ByteString.copyFrom(
+        signMessage(privateKey)(nonce)
+      )
+    )
   }
 }

@@ -35,9 +35,6 @@ lazy val `ws-protocol-scala-binding` = project
       "org.typelevel" %% "cats-core" % "1.0.0-RC1",
       "com.squareup.okio" % "okio" % "1.13.0"
     ))
-  .dependsOn(testkit % Test)
-  .settings(
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % Test)
 
 lazy val `actor-protocol` = project
   .in(file("actor-protocol"))
@@ -65,6 +62,7 @@ lazy val testkit = project
   .settings(
     name := "liquidity-testkit"
   )
+  .dependsOn(`ws-protocol-scala-binding`)
 
 lazy val server = project
   .in(file("server"))

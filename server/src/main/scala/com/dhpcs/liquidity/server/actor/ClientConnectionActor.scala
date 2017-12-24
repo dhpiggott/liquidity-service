@@ -1,6 +1,9 @@
 package com.dhpcs.liquidity.server.actor
 
 import java.net.InetAddress
+import java.security.{KeyFactory, Signature}
+import java.security.interfaces.RSAPublicKey
+import java.security.spec.X509EncodedKeySpec
 import java.util.UUID
 
 import akka.actor.{ActorRefFactory, Props}
@@ -26,6 +29,7 @@ import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 
 import scala.concurrent.duration._
+import scala.util.Random
 
 object ClientConnectionActor {
 
@@ -161,8 +165,7 @@ object ClientConnectionActor {
       message match {
         case InitActorSink(webSocketIn) =>
           webSocketIn ! ActorSinkAck
-          val keyOwnershipChallenge =
-            Authentication.createKeyOwnershipChallenge()
+          val keyOwnershipChallenge = createKeyOwnershipChallenge()
           sendClientMessage(
             webSocketOut,
             pingGeneratorActor,
@@ -235,9 +238,8 @@ object ClientConnectionActor {
             case proto.ws.protocol.ServerMessage.Message
                   .KeyOwnershipProof(keyOwnershipProof) =>
               val publicKey = PublicKey(keyOwnershipProof.publicKey.toByteArray)
-              if (!Authentication.isValidKeyOwnershipProof(
-                    keyOwnershipChallenge,
-                    keyOwnershipProof)) {
+              if (!isValidKeyOwnershipProof(keyOwnershipChallenge,
+                                            keyOwnershipProof)) {
                 log.warning(
                   "Stopping due to invalid key ownership proof for public key with fingerprint " +
                     s"${publicKey.fingerprint}.")
@@ -510,5 +512,38 @@ object ClientConnectionActor {
       clientMessage: proto.ws.protocol.ClientMessage.Message): Unit = {
     webSocketOut ! proto.ws.protocol.ClientMessage(clientMessage)
     pingGeneratorActor ! PingGeneratorActor.FrameSentEvent
+  }
+
+  private final val KeySize = 2048
+
+  private def createKeyOwnershipChallenge()
+    : proto.ws.protocol.ClientMessage.KeyOwnershipChallenge = {
+    val nonce = new Array[Byte](KeySize / 8)
+    Random.nextBytes(nonce)
+    proto.ws.protocol.ClientMessage.KeyOwnershipChallenge(
+      com.google.protobuf.ByteString.copyFrom(nonce)
+    )
+  }
+
+  private def isValidKeyOwnershipProof(
+      keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge,
+      keyOwnershipProof: proto.ws.protocol.ServerMessage.KeyOwnershipProof)
+    : Boolean = {
+    def isValidMessageSignature(publicKey: RSAPublicKey)(
+        message: Array[Byte],
+        signature: Array[Byte]): Boolean = {
+      val s = Signature.getInstance("SHA256withRSA")
+      s.initVerify(publicKey)
+      s.update(message)
+      s.verify(signature)
+    }
+    val publicKey = KeyFactory
+      .getInstance("RSA")
+      .generatePublic(
+        new X509EncodedKeySpec(keyOwnershipProof.publicKey.toByteArray))
+      .asInstanceOf[RSAPublicKey]
+    val nonce = keyOwnershipChallenge.nonce.toByteArray
+    val signature = keyOwnershipProof.signature.toByteArray
+    isValidMessageSignature(publicKey)(nonce, signature)
   }
 }

@@ -129,10 +129,9 @@ class ClientConnectionActorSpec
     }
     sendMessage(sinkTestProbe, clientConnection)(
       proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
-        Authentication
-          .createKeyOwnershipProof(TestKit.rsaPublicKey,
-                                   TestKit.rsaPrivateKey,
-                                   keyOwnershipChallenge))
+        TestKit.createKeyOwnershipProof(TestKit.rsaPublicKey,
+                                        TestKit.rsaPrivateKey,
+                                        keyOwnershipChallenge))
     )
   }
 

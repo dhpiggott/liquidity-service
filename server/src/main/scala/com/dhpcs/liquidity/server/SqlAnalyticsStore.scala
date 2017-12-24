@@ -19,14 +19,20 @@ object SqlAnalyticsStore {
   implicit val PublicKeyMeta: Meta[PublicKey] =
     Meta[Array[Byte]]
       .xmap(bytes => PublicKey(ByteString.of(bytes: _*)), _.value.toByteArray)
+
   implicit val InetAddressMeta: Meta[InetAddress] =
     Meta[String].xmap(InetAddress.getByName, _.getHostAddress)
+
   implicit val ZoneIdMeta: Meta[ZoneId] = Meta[String].xmap(ZoneId(_), _.id)
+
   implicit val MemberIdMeta: Meta[MemberId] = Meta[String].xmap(MemberId, _.id)
+
   implicit val AccountIdMeta: Meta[AccountId] =
     Meta[String].xmap(AccountId, _.id)
+
   implicit val TransactionIdMeta: Meta[TransactionId] =
     Meta[String].xmap(TransactionId, _.id)
+
   implicit val StructMeta: Meta[com.google.protobuf.struct.Struct] =
     Meta[String].xmap(
       JsonFormat.fromJsonString[com.google.protobuf.struct.Struct],
@@ -36,8 +42,11 @@ object SqlAnalyticsStore {
 
     def insert(zone: Zone): ConnectionIO[Unit] =
       for {
-        _ <- sql"INSERT INTO zones (zone_id, equity_account_id, created, expires, metadata) VALUES (${zone.id}, ${zone.equityAccountId}, ${Instant
-          .ofEpochMilli(zone.created)}, ${Instant.ofEpochMilli(zone.expires)}, ${zone.metadata})".update.run
+        _ <- sql"""
+               INSERT INTO zones (zone_id, equity_account_id, created, expires, metadata)
+                 VALUES (${zone.id}, ${zone.equityAccountId}, ${Instant.ofEpochMilli(
+          zone.created)}, ${Instant.ofEpochMilli(zone.expires)}, ${zone.metadata})
+             """.update.run
         _ <- (ZoneNameChangeStore.insert(zone.id,
                                          zone.name,
                                          Instant.ofEpochMilli(zone.created)),
@@ -60,15 +69,25 @@ object SqlAnalyticsStore {
       } yield ()
 
     def update(zoneId: ZoneId, modified: Instant): ConnectionIO[Unit] =
-      for (_ <- sql"UPDATE zones SET modified = $modified WHERE zone_id = $zoneId".update.run)
+      for (_ <- sql"""
+             UPDATE zones
+               SET modified = $modified
+               WHERE zone_id = $zoneId
+           """.update.run)
         yield ()
 
     def retrieveCount: ConnectionIO[Long] =
-      sql"SELECT COUNT(*) from zones".query[Long].unique
+      sql"""
+           SELECT COUNT(*) FROM zones
+         """.query[Long].unique
 
     def retrieveOption(zoneId: ZoneId): ConnectionIO[Option[Zone]] =
       for {
-        maybeZoneMetadata <- sql"SELECT equity_account_id, created, expires, metadata FROM zones WHERE zone_id = $zoneId"
+        maybeZoneMetadata <- sql"""
+               SELECT equity_account_id, created, expires, metadata
+                 FROM zones
+                 WHERE zone_id = $zoneId
+             """
           .query[(AccountId,
                   Instant,
                   Instant,
@@ -111,11 +130,19 @@ object SqlAnalyticsStore {
     def insert(zoneId: ZoneId,
                name: Option[String],
                changed: Instant): ConnectionIO[Unit] =
-      for (_ <- sql"INSERT INTO zone_name_changes (zone_id, name, changed) VALUES ($zoneId, $name, $changed)".update.run)
+      for (_ <- sql"""
+             INSERT INTO zone_name_changes (zone_id, name, changed)
+               VALUES ($zoneId, $name, $changed)
+           """.update.run)
         yield ()
 
     def retrieveLatest(zoneId: ZoneId): ConnectionIO[Option[String]] =
-      sql"SELECT name FROM zone_name_changes WHERE zone_id = $zoneId ORDER BY change_id LIMIT 1"
+      sql"""
+           SELECT name FROM zone_name_changes
+             WHERE zone_id = $zoneId
+             ORDER BY change_id
+             LIMIT 1
+         """
         .query[Option[String]]
         .unique
 
@@ -127,16 +154,25 @@ object SqlAnalyticsStore {
                member: Member,
                created: Instant): ConnectionIO[Unit] =
       for {
-        _ <- sql"INSERT INTO members (zone_id, member_id, created) VALUES ($zoneId, ${member.id}, $created)".update.run
+        _ <- sql"""
+               INSERT INTO members (zone_id, member_id, created)
+                 VALUES ($zoneId, ${member.id}, $created)
+             """.update.run
         _ <- MemberUpdatesStore.insert(zoneId, member, created)
       } yield ()
 
     def retrieveCount: ConnectionIO[Long] =
-      sql"SELECT COUNT(*) from members".query[Long].unique
+      sql"""
+           SELECT COUNT(*) FROM members
+         """.query[Long].unique
 
     def retrieveAll(zoneId: ZoneId): ConnectionIO[Map[MemberId, Member]] =
       for {
-        memberIds <- sql"SELECT member_id FROM members WHERE zone_id = $zoneId"
+        memberIds <- sql"""
+               SELECT member_id
+                 FROM members
+                 WHERE zone_id = $zoneId
+             """
           .query[MemberId]
           .vector
         memberOwnerPublicKeysNamesAndMetadata <- memberIds
@@ -163,7 +199,10 @@ object SqlAnalyticsStore {
                member: Member,
                updated: Instant): ConnectionIO[Unit] =
       for {
-        updateId <- sql"INSERT INTO member_updates (zone_id, member_id, updated, name, metadata) VALUES ($zoneId, ${member.id}, $updated, ${member.name}, ${member.metadata})".update
+        updateId <- sql"""
+               INSERT INTO member_updates (zone_id, member_id, updated, name, metadata)
+                 VALUES ($zoneId, ${member.id}, $updated, ${member.name}, ${member.metadata})
+             """.update
           .withUniqueGeneratedKeys[Long]("update_id")
         _ <- member.ownerPublicKeys
           .map(MemberOwnersStore.insert(updateId, _))
@@ -176,7 +215,12 @@ object SqlAnalyticsStore {
                       Option[String],
                       Option[com.google.protobuf.struct.Struct])] =
       for {
-        updateIdNameAndMetadata <- sql"SELECT update_id, name, metadata FROM member_updates WHERE zone_id = $zoneId AND member_id = $memberId ORDER BY update_id LIMIT 1"
+        updateIdNameAndMetadata <- sql"""
+               SELECT update_id, name, metadata FROM member_updates
+                 WHERE zone_id = $zoneId AND member_id = $memberId
+                 ORDER BY update_id
+                 LIMIT 1
+             """
           .query[(Long,
                   Option[String],
                   Option[com.google.protobuf.struct.Struct])]
@@ -188,16 +232,26 @@ object SqlAnalyticsStore {
     object MemberOwnersStore {
 
       def insert(updateId: Long, publicKey: PublicKey): ConnectionIO[Unit] =
-        for (_ <- sql"INSERT INTO member_owners (update_id, public_key, fingerprint) VALUES ($updateId, $publicKey, ${publicKey.fingerprint})".update.run)
+        for (_ <- sql"""
+               INSERT INTO member_owners (update_id, public_key, fingerprint)
+                 VALUES ($updateId, $publicKey, ${publicKey.fingerprint})
+             """.update.run)
           yield ()
 
       def retrieveCount: ConnectionIO[Long] =
-        sql"SELECT COUNT(DISTINCT fingerprint) from member_owners"
+        sql"""
+             SELECT COUNT(DISTINCT fingerprint)
+               FROM member_owners
+           """
           .query[Long]
           .unique
 
       def retrieveAll(updateId: Long): ConnectionIO[Set[PublicKey]] =
-        sql"SELECT public_key from member_owners WHERE update_id = $updateId"
+        sql"""
+             SELECT public_key
+               FROM member_owners
+               WHERE update_id = $updateId
+           """
           .query[PublicKey]
           .to[Set]
 
@@ -211,28 +265,44 @@ object SqlAnalyticsStore {
                created: Instant,
                balance: BigDecimal): ConnectionIO[Unit] =
       for {
-        _ <- sql"INSERT INTO accounts (zone_id, account_id, created, balance) VALUES ($zoneId, ${account.id}, $created, $balance)".update.run
+        _ <- sql"""
+               INSERT INTO accounts (zone_id, account_id, created, balance)
+                 VALUES ($zoneId, ${account.id}, $created, $balance)
+             """.update.run
         _ <- AccountUpdatesStore.insert(zoneId, account, created)
       } yield ()
 
     def update(zoneId: ZoneId,
                accountId: AccountId,
                balance: BigDecimal): ConnectionIO[Unit] =
-      for (_ <- sql"UPDATE accounts SET balance = $balance WHERE zone_id = $zoneId AND account_id = $accountId".update.run)
+      for (_ <- sql"""
+             UPDATE accounts
+               SET balance = $balance
+               WHERE zone_id = $zoneId AND account_id = $accountId
+           """.update.run)
         yield ()
 
     def retrieveCount: ConnectionIO[Long] =
-      sql"SELECT COUNT(*) from accounts".query[Long].unique
+      sql"""
+           SELECT COUNT(*) FROM accounts
+         """.query[Long].unique
 
     def retrieveBalance(zoneId: ZoneId,
                         accountId: AccountId): ConnectionIO[BigDecimal] =
-      sql"SELECT balance FROM accounts WHERE zone_id = $zoneId AND account_id = $accountId"
+      sql"""
+           SELECT balance FROM accounts
+             WHERE zone_id = $zoneId AND account_id = $accountId
+         """
         .query[BigDecimal]
         .unique
 
     def retrieveAll(zoneId: ZoneId): ConnectionIO[Map[AccountId, Account]] =
       for {
-        accountIds <- sql"SELECT account_id FROM accounts WHERE zone_id = $zoneId"
+        accountIds <- sql"""
+               SELECT account_id
+                 FROM accounts
+                 WHERE zone_id = $zoneId
+             """
           .query[AccountId]
           .vector
         accountOwnerMemberIdsNamesAndMetadata <- accountIds
@@ -253,7 +323,11 @@ object SqlAnalyticsStore {
 
     def retrieveAllBalances(
         zoneId: ZoneId): ConnectionIO[Map[AccountId, BigDecimal]] =
-      sql"SELECT account_id, balance FROM accounts WHERE zone_id = $zoneId"
+      sql"""
+           SELECT account_id, balance
+             FROM accounts
+             WHERE zone_id = $zoneId
+         """
         .query[(AccountId, BigDecimal)]
         .vector
         .map(_.toMap)
@@ -266,7 +340,10 @@ object SqlAnalyticsStore {
                account: Account,
                updated: Instant): ConnectionIO[Unit] =
       for {
-        updateId <- sql"INSERT INTO account_updates (zone_id, account_id, updated, name, metadata) VALUES ($zoneId, ${account.id}, $updated, ${account.name}, ${account.metadata})".update
+        updateId <- sql"""
+               INSERT INTO account_updates (zone_id, account_id, updated, name, metadata)
+                 VALUES ($zoneId, ${account.id}, $updated, ${account.name}, ${account.metadata})
+             """.update
           .withUniqueGeneratedKeys[Long]("update_id")
         _ <- account.ownerMemberIds
           .map(AccountOwnersStore.insert(updateId, _))
@@ -279,7 +356,13 @@ object SqlAnalyticsStore {
                       Option[String],
                       Option[com.google.protobuf.struct.Struct])] =
       for {
-        updateIdNameAndMetadata <- sql"SELECT update_id, name, metadata FROM account_updates WHERE zone_id = $zoneId AND account_id = $accountId ORDER BY update_id LIMIT 1"
+        updateIdNameAndMetadata <- sql"""
+               SELECT update_id, name, metadata
+                 FROM account_updates
+                 WHERE zone_id = $zoneId AND account_id = $accountId
+                 ORDER BY update_id
+                 LIMIT 1
+             """
           .query[(Long,
                   Option[String],
                   Option[com.google.protobuf.struct.Struct])]
@@ -291,11 +374,18 @@ object SqlAnalyticsStore {
     object AccountOwnersStore {
 
       def insert(updateId: Long, memberId: MemberId): ConnectionIO[Unit] =
-        for (_ <- sql"INSERT INTO account_owners (update_id, member_id) VALUES ($updateId, $memberId)".update.run)
+        for (_ <- sql"""
+               INSERT INTO account_owners (update_id, member_id)
+                 VALUES ($updateId, $memberId)
+             """.update.run)
           yield ()
 
       def retrieveAll(updateId: Long): ConnectionIO[Set[MemberId]] =
-        sql"SELECT member_id from account_owners WHERE update_id = $updateId"
+        sql"""
+             SELECT member_id
+               FROM account_owners
+               WHERE update_id = $updateId
+           """
           .query[MemberId]
           .to[Set]
 
@@ -305,16 +395,26 @@ object SqlAnalyticsStore {
   object TransactionsStore {
 
     def insert(zoneId: ZoneId, transaction: Transaction): ConnectionIO[Unit] =
-      for (_ <- sql"INSERT INTO transactions (zone_id, transaction_id, `from`, `to`, `value`, creator, created, description, metadata) VALUES ($zoneId, ${transaction.id}, ${transaction.from}, ${transaction.to}, ${transaction.value}, ${transaction.creator}, ${Instant
-             .ofEpochMilli(transaction.created)}, ${transaction.description}, ${transaction.metadata})".update.run)
+      for (_ <- sql"""
+             INSERT INTO transactions (zone_id, transaction_id, `from`, `to`, `value`, creator, created, description, metadata)
+               VALUES ($zoneId, ${transaction.id}, ${transaction.from}, ${transaction.to}, ${transaction.value}, ${transaction.creator}, ${Instant
+             .ofEpochMilli(transaction.created)}, ${transaction.description}, ${transaction.metadata})
+           """.update.run)
         yield ()
 
     def retrieveCount: ConnectionIO[Long] =
-      sql"SELECT COUNT(*) from transactions".query[Long].unique
+      sql"""
+           SELECT COUNT(*)
+             FROM transactions
+         """.query[Long].unique
 
     def retrieveAll(
         zoneId: ZoneId): ConnectionIO[Map[TransactionId, Transaction]] =
-      sql"SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata FROM transactions WHERE zone_id = $zoneId"
+      sql"""
+           SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata
+             FROM transactions
+             WHERE zone_id = $zoneId
+         """
         .query[(TransactionId,
                 AccountId,
                 AccountId,
@@ -345,15 +445,25 @@ object SqlAnalyticsStore {
                actorRef: String,
                publicKey: Option[PublicKey],
                joined: Instant): ConnectionIO[Unit] =
-      for (_ <- sql"INSERT INTO client_sessions (zone_id, remote_address, actor_ref, public_key, fingerprint, joined) VALUES ($zoneId, $remoteAddress, $actorRef, $publicKey, ${publicKey
-             .map(_.fingerprint)}, $joined)".update.run) yield ()
+      for (_ <- sql"""
+             INSERT INTO client_sessions (zone_id, remote_address, actor_ref, public_key, fingerprint, joined)
+               VALUES ($zoneId, $remoteAddress, $actorRef, $publicKey, ${publicKey
+             .map(_.fingerprint)}, $joined)
+           """.update.run) yield ()
 
     def update(sessionId: Long, quit: Instant): ConnectionIO[Unit] =
-      for (_ <- sql"UPDATE client_sessions SET quit = $quit WHERE session_id = $sessionId".update.run)
+      for (_ <- sql"""
+             UPDATE client_sessions SET quit = $quit WHERE session_id = $sessionId
+           """.update.run)
         yield ()
 
     def retrieve(zoneId: ZoneId, actorRef: String): ConnectionIO[Long] =
-      sql"SELECT session_id FROM client_sessions WHERE zone_id = $zoneId AND actor_ref = $actorRef AND quit IS NULL ORDER BY session_id LIMIT 1"
+      sql"""
+           SELECT session_id FROM client_sessions
+             WHERE zone_id = $zoneId AND actor_ref = $actorRef AND quit IS NULL
+             ORDER BY session_id
+             LIMIT 1
+         """
         .query[Long]
         .unique
 
@@ -362,16 +472,27 @@ object SqlAnalyticsStore {
   object TagOffsetsStore {
 
     def insert(tag: String, offset: Sequence): ConnectionIO[Unit] =
-      for (_ <- sql"INSERT INTO tag_offsets (tag, offset) VALUES ($tag, $offset)".update.run)
+      for (_ <- sql"""
+             INSERT INTO tag_offsets (tag, offset)
+               VALUES ($tag, $offset)
+           """.update.run)
         yield ()
 
     def retrieve(tag: String): ConnectionIO[Option[Sequence]] =
-      sql"SELECT offset FROM tag_offsets WHERE tag = $tag"
+      sql"""
+           SELECT offset
+             FROM tag_offsets
+             WHERE tag = $tag
+         """
         .query[Sequence]
         .option
 
     def update(tag: String, offset: Sequence): ConnectionIO[Unit] =
-      for (_ <- sql"UPDATE tag_offsets SET offset = $offset WHERE tag = $tag".update.run)
+      for (_ <- sql"""
+             UPDATE tag_offsets
+               SET offset = $offset
+               WHERE tag = $tag
+           """.update.run)
         yield ()
 
   }

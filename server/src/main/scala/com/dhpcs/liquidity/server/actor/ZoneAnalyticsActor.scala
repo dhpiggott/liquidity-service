@@ -1,8 +1,8 @@
 package com.dhpcs.liquidity.server.actor
 
 import akka.event.Logging
-import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query.Sequence
+import akka.persistence.query.scaladsl.{EventsByTagQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import akka.typed.scaladsl.Actor
@@ -25,7 +25,7 @@ object ZoneAnalyticsActor {
   sealed abstract class ZoneAnalyticsMessage
   case object StopZoneAnalytics extends ZoneAnalyticsMessage
 
-  def singletonBehavior(readJournal: JdbcReadJournal,
+  def singletonBehavior(readJournal: ReadJournal with EventsByTagQuery,
                         analyticsTransactor: Transactor[IO],
                         transactIoToFuture: TransactIoToFuture)(
       implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =

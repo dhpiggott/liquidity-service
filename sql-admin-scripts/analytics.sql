@@ -85,9 +85,9 @@ CREATE TABLE account_owners (
 CREATE TABLE transactions (
   zone_id CHAR(36) NOT NULL,
   transaction_id VARCHAR(36) NOT NULL,
-  `from` VARCHAR(36) NOT NULL,
-  `to` VARCHAR(36) NOT NULL,
-  `value` TEXT NOT NULL,
+  "from" VARCHAR(36) NOT NULL,
+  "to" VARCHAR(36) NOT NULL,
+  "value" TEXT NOT NULL,
   creator VARCHAR(36) NOT NULL,
   created TIMESTAMP NOT NULL,
   description VARCHAR(160) NULL,
@@ -95,8 +95,8 @@ CREATE TABLE transactions (
   PRIMARY KEY (zone_id, transaction_id),
   INDEX (zone_id),
   FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
-  FOREIGN KEY (zone_id, `from`) REFERENCES accounts(zone_id, account_id),
-  FOREIGN KEY (zone_id, `to`) REFERENCES accounts(zone_id, account_id),
+  FOREIGN KEY (zone_id, "from") REFERENCES accounts(zone_id, account_id),
+  FOREIGN KEY (zone_id, "to") REFERENCES accounts(zone_id, account_id),
   FOREIGN KEY (zone_id, creator) REFERENCES members(zone_id, member_id)
 );
 

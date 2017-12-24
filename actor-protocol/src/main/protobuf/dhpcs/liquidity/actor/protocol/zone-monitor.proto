@@ -6,8 +6,6 @@ option java_package = "com.dhpcs.liquidity.proto.actor.protocol.zonemonitor";
 
 import "google/protobuf/struct.proto";
 
-import "dhpcs/liquidity/model.proto";
-
 message ActiveZoneSummary {
     string zone_id = 1;
     int32 members = 2;

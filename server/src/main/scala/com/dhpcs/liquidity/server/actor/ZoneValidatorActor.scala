@@ -322,18 +322,18 @@ object ZoneValidatorActor {
                 Effect.none
               case None =>
                 val equityOwner = Member(
-                  MemberId(UUID.randomUUID.toString),
+                  MemberId(UUID.randomUUID().toString),
                   Set(equityOwnerPublicKey),
                   equityOwnerName,
                   equityOwnerMetadata
                 )
                 val equityAccount = Account(
-                  AccountId(UUID.randomUUID.toString),
+                  AccountId(UUID.randomUUID().toString),
                   Set(equityOwner.id),
                   equityAccountName,
                   equityAccountMetadata
                 )
-                val created = System.currentTimeMillis
+                val created = System.currentTimeMillis()
                 val expires = created + ZoneLifetime.toMillis
                 val zone = Zone(
                   id,
@@ -722,7 +722,7 @@ object ZoneValidatorActor {
                          to,
                          _,
                          actingAs,
-                         System.currentTimeMillis,
+                         System.currentTimeMillis(),
                          description,
                          metadata)))
             validatedParams match {

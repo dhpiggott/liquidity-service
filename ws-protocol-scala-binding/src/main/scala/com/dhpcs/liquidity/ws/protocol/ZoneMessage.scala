@@ -19,22 +19,22 @@ final case class CreateZoneCommand(
     equityOwnerMetadata: Option[com.google.protobuf.struct.Struct],
     equityAccountName: Option[String],
     equityAccountMetadata: Option[com.google.protobuf.struct.Struct],
-    name: Option[String] = None,
-    metadata: Option[com.google.protobuf.struct.Struct] = None)
+    name: Option[String],
+    metadata: Option[com.google.protobuf.struct.Struct])
     extends ZoneCommand
 case object JoinZoneCommand extends ZoneCommand
 case object QuitZoneCommand extends ZoneCommand
 final case class ChangeZoneNameCommand(name: Option[String]) extends ZoneCommand
 final case class CreateMemberCommand(
     ownerPublicKeys: Set[PublicKey],
-    name: Option[String] = None,
-    metadata: Option[com.google.protobuf.struct.Struct] = None)
+    name: Option[String],
+    metadata: Option[com.google.protobuf.struct.Struct])
     extends ZoneCommand
 final case class UpdateMemberCommand(member: Member) extends ZoneCommand
 final case class CreateAccountCommand(
     ownerMemberIds: Set[MemberId],
-    name: Option[String] = None,
-    metadata: Option[com.google.protobuf.struct.Struct] = None)
+    name: Option[String],
+    metadata: Option[com.google.protobuf.struct.Struct])
     extends ZoneCommand
 final case class UpdateAccountCommand(actingAs: MemberId, account: Account)
     extends ZoneCommand
@@ -43,8 +43,8 @@ final case class AddTransactionCommand(
     from: AccountId,
     to: AccountId,
     value: BigDecimal,
-    description: Option[String] = None,
-    metadata: Option[com.google.protobuf.struct.Struct] = None)
+    description: Option[String],
+    metadata: Option[com.google.protobuf.struct.Struct])
     extends ZoneCommand
 
 object ZoneResponse {

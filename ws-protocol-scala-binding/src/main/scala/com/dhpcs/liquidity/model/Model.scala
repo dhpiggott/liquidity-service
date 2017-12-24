@@ -14,17 +14,15 @@ final case class MemberId(id: String)
 
 final case class Member(id: MemberId,
                         ownerPublicKeys: Set[PublicKey],
-                        name: Option[String] = None,
-                        metadata: Option[com.google.protobuf.struct.Struct] =
-                          None)
+                        name: Option[String],
+                        metadata: Option[com.google.protobuf.struct.Struct])
 
 final case class AccountId(id: String)
 
 final case class Account(id: AccountId,
                          ownerMemberIds: Set[MemberId],
-                         name: Option[String] = None,
-                         metadata: Option[com.google.protobuf.struct.Struct] =
-                           None)
+                         name: Option[String],
+                         metadata: Option[com.google.protobuf.struct.Struct])
 
 final case class TransactionId(id: String)
 
@@ -35,8 +33,8 @@ final case class Transaction(
     value: BigDecimal,
     creator: MemberId,
     created: Long,
-    description: Option[String] = None,
-    metadata: Option[com.google.protobuf.struct.Struct] = None)
+    description: Option[String],
+    metadata: Option[com.google.protobuf.struct.Struct])
 
 final case class ZoneId(id: String) {
   def persistenceId: String = s"${ZoneId.PersistenceIdPrefix}$id"
@@ -51,13 +49,12 @@ object ZoneId {
 
 }
 
-final case class Zone(
-    id: ZoneId,
-    equityAccountId: AccountId,
-    members: Map[MemberId, Member],
-    accounts: Map[AccountId, Account],
-    transactions: Map[TransactionId, Transaction],
-    created: Long,
-    expires: Long,
-    name: Option[String] = None,
-    metadata: Option[com.google.protobuf.struct.Struct] = None)
+final case class Zone(id: ZoneId,
+                      equityAccountId: AccountId,
+                      members: Map[MemberId, Member],
+                      accounts: Map[AccountId, Account],
+                      transactions: Map[TransactionId, Transaction],
+                      created: Long,
+                      expires: Long,
+                      name: Option[String],
+                      metadata: Option[com.google.protobuf.struct.Struct])

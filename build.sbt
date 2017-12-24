@@ -91,6 +91,7 @@ lazy val server = project
   .dependsOn(`ws-protocol` % "test->test")
   .settings(libraryDependencies ++= Seq(
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
+    "com.h2database" % "h2" % "1.4.196" % Test,
     "org.scalatest" %% "scalatest" % "3.0.4" % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.11" % Test,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.8" % Test
@@ -98,10 +99,8 @@ lazy val server = project
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .settings(inConfig(MultiJvm)(scalafmtSettings))
-  .settings(libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.5.8" % MultiJvm,
-    "com.h2database" % "h2" % "1.4.196" % MultiJvm
-  ))
+  .settings(
+    libraryDependencies += "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.5.8" % MultiJvm)
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(
     buildInfoPackage := "com.dhpcs.liquidity.server",

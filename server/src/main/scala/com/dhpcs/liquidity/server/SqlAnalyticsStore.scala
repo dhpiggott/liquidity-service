@@ -140,7 +140,7 @@ object SqlAnalyticsStore {
       sql"""
            SELECT name FROM zone_name_changes
              WHERE zone_id = $zoneId
-             ORDER BY change_id
+             ORDER BY change_id DESC
              LIMIT 1
          """
         .query[Option[String]]
@@ -218,7 +218,7 @@ object SqlAnalyticsStore {
         updateIdNameAndMetadata <- sql"""
                SELECT update_id, name, metadata FROM member_updates
                  WHERE zone_id = $zoneId AND member_id = $memberId
-                 ORDER BY update_id
+                 ORDER BY update_id DESC
                  LIMIT 1
              """
           .query[(Long,
@@ -360,7 +360,7 @@ object SqlAnalyticsStore {
                SELECT update_id, name, metadata
                  FROM account_updates
                  WHERE zone_id = $zoneId AND account_id = $accountId
-                 ORDER BY update_id
+                 ORDER BY update_id DESC
                  LIMIT 1
              """
           .query[(Long,
@@ -396,7 +396,7 @@ object SqlAnalyticsStore {
 
     def insert(zoneId: ZoneId, transaction: Transaction): ConnectionIO[Unit] =
       for (_ <- sql"""
-             INSERT INTO transactions (zone_id, transaction_id, `from`, `to`, `value`, creator, created, description, metadata)
+             INSERT INTO transactions (zone_id, transaction_id, "from", "to", "value", creator, created, description, metadata)
                VALUES ($zoneId, ${transaction.id}, ${transaction.from}, ${transaction.to}, ${transaction.value}, ${transaction.creator}, ${Instant
              .ofEpochMilli(transaction.created)}, ${transaction.description}, ${transaction.metadata})
            """.update.run)
@@ -411,7 +411,7 @@ object SqlAnalyticsStore {
     def retrieveAll(
         zoneId: ZoneId): ConnectionIO[Map[TransactionId, Transaction]] =
       sql"""
-           SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata
+           SELECT transaction_id, "from", "to", "value", creator, created, description, metadata
              FROM transactions
              WHERE zone_id = $zoneId
          """
@@ -453,7 +453,9 @@ object SqlAnalyticsStore {
 
     def update(sessionId: Long, quit: Instant): ConnectionIO[Unit] =
       for (_ <- sql"""
-             UPDATE client_sessions SET quit = $quit WHERE session_id = $sessionId
+             UPDATE client_sessions
+               SET quit = $quit
+               WHERE session_id = $sessionId
            """.update.run)
         yield ()
 
@@ -473,14 +475,14 @@ object SqlAnalyticsStore {
 
     def insert(tag: String, offset: Sequence): ConnectionIO[Unit] =
       for (_ <- sql"""
-             INSERT INTO tag_offsets (tag, offset)
+             INSERT INTO tag_offsets (tag, "offset")
                VALUES ($tag, $offset)
            """.update.run)
         yield ()
 
     def retrieve(tag: String): ConnectionIO[Option[Sequence]] =
       sql"""
-           SELECT offset
+           SELECT "offset"
              FROM tag_offsets
              WHERE tag = $tag
          """
@@ -490,7 +492,7 @@ object SqlAnalyticsStore {
     def update(tag: String, offset: Sequence): ConnectionIO[Unit] =
       for (_ <- sql"""
              UPDATE tag_offsets
-               SET offset = $offset
+               SET "offset" = $offset
                WHERE tag = $tag
            """.update.run)
         yield ()

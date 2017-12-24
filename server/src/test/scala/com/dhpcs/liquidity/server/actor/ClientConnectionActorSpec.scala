@@ -145,7 +145,8 @@ class ClientConnectionActorSpec
       equityOwnerMetadata = None,
       equityAccountName = None,
       equityAccountMetadata = None,
-      name = Some("Dave's Game")
+      name = Some("Dave's Game"),
+      metadata = None
     )
     val correlationId = 0L
     sendCreateZoneCommand(sinkTestProbe, clientConnection)(createZoneCommand,
@@ -162,15 +163,24 @@ class ClientConnectionActorSpec
       id = zoneId,
       equityAccountId,
       members = Map(
-        equityAccountOwnerId -> Member(equityAccountOwnerId,
-                                       Set(publicKey),
-                                       name = Some("Dave"))),
+        equityAccountOwnerId -> Member(
+          equityAccountOwnerId,
+          ownerPublicKeys = Set(publicKey),
+          name = Some("Dave"),
+          metadata = None
+        )
+      ),
       accounts = Map(
-        equityAccountId -> Account(equityAccountId,
-                                   ownerMemberIds = Set(equityAccountOwnerId))),
+        equityAccountId -> Account(
+          equityAccountId,
+          ownerMemberIds = Set(equityAccountOwnerId),
+          name = None,
+          metadata = None
+        )
+      ),
       transactions = Map.empty,
       created = created,
-      expires = created + 2.days.toMillis,
+      expires = created + 7.days.toMillis,
       name = Some("Dave's Game"),
       metadata = None
     )

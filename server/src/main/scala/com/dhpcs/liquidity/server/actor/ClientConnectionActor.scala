@@ -332,7 +332,7 @@ object ClientConnectionActor {
                       .asScala(protoCreateZoneCommand)(())
                   zoneValidatorShardRegion ! ZoneCommandEnvelope(
                     context.self,
-                    zoneId = ZoneId(UUID.randomUUID.toString),
+                    zoneId = ZoneId(UUID.randomUUID().toString),
                     remoteAddress,
                     publicKey,
                     protoCommand.correlationId,

@@ -32,6 +32,7 @@ import cats.syntax.applicative._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
+import com.dhpcs.liquidity.server.LiquidityServerSpec._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
@@ -120,15 +121,13 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
           |akka.cluster.roles = ["client-relay"]
         """.stripMargin))
 
-  val initJournal: ConnectionIO[Unit] = for {
+}
+
+object LiquidityServerSpec {
+
+  private val initJournal: ConnectionIO[Unit] = for {
     _ <- sql"""
-           DROP TABLE IF EXISTS PUBLIC."journal";
-         """.update.run
-    _ <- sql"""
-           DROP TABLE IF EXISTS PUBLIC."snapshot";
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE IF NOT EXISTS PUBLIC."journal" (
+           CREATE TABLE PUBLIC."journal" (
              "ordering" BIGINT AUTO_INCREMENT,
              "persistence_id" VARCHAR(255) NOT NULL,
              "sequence_number" BIGINT NOT NULL,
@@ -140,10 +139,10 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
          """.update.run
     _ <- sql"""
            CREATE UNIQUE INDEX "journal_ordering_idx"
-           ON PUBLIC."journal"("ordering");
+             ON PUBLIC."journal"("ordering");
     """.update.run
     _ <- sql"""
-           CREATE TABLE IF NOT EXISTS PUBLIC."snapshot" (
+           CREATE TABLE PUBLIC."snapshot" (
              "persistence_id" VARCHAR(255) NOT NULL,
              "sequence_number" BIGINT NOT NULL,
              "created" BIGINT NOT NULL,
@@ -154,10 +153,6 @@ object LiquidityServerSpecConfig extends MultiNodeConfig {
   } yield ()
 
 }
-
-class LiquidityServerSpecMultiJvmNode1 extends LiquidityServerSpec
-class LiquidityServerSpecMultiJvmNode2 extends LiquidityServerSpec
-class LiquidityServerSpecMultiJvmNode3 extends LiquidityServerSpec
 
 sealed abstract class LiquidityServerSpec
     extends MultiNodeSpec(LiquidityServerSpecConfig,
@@ -196,7 +191,7 @@ sealed abstract class LiquidityServerSpec
       val journalTransactor = Transactor.fromDriverManager[IO](
         driver = "org.h2.Driver",
         url =
-          "jdbc:h2:tcp://localhost/mem:liquidity_journal;DATABASE_TO_UPPER=false",
+          "jdbc:h2:tcp://localhost/mem:liquidity_journal;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1",
         user = "sa",
         pass = ""
       )
@@ -264,7 +259,8 @@ sealed abstract class LiquidityServerSpec
               equityOwnerMetadata = None,
               equityAccountName = None,
               equityAccountMetadata = None,
-              name = Some("Dave's Game")
+              name = Some("Dave's Game"),
+              metadata = None
             ),
             correlationId = 0L
           )
@@ -277,20 +273,33 @@ sealed abstract class LiquidityServerSpec
               val equityAccountOwner =
                 zone.members(equityAccount.ownerMemberIds.head)
               assert(
-                equityAccount === Account(equityAccount.id,
-                                          ownerMemberIds =
-                                            Set(equityAccountOwner.id)))
+                equityAccount === Account(
+                  equityAccount.id,
+                  ownerMemberIds = Set(equityAccountOwner.id),
+                  name = None,
+                  metadata = None
+                )
+              )
               assert(
                 equityAccountOwner === Member(
                   equityAccountOwner.id,
-                  Set(PublicKey(TestKit.rsaPublicKey.getEncoded)),
-                  name = Some("Dave")))
-              assert(zone.created === Spread(pivot = Instant.now().toEpochMilli,
-                                             tolerance = 5000L))
+                  ownerPublicKeys =
+                    Set(PublicKey(TestKit.rsaPublicKey.getEncoded)),
+                  name = Some("Dave"),
+                  metadata = None
+                )
+              )
+              assert(
+                zone.created === Spread(
+                  pivot = Instant.now().toEpochMilli,
+                  tolerance = 5000L
+                ))
               assert(
                 zone.expires === Spread(
                   pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
-                  tolerance = 5000L))
+                  tolerance = 5000L
+                )
+              )
               assert(zone.transactions === Map.empty)
               assert(zone.name === Some("Dave's Game"))
               assert(zone.metadata === None)
@@ -305,8 +314,10 @@ sealed abstract class LiquidityServerSpec
                     Validated.Valid(zoneAndConnectedClients)) =>
                   val (_zone, _connectedClients) = zoneAndConnectedClients
                   assert(_zone === zone)
-                  assert(_connectedClients.values.toSet === Set(
-                    PublicKey(TestKit.rsaPublicKey.getEncoded)))
+                  assert(
+                    _connectedClients.values.toSet ===
+                      Set(PublicKey(TestKit.rsaPublicKey.getEncoded))
+                  )
               }
           }); ()
       }
@@ -439,3 +450,7 @@ sealed abstract class LiquidityServerSpec
     sub.requestNext().message
 
 }
+
+class LiquidityServerSpecMultiJvmNode1 extends LiquidityServerSpec
+class LiquidityServerSpecMultiJvmNode2 extends LiquidityServerSpec
+class LiquidityServerSpecMultiJvmNode3 extends LiquidityServerSpec

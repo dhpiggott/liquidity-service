@@ -17,7 +17,7 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-import org.scalatest.{FreeSpec, Inside}
+import org.scalatest.FreeSpec
 import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.concurrent.Future
@@ -25,8 +25,7 @@ import scala.concurrent.Future
 class HttpControllerSpec
     extends FreeSpec
     with HttpController
-    with ScalatestRouteTest
-    with Inside {
+    with ScalatestRouteTest {
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 

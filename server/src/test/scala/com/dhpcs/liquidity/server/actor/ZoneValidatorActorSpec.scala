@@ -33,7 +33,7 @@ class ZoneValidatorActorSpec
 
   override protected def withFixture(test: OneArgTest): Outcome = {
     val clientConnectionTestProbe = TestProbe()
-    val zoneId = ZoneId(UUID.randomUUID.toString)
+    val zoneId = ZoneId(UUID.randomUUID().toString)
     val zoneValidator = system.spawn(ZoneValidatorActor.shardingBehavior,
                                      name = zoneId.persistenceId)
     try withFixture(
@@ -52,7 +52,12 @@ class ZoneValidatorActorSpec
             equityOwnerMetadata = None,
             equityAccountName = None,
             equityAccountMetadata = None,
-            name = Some(Random.nextString(ZoneCommand.MaximumTagLength + 1))
+            name = Some(
+              Random.alphanumeric
+                .take(ZoneCommand.MaximumTagLength + 1)
+                .mkString
+            ),
+            metadata = None
           )
         )
         assert(
@@ -96,7 +101,7 @@ class ZoneValidatorActorSpec
       "rejects it if the name is too long" in { fixture =>
         createZone(fixture)
         sendCommand(fixture)(
-          ChangeZoneNameCommand(Some(Random.nextString(161)))
+          ChangeZoneNameCommand(Some(Random.alphanumeric.take(161).mkString))
         )
         assert(
           expectResponse(fixture) === ChangeZoneNameResponse(
@@ -170,14 +175,14 @@ class ZoneValidatorActorSpec
       "accepts it if valid" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
-        createAccount(fixture, member.id)
+        createAccount(fixture, owner = member.id)
       }
     }
     "receiving update account commands" - {
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
-        val account = createAccount(fixture, member.id)
+        val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           UpdateAccountCommand(
             actingAs = MemberId(""),
@@ -191,7 +196,7 @@ class ZoneValidatorActorSpec
       "accepts it if valid" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
-        val account = createAccount(fixture, member.id)
+        val account = createAccount(fixture, owner = member.id)
         updateAccount(fixture, account)
       }
     }
@@ -199,7 +204,7 @@ class ZoneValidatorActorSpec
       "rejects it if source has insufficient credit" in { fixture =>
         val zone = createZone(fixture)
         val member = createMember(fixture)
-        val account = createAccount(fixture, member.id)
+        val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           AddTransactionCommand(
             actingAs = member.id,
@@ -217,8 +222,8 @@ class ZoneValidatorActorSpec
       "accepts it if valid" in { fixture =>
         val zone = createZone(fixture)
         val member = createMember(fixture)
-        val account = createAccount(fixture, member.id)
-        addTransaction(fixture, zone, account.id)
+        val account = createAccount(fixture, owner = member.id)
+        addTransaction(fixture, zone, to = account.id)
       }
     }
   }
@@ -231,7 +236,8 @@ class ZoneValidatorActorSpec
         equityOwnerMetadata = None,
         equityAccountName = None,
         equityAccountMetadata = None,
-        name = Some("Dave's Game")
+        name = Some("Dave's Game"),
+        metadata = None
       )
     )
     inside(expectResponse(fixture)) {
@@ -243,18 +249,31 @@ class ZoneValidatorActorSpec
         assert(
           equityAccount === Account(
             equityAccount.id,
-            ownerMemberIds = Set(equityAccountOwner.id)))
+            ownerMemberIds = Set(equityAccountOwner.id),
+            name = None,
+            metadata = None
+          )
+        )
         assert(
-          equityAccountOwner === Member(equityAccountOwner.id,
-                                        Set(publicKey),
-                                        name = Some("Dave")))
+          equityAccountOwner === Member(
+            equityAccountOwner.id,
+            Set(publicKey),
+            name = Some("Dave"),
+            metadata = None
+          )
+        )
         assert(
-          zone.created === Spread(pivot = Instant.now().toEpochMilli,
-                                  tolerance = 5000L))
+          zone.created === Spread(
+            pivot = Instant.now().toEpochMilli,
+            tolerance = 5000L
+          )
+        )
         assert(
           zone.expires === Spread(
             pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
-            tolerance = 5000L))
+            tolerance = 5000L
+          )
+        )
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))
         assert(zone.metadata === None)
@@ -276,18 +295,31 @@ class ZoneValidatorActorSpec
         assert(
           equityAccount === Account(
             equityAccount.id,
-            ownerMemberIds = Set(equityAccountOwner.id)))
+            ownerMemberIds = Set(equityAccountOwner.id),
+            name = None,
+            metadata = None
+          )
+        )
         assert(
-          equityAccountOwner === Member(equityAccountOwner.id,
-                                        Set(publicKey),
-                                        name = Some("Dave")))
+          equityAccountOwner === Member(
+            equityAccountOwner.id,
+            Set(publicKey),
+            name = Some("Dave"),
+            metadata = None
+          )
+        )
         assert(
-          zone.created === Spread(pivot = Instant.now().toEpochMilli,
-                                  tolerance = 5000L))
+          zone.created === Spread(
+            pivot = Instant.now().toEpochMilli,
+            tolerance = 5000L
+          )
+        )
         assert(
           zone.expires === Spread(
             pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
-            tolerance = 5000L))
+            tolerance = 5000L
+          )
+        )
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))
         assert(zone.metadata === None)
@@ -308,7 +340,7 @@ class ZoneValidatorActorSpec
     sendCommand(fixture)(
       QuitZoneCommand
     )
-    assert(expectResponse(fixture) === QuitZoneResponse(Validated.Valid(())));
+    assert(expectResponse(fixture) === QuitZoneResponse(Validated.Valid(())))
     ()
   }
 
@@ -317,7 +349,7 @@ class ZoneValidatorActorSpec
       ChangeZoneNameCommand(None)
     )
     assert(
-      expectResponse(fixture) === ChangeZoneNameResponse(Validated.Valid(())));
+      expectResponse(fixture) === ChangeZoneNameResponse(Validated.Valid(())))
     ()
   }
 
@@ -347,6 +379,23 @@ class ZoneValidatorActorSpec
     }
   }
 
+  private[this] def createAccount(fixture: FixtureParam,
+                                  owner: MemberId): Account = {
+    sendCommand(fixture)(
+      CreateAccountCommand(
+        ownerMemberIds = Set(owner),
+        name = Some("Jenny's Account"),
+        metadata = None
+      )
+    )
+    inside(expectResponse(fixture)) {
+      case CreateAccountResponse(Validated.Valid(account)) =>
+        assert(account.ownerMemberIds === Set(owner))
+        assert(account.name === Some("Jenny's Account"))
+        account
+    }
+  }
+
   private[this] def updateAccount(fixture: FixtureParam,
                                   account: Account): Unit = {
     sendCommand(fixture)(
@@ -357,23 +406,6 @@ class ZoneValidatorActorSpec
     )
     inside(expectResponse(fixture)) {
       case UpdateAccountResponse(Validated.Valid(())) => ()
-    }
-  }
-
-  private[this] def createAccount(fixture: FixtureParam,
-                                  memberId: MemberId): Account = {
-    sendCommand(fixture)(
-      CreateAccountCommand(
-        ownerMemberIds = Set(memberId),
-        name = Some("Jenny's Account"),
-        metadata = None
-      )
-    )
-    inside(expectResponse(fixture)) {
-      case CreateAccountResponse(Validated.Valid(account)) =>
-        assert(account.ownerMemberIds === Set(memberId))
-        assert(account.name === Some("Jenny's Account"))
-        account
     }
   }
 

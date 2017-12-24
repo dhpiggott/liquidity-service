@@ -134,7 +134,7 @@ object ClientConnectionActor {
       message match {
         case InitActorSink(webSocketIn) =>
           webSocketIn ! ActorSinkAck
-          val keyOwnershipChallenge = Authentication.createKeyOwnershipChallengeMessage()
+          val keyOwnershipChallenge = Authentication.createKeyOwnershipChallenge()
           sendClientMessage(
             webSocketOut,
             pingGeneratorActor,
@@ -172,13 +172,11 @@ object ClientConnectionActor {
       log: LoggingAdapter,
       mediator: ActorRef[Publish],
       pingGeneratorActor: typed.ActorRef[PingGeneratorActor.PingGeneratorMessage],
-      keyOwnershipChallengeMessage: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge)
-    : Behavior[ClientConnectionMessage] =
+      keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge): Behavior[ClientConnectionMessage] =
     Actor.immutable[ClientConnectionMessage] { (context, message) =>
       message match {
         case actorSinkInit: InitActorSink =>
-          log.warning(
-            s"Stopping due to unexpected message; required CompleteKeyOwnershipProof but received $actorSinkInit")
+          log.warning(s"Stopping due to unexpected message; required KeyOwnershipProof but received $actorSinkInit")
           Actor.stopped
 
         case PublishClientStatusTick =>
@@ -195,12 +193,12 @@ object ClientConnectionActor {
             case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
                 _: proto.ws.protocol.ServerMessage.Message.Command |
                 _: proto.ws.protocol.ServerMessage.Message.Response) =>
-              log.warning(s"Stopping due to unexpected message; required CompleteKeyOwnershipProof but received $other")
+              log.warning(s"Stopping due to unexpected message; required KeyOwnershipProof but received $other")
               Actor.stopped
 
-            case proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(keyOwnershipProofMessage) =>
-              val publicKey = PublicKey(keyOwnershipProofMessage.publicKey.toByteArray)
-              if (!Authentication.isValidKeyOwnershipProof(keyOwnershipChallengeMessage, keyOwnershipProofMessage)) {
+            case proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(keyOwnershipProof) =>
+              val publicKey = PublicKey(keyOwnershipProof.publicKey.toByteArray)
+              if (!Authentication.isValidKeyOwnershipProof(keyOwnershipChallenge, keyOwnershipProof)) {
                 log.warning(
                   "Stopping due to invalid key ownership proof for public key with fingerprint " +
                     s"${publicKey.fingerprint}.")
@@ -220,14 +218,12 @@ object ClientConnectionActor {
 
         case zoneResponseEnvelope: ZoneResponseEnvelope =>
           log.warning(
-            "Stopping due to unexpected message; required CompleteKeyOwnershipProof but received " +
-              s"$zoneResponseEnvelope")
+            s"Stopping due to unexpected message; required KeyOwnershipProof but received $zoneResponseEnvelope")
           Actor.stopped
 
         case zoneNotificationEnvelope: ZoneNotificationEnvelope =>
           log.warning(
-            "Stopping due to unexpected message; required CompleteKeyOwnershipProof but received " +
-              s"$zoneNotificationEnvelope")
+            s"Stopping due to unexpected message; required KeyOwnershipProof but received $zoneNotificationEnvelope")
           Actor.stopped
       }
     } onSignal {

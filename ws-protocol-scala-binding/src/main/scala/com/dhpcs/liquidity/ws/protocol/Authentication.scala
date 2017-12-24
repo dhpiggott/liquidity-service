@@ -12,7 +12,7 @@ object Authentication {
 
   private final val KeySize = 2048
 
-  def createKeyOwnershipChallengeMessage(): proto.ws.protocol.ClientMessage.KeyOwnershipChallenge = {
+  def createKeyOwnershipChallenge(): proto.ws.protocol.ClientMessage.KeyOwnershipChallenge = {
     val nonce = new Array[Byte](KeySize / 8)
     Random.nextBytes(nonce)
     proto.ws.protocol.ClientMessage.KeyOwnershipChallenge(

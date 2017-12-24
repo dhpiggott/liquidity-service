@@ -211,7 +211,7 @@ class ZoneAnalyticsActorSpec
     val transactor = Transactor.fromDriverManager[IO](
       driver = "org.h2.Driver",
       url =
-        s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID().toString};DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1",
+        s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID()};DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1",
       user = "sa",
       pass = ""
     )

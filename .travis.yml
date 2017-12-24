@@ -18,9 +18,8 @@ jobs:
   include:
     - stage: test
       script: sbt ";reload plugins; sbt:scalafmt::test; scalafmt::test; reload return;
-        sbt:scalafmt::test; scalafmt::test; test:scalafmt::test; multi-jvm:scalafmt::test"
-    - stage: test
-      script: sbt ";compile; coverage; test; coverageReport" && bash <(curl -s https://codecov.io/bash)
+        sbt:scalafmt::test; scalafmt::test; test:scalafmt::test; multi-jvm:scalafmt::test;
+        compile; coverage; test; coverageReport" && bash <(curl -s https://codecov.io/bash)
     - stage: test
       script: sbt ";compile; multi-jvm:test"
     - stage: publish

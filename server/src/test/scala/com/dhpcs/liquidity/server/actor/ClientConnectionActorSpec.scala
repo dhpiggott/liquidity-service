@@ -107,6 +107,14 @@ class ClientConnectionActorSpec
           joinZone(fixture, zone)
       }
     }
+    "receiving a QuitZoneCommand" - {
+      "relays it and in turn relays the QuitZoneResponse" in { fixture =>
+        authenticate(fixture)
+        val zone = createZone(fixture)
+        joinZone(fixture, zone)
+        quitZone(fixture, zone)
+      }
+    }
   }
 
   private[this] def receivePing(fixture: FixtureParam): Unit = {
@@ -232,6 +240,25 @@ class ClientConnectionActorSpec
                                notification)
     )
     assert(expectZoneNotification(webSocketOutTestProbe) === notification); ()
+  }
+
+  private[this] def quitZone(fixture: FixtureParam, zone: Zone): Unit = {
+    val (sinkTestProbe,
+         zoneValidatorShardRegionTestProbe,
+         webSocketOutTestProbe,
+         clientConnection) = fixture
+    val correlationId = 0L
+    sendZoneCommand(sinkTestProbe, clientConnection)(zone.id,
+                                                     QuitZoneCommand,
+                                                     correlationId)
+    val quitZoneResponse = QuitZoneResponse(Validated.valid(()))
+    zoneValidatorShardRegionTestProbe.send(
+      clientConnection,
+      ZoneResponseEnvelope(zoneValidatorShardRegionTestProbe.ref,
+                           correlationId,
+                           quitZoneResponse)
+    )
+    assert(expectZoneResponse(webSocketOutTestProbe) === quitZoneResponse); ()
   }
 
   private[this] def expectClientCommand(webSocketOutTestProbe: TestProbe)

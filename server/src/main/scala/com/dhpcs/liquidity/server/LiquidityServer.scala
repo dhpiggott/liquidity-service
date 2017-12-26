@@ -89,7 +89,10 @@ object LiquidityServer {
         |    hostname = "${System.getenv("AKKA_HOSTNAME")}"
         |    bind-hostname = "0.0.0.0"
         |  }
-        |  cluster.metrics.enabled = off
+        |  cluster {
+        |    http.management.hostname = "0.0.0.0"
+        |    metrics.enabled = off
+        |  }
         |  extensions += "akka.persistence.Persistence"
         |  persistence {
         |    journal {
@@ -150,7 +153,7 @@ object LiquidityServer {
       analyticsTransactor,
       pingInterval = 30.seconds,
       httpInterface = "0.0.0.0",
-      httpPort = 80
+      httpPort = 8080
     )
     val httpBinding = server.bindHttp()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,

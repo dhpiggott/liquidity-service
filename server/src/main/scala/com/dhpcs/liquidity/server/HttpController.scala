@@ -27,7 +27,6 @@ import com.trueaccord.scalapb.GeneratedMessage
 import com.trueaccord.scalapb.json.JsonFormat
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-import okio.ByteString
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import play.api.libs.json.{JsValue, Json, OWrites, Writes}
 
@@ -114,7 +113,8 @@ trait HttpController {
       case None =>
         complete(
           (InternalServerError,
-           "Could not extract remote address. Check akka.http.server.remote-address-header = on.")
+           "Could not extract remote address. Check " +
+             "akka.http.server.remote-address-header = on.")
         )
       case Some(remoteAddress) =>
         handleWebSocketMessages(webSocketApi(remoteAddress))
@@ -149,7 +149,7 @@ trait HttpController {
                 "activeZones" -> Json.obj(
                   "count" -> activeZoneSummaries.size,
                   "zones" -> activeZoneSummaries.toSeq
-                    .sortBy(_.zoneId.id)
+                    .sortBy(_.zoneId.value)
                     .map {
                       case ActiveZoneSummary(zoneId,
                                              members,
@@ -158,8 +158,8 @@ trait HttpController {
                                              metadata,
                                              clientConnections) =>
                         Json.obj(
-                          "zoneIdFingerprint" -> ByteString
-                            .encodeUtf8(zoneId.id.toString)
+                          "zoneIdFingerprint" -> okio.ByteString
+                            .encodeUtf8(zoneId.value)
                             .sha256
                             .hex,
                           "metadata" -> metadata
@@ -204,7 +204,7 @@ trait HttpController {
     get(complete(getBalances(ZoneId(id)).map(balances =>
       Json.obj(balances.map {
         case (accountId, balance) =>
-          accountId.id.toString -> toJsFieldJsValueWrapper(balance)
+          accountId.value.toString -> toJsFieldJsValueWrapper(balance)
       }.toSeq: _*))))
 
   protected[this] def events(persistenceId: String,

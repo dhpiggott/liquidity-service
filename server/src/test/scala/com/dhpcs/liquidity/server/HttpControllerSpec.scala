@@ -6,10 +6,9 @@ import java.util.UUID
 
 import akka.NotUsed
 import akka.http.scaladsl.client.RequestBuilding
-import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model.headers.`Remote-Address`
 import akka.http.scaladsl.model.ws.Message
-import akka.http.scaladsl.model.{ContentType, RemoteAddress, StatusCodes}
+import akka.http.scaladsl.model.{RemoteAddress, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.typed.cluster.ActorRefResolver
@@ -82,7 +81,6 @@ class HttpControllerSpec
       val getRequest = RequestBuilding.Get("/version")
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
-        assert(contentType === ContentType(`application/json`))
         val keys = entityAs[JsObject].value.keySet
         assert(keys.contains("version"))
         assert(keys.contains("builtAtString"))
@@ -95,7 +93,6 @@ class HttpControllerSpec
           RequestBuilding.Get(s"/diagnostics/events/zone-${UUID.randomUUID()}")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          assert(contentType === ContentType(`application/json`))
           assert(
             entityAs[JsValue] === Json.parse(
               """
@@ -191,7 +188,6 @@ class HttpControllerSpec
           RequestBuilding.Get(s"/diagnostics/zones/${UUID.randomUUID()}")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          assert(contentType === ContentType(`application/json`))
           assert(
             entityAs[JsValue] === Json.parse(
               """
@@ -236,7 +232,6 @@ class HttpControllerSpec
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
-        assert(contentType === ContentType(`application/json`))
         assert(
           entityAs[JsValue] === Json.parse(
             """
@@ -277,7 +272,6 @@ class HttpControllerSpec
           RequestBuilding.Get(s"/analytics/zones/${UUID.randomUUID()}")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          assert(contentType === ContentType(`application/json`))
           assert(
             entityAs[JsValue] === Json.parse(
               """
@@ -306,7 +300,6 @@ class HttpControllerSpec
           RequestBuilding.Get(s"/analytics/zones/${UUID.randomUUID()}/balances")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          assert(contentType === ContentType(`application/json`))
           assert(
             entityAs[JsValue] === Json.parse(
               """

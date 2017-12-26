@@ -26,8 +26,7 @@ import com.dhpcs.liquidity.server.LiquidityServer.TransactIoToFuture
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActorSpec._
 import com.dhpcs.liquidity.server.{
   InmemoryPersistenceTestFixtures,
-  SqlAnalyticsStore,
-  TestKit
+  SqlAnalyticsStore
 }
 import doobie._
 import doobie.implicits._
@@ -189,7 +188,7 @@ class ZoneAnalyticsActorSpec
   private[this] implicit val mat: Materializer = ActorMaterializer()
 
   private[this] val remoteAddress = InetAddress.getLoopbackAddress
-  private[this] val publicKey = PublicKey(TestKit.rsaPublicKey.getEncoded)
+  private[this] val publicKey = PublicKey(rsaPublicKey.getEncoded)
 
   private[this] val h2Server = Server.createTcpServer()
   private[this] val transactIoToFuture = new TransactIoToFuture(
@@ -197,7 +196,8 @@ class ZoneAnalyticsActorSpec
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    h2Server.start(); ()
+    h2Server.start()
+    ()
   }
 
   override def afterAll(): Unit = {
@@ -211,7 +211,8 @@ class ZoneAnalyticsActorSpec
     val transactor = Transactor.fromDriverManager[IO](
       driver = "org.h2.Driver",
       url =
-        s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID()};DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1",
+        s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID()};" +
+          "DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1",
       user = "sa",
       pass = ""
     )
@@ -237,7 +238,8 @@ class ZoneAnalyticsActorSpec
       Await.result(
         StorageExtension(system).journalStorage ? InMemoryJournalStorage.ClearJournal,
         askTimeout.duration
-      ); ()
+      )
+      ()
     }
   }
 
@@ -344,7 +346,8 @@ class ZoneAnalyticsActorSpec
         SqlAnalyticsStore.ClientSessionsStore.retrieve(zoneId, actorRef)
       ).futureValue
       assert(sessionId === 1)
-    }; ()
+    }
+    ()
   }
 
   private[this] def clientQuit(fixture: FixtureParam,
@@ -358,7 +361,8 @@ class ZoneAnalyticsActorSpec
         SqlAnalyticsStore.ClientSessionsStore.retrieve(zoneId, actorRef)
       ).futureValue
       assert(sessionId === 1)
-    }; ()
+    }
+    ()
   }
 
   private[this] def zoneNameChanged(fixture: FixtureParam): Unit = {
@@ -369,7 +373,8 @@ class ZoneAnalyticsActorSpec
         SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId)
       ).futureValue
       assert(maybeZone.exists(_.name.isEmpty))
-    }; ()
+    }
+    ()
   }
 
   private[this] def memberCreated(fixture: FixtureParam): Member = {
@@ -403,7 +408,8 @@ class ZoneAnalyticsActorSpec
         SqlAnalyticsStore.MembersStore.retrieveAll(zoneId)
       ).futureValue
       assert(members(member.id) === member.copy(name = None))
-    }; ()
+    }
+    ()
   }
 
   private[this] def accountCreated(fixture: FixtureParam,
@@ -440,7 +446,8 @@ class ZoneAnalyticsActorSpec
         SqlAnalyticsStore.AccountsStore.retrieveAll(zoneId)
       ).futureValue
       assert(accounts(account.id) === account.copy(name = None))
-    }; ()
+    }
+    ()
   }
 
   private[this] def transactionAdded(fixture: FixtureParam,
@@ -467,7 +474,8 @@ class ZoneAnalyticsActorSpec
         SqlAnalyticsStore.TransactionsStore.retrieveAll(zoneId)
       ).futureValue
       assert(transactions(transaction.id) === transaction)
-    }; ()
+    }
+    ()
   }
 
   private[this] def writeEvent(fixture: FixtureParam,

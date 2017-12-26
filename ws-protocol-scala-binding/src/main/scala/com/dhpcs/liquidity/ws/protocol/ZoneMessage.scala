@@ -71,7 +71,7 @@ object ZoneResponse {
                            "At least one member ID must be specified.")
     def memberDoesNotExist(memberId: MemberId) =
       ZoneResponse.Error(code = 6,
-                         description = s"Member ${memberId.id} must exist.")
+                         description = s"Member ${memberId.value} must exist.")
     val memberDoesNotExist =
       ZoneResponse.Error(code = 7, description = "Member must exist.")
     val memberKeyMismatch =

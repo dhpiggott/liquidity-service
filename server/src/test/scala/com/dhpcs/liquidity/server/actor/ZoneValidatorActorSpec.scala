@@ -13,7 +13,7 @@ import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.{InmemoryPersistenceTestFixtures, TestKit}
+import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
 import com.dhpcs.liquidity.ws.protocol._
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.{Inside, Outcome, fixture}
@@ -26,7 +26,7 @@ class ZoneValidatorActorSpec
     with Inside {
 
   private[this] val remoteAddress = InetAddress.getLoopbackAddress
-  private[this] val publicKey = PublicKey(TestKit.rsaPublicKey.getEncoded)
+  private[this] val publicKey = PublicKey(rsaPublicKey.getEncoded)
 
   override protected type FixtureParam =
     (TestProbe, ZoneId, typed.ActorRef[SerializableZoneValidatorMessage])
@@ -333,7 +333,8 @@ class ZoneValidatorActorSpec
           .toSerializationFormat(clientConnectionTestProbe.ref),
         publicKey
       )
-    ); ()
+    )
+    ()
   }
 
   private[this] def quitZone(fixture: FixtureParam): Unit = {
@@ -374,9 +375,9 @@ class ZoneValidatorActorSpec
     sendCommand(fixture)(
       UpdateMemberCommand(member.copy(name = None))
     )
-    inside(expectResponse(fixture)) {
-      case UpdateMemberResponse(Validated.Valid(())) => ()
-    }
+    assert(
+      expectResponse(fixture) === UpdateMemberResponse(Validated.Valid(())))
+    ()
   }
 
   private[this] def createAccount(fixture: FixtureParam,
@@ -404,9 +405,9 @@ class ZoneValidatorActorSpec
         account.copy(name = None)
       )
     )
-    inside(expectResponse(fixture)) {
-      case UpdateAccountResponse(Validated.Valid(())) => ()
-    }
+    assert(
+      expectResponse(fixture) === UpdateAccountResponse(Validated.Valid(())))
+    ()
   }
 
   private[this] def addTransaction(fixture: FixtureParam,
@@ -437,8 +438,8 @@ class ZoneValidatorActorSpec
                                          tolerance = 5000L))
         assert(transaction.description === Some("Jenny's Lottery Win"))
         assert(transaction.metadata === None)
-        ()
     }
+    ()
   }
 
   private[this] def sendCommand(fixture: FixtureParam)(

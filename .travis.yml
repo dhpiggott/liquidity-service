@@ -17,14 +17,16 @@ stages:
 jobs:
   include:
     - stage: test
-      script: sbt ";reload plugins; sbt:scalafmt::test; scalafmt::test; reload return;
-        sbt:scalafmt::test; scalafmt::test; test:scalafmt::test; multi-jvm:scalafmt::test;
-        compile; coverage; test; coverageReport" && bash <(curl -s https://codecov.io/bash)
+      script: sbt ";reload plugins; sbt:scalafmt::test; scalafmt::test;
+        reload return; sbt:scalafmt::test; scalafmt::test;
+        server/test:scalafmt::test; coverage; server/test; coverageReport" &&
+        bash <(curl -s https://codecov.io/bash)
     - stage: test
-      script: sbt ";compile; multi-jvm:test"
+      script: sbt ";server/it:scalafmt::test; server/docker:publishLocal;
+        server/it:test; server/docker:clean"
     - stage: publish
       script: |
-        git fetch --unshallow && # So that sbt-dynver derives the version correctly
+        git fetch --unshallow && # So sbt-dynver derives the version correctly
           docker --version &&
           pip install --user awscli &&
           export PATH=$PATH:$HOME/.local/bin &&
@@ -32,7 +34,7 @@ jobs:
           sbt ";server/docker:publish"
     - stage: publish
       script: |
-        git fetch --unshallow && # So that sbt-dynver derives the version correctly
+        git fetch --unshallow && # So sbt-dynver derives the version correctly
           sbt ";ws-protocol/releaseEarly"
 cache:
   directories:

@@ -457,7 +457,7 @@ object ClientConnectionActor {
                         .ZoneNotificationEnvelope(
                           proto.ws.protocol.ClientMessage.Notification
                             .ZoneNotificationEnvelope(
-                              zoneId.id.toString,
+                              zoneId.value.toString,
                               Some(
                                 ProtoBinding[ZoneNotification,
                                              proto.ws.protocol.ZoneNotification,

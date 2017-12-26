@@ -25,14 +25,15 @@ object ProtoBindings {
     )
 
   implicit final val MemberIdProtoBinding: ProtoBinding[MemberId, String, Any] =
-    ProtoBinding.instance((memberId, _) => memberId.id, (id, _) => MemberId(id))
+    ProtoBinding.instance((memberId, _) => memberId.value,
+                          (id, _) => MemberId(id))
 
   implicit final val MemberProtoBinding
     : ProtoBinding[Member, proto.model.Member, Any] = cachedImplicit
 
   implicit final val AccountIdProtoBinding
     : ProtoBinding[AccountId, String, Any] =
-    ProtoBinding.instance((accountId, _) => accountId.id,
+    ProtoBinding.instance((accountId, _) => accountId.value,
                           (id, _) => AccountId(id))
 
   implicit final val AccountProtoBinding
@@ -40,7 +41,7 @@ object ProtoBindings {
 
   implicit final val TransactionIdProtoBinding
     : ProtoBinding[TransactionId, String, Any] =
-    ProtoBinding.instance((transactionId, _) => transactionId.id,
+    ProtoBinding.instance((transactionId, _) => transactionId.value,
                           (id, _) => TransactionId(id))
 
   implicit final val BigDecimalProtoBinding
@@ -54,7 +55,7 @@ object ProtoBindings {
     : ProtoBinding[Transaction, proto.model.Transaction, Any] = cachedImplicit
 
   implicit final val ZoneIdProtoBinding: ProtoBinding[ZoneId, String, Any] =
-    ProtoBinding.instance((zoneId, _) => zoneId.id.toString,
+    ProtoBinding.instance((zoneId, _) => zoneId.value.toString,
                           (id, _) => ZoneId(id))
 
   trait EntityIdExtractor[E, I] {
@@ -63,9 +64,7 @@ object ProtoBindings {
 
   object EntityIdExtractor {
     def instance[E, I](apply: E => I): EntityIdExtractor[E, I] =
-      new EntityIdExtractor[E, I] {
-        override def extractId(e: E): I = apply(e)
-      }
+      (e: E) => apply(e)
   }
 
   implicit final val MemberIdExtractor: EntityIdExtractor[Member, MemberId] =

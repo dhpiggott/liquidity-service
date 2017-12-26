@@ -4,7 +4,6 @@ import java.security.KeyFactory
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
-import java.util.UUID
 
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
@@ -49,12 +48,19 @@ object ZoneValidatorActor {
                                SerializableZoneValidatorMessage] =
     ShardingMessageExtractor.noEnvelope(
       MaxNumberOfShards, {
-        // This has to be part of SerializableZoneValidatorMessage because the akka-typed sharding API requires that
-        // the hand-off stop-message is a subtype of the ShardingMessageExtractor Envelope type. Of course, hand-off
-        // stop-messages are sent directly to the entity to be stopped, so this extractor won't actually encounter them.
-        case StopZone                                   => throw new IllegalArgumentException("Received StopZone")
-        case GetZoneStateCommand(_, zoneId)             => zoneId.id
-        case ZoneCommandEnvelope(_, zoneId, _, _, _, _) => zoneId.id
+        // This has to be part of SerializableZoneValidatorMessage because the
+        // akka-typed sharding API requires that the hand-off stop-message is a
+        // subtype of the ShardingMessageExtractor Envelope type. Of course,
+        // hand-off stop-messages are sent directly to the entity to be
+        // stopped, so this extractor won't actually encounter them.
+        case StopZone =>
+          throw new IllegalArgumentException("Received StopZone")
+
+        case GetZoneStateCommand(_, zoneId) =>
+          zoneId.value
+
+        case ZoneCommandEnvelope(_, zoneId, _, _, _, _) =>
+          zoneId.value
       }
     )
 
@@ -136,7 +142,8 @@ object ZoneValidatorActor {
         val notificationSequenceNumbers =
           mutable.Map.empty[ActorRef[SerializableClientConnectionMessage], Long]
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
-        // Workarounds for the limitation described in https://github.com/akka/akka/pull/23674
+        // Workarounds for the limitation described in
+        // https://github.com/akka/akka/pull/23674
         // TODO: Remove these once that limitation is resolved
         val passivationCountdown =
           context.spawn(PassivationCountdownActor.behavior(context.self),
@@ -221,7 +228,8 @@ object ZoneValidatorActor {
                   Effect.none
 
                 case zoneCommandEnvelope: ZoneCommandEnvelope =>
-                  passivationCountdown ! PassivationCountdownActor.CommandReceivedEvent
+                  passivationCountdown !
+                    PassivationCountdownActor.CommandReceivedEvent
                   handleCommand(context,
                                 id,
                                 notificationSequenceNumbers,
@@ -322,13 +330,13 @@ object ZoneValidatorActor {
                 Effect.none
               case None =>
                 val equityOwner = Member(
-                  MemberId(UUID.randomUUID().toString),
+                  MemberId(0.toString),
                   Set(equityOwnerPublicKey),
                   equityOwnerName,
                   equityOwnerMetadata
                 )
                 val equityAccount = Account(
-                  AccountId(UUID.randomUUID().toString),
+                  AccountId(0.toString),
                   Set(equityOwner.id),
                   equityAccountName,
                   equityAccountMetadata
@@ -455,8 +463,9 @@ object ZoneValidatorActor {
                 Effect.none
               case Valid(_) =>
                 if (zone.name == name) {
-                  // We probably already accepted the command and this was just a redelivery. In any case, we don't
-                  // need to persist anything.
+                  // We probably already accepted the command and this was just
+                  // a redelivery. In any case, we don't need to persist
+                  // anything.
                   deliverResponse(
                     context.self,
                     zoneCommandEnvelope.replyTo,
@@ -559,8 +568,9 @@ object ZoneValidatorActor {
                 Effect.none
               case Valid(_) =>
                 if (member == zone.members(member.id)) {
-                  // We probably already accepted the command and this was just a redelivery. In any case, we don't
-                  // need to persist anything.
+                  // We probably already accepted the command and this was just
+                  // a redelivery. In any case, we don't need to persist
+                  // anything.
                   deliverResponse(
                     context.self,
                     zoneCommandEnvelope.replyTo,
@@ -663,8 +673,9 @@ object ZoneValidatorActor {
                 Effect.none
               case Valid(_) =>
                 if (account == zone.accounts(account.id)) {
-                  // We probably already accepted the command and this was just a redelivery. In any case, we don't
-                  // need to persist anything.
+                  // We probably already accepted the command and this was just
+                  // a redelivery. In any case, we don't need to persist
+                  // anything.
                   deliverResponse(
                     context.self,
                     zoneCommandEnvelope.replyTo,
@@ -876,8 +887,7 @@ object ZoneValidatorActor {
     (if (value.compare(0) == -1)
        Validated.invalidNel(ZoneResponse.Error.negativeTransactionValue)
      else Validated.valid(value)).andThen { value =>
-      val updatedSourceBalance = balances(from) - value
-      if (updatedSourceBalance < 0 && from != zone.equityAccountId)
+      if (balances(from) - value < 0 && from != zone.equityAccountId)
         Validated.invalidNel(ZoneResponse.Error.insufficientBalance)
       else
         Validated.valid(value)
@@ -1083,7 +1093,8 @@ object ZoneValidatorActor {
             notificationSequenceNumbers += actorRef -> 0
             if (state.connectedClients.isEmpty)
               passivationCountdown ! PassivationCountdownActor.Stop
-            val updatedClientConnections = state.connectedClients + (actorRef -> publicKey)
+            val updatedClientConnections = state.connectedClients +
+              (actorRef -> publicKey)
             state.copy(
               connectedClients = updatedClientConnections
             )
@@ -1157,12 +1168,12 @@ object ZoneValidatorActor {
         )
 
       case TransactionAddedEvent(transaction) =>
-        val updatedSourceBalance = state.balances(transaction.from) - transaction.value
-        val updatedDestinationBalance = state.balances(transaction.to) + transaction.value
         state.copy(
           balances = state.balances +
-            (transaction.from -> updatedSourceBalance) +
-            (transaction.to -> updatedDestinationBalance),
+            (transaction.from -> (state
+              .balances(transaction.from) - transaction.value)) +
+            (transaction.to -> (state
+              .balances(transaction.to) + transaction.value)),
           zone = state.zone.map(
             _.copy(
               transactions = state.zone

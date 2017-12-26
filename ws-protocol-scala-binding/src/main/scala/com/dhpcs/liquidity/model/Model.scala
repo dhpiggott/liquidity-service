@@ -10,21 +10,21 @@ object PublicKey {
   def apply(value: Array[Byte]): PublicKey = PublicKey(ByteString.of(value: _*))
 }
 
-final case class MemberId(id: String)
+final case class MemberId(value: String)
 
 final case class Member(id: MemberId,
                         ownerPublicKeys: Set[PublicKey],
                         name: Option[String],
                         metadata: Option[com.google.protobuf.struct.Struct])
 
-final case class AccountId(id: String)
+final case class AccountId(value: String)
 
 final case class Account(id: AccountId,
                          ownerMemberIds: Set[MemberId],
                          name: Option[String],
                          metadata: Option[com.google.protobuf.struct.Struct])
 
-final case class TransactionId(id: String)
+final case class TransactionId(value: String)
 
 final case class Transaction(
     id: TransactionId,
@@ -36,8 +36,8 @@ final case class Transaction(
     description: Option[String],
     metadata: Option[com.google.protobuf.struct.Struct])
 
-final case class ZoneId(id: String) {
-  def persistenceId: String = s"${ZoneId.PersistenceIdPrefix}$id"
+final case class ZoneId(value: String) {
+  def persistenceId: String = s"${ZoneId.PersistenceIdPrefix}$value"
 }
 
 object ZoneId {

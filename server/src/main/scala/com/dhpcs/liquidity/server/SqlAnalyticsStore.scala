@@ -23,15 +23,16 @@ object SqlAnalyticsStore {
   implicit val InetAddressMeta: Meta[InetAddress] =
     Meta[String].xmap(InetAddress.getByName, _.getHostAddress)
 
-  implicit val ZoneIdMeta: Meta[ZoneId] = Meta[String].xmap(ZoneId(_), _.id)
+  implicit val ZoneIdMeta: Meta[ZoneId] = Meta[String].xmap(ZoneId(_), _.value)
 
-  implicit val MemberIdMeta: Meta[MemberId] = Meta[String].xmap(MemberId, _.id)
+  implicit val MemberIdMeta: Meta[MemberId] =
+    Meta[String].xmap(MemberId, _.value)
 
   implicit val AccountIdMeta: Meta[AccountId] =
-    Meta[String].xmap(AccountId, _.id)
+    Meta[String].xmap(AccountId, _.value)
 
   implicit val TransactionIdMeta: Meta[TransactionId] =
-    Meta[String].xmap(TransactionId, _.id)
+    Meta[String].xmap(TransactionId, _.value)
 
   implicit val StructMeta: Meta[com.google.protobuf.struct.Struct] =
     Meta[String].xmap(
@@ -396,7 +397,7 @@ object SqlAnalyticsStore {
 
     def insert(zoneId: ZoneId, transaction: Transaction): ConnectionIO[Unit] =
       for (_ <- sql"""
-             INSERT INTO transactions (zone_id, transaction_id, "from", "to", "value", creator, created, description, metadata)
+             INSERT INTO transactions (zone_id, transaction_id, `from`, `to`, `value`, creator, created, description, metadata)
                VALUES ($zoneId, ${transaction.id}, ${transaction.from}, ${transaction.to}, ${transaction.value}, ${transaction.creator}, ${Instant
              .ofEpochMilli(transaction.created)}, ${transaction.description}, ${transaction.metadata})
            """.update.run)
@@ -411,7 +412,7 @@ object SqlAnalyticsStore {
     def retrieveAll(
         zoneId: ZoneId): ConnectionIO[Map[TransactionId, Transaction]] =
       sql"""
-           SELECT transaction_id, "from", "to", "value", creator, created, description, metadata
+           SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata
              FROM transactions
              WHERE zone_id = $zoneId
          """
@@ -475,14 +476,14 @@ object SqlAnalyticsStore {
 
     def insert(tag: String, offset: Sequence): ConnectionIO[Unit] =
       for (_ <- sql"""
-             INSERT INTO tag_offsets (tag, "offset")
+             INSERT INTO tag_offsets (tag, `offset`)
                VALUES ($tag, $offset)
            """.update.run)
         yield ()
 
     def retrieve(tag: String): ConnectionIO[Option[Sequence]] =
       sql"""
-           SELECT "offset"
+           SELECT `offset`
              FROM tag_offsets
              WHERE tag = $tag
          """
@@ -492,7 +493,7 @@ object SqlAnalyticsStore {
     def update(tag: String, offset: Sequence): ConnectionIO[Unit] =
       for (_ <- sql"""
              UPDATE tag_offsets
-               SET "offset" = $offset
+               SET `offset` = $offset
                WHERE tag = $tag
            """.update.run)
         yield ()

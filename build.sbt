@@ -1,28 +1,43 @@
-lazy val protobufPublishSettings = Seq(
-  libraryDependencies := Seq.empty,
-  coverageEnabled := false,
-  crossPaths := false,
-  unmanagedResourceDirectories in Compile ++= (PB.protoSources in Compile).value
-    .map(_.asFile)
-)
-
-def protobufScalaSettings(project: Project) = Seq(
-  PB.protoSources in Compile ++= (PB.protoSources in project in Compile).value,
-  PB.targets in Compile := Seq(
-    scalapb
-      .gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value
-  ),
-  libraryDependencies += "com.trueaccord.scalapb" %% "scalapb-runtime" %
-    com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
-)
-
 lazy val `ws-protocol` = project
   .in(file("ws-protocol"))
   .settings(
     name := "liquidity-ws-protocol"
   )
   .disablePlugins(ScalafmtCorePlugin)
-  .settings(protobufPublishSettings)
+  .settings(
+    libraryDependencies := Seq.empty,
+    coverageEnabled := false,
+    crossPaths := false,
+    unmanagedResourceDirectories in Compile ++=
+      (PB.protoSources in Compile).value.map(_.asFile),
+    homepage := Some(url("https://github.com/dhpcs/liquidity/")),
+    startYear := Some(2015),
+    description := "Liquidity is a smartphone based currency built for " +
+      "Monopoly and all board and tabletop games.",
+    licenses += "Apache-2.0" -> url(
+      "https://www.apache.org/licenses/LICENSE-2.0.txt"),
+    organization := "com.dhpcs",
+    organizationHomepage := Some(url("https://www.dhpcs.com/")),
+    organizationName := "dhpcs",
+    developers := List(
+      Developer(
+        id = "dhpiggott",
+        name = "David Piggott",
+        email = "david@piggott.me.uk",
+        url = url("https://www.dhpiggott.net/")
+      )),
+    scmInfo := Some(
+      ScmInfo(
+        browseUrl = url("https://github.com/dhpcs/liquidity/"),
+        connection = "scm:git:https://github.com/dhpcs/liquidity.git",
+        devConnection = Some("scm:git:git@github.com:dhpcs/liquidity.git")
+      )),
+    releaseEarlyEnableInstantReleases := false,
+    releaseEarlyNoGpg := true,
+    releaseEarlyWith := BintrayPublisher,
+    releaseEarlyEnableSyncToMaven := false,
+    bintrayOrganization := Some("dhpcs")
+  )
 
 lazy val `ws-protocol-scala-binding` = project
   .in(file("ws-protocol-scala-binding"))
@@ -60,7 +75,7 @@ lazy val `actor-protocol-scala-binding` = project
 lazy val server = project
   .in(file("server"))
   .settings(
-    name := "liquidity-server"
+    name := "server"
   )
   .dependsOn(`ws-protocol`)
   .dependsOn(`ws-protocol-scala-binding`)
@@ -88,19 +103,21 @@ lazy val server = project
       "de.heikoseeberger" %% "akka-http-play-json" % "1.18.1"
     )
   )
-  .dependsOn(`ws-protocol` % "test->test")
   .settings(libraryDependencies ++= Seq(
-    "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "com.h2database" % "h2" % "1.4.196" % Test,
+    "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.4" % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.11" % Test,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.8" % Test
   ))
-  .enablePlugins(MultiJvmPlugin)
-  .configs(MultiJvm)
-  .settings(inConfig(MultiJvm)(scalafmtSettings))
-  .settings(
-    libraryDependencies += "com.typesafe.akka" %% "akka-multi-node-testkit" % "2.5.8" % MultiJvm)
+  .configs(IntegrationTest)
+  .settings(Defaults.itSettings)
+  .settings(inConfig(IntegrationTest)(scalafmtSettings))
+  .settings(libraryDependencies ++= Seq(
+    "org.scalatest" %% "scalatest" % "3.0.4" % IntegrationTest,
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.0.11" % IntegrationTest,
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.8" % IntegrationTest
+  ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(
     buildInfoPackage := "com.dhpcs.liquidity.server",
@@ -109,7 +126,16 @@ lazy val server = project
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     packageName in Docker := "liquidity",
     version in Docker := version.value.replace('+', '-'),
-    daemonUser in Docker := "root",
     dockerBaseImage := "openjdk:8-jre",
     dockerRepository := Some("837036139524.dkr.ecr.eu-west-2.amazonaws.com")
   )
+
+def protobufScalaSettings(project: Project) = Seq(
+  PB.protoSources in Compile ++= (PB.protoSources in project in Compile).value,
+  PB.targets in Compile := Seq(
+    scalapb
+      .gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value
+  ),
+  libraryDependencies += "com.trueaccord.scalapb" %% "scalapb-runtime" %
+    com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
+)

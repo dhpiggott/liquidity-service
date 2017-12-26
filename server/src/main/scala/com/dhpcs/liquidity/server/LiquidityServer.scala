@@ -134,13 +134,14 @@ object LiquidityServer {
       CoordinatedShutdown.PhaseClusterExitingDone,
       "clusterHttpManagementStop")(() => clusterHttpManagement.stop())
     val analyticsTransactor = (for {
-      analyticsTransactor <- HikariTransactor[IO](
+      analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
         url = System.getenv("MYSQL_ANALYTICS_URL"),
         user = System.getenv("MYSQL_ANALYTICS_USERNAME"),
         pass = System.getenv("MYSQL_ANALYTICS_PASSWORD")
       )
-      _ <- analyticsTransactor.configure(_.setMaximumPoolSize(2))
+      _ <- analyticsTransactor.configure(hikariDataSource =>
+        IO(hikariDataSource.setMaximumPoolSize(2)))
     } yield analyticsTransactor).unsafeRunSync()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
                                         "liquidityServerUnbind")(() =>

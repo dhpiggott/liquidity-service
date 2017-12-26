@@ -32,7 +32,7 @@ lazy val `ws-protocol-scala-binding` = project
   .settings(protobufScalaSettings(`ws-protocol`))
   .settings(
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-core" % "1.0.0-RC1",
+      "org.typelevel" %% "cats-core" % "1.0.0",
       "com.squareup.okio" % "okio" % "1.13.0"
     ))
 
@@ -71,7 +71,7 @@ lazy val server = project
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.8",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.chuusai" %% "shapeless" % "2.3.2",
-      "org.typelevel" %% "cats-core" % "1.0.0-RC1",
+      "org.typelevel" %% "cats-core" % "1.0.0",
       "com.typesafe.akka" %% "akka-cluster" % "2.5.8",
       "com.lightbend.akka" %% "akka-management-cluster-http" % "0.6",
       "com.typesafe.akka" %% "akka-cluster-sharding" % "2.5.8",
@@ -79,8 +79,8 @@ lazy val server = project
       "com.typesafe.akka" %% "akka-persistence" % "2.5.8",
       "com.typesafe.akka" %% "akka-persistence-query" % "2.5.8",
       "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.0.1",
-      "org.tpolecat" %% "doobie-core" % "0.5.0-M10",
-      "org.tpolecat" %% "doobie-hikari" % "0.5.0-M10",
+      "org.tpolecat" %% "doobie-core" % "0.5.0-M11",
+      "org.tpolecat" %% "doobie-hikari" % "0.5.0-M11",
       "mysql" % "mysql-connector-java" % "5.1.45",
       "com.typesafe.akka" %% "akka-http" % "10.0.11",
       "com.trueaccord.scalapb" %% "scalapb-json4s" % "0.3.3",

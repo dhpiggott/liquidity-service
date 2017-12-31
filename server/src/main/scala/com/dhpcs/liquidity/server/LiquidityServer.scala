@@ -5,11 +5,11 @@ import java.util.concurrent.Executors
 
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.Cluster
-import akka.cluster.http.management.ClusterHttpManagement
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives.logRequestResult
+import akka.management.AkkaManagement
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Source}
@@ -89,10 +89,8 @@ object LiquidityServer {
         |    hostname = "${System.getenv("AKKA_HOSTNAME")}"
         |    bind-hostname = "0.0.0.0"
         |  }
-        |  cluster {
-        |    http.management.hostname = "0.0.0.0"
-        |    metrics.enabled = off
-        |  }
+        |  cluster.metrics.enabled = off
+        |  management.http.hostname = "0.0.0.0"
         |  extensions += "akka.persistence.Persistence"
         |  persistence {
         |    journal {
@@ -131,11 +129,11 @@ object LiquidityServer {
     implicit val system: ActorSystem = ActorSystem("liquidity", config)
     implicit val mat: Materializer = ActorMaterializer()
     implicit val ec: ExecutionContext = ExecutionContext.global
-    val clusterHttpManagement = ClusterHttpManagement(Cluster(system))
-    clusterHttpManagement.start()
+    val akkaManagement = AkkaManagement(system)
+    akkaManagement.start()
     CoordinatedShutdown(system).addTask(
       CoordinatedShutdown.PhaseClusterExitingDone,
-      "clusterHttpManagementStop")(() => clusterHttpManagement.stop())
+      "akkaManagementStop")(() => akkaManagement.stop())
     val analyticsTransactor = (for {
       analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",

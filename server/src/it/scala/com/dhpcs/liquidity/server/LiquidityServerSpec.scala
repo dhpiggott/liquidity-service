@@ -161,7 +161,7 @@ class LiquidityServerSpec
         val response = Http()
           .singleRequest(
             HttpRequest(
-              uri = Uri(s"http://localhost:$akkaManagementPort/members")
+              uri = Uri(s"http://localhost:$akkaManagementPort/cluster/members")
             )
           )
           .futureValue

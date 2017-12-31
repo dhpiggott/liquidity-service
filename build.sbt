@@ -85,7 +85,7 @@ lazy val server = project
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.8",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "com.chuusai" %% "shapeless" % "2.3.2",
+      "com.chuusai" %% "shapeless" % "2.3.3",
       "org.typelevel" %% "cats-core" % "1.0.0",
       "com.typesafe.akka" %% "akka-cluster" % "2.5.8",
       "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.7.1",

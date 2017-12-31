@@ -1,7 +1,7 @@
 addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.0")
 
 scalafmtVersion := "1.3.0"
-addSbtPlugin("com.lucidchart" % "sbt-scalafmt" % "1.14")
+addSbtPlugin("com.lucidchart" % "sbt-scalafmt-coursier" % "1.15")
 
 libraryDependencies += "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.7"
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.13")

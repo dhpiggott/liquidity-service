@@ -26,7 +26,7 @@ object ProjectPlugin extends AutoPlugin {
       testProjectSettings
 
   private lazy val scalafmtProjectSettings = Seq(
-    ScalafmtCorePlugin.autoImport.scalafmtVersion := "1.3.0"
+    ScalafmtCorePlugin.autoImport.scalafmtVersion := "1.4.0"
   )
 
   private lazy val scalaProjectSettings = Seq(

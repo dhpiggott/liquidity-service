@@ -67,6 +67,10 @@ class ZoneValidatorActorSpec
       "accepts it if valid" in { fixture =>
         createZone(fixture)
       }
+      "accepts redeliveries" in { fixture =>
+        createZone(fixture)
+        createZone(fixture)
+      }
     }
     "receiving join zone commands" - {
       "rejects it if the zone has not been created" in { fixture =>
@@ -80,6 +84,11 @@ class ZoneValidatorActorSpec
       "accepts it if valid" in { fixture =>
         createZone(fixture)
         joinZone(fixture)
+      }
+      "accepts redeliveries" in { fixture =>
+        createZone(fixture)
+        joinZone(fixture)
+        joinZone(fixture, redelivery = true)
       }
     }
     "receiving quit zone commands" - {
@@ -96,8 +105,22 @@ class ZoneValidatorActorSpec
         joinZone(fixture)
         quitZone(fixture)
       }
+      "accepts redeliveries" in { fixture =>
+        createZone(fixture)
+        joinZone(fixture)
+        quitZone(fixture)
+        quitZone(fixture)
+      }
     }
     "receiving change zone name commands" - {
+      "rejects it if the zone has not been created" in { fixture =>
+        sendCommand(fixture)(
+          ChangeZoneNameCommand(None)
+        )
+        assert(
+          expectResponse(fixture) === ChangeZoneNameResponse(
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+      }
       "rejects it if the name is too long" in { fixture =>
         createZone(fixture)
         sendCommand(fixture)(
@@ -111,8 +134,25 @@ class ZoneValidatorActorSpec
         createZone(fixture)
         changeZoneName(fixture)
       }
+      "accepts redeliveries" in { fixture =>
+        createZone(fixture)
+        changeZoneName(fixture)
+        changeZoneName(fixture)
+      }
     }
     "receiving create member commands" - {
+      "rejects it if the zone has not been created" in { fixture =>
+        sendCommand(fixture)(
+          CreateMemberCommand(
+            ownerPublicKeys = Set(publicKey),
+            name = Some("Jenny"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === CreateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+      }
       "rejects it if no owners are given" in { fixture =>
         createZone(fixture)
         sendCommand(fixture)(
@@ -132,6 +172,21 @@ class ZoneValidatorActorSpec
       }
     }
     "receiving update member commands" - {
+      "rejects it if the zone has not been created" in { fixture =>
+        sendCommand(fixture)(
+          UpdateMemberCommand(
+            Member(
+              id = MemberId("1"),
+              ownerPublicKeys = Set(publicKey),
+              name = Some("Jenny"),
+              metadata = None
+            )
+          )
+        )
+        assert(
+          expectResponse(fixture) === UpdateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+      }
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
@@ -156,8 +211,26 @@ class ZoneValidatorActorSpec
         val member = createMember(fixture)
         updateMember(fixture, member)
       }
+      "accepts redeliveries" in { fixture =>
+        createZone(fixture)
+        val member = createMember(fixture)
+        updateMember(fixture, member)
+        updateMember(fixture, member)
+      }
     }
     "receiving create account commands" - {
+      "rejects it if the zone has not been created" in { fixture =>
+        sendCommand(fixture)(
+          CreateAccountCommand(
+            ownerMemberIds = Set(MemberId("1")),
+            name = Some("Jenny's Account"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === CreateAccountResponse(
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+      }
       "rejects it if no owners are given" in { fixture =>
         createZone(fixture)
         createMember(fixture)
@@ -179,6 +252,22 @@ class ZoneValidatorActorSpec
       }
     }
     "receiving update account commands" - {
+      "rejects it if the zone has not been created" in { fixture =>
+        sendCommand(fixture)(
+          UpdateAccountCommand(
+            actingAs = MemberId("1"),
+            Account(
+              id = AccountId("1"),
+              ownerMemberIds = Set.empty,
+              name = Some("Jenny's Account"),
+              metadata = None
+            )
+          )
+        )
+        assert(
+          expectResponse(fixture) === UpdateAccountResponse(
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+      }
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
@@ -199,8 +288,30 @@ class ZoneValidatorActorSpec
         val account = createAccount(fixture, owner = member.id)
         updateAccount(fixture, account)
       }
+      "accepts redeliveries" in { fixture =>
+        createZone(fixture)
+        val member = createMember(fixture)
+        val account = createAccount(fixture, owner = member.id)
+        updateAccount(fixture, account)
+        updateAccount(fixture, account)
+      }
     }
     "receiving add transaction commands" - {
+      "rejects it if the zone has not been created" in { fixture =>
+        sendCommand(fixture)(
+          AddTransactionCommand(
+            actingAs = MemberId("0"),
+            from = AccountId("0"),
+            to = AccountId("1"),
+            value = BigDecimal(5000),
+            description = Some("Jenny's Lottery Win"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === AddTransactionResponse(
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+      }
       "rejects it if source has insufficient credit" in { fixture =>
         val zone = createZone(fixture)
         val member = createMember(fixture)
@@ -281,7 +392,8 @@ class ZoneValidatorActorSpec
     }
   }
 
-  private[this] def joinZone(fixture: FixtureParam): Unit = {
+  private[this] def joinZone(fixture: FixtureParam,
+                             redelivery: Boolean = false): Unit = {
     val (clientConnectionTestProbe, _, _) = fixture
     sendCommand(fixture)(
       JoinZoneCommand
@@ -327,13 +439,14 @@ class ZoneValidatorActorSpec
           connectedClients === Map(ActorRefResolver(system.toTyped)
             .toSerializationFormat(clientConnectionTestProbe.ref) -> publicKey))
     }
-    assert(
-      expectNotification(fixture) === ClientJoinedNotification(
-        connectionId = ActorRefResolver(system.toTyped)
-          .toSerializationFormat(clientConnectionTestProbe.ref),
-        publicKey
+    if (!redelivery)
+      assert(
+        expectNotification(fixture) === ClientJoinedNotification(
+          connectionId = ActorRefResolver(system.toTyped)
+            .toSerializationFormat(clientConnectionTestProbe.ref),
+          publicKey
+        )
       )
-    )
     ()
   }
 

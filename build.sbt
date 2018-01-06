@@ -100,7 +100,7 @@ lazy val server = project
       "com.typesafe.akka" %% "akka-http" % "10.0.11",
       "com.trueaccord.scalapb" %% "scalapb-json4s" % "0.3.3",
       "com.typesafe.play" %% "play-json" % "2.6.8",
-      "de.heikoseeberger" %% "akka-http-play-json" % "1.18.1"
+      "de.heikoseeberger" %% "akka-http-play-json" % "1.19.0"
     )
   )
   .settings(libraryDependencies ++= Seq(

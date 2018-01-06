@@ -828,10 +828,8 @@ object ZoneValidatorActor {
       case Some(account) if !account.ownerMemberIds.contains(actingAs) =>
         Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)
       case _ =>
-        zone.members.get(actingAs) match {
-          case None =>
-            Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
-          case Some(member) if !member.ownerPublicKeys.contains(publicKey) =>
+        zone.members(actingAs) match {
+          case member if !member.ownerPublicKeys.contains(publicKey) =>
             Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
           case _ =>
             Validated.valid(())

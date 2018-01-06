@@ -222,6 +222,22 @@ class ZoneValidatorActorSpec
           expectResponse(fixture) === UpdateMemberResponse(
             Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
       }
+      "rejects it if the member does not exist" in { fixture =>
+        createZone(fixture)
+        sendCommand(fixture)(
+          UpdateMemberCommand(
+            Member(
+              id = MemberId("1"),
+              ownerPublicKeys = Set(publicKey),
+              name = Some("Jenny"),
+              metadata = None
+            )
+          )
+        )
+        assert(
+          expectResponse(fixture) === UpdateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)))
+      }
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
@@ -304,6 +320,21 @@ class ZoneValidatorActorSpec
           expectResponse(fixture) === CreateAccountResponse(
             Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
       }
+      "rejects it if an owner does not exist" in { fixture =>
+        createZone(fixture)
+        createMember(fixture)
+        sendCommand(fixture)(
+          CreateAccountCommand(
+            ownerMemberIds = Set(MemberId("non-existent")),
+            name = Some("Jenny's Account"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === CreateAccountResponse(
+            Validated.invalidNel(
+              ZoneResponse.Error.memberDoesNotExist(MemberId("non-existent")))))
+      }
       "rejects it if no owners are given" in { fixture =>
         createZone(fixture)
         createMember(fixture)
@@ -341,19 +372,90 @@ class ZoneValidatorActorSpec
           expectResponse(fixture) === UpdateAccountResponse(
             Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
       }
+      "rejects it if the account does not exist" in { fixture =>
+        createZone(fixture)
+        val member = createMember(fixture)
+        sendCommand(fixture)(
+          UpdateAccountCommand(
+            actingAs = member.id,
+            Account(
+              id = AccountId("1"),
+              ownerMemberIds = Set(member.id),
+              name = None,
+              metadata = None
+            )
+          )
+        )
+        assert(
+          expectResponse(fixture) === UpdateAccountResponse(
+            Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)))
+      }
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
         val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           UpdateAccountCommand(
-            actingAs = MemberId(""),
+            actingAs = MemberId("non-existent"),
             account.copy(name = None)
           )
         )
         assert(
           expectResponse(fixture) === UpdateAccountResponse(
             Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)))
+      }
+      "rejects it if the acting member is not owned by the requester" in {
+        fixture =>
+          createZone(fixture)
+          val member = createMember(fixture)
+          val account = createAccount(fixture, owner = member.id)
+          val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
+          clientConnectionTestProbe.send(
+            zoneValidator.toUntyped,
+            ZoneCommandEnvelope(
+              clientConnectionTestProbe.ref,
+              zoneId,
+              remoteAddress,
+              publicKey = PublicKey(Array.emptyByteArray),
+              correlationId = 0,
+              UpdateAccountCommand(
+                actingAs = member.id,
+                account.copy(name = None)
+              )
+            )
+          )
+          assert(
+            expectResponse(fixture) === UpdateAccountResponse(
+              Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)))
+      }
+      "rejects it if an owner does not exist" in { fixture =>
+        createZone(fixture)
+        val member = createMember(fixture)
+        val account = createAccount(fixture, owner = member.id)
+        sendCommand(fixture)(
+          UpdateAccountCommand(
+            actingAs = member.id,
+            account.copy(ownerMemberIds = Set(MemberId("non-existent")))
+          )
+        )
+        assert(
+          expectResponse(fixture) === UpdateAccountResponse(
+            Validated.invalidNel(
+              ZoneResponse.Error.memberDoesNotExist(MemberId("non-existent")))))
+      }
+      "rejects it if no owners are given" in { fixture =>
+        createZone(fixture)
+        val member = createMember(fixture)
+        val account = createAccount(fixture, owner = member.id)
+        sendCommand(fixture)(
+          UpdateAccountCommand(
+            actingAs = member.id,
+            account.copy(ownerMemberIds = Set.empty)
+          )
+        )
+        assert(
+          expectResponse(fixture) === UpdateAccountResponse(
+            Validated.invalidNel(ZoneResponse.Error.noMemberIds)))
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)

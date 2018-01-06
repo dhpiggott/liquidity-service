@@ -84,9 +84,9 @@ object ProjectPlugin extends AutoPlugin {
   )
 
   private lazy val testProjectSettings = Seq(
-    testOptions in Test +=
+    Test / testOptions +=
       Tests.Argument(TestFrameworks.ScalaTest, "-oDF"),
-    testOptions in IntegrationTest +=
+    IntegrationTest / testOptions +=
       Tests.Argument(TestFrameworks.ScalaTest, "-oDF")
   )
 

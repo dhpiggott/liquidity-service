@@ -8,8 +8,8 @@ lazy val `ws-protocol` = project
     libraryDependencies := Seq.empty,
     coverageEnabled := false,
     crossPaths := false,
-    unmanagedResourceDirectories in Compile ++=
-      (PB.protoSources in Compile).value.map(_.asFile),
+    Compile / unmanagedResourceDirectories ++=
+      (Compile / PB.protoSources).value.map(_.asFile),
     homepage := Some(url("https://github.com/dhpcs/liquidity/")),
     startYear := Some(2015),
     description := "Liquidity is a smartphone based currency built for " +
@@ -69,7 +69,7 @@ lazy val `actor-protocol-scala-binding` = project
     libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.8")
   .dependsOn(`ws-protocol-scala-binding`)
   .settings(
-    PB.includePaths in Compile += file("ws-protocol/src/main/protobuf")
+    Compile / PB.includePaths += file("ws-protocol/src/main/protobuf")
   )
 
 lazy val server = project
@@ -124,17 +124,17 @@ lazy val server = project
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
-    packageName in Docker := "liquidity",
-    version in Docker := version.value.replace('+', '-'),
+    Docker / packageName := "liquidity",
+    Docker / version := version.value.replace('+', '-'),
     dockerBaseImage := "openjdk:8-jre",
     dockerRepository := Some("837036139524.dkr.ecr.eu-west-2.amazonaws.com")
   )
 
 def protobufScalaSettings(project: Project) = Seq(
-  PB.protoSources in Compile ++= (PB.protoSources in project in Compile).value,
-  PB.targets in Compile := Seq(
+  Compile / PB.protoSources ++= (project / Compile / PB.protoSources).value,
+  Compile / PB.targets := Seq(
     scalapb
-      .gen(flatPackage = true, singleLineToString = true) -> (sourceManaged in Compile).value
+      .gen(flatPackage = true, singleLineToString = true) -> (Compile / sourceManaged).value
   ),
   libraryDependencies += "com.trueaccord.scalapb" %% "scalapb-runtime" %
     com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig

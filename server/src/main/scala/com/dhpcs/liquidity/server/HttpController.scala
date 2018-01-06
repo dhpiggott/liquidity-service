@@ -25,10 +25,9 @@ import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._
 import com.trueaccord.scalapb.GeneratedMessage
 import com.trueaccord.scalapb.json.JsonFormat
-import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
-import play.api.libs.json.{JsValue, Json, OWrites, Writes}
+import play.api.libs.json.{JsValue, Json, OWrites}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -61,27 +60,25 @@ trait HttpController {
       implicit ec: ExecutionContext): Route =
     version ~ diagnostics ~ (if (enableClientRelay) ws else reject) ~ status ~ analytics
 
-  private[this] implicit val generatedMessageMarshaller
+  private[this] implicit def generatedMessageEntityMarshaller(
+      implicit jsValueEntityMarshaller: ToEntityMarshaller[JsValue])
     : ToEntityMarshaller[GeneratedMessage] =
-    PlayJsonSupport
-      .marshaller[JsValue]
-      .compose(entity => Json.parse(JsonFormat.toJsonString(entity)))
+    jsValueEntityMarshaller
+      .compose[String](Json.parse)
+      .compose[GeneratedMessage](JsonFormat.toJsonString)
 
   private[this] implicit val jsonStreamingSupport: JsonEntityStreamingSupport =
     EntityStreamingSupport.json()
 
-  private[this] implicit def optionResultMarshaller[A: Writes]
+  private[this] implicit def optionResponseMarshaller[A](
+      implicit entityMarshaller: ToEntityMarshaller[Option[A]])
     : ToResponseMarshaller[Option[A]] =
-    Marshaller[Option[A], HttpResponse](implicit ec => {
-      case None =>
-        Future.successful(List(Marshalling.Opaque(() =>
-          HttpResponse(status = StatusCodes.NotFound))))
-      case Some(entity) =>
-        val marshaller = PlayJsonSupport
-          .marshaller[A]
-          .map(entity => HttpResponse(status = StatusCodes.OK, entity = entity))
-        marshaller(entity)
-    })
+    Marshaller[Option[A], HttpResponse](
+      implicit ec =>
+        entity =>
+          Marshaller.fromToEntityMarshaller(status =
+            if (entity.isEmpty) NotFound else OK)(entityMarshaller)(entity)
+    )
 
   private[this] def version: Route =
     path("version")(

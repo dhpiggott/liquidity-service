@@ -90,7 +90,7 @@ class HttpControllerSpec
     "provides diagnostic information" - {
       "for events" in {
         val getRequest =
-          RequestBuilding.Get(s"/diagnostics/events/zone-${UUID.randomUUID()}")
+          RequestBuilding.Get(s"/diagnostics/events/zone-${zone.id.value}")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -185,7 +185,7 @@ class HttpControllerSpec
       }
       "for zones" in {
         val getRequest =
-          RequestBuilding.Get(s"/diagnostics/zones/${UUID.randomUUID()}")
+          RequestBuilding.Get(s"/diagnostics/zones/${zone.id.value}")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -267,37 +267,46 @@ class HttpControllerSpec
       }
     }
     "provides analytics information" - {
-      "for zones" in {
-        val getRequest =
-          RequestBuilding.Get(s"/analytics/zones/${UUID.randomUUID()}")
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-          assert(status === StatusCodes.OK)
-          assert(
-            entityAs[JsValue] === Json.parse(
-              """
-                |{
-                |  "id" : "32824da3-094f-45f0-9b35-23b7827547c6",
-                |  "equityAccountId" : "0",
-                |  "members" : [ {
-                |    "id" : "0",
-                |    "ownerPublicKeys": [ "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1V7/LB8zmkptcEH1/b6hUjdvzRW47/ZadR189o1EizOulLXRpWTgarXQ9bMcP8/exkHO/TKPPmRj/n206ydApG2lsq2px7lhOJnheQzGf8A/X/IpDOGL0sP4e23EV8MaxocsbuzGWrqM6z478L/+Qk1ntG7DmOTReSfWpgQ70IzVTgnq9fUqP+qu6/3qSmT4JMFE0YBYfCCtiMYrGN2LoQ0sq9peapuguxtCOIoOXAlo4UsnbN6KZrr1ggEIfOwUfSgoOpZ6andxwPh9M7f3AdD5RLneounQBz7bX5TKvICZz0PL3SkBxpBX0qENZtxnnPpgy15AeSTVVTDHUFhu2QIDAQAB" ],
-                |    "name":"Dave"
-                |  } ],
-                |  "accounts" : [ {
-                |    "id" :"0",
-                |    "ownerMemberIds" : [ "0" ]
-                |  } ],
-                |  "created" : "1514156286183",
-                |  "expires" : "1514761086183",
-                |  "name" : "Dave's Game"
-                |}
-              """.stripMargin
-            ))
+      "for zones" - {
+        "with status 404 when the zone does not exist" in {
+          val getRequest =
+            RequestBuilding.Get(s"/analytics/zones/${UUID.randomUUID()}")
+          getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+            assert(status === StatusCodes.NotFound)
+          }
+        }
+        "with status 200 when the zone exists" in {
+          val getRequest =
+            RequestBuilding.Get(s"/analytics/zones/${zone.id.value}")
+          getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+            assert(status === StatusCodes.OK)
+            assert(
+              entityAs[JsValue] === Json.parse(
+                """
+                  |{
+                  |  "id" : "32824da3-094f-45f0-9b35-23b7827547c6",
+                  |  "equityAccountId" : "0",
+                  |  "members" : [ {
+                  |    "id" : "0",
+                  |    "ownerPublicKeys": [ "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1V7/LB8zmkptcEH1/b6hUjdvzRW47/ZadR189o1EizOulLXRpWTgarXQ9bMcP8/exkHO/TKPPmRj/n206ydApG2lsq2px7lhOJnheQzGf8A/X/IpDOGL0sP4e23EV8MaxocsbuzGWrqM6z478L/+Qk1ntG7DmOTReSfWpgQ70IzVTgnq9fUqP+qu6/3qSmT4JMFE0YBYfCCtiMYrGN2LoQ0sq9peapuguxtCOIoOXAlo4UsnbN6KZrr1ggEIfOwUfSgoOpZ6andxwPh9M7f3AdD5RLneounQBz7bX5TKvICZz0PL3SkBxpBX0qENZtxnnPpgy15AeSTVVTDHUFhu2QIDAQAB" ],
+                  |    "name":"Dave"
+                  |  } ],
+                  |  "accounts" : [ {
+                  |    "id" :"0",
+                  |    "ownerMemberIds" : [ "0" ]
+                  |  } ],
+                  |  "created" : "1514156286183",
+                  |  "expires" : "1514761086183",
+                  |  "name" : "Dave's Game"
+                  |}
+                """.stripMargin
+              ))
+          }
         }
       }
       "for balances" in {
         val getRequest =
-          RequestBuilding.Get(s"/analytics/zones/${UUID.randomUUID()}/balances")
+          RequestBuilding.Get(s"/analytics/zones/${zone.id.value}/balances")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -318,49 +327,52 @@ class HttpControllerSpec
       persistenceId: String,
       fromSequenceNr: Long,
       toSequenceNr: Long): Source[EventEnvelope, NotUsed] =
-    Source(
-      Seq(
-        ZoneCreatedEvent(zone),
-        MemberCreatedEvent(
-          Member(
-            id = MemberId("1"),
-            ownerPublicKeys = Set(publicKey),
-            name = Some("Jenny"),
+    if (persistenceId != zone.id.persistenceId)
+      Source.empty
+    else
+      Source(
+        Seq(
+          ZoneCreatedEvent(zone),
+          MemberCreatedEvent(
+            Member(
+              id = MemberId("1"),
+              ownerPublicKeys = Set(publicKey),
+              name = Some("Jenny"),
+              metadata = None
+            )),
+          AccountCreatedEvent(
+            Account(
+              id = AccountId("1"),
+              ownerMemberIds = Set(MemberId("1")),
+              name = Some("Jenny's Account"),
+              metadata = None
+            )),
+          TransactionAddedEvent(Transaction(
+            id = TransactionId("0"),
+            from = AccountId("0"),
+            to = AccountId("1"),
+            value = BigDecimal(5000),
+            creator = MemberId("0"),
+            created = created + 3000,
+            description = Some("Jenny's Lottery Win"),
             metadata = None
-          )),
-        AccountCreatedEvent(
-          Account(
-            id = AccountId("1"),
-            ownerMemberIds = Set(MemberId("1")),
-            name = Some("Jenny's Account"),
-            metadata = None
-          )),
-        TransactionAddedEvent(Transaction(
-          id = TransactionId("0"),
-          from = AccountId("0"),
-          to = AccountId("1"),
-          value = BigDecimal(5000),
-          creator = MemberId("0"),
-          created = created + 3000,
-          description = Some("Jenny's Lottery Win"),
-          metadata = None
-        ))
-      ).zipWithIndex.map {
-        case (event, index) =>
-          val zoneEventEnvelope = ZoneEventEnvelope(
-            remoteAddress = Some(InetAddress.getByName("192.0.2.0")),
-            publicKey = Some(publicKey),
-            timestamp = Instant.ofEpochMilli(created + (index * 1000)),
-            zoneEvent = event
-          )
-          EventEnvelope(
-            sequenceNr = index.toLong,
-            event = ProtoBinding[ZoneEventEnvelope,
-                                 proto.persistence.zone.ZoneEventEnvelope,
-                                 ActorRefResolver]
-              .asProto(zoneEventEnvelope)(ActorRefResolver(system.toTyped))
-          )
-      })
+          ))
+        ).zipWithIndex.map {
+          case (event, index) =>
+            val zoneEventEnvelope = ZoneEventEnvelope(
+              remoteAddress = Some(InetAddress.getByName("192.0.2.0")),
+              publicKey = Some(publicKey),
+              timestamp = Instant.ofEpochMilli(created + (index * 1000)),
+              zoneEvent = event
+            )
+            EventEnvelope(
+              sequenceNr = index.toLong,
+              event = ProtoBinding[ZoneEventEnvelope,
+                                   proto.persistence.zone.ZoneEventEnvelope,
+                                   ActorRefResolver]
+                .asProto(zoneEventEnvelope)(ActorRefResolver(system.toTyped))
+            )
+        })
 
   override protected[this] def zoneState(
       zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] =
@@ -368,7 +380,13 @@ class HttpControllerSpec
       proto.persistence.zone
         .ZoneState(
           zone =
-            Some(ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(())),
+            if (zoneId != zone.id)
+              None
+            else
+              Some(
+                ProtoBinding[Zone, proto.model.Zone, Any].asProto(
+                  zone
+                )(())),
           balances = Map.empty,
           connectedClients = Map.empty
         )
@@ -398,15 +416,18 @@ class HttpControllerSpec
     )
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
-    Future.successful(Some(zone))
+    Future.successful(if (zoneId != zone.id) None else Some(zone))
 
   override protected[this] def getBalances(
       zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(
-      Map(
-        equityAccountId -> BigDecimal(-5000),
-        AccountId("1") -> BigDecimal(5000)
-      )
+      if (zoneId != zone.id)
+        Map.empty
+      else
+        Map(
+          equityAccountId -> BigDecimal(-5000),
+          AccountId("1") -> BigDecimal(5000)
+        )
     )
 
   override protected[this] def getZoneCount: Future[Long] =

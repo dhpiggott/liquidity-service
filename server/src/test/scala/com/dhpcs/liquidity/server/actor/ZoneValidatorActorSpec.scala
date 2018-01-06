@@ -487,15 +487,15 @@ class ZoneValidatorActorSpec
           expectResponse(fixture) === AddTransactionResponse(
             Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
       }
-      "rejects it if source has insufficient credit" in { fixture =>
+      "rejects it if the source account does not exist" in { fixture =>
         val zone = createZone(fixture)
         val member = createMember(fixture)
         val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           AddTransactionCommand(
-            actingAs = member.id,
-            from = account.id,
-            to = zone.equityAccountId,
+            actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
+            from = AccountId("non-existent"),
+            to = account.id,
             value = BigDecimal(5000),
             description = Some("Jenny's Lottery Win"),
             metadata = None
@@ -503,7 +503,125 @@ class ZoneValidatorActorSpec
         )
         assert(
           expectResponse(fixture) === AddTransactionResponse(
-            Validated.invalidNel(ZoneResponse.Error.insufficientBalance)))
+            Validated.invalidNel(ZoneResponse.Error.sourceAccountDoesNotExist)))
+      }
+      "rejects it if the source account is not owned by the requesting member" in {
+        fixture =>
+          val zone = createZone(fixture)
+          val member = createMember(fixture)
+          val account = createAccount(fixture, owner = member.id)
+          sendCommand(fixture)(
+            AddTransactionCommand(
+              actingAs = member.id,
+              from = zone.equityAccountId,
+              to = account.id,
+              value = BigDecimal(5000),
+              description = Some("Jenny's Lottery Win"),
+              metadata = None
+            )
+          )
+          assert(
+            expectResponse(fixture) === AddTransactionResponse(
+              Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)))
+      }
+      "rejects it if the acting member is not owned by the requester" in {
+        fixture =>
+          val zone = createZone(fixture)
+          val member = createMember(fixture)
+          val account = createAccount(fixture, owner = member.id)
+          val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
+          clientConnectionTestProbe.send(
+            zoneValidator.toUntyped,
+            ZoneCommandEnvelope(
+              clientConnectionTestProbe.ref,
+              zoneId,
+              remoteAddress,
+              publicKey = PublicKey(Array.emptyByteArray),
+              correlationId = 0,
+              AddTransactionCommand(
+                actingAs =
+                  zone.accounts(zone.equityAccountId).ownerMemberIds.head,
+                from = zone.equityAccountId,
+                to = account.id,
+                value = BigDecimal(5000),
+                description = Some("Jenny's Lottery Win"),
+                metadata = None
+              )
+            )
+          )
+          assert(
+            expectResponse(fixture) === AddTransactionResponse(
+              Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)))
+      }
+      "rejects it if the destination account does not exist" in { fixture =>
+        val zone = createZone(fixture)
+        sendCommand(fixture)(
+          AddTransactionCommand(
+            actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
+            from = zone.equityAccountId,
+            to = AccountId("non-existent"),
+            value = BigDecimal(5000),
+            description = Some("Jenny's Lottery Win"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === AddTransactionResponse(Validated
+            .invalidNel(ZoneResponse.Error.destinationAccountDoesNotExist)))
+      }
+      "rejects it if the source account is the same as the destination account" in {
+        fixture =>
+          val zone = createZone(fixture)
+          sendCommand(fixture)(
+            AddTransactionCommand(
+              actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
+              from = zone.equityAccountId,
+              to = zone.equityAccountId,
+              value = BigDecimal(5000),
+              description = Some("Jenny's Lottery Win"),
+              metadata = None
+            )
+          )
+          assert(
+            expectResponse(fixture) === AddTransactionResponse(Validated
+              .invalidNel(ZoneResponse.Error.reflexiveTransaction)))
+      }
+      "rejects it if the value is negative" in { fixture =>
+        val zone = createZone(fixture)
+        val member = createMember(fixture)
+        val account = createAccount(fixture, owner = member.id)
+        sendCommand(fixture)(
+          AddTransactionCommand(
+            actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
+            from = zone.equityAccountId,
+            to = account.id,
+            value = BigDecimal(-5000),
+            description = Some("Jenny's Lottery Win"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === AddTransactionResponse(
+            Validated.invalidNel(ZoneResponse.Error.negativeTransactionValue)))
+      }
+      "rejects it if the source account has an insufficient balance" in {
+        fixture =>
+          val zone = createZone(fixture)
+          val member = createMember(fixture)
+          val account = createAccount(fixture, owner = member.id)
+          sendCommand(fixture)(
+            AddTransactionCommand(
+              actingAs = member.id,
+              from = account.id,
+              to = zone.equityAccountId,
+              value = BigDecimal(5000),
+              description = Some("Jenny's Lottery Win"),
+              metadata = None
+            )
+          )
+          assert(
+            expectResponse(fixture) === AddTransactionResponse(
+              Validated.invalidNel(ZoneResponse.Error.insufficientBalance)))
       }
       "accepts it if valid" in { fixture =>
         val zone = createZone(fixture)

@@ -497,10 +497,10 @@ object ZoneValidatorActor {
             )
             Effect.none
           case Some(zone) =>
-            val memberId = MemberId(zone.members.size.toString)
             val validatedParams = {
               val validatedMemberId =
-                memberId.valid[NonEmptyList[ZoneResponse.Error]]
+                MemberId(zone.members.size.toString)
+                  .valid[NonEmptyList[ZoneResponse.Error]]
               val validatedOwnerPublicKeys = validatePublicKeys(ownerPublicKeys)
               val validatedName = validateTag(name)
               val validatedMetadata = validateMetadata(metadata)
@@ -602,10 +602,10 @@ object ZoneValidatorActor {
             )
             Effect.none
           case Some(zone) =>
-            val accountId = AccountId(zone.accounts.size.toString)
             val validatedParams = {
               val validatedAccountId =
-                accountId.valid[NonEmptyList[ZoneResponse.Error]]
+                AccountId(zone.accounts.size.toString)
+                  .valid[NonEmptyList[ZoneResponse.Error]]
               val validatedOwnerMemberIds = validateMemberIds(zone, owners)
               val validatedTag = validateTag(name)
               val validatedMetadata = validateMetadata(metadata)
@@ -712,30 +712,43 @@ object ZoneValidatorActor {
             )
             Effect.none
           case Some(zone) =>
-            val transactionId = TransactionId(zone.transactions.size.toString)
-            val validatedParams =
-              validateCanDebitAccount(zone,
-                                      zoneCommandEnvelope.publicKey,
-                                      actingAs,
-                                      from)
-                .andThen { _ =>
-                  val validatedFromAndTo = validateFromAndTo(from, to, zone)
-                  val validatedDescription = validateTag(description)
-                  val validatedMetadata = validateMetadata(metadata)
-                  (validatedFromAndTo, validatedDescription, validatedMetadata).tupled
+            val validatedParams = {
+              val validatedTransactionId =
+                TransactionId(zone.transactions.size.toString)
+                  .valid[NonEmptyList[ZoneResponse.Error]]
+              val validatedFromValueAndActingAs =
+                validateFromAccount(zone, actingAs, from).andThen { _ =>
+                  val validatedValue =
+                    validateTransactionValue(from, value, zone, state.balances)
+                  val validatedActingAs =
+                    validateActingAs(zone,
+                                     zoneCommandEnvelope.publicKey,
+                                     actingAs)
+                  (validatedValue, validatedActingAs).tupled
                 }
-                .andThen(
-                  _ =>
-                    validateValue(from, value, zone, state.balances)
-                      .map(
-                        (transactionId,
-                         from,
-                         to,
-                         _,
-                         actingAs,
-                         System.currentTimeMillis(),
-                         description,
-                         metadata)))
+              val validatedTo = validateToAccount(zone, from, to)
+              val validatedCreated = System
+                .currentTimeMillis()
+                .valid[NonEmptyList[ZoneResponse.Error]]
+              val validatedDescription = validateTag(description)
+              val validatedMetadata = validateMetadata(metadata)
+              (validatedTransactionId,
+               validatedFromValueAndActingAs,
+               validatedTo,
+               validatedCreated,
+               validatedDescription,
+               validatedMetadata).tupled.map {
+                case (transactionId, _, _, created, _, _) =>
+                  (transactionId,
+                   from,
+                   to,
+                   value,
+                   actingAs,
+                   created,
+                   description,
+                   metadata)
+              }
+            }
             validatedParams match {
               case Invalid(errors) =>
                 deliverResponse(
@@ -836,60 +849,57 @@ object ZoneValidatorActor {
         }
     }
 
-  private def validateCanDebitAccount(
+  private def validateFromAccount(
       zone: Zone,
-      publicKey: PublicKey,
       actingAs: MemberId,
-      accountId: AccountId): ValidatedNel[ZoneResponse.Error, Unit] =
+      accountId: AccountId): ValidatedNel[ZoneResponse.Error, AccountId] =
     zone.accounts.get(accountId) match {
       case None =>
-        Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)
+        Validated.invalidNel(ZoneResponse.Error.sourceAccountDoesNotExist)
       case Some(account) if !account.ownerMemberIds.contains(actingAs) =>
         Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)
       case _ =>
-        zone.members.get(actingAs) match {
-          case None =>
-            Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
-          case Some(member) if !member.ownerPublicKeys.contains(publicKey) =>
-            Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
-          case _ =>
-            Validated.valid(())
-        }
+        Validated.valid(accountId)
     }
 
-  private def validateFromAndTo(
+  private def validateToAccount(
+      zone: Zone,
       from: AccountId,
-      to: AccountId,
-      zone: Zone): ValidatedNel[ZoneResponse.Error, (AccountId, AccountId)] = {
-    val validatedFrom =
-      if (!zone.accounts.contains(from))
-        Validated.invalidNel(ZoneResponse.Error.sourceAccountDoesNotExist)
-      else Validated.valid(from)
-    val validatedTo =
-      if (!zone.accounts.contains(to))
+      accountId: AccountId): ValidatedNel[ZoneResponse.Error, AccountId] =
+    zone.accounts.get(accountId) match {
+      case None =>
         Validated.invalidNel(ZoneResponse.Error.destinationAccountDoesNotExist)
-      else Validated.valid(to)
-    (validatedTo, validatedFrom).tupled.andThen {
-      case (validTo, validFrom) if validTo == validFrom =>
+      case _ if accountId == from =>
         Validated.invalidNel(ZoneResponse.Error.reflexiveTransaction)
       case _ =>
-        Validated.valid((from, to))
+        Validated.valid(accountId)
     }
-  }
 
-  private def validateValue(from: AccountId,
-                            value: BigDecimal,
-                            zone: Zone,
-                            balances: Map[AccountId, BigDecimal])
+  private def validateActingAs(
+      zone: Zone,
+      publicKey: PublicKey,
+      actingAs: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
+    zone.members(actingAs) match {
+      case member if !member.ownerPublicKeys.contains(publicKey) =>
+        Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
+      case _ =>
+        Validated.valid(actingAs)
+    }
+
+  private def validateTransactionValue(from: AccountId,
+                                       value: BigDecimal,
+                                       zone: Zone,
+                                       balances: Map[AccountId, BigDecimal])
     : ValidatedNel[ZoneResponse.Error, BigDecimal] =
     (if (value.compare(0) == -1)
        Validated.invalidNel(ZoneResponse.Error.negativeTransactionValue)
-     else Validated.valid(value)).andThen { value =>
-      if (balances(from) - value < 0 && from != zone.equityAccountId)
-        Validated.invalidNel(ZoneResponse.Error.insufficientBalance)
-      else
-        Validated.valid(value)
-    }
+     else Validated.valid(value)).andThen(
+      value =>
+        if (balances(from) - value < 0 && from != zone.equityAccountId)
+          Validated.invalidNel(ZoneResponse.Error.insufficientBalance)
+        else
+          Validated.valid(value)
+    )
 
   private def validateTag(
       tag: Option[String]): ValidatedNel[ZoneResponse.Error, Option[String]] =

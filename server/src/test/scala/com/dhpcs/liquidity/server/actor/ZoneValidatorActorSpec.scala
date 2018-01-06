@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.server.actor
 
 import java.net.InetAddress
+import java.security.KeyPairGenerator
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -153,6 +154,40 @@ class ZoneValidatorActorSpec
           expectResponse(fixture) === CreateMemberResponse(
             Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
       }
+      "rejects it if a public key of invalid type is given" in { fixture =>
+        createZone(fixture)
+        val keyPairGenerator = KeyPairGenerator.getInstance("DSA")
+        keyPairGenerator.initialize(2048)
+        sendCommand(fixture)(
+          CreateMemberCommand(
+            ownerPublicKeys = Set(
+              PublicKey(keyPairGenerator.generateKeyPair().getPublic.getEncoded)
+            ),
+            name = Some("Jenny"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === CreateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)))
+      }
+      "rejects it if a public key of invalid length is given" in { fixture =>
+        createZone(fixture)
+        val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+        keyPairGenerator.initialize(4096)
+        sendCommand(fixture)(
+          CreateMemberCommand(
+            ownerPublicKeys = Set(
+              PublicKey(keyPairGenerator.generateKeyPair().getPublic.getEncoded)
+            ),
+            name = Some("Jenny"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === CreateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)))
+      }
       "rejects it if no owners are given" in { fixture =>
         createZone(fixture)
         sendCommand(fixture)(
@@ -205,6 +240,44 @@ class ZoneValidatorActorSpec
         assert(
           expectResponse(fixture) === UpdateMemberResponse(
             Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)))
+      }
+      "rejects it if a public key of invalid type is given" in { fixture =>
+        createZone(fixture)
+        val member = createMember(fixture)
+        val keyPairGenerator = KeyPairGenerator.getInstance("DSA")
+        keyPairGenerator.initialize(2048)
+        sendCommand(fixture)(
+          UpdateMemberCommand(
+            member.copy(
+              ownerPublicKeys = Set(
+                PublicKey(
+                  keyPairGenerator.generateKeyPair().getPublic.getEncoded)
+              )
+            )
+          )
+        )
+        assert(
+          expectResponse(fixture) === UpdateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)))
+      }
+      "rejects it if a public key of invalid length is given" in { fixture =>
+        createZone(fixture)
+        val member = createMember(fixture)
+        val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+        keyPairGenerator.initialize(4096)
+        sendCommand(fixture)(
+          UpdateMemberCommand(
+            member.copy(
+              ownerPublicKeys = Set(
+                PublicKey(
+                  keyPairGenerator.generateKeyPair().getPublic.getEncoded)
+              )
+            )
+          )
+        )
+        assert(
+          expectResponse(fixture) === UpdateMemberResponse(
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)))
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)

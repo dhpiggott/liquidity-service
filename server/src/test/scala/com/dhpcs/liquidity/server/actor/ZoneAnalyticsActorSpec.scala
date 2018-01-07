@@ -23,6 +23,7 @@ import cats.effect.IO
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.server.LiquidityServer.TransactIoToFuture
+import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore.ClientSession
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActorSpec._
 import com.dhpcs.liquidity.server.{
   InmemoryPersistenceTestFixtures,
@@ -34,8 +35,8 @@ import org.h2.tools.Server
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 
-import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext}
 
 object ZoneAnalyticsActorSpec {
 
@@ -255,8 +256,8 @@ class ZoneAnalyticsActorSpec
     "projects client quit events" in { fixture =>
       zoneCreated(fixture)
       val clientConnection = TestProbe().ref
-      clientJoined(fixture, clientConnection)
-      clientQuit(fixture, clientConnection)
+      val joined = clientJoined(fixture, clientConnection)
+      clientQuit(fixture, clientConnection, joined)
     }
     "projects zone name changed events" in { fixture =>
       zoneCreated(fixture)
@@ -336,31 +337,50 @@ class ZoneAnalyticsActorSpec
   }
 
   private[this] def clientJoined(fixture: FixtureParam,
-                                 clientConnection: ActorRef): Unit = {
+                                 clientConnection: ActorRef): Instant = {
     val (transactor, zoneId, _) = fixture
     val actorRef =
       ActorRefResolver(system.toTyped).toSerializationFormat(clientConnection)
-    writeEvent(fixture, ClientJoinedEvent(Some(actorRef)))
+    val timestamp = Instant.now()
+    writeEvent(fixture, ClientJoinedEvent(Some(actorRef)), timestamp)
     eventually {
-      val sessionId = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.ClientSessionsStore.retrieve(zoneId, actorRef)
-      ).futureValue
-      assert(sessionId === 1)
+      val (_, clientSession) = transactIoToFuture(transactor)(
+        SqlAnalyticsStore.ClientSessionsStore.retrieveAll(zoneId)
+      ).futureValue.head
+      assert(
+        clientSession === ClientSession(
+          id = clientSession.id,
+          remoteAddress = Some(remoteAddress),
+          actorRef = actorRef,
+          publicKey = publicKey,
+          joined = timestamp,
+          quit = None
+        ))
     }
-    ()
+    timestamp
   }
 
   private[this] def clientQuit(fixture: FixtureParam,
-                               clientConnection: ActorRef): Unit = {
+                               clientConnection: ActorRef,
+                               joined: Instant): Unit = {
     val (transactor, zoneId, _) = fixture
     val actorRef =
       ActorRefResolver(system.toTyped).toSerializationFormat(clientConnection)
-    writeEvent(fixture, ClientQuitEvent(Some(actorRef)))
+    val timestamp = Instant.now()
+    writeEvent(fixture, ClientQuitEvent(Some(actorRef)), timestamp)
     eventually {
-      val sessionId = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.ClientSessionsStore.retrieve(zoneId, actorRef)
-      ).futureValue
-      assert(sessionId === 1)
+      val (_, clientSession) = transactIoToFuture(transactor)(
+        SqlAnalyticsStore.ClientSessionsStore.retrieveAll(zoneId)
+      ).futureValue.head
+      assert(
+        clientSession === ClientSession(
+          id = clientSession.id,
+          remoteAddress = Some(remoteAddress),
+          actorRef = actorRef,
+          publicKey = publicKey,
+          joined = joined,
+          quit = Some(timestamp)
+        ))
     }
     ()
   }
@@ -391,6 +411,10 @@ class ZoneAnalyticsActorSpec
         SqlAnalyticsStore.MembersStore.retrieveCount
       ).futureValue
       assert(membersCount === 2)
+      val memberOwnersCount = transactIoToFuture(transactor)(
+        SqlAnalyticsStore.MemberUpdatesStore.MemberOwnersStore.retrieveCount
+      ).futureValue
+      assert(memberOwnersCount === 1)
       val members = transactIoToFuture(transactor)(
         SqlAnalyticsStore.MembersStore.retrieveAll(zoneId)
       ).futureValue
@@ -474,17 +498,27 @@ class ZoneAnalyticsActorSpec
         SqlAnalyticsStore.TransactionsStore.retrieveAll(zoneId)
       ).futureValue
       assert(transactions(transaction.id) === transaction)
+      val sourceBalance = transactIoToFuture(transactor)(
+        SqlAnalyticsStore.AccountsStore.retrieveBalance(zoneId,
+                                                        zone.equityAccountId)
+      ).futureValue
+      assert(sourceBalance === BigDecimal(-5000))
+      val destinationBalance = transactIoToFuture(transactor)(
+        SqlAnalyticsStore.AccountsStore.retrieveBalance(zoneId, to)
+      ).futureValue
+      assert(destinationBalance === BigDecimal(5000))
     }
     ()
   }
 
   private[this] def writeEvent(fixture: FixtureParam,
-                               event: ZoneEvent): Unit = {
+                               event: ZoneEvent,
+                               timestamp: Instant = Instant.now()): Unit = {
     val (_, _, writer) = fixture
     writer ! ZoneEventEnvelope(
       remoteAddress = Some(remoteAddress),
       publicKey = Some(publicKey),
-      timestamp = Instant.now,
+      timestamp = timestamp,
       zoneEvent = event
     )
   }

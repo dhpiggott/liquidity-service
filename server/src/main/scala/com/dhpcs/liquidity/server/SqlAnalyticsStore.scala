@@ -80,7 +80,9 @@ object SqlAnalyticsStore {
     def retrieveCount: ConnectionIO[Long] =
       sql"""
            SELECT COUNT(*) FROM zones
-         """.query[Long].unique
+         """
+        .query[Long]
+        .unique
 
     def retrieveOption(zoneId: ZoneId): ConnectionIO[Option[Zone]] =
       for {
@@ -165,7 +167,9 @@ object SqlAnalyticsStore {
     def retrieveCount: ConnectionIO[Long] =
       sql"""
            SELECT COUNT(*) FROM members
-         """.query[Long].unique
+         """
+        .query[Long]
+        .unique
 
     def retrieveAll(zoneId: ZoneId): ConnectionIO[Map[MemberId, Member]] =
       for {
@@ -241,7 +245,7 @@ object SqlAnalyticsStore {
 
       def retrieveCount: ConnectionIO[Long] =
         sql"""
-             SELECT COUNT(DISTINCT fingerprint)
+             SELECT COUNT(DISTINCT public_key)
                FROM member_owners
            """
           .query[Long]
@@ -286,7 +290,9 @@ object SqlAnalyticsStore {
     def retrieveCount: ConnectionIO[Long] =
       sql"""
            SELECT COUNT(*) FROM accounts
-         """.query[Long].unique
+         """
+        .query[Long]
+        .unique
 
     def retrieveBalance(zoneId: ZoneId,
                         accountId: AccountId): ConnectionIO[BigDecimal] =
@@ -407,7 +413,9 @@ object SqlAnalyticsStore {
       sql"""
            SELECT COUNT(*)
              FROM transactions
-         """.query[Long].unique
+         """
+        .query[Long]
+        .unique
 
     def retrieveAll(
         zoneId: ZoneId): ConnectionIO[Map[TransactionId, Transaction]] =
@@ -441,6 +449,17 @@ object SqlAnalyticsStore {
 
   object ClientSessionsStore {
 
+    final case class ClientSessionId(value: Long) extends AnyVal
+
+    final case class ClientSession(
+        id: ClientSessionId,
+        remoteAddress: Option[InetAddress],
+        actorRef: String,
+        publicKey: PublicKey,
+        joined: Instant,
+        quit: Option[Instant]
+    )
+
     def insert(zoneId: ZoneId,
                remoteAddress: Option[InetAddress],
                actorRef: String,
@@ -469,6 +488,30 @@ object SqlAnalyticsStore {
          """
         .query[Long]
         .unique
+
+    def retrieveAll(
+        zoneId: ZoneId): ConnectionIO[Map[ClientSessionId, ClientSession]] =
+      sql"""
+           SELECT session_id, remote_address, actor_ref, public_key, joined, quit
+             FROM client_sessions
+             WHERE zone_id = $zoneId
+         """
+        .query[(ClientSessionId,
+                Option[InetAddress],
+                String,
+                PublicKey,
+                Instant,
+                Option[Instant])]
+        .vector
+        .map(_.map {
+          case (id, remoteAddress, actorRef, publicKey, joined, quit) =>
+            id -> ClientSession(id,
+                                remoteAddress,
+                                actorRef,
+                                publicKey,
+                                joined,
+                                quit)
+        }.toMap)
 
   }
 

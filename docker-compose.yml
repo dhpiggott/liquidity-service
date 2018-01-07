@@ -5,7 +5,6 @@ services:
     ports:
      - '3306'
     command: ["--explicit_defaults_for_timestamp=true"]
-    restart: always
     volumes:
     - mysql-data:/var/lib/mysql
     environment:
@@ -14,7 +13,6 @@ services:
     image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     ports:
      - '19999'
-    restart: always
     extra_hosts:
       - "zone-host:127.0.0.1"
     environment:
@@ -43,7 +41,6 @@ services:
     ports:
      - '19999'
      - '8080'
-    restart: always
     extra_hosts:
       - "client-relay:127.0.0.1"
     environment:
@@ -72,7 +69,6 @@ services:
     image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     ports:
      - '19999'
-    restart: always
     extra_hosts:
       - "analytics:127.0.0.1"
     environment:

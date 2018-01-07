@@ -11,6 +11,7 @@ import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.model.{RemoteAddress, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.{Flow, Source}
+import akka.testkit.TestProbe
 import akka.typed.cluster.ActorRefResolver
 import akka.typed.scaladsl.adapter._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
@@ -23,6 +24,7 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server.HttpControllerSpec._
+import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
 import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import okio.ByteString
@@ -66,6 +68,10 @@ object HttpControllerSpec {
     name = Some("Dave's Game"),
     metadata = None
   )
+  private val balances = Map(
+    equityAccountId -> BigDecimal(-5000),
+    AccountId("1") -> BigDecimal(5000)
+  )
 
 }
 
@@ -73,6 +79,19 @@ class HttpControllerSpec
     extends FreeSpec
     with HttpController
     with ScalatestRouteTest {
+
+  private val remoteAddress = InetAddress.getByName("192.0.2.0")
+  private val actorRef =
+    ActorRefResolver(system.toTyped).toSerializationFormat(TestProbe().ref)
+  private val joined = Instant.now()
+  private val clientSession = ClientSession(
+    id = ClientSessionId(1),
+    remoteAddress = Some(remoteAddress),
+    actorRef = actorRef,
+    publicKey = publicKey,
+    joined = joined,
+    quit = None
+  )
 
   override def testConfig: Config = ConfigFactory.defaultReference()
 
@@ -320,6 +339,28 @@ class HttpControllerSpec
             ))
         }
       }
+      "for client-sessions" in {
+        val getRequest =
+          RequestBuilding.Get(
+            s"/analytics/zones/${zone.id.value}/client-sessions")
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.OK)
+          assert(
+            entityAs[JsValue] === Json.parse(
+              s"""
+                |{
+                |  "1" : {
+                |    "id" : "1",
+                |    "actorRef" : "$actorRef",
+                |    "publicKeyFingerprint" : "${publicKey.fingerprint}",
+                |    "joined" : "$joined",
+                |    "quit" : null
+                |  }
+                |}
+              """.stripMargin
+            ))
+        }
+      }
     }
   }
 
@@ -360,7 +401,7 @@ class HttpControllerSpec
         ).zipWithIndex.map {
           case (event, index) =>
             val zoneEventEnvelope = ZoneEventEnvelope(
-              remoteAddress = Some(InetAddress.getByName("192.0.2.0")),
+              remoteAddress = Some(remoteAddress),
               publicKey = Some(publicKey),
               timestamp = Instant.ofEpochMilli(created + (index * 1000)),
               zoneEvent = event
@@ -416,18 +457,23 @@ class HttpControllerSpec
     )
 
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
-    Future.successful(if (zoneId != zone.id) None else Some(zone))
+    Future.successful(
+      if (zoneId != zone.id) None
+      else Some(zone)
+    )
 
   override protected[this] def getBalances(
       zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     Future.successful(
-      if (zoneId != zone.id)
-        Map.empty
-      else
-        Map(
-          equityAccountId -> BigDecimal(-5000),
-          AccountId("1") -> BigDecimal(5000)
-        )
+      if (zoneId != zone.id) Map.empty
+      else balances
+    )
+
+  override protected[this] def getClientSessions(
+      zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]] =
+    Future.successful(
+      if (zoneId != zone.id) Map.empty
+      else Map(clientSession.id -> clientSession)
     )
 
   override protected[this] def getZoneCount: Future[Long] =

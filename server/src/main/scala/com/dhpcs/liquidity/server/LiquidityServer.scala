@@ -35,6 +35,10 @@ import com.dhpcs.liquidity.persistence.zone.{ZoneEventEnvelope, ZoneState}
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
+import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore.{
+  ClientSession,
+  ClientSessionId
+}
 import com.dhpcs.liquidity.server.SqlAnalyticsStore._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
 import com.dhpcs.liquidity.server.actor._
@@ -263,6 +267,11 @@ class LiquidityServer(
       zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
     transactIoToFuture(analyticsTransactor)(
       AccountsStore.retrieveAllBalances(zoneId))
+
+  override protected[this] def getClientSessions(
+      zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]] =
+    transactIoToFuture(analyticsTransactor)(
+      ClientSessionsStore.retrieveAll(zoneId))
 
   override protected[this] def getZoneCount: Future[Long] =
     transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveCount)

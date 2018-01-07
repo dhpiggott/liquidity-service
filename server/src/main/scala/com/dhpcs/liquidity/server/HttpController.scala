@@ -23,6 +23,10 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._
+import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore.{
+  ClientSession,
+  ClientSessionId
+}
 import com.trueaccord.scalapb.GeneratedMessage
 import com.trueaccord.scalapb.json.JsonFormat
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
@@ -185,24 +189,45 @@ trait HttpController {
               ))))
 
   private[this] def analytics(implicit ec: ExecutionContext): Route =
-    pathPrefix("analytics")(
-      pathPrefix("zones")(pathPrefix(JavaUUID)(id =>
-        pathEnd(zone(id.toString)) ~
-          path("balances")(balances(id.toString)))))
+    pathPrefix("analytics")(pathPrefix("zones")(pathPrefix(JavaUUID) { uuid =>
+      val zoneId = ZoneId(uuid.toString)
+      pathEnd(zone(zoneId)) ~
+        path("balances")(balances(zoneId)) ~
+        path("client-sessions")(clientSessions(zoneId))
+    }))
 
-  private[this] def zone(id: String)(implicit ec: ExecutionContext): Route =
+  private[this] def zone(zoneId: ZoneId)(implicit ec: ExecutionContext): Route =
     get(
       complete(
-        getZone(ZoneId(id)).map(_.map(zone =>
+        getZone(zoneId).map(_.map(zone =>
           Json.parse(JsonFormat.toJsonString(
             ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(())))))))
 
-  private[this] def balances(id: String)(implicit ec: ExecutionContext): Route =
-    get(complete(getBalances(ZoneId(id)).map(balances =>
+  private[this] def balances(zoneId: ZoneId)(
+      implicit ec: ExecutionContext): Route =
+    get(complete(getBalances(zoneId).map(balances =>
       Json.obj(balances.map {
         case (accountId, balance) =>
           accountId.value.toString -> toJsFieldJsValueWrapper(balance)
       }.toSeq: _*))))
+
+  private[this] def clientSessions(zoneId: ZoneId)(
+      implicit ec: ExecutionContext): Route =
+    get(
+      complete(getClientSessions(zoneId).map(
+        clientSessions =>
+          Json.obj(clientSessions.map {
+            case (clientSessionId, clientSession) =>
+              clientSessionId.value.toString -> toJsFieldJsValueWrapper(
+                Json.obj(
+                  "id" -> clientSession.id.value.toString,
+                  "actorRef" -> clientSession.actorRef,
+                  "publicKeyFingerprint" -> clientSession.publicKey.fingerprint,
+                  "joined" -> clientSession.joined,
+                  "quit" -> clientSession.quit
+                ))
+          }.toSeq: _*)
+      )))
 
   protected[this] def events(persistenceId: String,
                              fromSequenceNr: Long,
@@ -223,5 +248,7 @@ trait HttpController {
   protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
   protected[this] def getBalances(
       zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
+  protected[this] def getClientSessions(
+      zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]]
 
 }

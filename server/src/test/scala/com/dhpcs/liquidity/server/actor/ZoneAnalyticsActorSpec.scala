@@ -279,7 +279,6 @@ class ZoneAnalyticsActorSpec
     }
     "projects account updated events" in { fixture =>
       zoneCreated(fixture)
-      memberCreated(fixture)
       val member = memberCreated(fixture)
       val account = accountCreated(fixture, owner = member.id)
       accountUpdated(fixture, account)
@@ -400,7 +399,7 @@ class ZoneAnalyticsActorSpec
   private[this] def memberCreated(fixture: FixtureParam): Member = {
     val (transactor, zoneId, _) = fixture
     val member = Member(
-      id = MemberId(UUID.randomUUID().toString),
+      id = MemberId(1.toString),
       ownerPublicKeys = Set(publicKey),
       name = Some("Jenny"),
       metadata = None
@@ -440,7 +439,7 @@ class ZoneAnalyticsActorSpec
                                    owner: MemberId): Account = {
     val (transactor, zoneId, _) = fixture
     val account = Account(
-      id = AccountId(UUID.randomUUID().toString),
+      id = AccountId(1.toString),
       ownerMemberIds = Set(owner),
       name = Some("Jenny's Account"),
       metadata = None
@@ -479,7 +478,7 @@ class ZoneAnalyticsActorSpec
                                      to: AccountId): Unit = {
     val (transactor, zoneId, _) = fixture
     val transaction = Transaction(
-      id = TransactionId(UUID.randomUUID().toString),
+      id = TransactionId(0.toString),
       from = zone.equityAccountId,
       to = to,
       value = BigDecimal(5000),

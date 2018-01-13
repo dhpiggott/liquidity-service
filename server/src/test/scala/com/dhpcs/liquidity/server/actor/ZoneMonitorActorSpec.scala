@@ -2,8 +2,8 @@ package com.dhpcs.liquidity.server.actor
 
 import java.util.UUID
 
+import akka.actor.typed.scaladsl.adapter._
 import akka.testkit.TestProbe
-import akka.typed.scaladsl.adapter._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures

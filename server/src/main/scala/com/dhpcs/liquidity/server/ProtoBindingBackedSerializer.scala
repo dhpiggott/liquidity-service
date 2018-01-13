@@ -4,10 +4,10 @@ import java.io.NotSerializableException
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor.ExtendedActorSystem
+import akka.actor.typed.ActorRefResolver
+import akka.actor.typed.scaladsl.adapter._
 import akka.remote.serialization.ProtobufSerializer
 import akka.serialization.SerializerWithStringManifest
-import akka.typed.cluster.ActorRefResolver
-import akka.typed.scaladsl.adapter._
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.ProtoBindingBackedSerializer.AnyRefProtoBinding
 

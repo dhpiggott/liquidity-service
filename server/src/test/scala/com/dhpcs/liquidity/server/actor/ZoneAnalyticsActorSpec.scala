@@ -5,6 +5,8 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
 
+import akka.actor.typed.ActorRefResolver
+import akka.actor.typed.scaladsl.adapter._
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.persistence.PersistentActor
@@ -16,8 +18,6 @@ import akka.persistence.inmemory.query.scaladsl.InMemoryReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.TestProbe
-import akka.typed.cluster.ActorRefResolver
-import akka.typed.scaladsl.adapter._
 import akka.util.Timeout
 import cats.effect.IO
 import com.dhpcs.liquidity.model._

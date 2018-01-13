@@ -3,8 +3,8 @@ package com.dhpcs.liquidity.actor.protocol
 import java.net.InetAddress
 import java.time.Instant
 
-import akka.typed.ActorRef
-import akka.typed.cluster.ActorRefResolver
+import akka.actor.typed.ActorRef
+import akka.actor.typed.ActorRefResolver
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._

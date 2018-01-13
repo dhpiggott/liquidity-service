@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.actor.protocol.clientmonitor
 
-import akka.typed.ActorRef
+import akka.actor.typed.ActorRef
 import com.dhpcs.liquidity.actor.protocol.clientconnection.ClientConnectionMessage
 import com.dhpcs.liquidity.model.PublicKey
 

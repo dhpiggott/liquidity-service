@@ -1,11 +1,11 @@
 package com.dhpcs.liquidity.server.actor
 
+import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.scaladsl.adapter._
+import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import akka.event.{Logging, LoggingAdapter}
-import akka.typed.scaladsl.Actor
-import akka.typed.scaladsl.adapter._
-import akka.typed.{ActorRef, Behavior, Terminated}
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 
 import scala.concurrent.duration._

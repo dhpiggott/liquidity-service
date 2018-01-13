@@ -5,16 +5,15 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
 
+import akka.actor.typed.scaladsl.adapter._
+import akka.actor.typed.scaladsl.{Actor, ActorContext}
+import akka.actor.typed._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
+import akka.cluster.sharding.typed.{EntityTypeKey, ShardingMessageExtractor}
 import akka.event.Logging
-import akka.typed.cluster.ActorRefResolver
-import akka.typed.cluster.sharding.{EntityTypeKey, ShardingMessageExtractor}
-import akka.typed.persistence.scaladsl.PersistentActor
-import akka.typed.persistence.scaladsl.PersistentActor._
-import akka.typed.scaladsl.adapter._
-import akka.typed.scaladsl.{Actor, ActorContext}
-import akka.typed.{ActorRef, Behavior, PostStop, Terminated}
+import akka.persistence.typed.scaladsl.PersistentActor
+import akka.persistence.typed.scaladsl.PersistentActor._
 import cats.Semigroupal
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
@@ -23,10 +22,7 @@ import cats.instances.set._
 import cats.syntax.apply._
 import cats.syntax.validated._
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
-import com.dhpcs.liquidity.actor.protocol.zonemonitor.{
-  ActiveZoneSummary,
-  UpsertActiveZoneSummary
-}
+import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone._

@@ -66,7 +66,7 @@ lazy val `actor-protocol-scala-binding` = project
     name := "liquidity-actor-protocol-scala-binding"
   )
   .settings(
-    libraryDependencies += "com.typesafe.akka" %% "akka-typed" % "2.5.8")
+    libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.5.9")
   .dependsOn(`ws-protocol-scala-binding`)
   .settings(
     Compile / PB.includePaths += file("ws-protocol/src/main/protobuf")
@@ -83,16 +83,16 @@ lazy val server = project
   .dependsOn(`actor-protocol-scala-binding`)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-slf4j" % "2.5.8",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.9",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.chuusai" %% "shapeless" % "2.3.3",
       "org.typelevel" %% "cats-core" % "1.0.1",
-      "com.typesafe.akka" %% "akka-cluster" % "2.5.8",
+      "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.9",
       "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.8.0",
-      "com.typesafe.akka" %% "akka-cluster-sharding" % "2.5.8",
-      "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.8",
-      "com.typesafe.akka" %% "akka-persistence" % "2.5.8",
-      "com.typesafe.akka" %% "akka-persistence-query" % "2.5.8",
+      "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.9",
+      "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.9",
+      "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.9",
+      "com.typesafe.akka" %% "akka-persistence-query" % "2.5.9",
       "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.0.1",
       "org.tpolecat" %% "doobie-core" % "0.5.0-M11",
       "org.tpolecat" %% "doobie-hikari" % "0.5.0-M11",
@@ -108,7 +108,7 @@ lazy val server = project
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.4" % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.11" % Test,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.8" % Test
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.9" % Test
   ))
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
@@ -116,7 +116,7 @@ lazy val server = project
   .settings(libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.0.4" % IntegrationTest,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.11" % IntegrationTest,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.8" % IntegrationTest
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.9" % IntegrationTest
   ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(

@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.actor.protocol.zonemonitor
 
-import akka.typed.ActorRef
+import akka.actor.typed.ActorRef
 import com.dhpcs.liquidity.actor.protocol.zonevalidator.ZoneValidatorMessage
 import com.dhpcs.liquidity.model._
 

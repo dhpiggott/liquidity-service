@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.server.actor
 
+import akka.actor.typed.scaladsl.adapter._
 import akka.testkit.TestProbe
-import akka.typed.scaladsl.adapter._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.model.PublicKey
 import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures

@@ -3,7 +3,7 @@ package com.dhpcs.liquidity.persistence.zone
 import java.net.InetAddress
 import java.time.Instant
 
-import akka.typed.ActorRef
+import akka.actor.typed.ActorRef
 import com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage
 import com.dhpcs.liquidity.model._
 

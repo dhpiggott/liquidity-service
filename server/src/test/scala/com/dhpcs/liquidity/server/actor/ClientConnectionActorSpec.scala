@@ -3,9 +3,9 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 
 import akka.actor.ActorRef
+import akka.actor.typed.ActorRefResolver
+import akka.actor.typed.scaladsl.adapter._
 import akka.testkit.TestProbe
-import akka.typed.cluster.ActorRefResolver
-import akka.typed.scaladsl.adapter._
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._

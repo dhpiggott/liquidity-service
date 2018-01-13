@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.actor.protocol.clientconnection
 
-import akka.typed.ActorRef
+import akka.actor.typed.ActorRef
 import com.dhpcs.liquidity.actor.protocol.zonevalidator.ZoneValidatorMessage
 import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.proto

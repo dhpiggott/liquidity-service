@@ -5,6 +5,8 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.NotUsed
+import akka.actor.typed.ActorRefResolver
+import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.model.headers.`Remote-Address`
 import akka.http.scaladsl.model.ws.Message
@@ -12,8 +14,6 @@ import akka.http.scaladsl.model.{RemoteAddress, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.stream.scaladsl.{Flow, Source}
 import akka.testkit.TestProbe
-import akka.typed.cluster.ActorRefResolver
-import akka.typed.scaladsl.adapter._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._

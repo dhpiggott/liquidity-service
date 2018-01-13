@@ -1,13 +1,13 @@
 package com.dhpcs.liquidity.server.actor
 
+import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.scaladsl.adapter._
+import akka.actor.typed.{Behavior, PostStop}
 import akka.event.Logging
 import akka.persistence.query.Sequence
 import akka.persistence.query.scaladsl.{EventsByTagQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
-import akka.typed.scaladsl.Actor
-import akka.typed.scaladsl.adapter._
-import akka.typed.{Behavior, PostStop}
 import cats.effect.IO
 import cats.syntax.applicative._
 import com.dhpcs.liquidity.model.ZoneId

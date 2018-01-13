@@ -81,11 +81,12 @@ object LiquidityServerSpec {
   private def dockerCompose(projectName: String,
                             commandArgs: String*): ProcessBuilder =
     Process(
-      command = Seq("docker-compose",
-                    "--project-name",
-                    projectName,
-                    "--file",
-                    new File("docker-compose.yml").getCanonicalPath) ++
+      command = Seq(
+        "docker-compose",
+        "--project-name",
+        projectName,
+        "--file",
+        new File("server/src/it/docker-compose.yml").getCanonicalPath) ++
         commandArgs,
       cwd = None,
       extraEnv = "TAG" -> BuildInfo.version.replace('+', '-')

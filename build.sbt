@@ -44,6 +44,7 @@ lazy val `ws-protocol-scala-binding` = project
   .settings(
     name := "liquidity-ws-protocol-scala-binding"
   )
+  .settings(taglessVersionSettings)
   .settings(protobufScalaSettings(`ws-protocol`))
   .settings(
     libraryDependencies ++= Seq(
@@ -56,15 +57,17 @@ lazy val `actor-protocol` = project
   .settings(
     name := "liquidity-actor-protocol"
   )
+  .settings(taglessVersionSettings)
   .dependsOn(`ws-protocol`)
   .disablePlugins(ScalafmtCorePlugin)
 
 lazy val `actor-protocol-scala-binding` = project
   .in(file("actor-protocol-scala-binding"))
-  .settings(protobufScalaSettings(`actor-protocol`))
   .settings(
     name := "liquidity-actor-protocol-scala-binding"
   )
+  .settings(taglessVersionSettings)
+  .settings(protobufScalaSettings(`actor-protocol`))
   .settings(
     libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.5.9")
   .dependsOn(`ws-protocol-scala-binding`)
@@ -77,6 +80,7 @@ lazy val server = project
   .settings(
     name := "server"
   )
+  .settings(taglessVersionSettings)
   .dependsOn(`ws-protocol`)
   .dependsOn(`ws-protocol-scala-binding`)
   .dependsOn(`actor-protocol`)
@@ -125,10 +129,16 @@ lazy val server = project
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     Docker / packageName := "liquidity",
-    Docker / version := version.value.replace('+', '-'),
     dockerBaseImage := "openjdk:8-jre",
     dockerRepository := Some("837036139524.dkr.ecr.eu-west-2.amazonaws.com")
   )
+
+lazy val taglessVersionSettings = Seq(
+  version := {
+    import scala.sys.process._
+    "git describe --always --dirty".!!.trim()
+  }
+)
 
 def protobufScalaSettings(project: Project) = Seq(
   Compile / PB.protoSources ++= (project / Compile / PB.protoSources).value,

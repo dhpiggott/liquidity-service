@@ -89,7 +89,7 @@ object LiquidityServerSpec {
         new File("server/src/it/docker-compose.yml").getCanonicalPath) ++
         commandArgs,
       cwd = None,
-      extraEnv = "TAG" -> BuildInfo.version.replace('+', '-')
+      extraEnv = "TAG" -> BuildInfo.version
     )
 
   private def execSqlFile(path: String): ConnectionIO[Unit] =

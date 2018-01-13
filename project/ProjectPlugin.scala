@@ -1,8 +1,4 @@
-import bintray.BintrayKeys._
-import ch.epfl.scala.sbt.release.AutoImported._
 import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin
-import com.typesafe.sbt.packager.Keys._
-import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport.Docker
 import sbt.Keys._
 import sbt._
 

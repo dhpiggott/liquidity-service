@@ -13,7 +13,9 @@ env:
 stages:
   - test
   - name: publish
-    if: type NOT IN (pull_request)
+    if: branch = master
+  - name: deploy
+    if: branch = master
 jobs:
   include:
     - stage: test
@@ -34,6 +36,17 @@ jobs:
       script: |
         git fetch --unshallow && # So sbt-dynver derives the version correctly
           sbt ";ws-protocol/releaseEarly"
+    - stage: deploy
+      script: |
+        pip install --user awscli &&
+          export PATH=$PATH:$HOME/.local/bin &&
+          aws cloudformation \
+            update-stack \
+            --region eu-west-2 \
+            --stack-name liquidity \
+            --use-previous-template \
+            --parameters \
+              ParameterKey=Tag,ParameterValue=$(git describe --always --dirty)
 cache:
   directories:
     - $HOME/.ivy2/cache

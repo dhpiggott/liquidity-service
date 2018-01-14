@@ -12,10 +12,8 @@ lazy val `ws-protocol` = project
       (Compile / PB.protoSources).value.map(_.asFile),
     homepage := Some(url("https://github.com/dhpcs/liquidity/")),
     startYear := Some(2015),
-    description := "Liquidity is a smartphone based currency built for " +
-      "Monopoly and all board and tabletop games.",
-    licenses += "Apache-2.0" -> url(
-      "https://www.apache.org/licenses/LICENSE-2.0.txt"),
+    description := "Virtual currencies for Monopoly and other board and " +
+      "tabletop games.",
     organization := "com.dhpcs",
     organizationHomepage := Some(url("https://www.dhpcs.com/")),
     organizationName := "dhpcs",

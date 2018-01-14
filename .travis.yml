@@ -40,13 +40,14 @@ jobs:
       script: |
         pip install --user awscli &&
           export PATH=$PATH:$HOME/.local/bin &&
+          TAG=evergreen-$(git describe --always --dirty) &&
           aws cloudformation \
             update-stack \
             --region eu-west-2 \
             --stack-name liquidity \
             --use-previous-template \
             --parameters \
-              ParameterKey=Tag,ParameterValue=$(git describe --always --dirty)
+              ParameterKey=Tag,ParameterValue=$TAG
 cache:
   directories:
     - $HOME/.ivy2/cache

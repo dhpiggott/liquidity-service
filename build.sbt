@@ -44,7 +44,7 @@ lazy val `ws-protocol-scala-binding` = project
   .settings(
     name := "liquidity-ws-protocol-scala-binding"
   )
-  .settings(taglessVersionSettings)
+  .settings(evergreenVersionSettings)
   .settings(protobufScalaSettings(`ws-protocol`))
   .settings(
     libraryDependencies ++= Seq(
@@ -57,7 +57,7 @@ lazy val `actor-protocol` = project
   .settings(
     name := "liquidity-actor-protocol"
   )
-  .settings(taglessVersionSettings)
+  .settings(evergreenVersionSettings)
   .dependsOn(`ws-protocol`)
   .disablePlugins(ScalafmtCorePlugin)
 
@@ -66,7 +66,7 @@ lazy val `actor-protocol-scala-binding` = project
   .settings(
     name := "liquidity-actor-protocol-scala-binding"
   )
-  .settings(taglessVersionSettings)
+  .settings(evergreenVersionSettings)
   .settings(protobufScalaSettings(`actor-protocol`))
   .settings(
     libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.5.9")
@@ -80,7 +80,7 @@ lazy val server = project
   .settings(
     name := "server"
   )
-  .settings(taglessVersionSettings)
+  .settings(evergreenVersionSettings)
   .dependsOn(`ws-protocol`)
   .dependsOn(`ws-protocol-scala-binding`)
   .dependsOn(`actor-protocol`)
@@ -133,10 +133,10 @@ lazy val server = project
     dockerRepository := Some("837036139524.dkr.ecr.eu-west-2.amazonaws.com")
   )
 
-lazy val taglessVersionSettings = Seq(
+lazy val evergreenVersionSettings = Seq(
   version := {
     import scala.sys.process._
-    "git describe --always --dirty".!!.trim()
+    s"evergreen-${"git describe --always --dirty".!!.trim()}"
   }
 )
 

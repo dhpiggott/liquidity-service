@@ -65,7 +65,7 @@ object ZoneValidatorActor {
   private final val PassivationTimeout = 2.minutes
   // TODO: Re-enable snapshots once the akka-typed API supports it
   // private final val SnapShotInterval   = 100
-  private final val ZoneLifetime = 7.days
+  private final val ZoneLifetime = java.time.Duration.ofDays(30)
 
   private object PassivationCountdownActor {
 

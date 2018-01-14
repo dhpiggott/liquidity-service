@@ -2,10 +2,7 @@ package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
 
-import akka.http.scaladsl.common.{
-  EntityStreamingSupport,
-  JsonEntityStreamingSupport
-}
+import akka.http.scaladsl.common._
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
@@ -23,10 +20,7 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._
-import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore.{
-  ClientSession,
-  ClientSessionId
-}
+import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
 import com.trueaccord.scalapb.GeneratedMessage
 import com.trueaccord.scalapb.json.JsonFormat
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._

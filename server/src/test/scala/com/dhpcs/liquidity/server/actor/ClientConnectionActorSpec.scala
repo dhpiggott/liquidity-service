@@ -192,7 +192,7 @@ class ClientConnectionActorSpec
       ),
       transactions = Map.empty,
       created = created,
-      expires = created + 7.days.toMillis,
+      expires = created + java.time.Duration.ofDays(30).toMillis,
       name = Some("Dave's Game"),
       metadata = None
     )

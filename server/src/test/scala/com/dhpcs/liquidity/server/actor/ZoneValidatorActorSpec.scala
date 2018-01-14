@@ -3,7 +3,6 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 import java.security.KeyPairGenerator
 import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.actor.typed
@@ -668,15 +667,14 @@ class ZoneValidatorActorSpec
         )
         assert(
           zone.created === Spread(
-            pivot = Instant.now().toEpochMilli,
+            pivot = System.currentTimeMillis(),
             tolerance = 5000L
           )
         )
         assert(
-          zone.expires === Spread(
-            pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
-            tolerance = 5000L
-          )
+          zone.expires === zone.created + java.time.Duration
+            .ofDays(30)
+            .toMillis
         )
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))
@@ -715,15 +713,14 @@ class ZoneValidatorActorSpec
         )
         assert(
           zone.created === Spread(
-            pivot = Instant.now().toEpochMilli,
+            pivot = System.currentTimeMillis(),
             tolerance = 5000L
           )
         )
         assert(
-          zone.expires === Spread(
-            pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
-            tolerance = 5000L
-          )
+          zone.expires === zone.created + java.time.Duration
+            .ofDays(30)
+            .toMillis
         )
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))

@@ -10,10 +10,7 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.persistence.PersistentActor
-import akka.persistence.inmemory.extension.{
-  InMemoryJournalStorage,
-  StorageExtension
-}
+import akka.persistence.inmemory.extension._
 import akka.persistence.inmemory.query.scaladsl.InMemoryReadJournal
 import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
@@ -25,10 +22,7 @@ import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.server.LiquidityServer.TransactIoToFuture
 import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore.ClientSession
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActorSpec._
-import com.dhpcs.liquidity.server.{
-  InmemoryPersistenceTestFixtures,
-  SqlAnalyticsStore
-}
+import com.dhpcs.liquidity.server._
 import doobie._
 import doobie.implicits._
 import org.h2.tools.Server
@@ -317,7 +311,7 @@ class ZoneAnalyticsActorSpec
       ),
       transactions = Map.empty,
       created = created,
-      expires = created + 7.days.toMillis,
+      expires = created + java.time.Duration.ofDays(30).toMillis,
       name = Some("Dave's Game"),
       metadata = None
     )

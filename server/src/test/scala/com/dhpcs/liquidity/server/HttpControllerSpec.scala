@@ -33,7 +33,6 @@ import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
-import scala.concurrent.duration._
 
 object HttpControllerSpec {
 
@@ -64,7 +63,7 @@ object HttpControllerSpec {
     ),
     transactions = Map.empty,
     created = created,
-    expires = created + 7.days.toMillis,
+    expires = created + java.time.Duration.ofDays(30).toMillis,
     name = Some("Dave's Game"),
     metadata = None
   )
@@ -136,7 +135,7 @@ class HttpControllerSpec
               |              "ownerMemberIds" : [ "0" ]
               |          } ],
               |          "created" : "1514156286183",
-              |          "expires" : "1514761086183",
+              |          "expires" : "1516748286183",
               |          "name" : "Dave's Game"
               |        }
               |      }
@@ -224,7 +223,7 @@ class HttpControllerSpec
               |      "ownerMemberIds" : [ "0" ]
               |    } ],
               |    "created" : "1514156286183",
-              |    "expires" : "1514761086183",
+              |    "expires" : "1516748286183",
               |    "name" : "Dave's Game"
               |  }
               |}
@@ -315,7 +314,7 @@ class HttpControllerSpec
                   |    "ownerMemberIds" : [ "0" ]
                   |  } ],
                   |  "created" : "1514156286183",
-                  |  "expires" : "1514761086183",
+                  |  "expires" : "1516748286183",
                   |  "name" : "Dave's Game"
                   |}
                 """.stripMargin

@@ -4,18 +4,12 @@ import java.io.File
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.security.{KeyPairGenerator, Signature}
 import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.ws.{
-  BinaryMessage,
-  WebSocketRequest,
-  Message => WsMessage
-}
-import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
@@ -27,8 +21,8 @@ import cats.data.Validated
 import cats.effect.IO
 import cats.instances.list._
 import cats.syntax.traverse._
-import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.model.ProtoBindings._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
@@ -45,8 +39,7 @@ import play.api.libs.json.{JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
-import scala.sys.process.Process
-import scala.sys.process.ProcessBuilder
+import scala.sys.process.{Process, ProcessBuilder}
 
 object LiquidityServerSpec {
 
@@ -372,7 +365,7 @@ class LiquidityServerSpec
     val (_, akkaHttpPort) =
       externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
     val (_, (sub, pub)) = Http().singleWebSocketRequest(
-      WebSocketRequest(s"ws://localhost:$akkaHttpPort/ws"),
+      ws.WebSocketRequest(s"ws://localhost:$akkaHttpPort/ws"),
       wsClientFlow
     )
     val keyOwnershipChallenge = inside(expectMessage(sub)) {
@@ -394,20 +387,20 @@ class LiquidityServerSpec
   }
 
   private final val InFlow
-    : Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
-    Flow[WsMessage].flatMapConcat(
+    : Flow[ws.Message, proto.ws.protocol.ClientMessage, NotUsed] =
+    Flow[ws.Message].flatMapConcat(
       wsMessage =>
         for (byteString <- wsMessage.asBinaryMessage match {
-               case BinaryMessage.Streamed(dataStream) =>
+               case ws.BinaryMessage.Streamed(dataStream) =>
                  dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
-               case BinaryMessage.Strict(data) => Source.single(data)
+               case ws.BinaryMessage.Strict(data) => Source.single(data)
              })
           yield proto.ws.protocol.ClientMessage.parseFrom(byteString.toArray))
 
   private final val OutFlow
-    : Flow[proto.ws.protocol.ServerMessage, WsMessage, NotUsed] =
+    : Flow[proto.ws.protocol.ServerMessage, ws.Message, NotUsed] =
     Flow[proto.ws.protocol.ServerMessage].map(
-      serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
+      serverMessage => ws.BinaryMessage(ByteString(serverMessage.toByteArray))
     )
 
   private[this] def createZone(
@@ -451,14 +444,14 @@ class LiquidityServerSpec
         )
         assert(
           zone.created === Spread(
-            pivot = Instant.now().toEpochMilli,
-            tolerance = 5000L
-          ))
-        assert(
-          zone.expires === Spread(
-            pivot = Instant.now().plus(7, ChronoUnit.DAYS).toEpochMilli,
+            pivot = System.currentTimeMillis(),
             tolerance = 5000L
           )
+        )
+        assert(
+          zone.expires === zone.created + java.time.Duration
+            .ofDays(30)
+            .toMillis
         )
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))

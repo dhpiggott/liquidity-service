@@ -3,10 +3,7 @@ package com.dhpcs.liquidity.actor.protocol.zonevalidator
 import java.net.InetAddress
 
 import akka.actor.typed.ActorRef
-import com.dhpcs.liquidity.actor.protocol.clientconnection.{
-  SerializableClientConnectionMessage,
-  ZoneResponseEnvelope
-}
+import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone.ZoneState
 import com.dhpcs.liquidity.ws.protocol.ZoneCommand

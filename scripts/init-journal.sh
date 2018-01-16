@@ -11,5 +11,5 @@ fi
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 docker run --rm \
-    --volume $DIR/../journal.sql:/journal.sql \
+    --volume $DIR/../schemas/journal.sql:/journal.sql \
     mysql:5 sh -c 'mysql --host='$1' --user='$2' --password='$3' < /journal.sql'

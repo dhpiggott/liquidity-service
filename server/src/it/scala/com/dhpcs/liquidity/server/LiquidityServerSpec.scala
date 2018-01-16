@@ -119,10 +119,14 @@ class LiquidityServerSpec
     val transactor = Transactor.fromDriverManager[IO](
       driver = "com.mysql.jdbc.Driver",
       url =
-        s"jdbc:mysql://localhost:$mysqlPort/?useSSL=false&" +
-          "cacheCallableStmts=true&cachePrepStmts=true&" +
-          "cacheResultSetMetadata=true&cacheServerConfiguration=true&" +
-          "useLocalSessionState=true&useLocalSessionState=true&" +
+        s"jdbc:mysql://localhost:$mysqlPort/?" +
+          "useSSL=false&" +
+          "cacheCallableStmts=true&" +
+          "cachePrepStmts=true&" +
+          "cacheResultSetMetadata=true&" +
+          "cacheServerConfiguration=true&" +
+          "useLocalSessionState=true&" +
+          "useLocalSessionState=true&" +
           "useServerPrepStmts=true",
       user = "root",
       pass = ""

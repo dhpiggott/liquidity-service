@@ -4,7 +4,12 @@ services:
     image: "mysql:5"
     ports:
      - "3306"
-    command: ["--explicit_defaults_for_timestamp=true"]
+    command: [
+      "--character-set-client-handshake=false",
+      "--character-set-server=utf8mb4",
+      "--collation-server=utf8mb4_unicode_ci",
+      "--explicit-defaults-for-timestamp=true"
+    ]
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "true"
   zone-host:
@@ -31,8 +36,8 @@ services:
       MYSQL_JOURNAL_PASSWORD: ""
       MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?\
         useSSL=false&\
-        cacheCallableStmts=true\
-        &cachePrepStmts=true&\
+        cacheCallableStmts=true&\
+        cachePrepStmts=true&\
         cacheResultSetMetadata=true&\
         cacheServerConfiguration=true&\
         useLocalSessionState=true&\
@@ -65,8 +70,8 @@ services:
       MYSQL_JOURNAL_PASSWORD: ""
       MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?\
         useSSL=false&\
-        cacheCallableStmts=true\
-        &cachePrepStmts=true&\
+        cacheCallableStmts=true&\
+        cachePrepStmts=true&\
         cacheResultSetMetadata=true&\
         cacheServerConfiguration=true&\
         useLocalSessionState=true&\
@@ -98,8 +103,8 @@ services:
       MYSQL_JOURNAL_PASSWORD: ""
       MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?\
         useSSL=false&\
-        cacheCallableStmts=true\
-        &cachePrepStmts=true&\
+        cacheCallableStmts=true&\
+        cachePrepStmts=true&\
         cacheResultSetMetadata=true&\
         cacheServerConfiguration=true&\
         useLocalSessionState=true&\

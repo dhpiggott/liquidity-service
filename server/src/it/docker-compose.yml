@@ -23,28 +23,9 @@ services:
       JAVA_OPTS: "-Dakka.cluster.seed-nodes.0=\
         akka.tcp://liquidity@zone-host:2552
         -Dakka.cluster.roles.0=zone-host"
-      MYSQL_JOURNAL_URL: "jdbc:mysql://mysql/liquidity_journal?\
-        useSSL=false&\
-        cacheCallableStmts=true&\
-        cachePrepStmts=true&\
-        cacheResultSetMetadata=true&\
-        cacheServerConfiguration=true&\
-        useLocalSessionState=true&\
-        useLocalSessionState=true&\
-        useServerPrepStmts=true"
-      MYSQL_JOURNAL_USERNAME: "root"
-      MYSQL_JOURNAL_PASSWORD: ""
-      MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?\
-        useSSL=false&\
-        cacheCallableStmts=true&\
-        cachePrepStmts=true&\
-        cacheResultSetMetadata=true&\
-        cacheServerConfiguration=true&\
-        useLocalSessionState=true&\
-        useLocalSessionState=true&\
-        useServerPrepStmts=true"
-      MYSQL_ANALYTICS_USERNAME: "root"
-      MYSQL_ANALYTICS_PASSWORD: ""
+      MYSQL_HOSTNAME: "mysql"
+      MYSQL_USERNAME: "root"
+      MYSQL_PASSWORD: ""
   client-relay:
     image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     ports:
@@ -57,28 +38,9 @@ services:
       JAVA_OPTS: "-Dakka.cluster.seed-nodes.0=\
         akka.tcp://liquidity@zone-host:2552
         -Dakka.cluster.roles.0=client-relay"
-      MYSQL_JOURNAL_URL: "jdbc:mysql://mysql/liquidity_journal?\
-        useSSL=false&\
-        cacheCallableStmts=true&\
-        cachePrepStmts=true&\
-        cacheResultSetMetadata=true&\
-        cacheServerConfiguration=true&\
-        useLocalSessionState=true&\
-        useLocalSessionState=true&\
-        useServerPrepStmts=true"
-      MYSQL_JOURNAL_USERNAME: "root"
-      MYSQL_JOURNAL_PASSWORD: ""
-      MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?\
-        useSSL=false&\
-        cacheCallableStmts=true&\
-        cachePrepStmts=true&\
-        cacheResultSetMetadata=true&\
-        cacheServerConfiguration=true&\
-        useLocalSessionState=true&\
-        useLocalSessionState=true&\
-        useServerPrepStmts=true"
-      MYSQL_ANALYTICS_USERNAME: "root"
-      MYSQL_ANALYTICS_PASSWORD: ""
+      MYSQL_HOSTNAME: "mysql"
+      MYSQL_USERNAME: "root"
+      MYSQL_PASSWORD: ""
   analytics:
     image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
     ports:
@@ -90,25 +52,6 @@ services:
       JAVA_OPTS: "-Dakka.cluster.seed-nodes.0=\
         akka.tcp://liquidity@zone-host:2552
         -Dakka.cluster.roles.0=analytics"
-      MYSQL_JOURNAL_URL: "jdbc:mysql://mysql/liquidity_journal?\
-        useSSL=false&\
-        cacheCallableStmts=true&\
-        cachePrepStmts=true&\
-        cacheResultSetMetadata=true&\
-        cacheServerConfiguration=true&\
-        useLocalSessionState=true&\
-        useLocalSessionState=true&\
-        useServerPrepStmts=true"
-      MYSQL_JOURNAL_USERNAME: "root"
-      MYSQL_JOURNAL_PASSWORD: ""
-      MYSQL_ANALYTICS_URL: "jdbc:mysql://mysql/liquidity_analytics?\
-        useSSL=false&\
-        cacheCallableStmts=true&\
-        cachePrepStmts=true&\
-        cacheResultSetMetadata=true&\
-        cacheServerConfiguration=true&\
-        useLocalSessionState=true&\
-        useLocalSessionState=true&\
-        useServerPrepStmts=true"
-      MYSQL_ANALYTICS_USERNAME: "root"
-      MYSQL_ANALYTICS_PASSWORD: ""
+      MYSQL_HOSTNAME: "mysql"
+      MYSQL_USERNAME: "root"
+      MYSQL_PASSWORD: ""

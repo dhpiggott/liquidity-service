@@ -16,10 +16,10 @@ Resources:
       ContainerDefinitions:
         - Name: liquidity
           Image: !Join [
-            ':',
+            ":",
             [
               "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity",
-              !Ref 'Tag'
+              !Ref Tag
             ]
           ]
           ReadonlyRootFilesystem: true
@@ -42,35 +42,11 @@ Resources:
                 -Dakka.cluster.roles.0=zone-host
                 -Dakka.cluster.roles.1=client-relay
                 -Dakka.cluster.roles.2=analytics"
-            - Name: MYSQL_JOURNAL_URL
-              Value: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.\
-                amazonaws.com/liquidity_journal?\
-                useSSL=false&\
-                cacheCallableStmts=true&\
-                cachePrepStmts=true&\
-                cacheResultSetMetadata=true&\
-                cacheServerConfiguration=true&\
-                useLocalSessionState=true&\
-                useLocalSessionState=true&\
-                useServerPrepStmts=true"
-            - Name: MYSQL_JOURNAL_USERNAME
+            - Name: MYSQL_HOSTNAME
+              Value: "liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com"
+            - Name: MYSQL_USERNAME
               Value: "liquidity"
-            - Name: MYSQL_JOURNAL_PASSWORD
-              Value: "liquidity"
-            - Name: MYSQL_ANALYTICS_URL
-              Value: "jdbc:mysql://liquidity.cbn7pwslcac6.eu-west-2.rds.\
-                amazonaws.com/liquidity_analytics?\
-                useSSL=false&\
-                cacheCallableStmts=true&\
-                cachePrepStmts=true&\
-                cacheResultSetMetadata=true&\
-                cacheServerConfiguration=true&\
-                useLocalSessionState=true&\
-                useLocalSessionState=true&\
-                useServerPrepStmts=true"
-            - Name: MYSQL_ANALYTICS_USERNAME
-              Value: "liquidity"
-            - Name: MYSQL_ANALYTICS_PASSWORD
+            - Name: MYSQL_PASSWORD
               Value: "liquidity"
   Service:
     Type: AWS::ECS::Service

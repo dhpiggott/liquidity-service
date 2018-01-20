@@ -40,6 +40,7 @@ import doobie._
 import doobie.hikari._
 import doobie.hikari.implicits._
 import doobie.implicits._
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -59,7 +60,8 @@ object LiquidityServer {
   }
 
   def main(args: Array[String]): Unit = {
-    val config = ConfigFactory.parseString(s"""
+    val config = ConfigFactory
+      .parseString(s"""
         |akka {
         |  loggers = ["akka.event.slf4j.Slf4jLogger"]
         |  loglevel = "DEBUG"
@@ -83,7 +85,7 @@ object LiquidityServer {
         |    allow-java-serialization = off
         |  }
         |  remote.netty.tcp {
-        |    hostname = "${System.getenv("AKKA_HOSTNAME")}"
+        |    hostname = "${getEnvVarOrExit("AKKA_HOSTNAME")}"
         |    bind-hostname = "0.0.0.0"
         |  }
         |  cluster.metrics.enabled = off
@@ -116,13 +118,14 @@ object LiquidityServer {
         |  profile = "slick.jdbc.MySQLProfile$$"
         |  db {
         |    driver = "com.mysql.jdbc.Driver"
-        |    url = "${System.getenv("MYSQL_JOURNAL_URL")}"
-        |    user = "${System.getenv("MYSQL_JOURNAL_USERNAME")}"
-        |    password = "${System.getenv("MYSQL_JOURNAL_PASSWORD")}"
+        |    url = "${urlForDatabase("liquidity_journal")}"
+        |    user = "${getEnvVarOrExit("MYSQL_USERNAME")}"
+        |    password = "${getEnvVarOrExit("MYSQL_PASSWORD")}"
         |    maxConnections = 2
         |  }
         |}
-      """.stripMargin).resolve()
+      """.stripMargin)
+      .resolve()
     implicit val system: ActorSystem = ActorSystem("liquidity", config)
     implicit val mat: Materializer = ActorMaterializer()
     implicit val ec: ExecutionContext = ExecutionContext.global
@@ -134,9 +137,9 @@ object LiquidityServer {
     val analyticsTransactor = (for {
       analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
-        url = System.getenv("MYSQL_ANALYTICS_URL"),
-        user = System.getenv("MYSQL_ANALYTICS_USERNAME"),
-        pass = System.getenv("MYSQL_ANALYTICS_PASSWORD")
+        url = urlForDatabase("liquidity_analytics"),
+        user = getEnvVarOrExit("MYSQL_USERNAME"),
+        pass = getEnvVarOrExit("MYSQL_PASSWORD")
       )
       _ <- analyticsTransactor.configure(hikariDataSource =>
         IO(hikariDataSource.setMaximumPoolSize(2)))
@@ -155,6 +158,30 @@ object LiquidityServer {
                                         "liquidityServerUnbind")(() =>
       for (_ <- httpBinding.flatMap(_.unbind())) yield Done)
   }
+
+  private[this] val log = LoggerFactory.getLogger(getClass)
+
+  private[this] def urlForDatabase(database: String): String =
+    s"jdbc:mysql://${getEnvVarOrExit("MYSQL_HOSTNAME")}/$database?" +
+      "useSSL=false&" +
+      "cacheCallableStmts=true&" +
+      "cachePrepStmts=true&" +
+      "cacheResultSetMetadata=true&" +
+      "cacheServerConfiguration=true&" +
+      "useLocalSessionState=true&" +
+      "useLocalSessionState=true&" +
+      "useServerPrepStmts=true"
+
+  private[this] def getEnvVarOrExit(name: String): String =
+    sys.env.get(name) match {
+      case None =>
+        log.error(s"Required environment variable <$name> is not set. Halting.")
+        sys.exit(1)
+
+      case Some(value) =>
+        value
+    }
+
 }
 
 class LiquidityServer(

@@ -1,27 +1,18 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
+  Stack:
+    Type: String
   Tag:
     Type: String
-    Description: The image tag to use
 Resources:
-  CloudWatchLogsGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Ref AWS::StackName
-      RetentionInDays: 30
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Ref AWS::StackName
       ContainerDefinitions:
         - Name: liquidity
-          Image: !Join [
-            ":",
-            [
-              "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity",
-              !Ref Tag
-            ]
-          ]
+          Image:
+            !Sub "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${Tag}"
           ReadonlyRootFilesystem: true
           Memory: 384
           Hostname: liquidity
@@ -30,7 +21,8 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref AWS::StackName
+              awslogs-group:
+                Fn::ImportValue: !Sub "${Stack}-CloudWatchLogGroup"
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: liquidity
           Environment:
@@ -43,17 +35,20 @@ Resources:
                 -Dakka.cluster.roles.1=client-relay
                 -Dakka.cluster.roles.2=analytics"
             - Name: MYSQL_HOSTNAME
-              Value: "liquidity.cbn7pwslcac6.eu-west-2.rds.amazonaws.com"
+              Value:
+                Fn::ImportValue: !Sub "${Stack}-RDSHostname"
             - Name: MYSQL_USERNAME
-              Value: "liquidity"
+              Value:
+                Fn::ImportValue: !Sub "${Stack}-RDSUsername"
             - Name: MYSQL_PASSWORD
-              Value: "liquidity"
+              Value:
+                Fn::ImportValue: !Sub "${Stack}-RDSPassword"
   Service:
     Type: AWS::ECS::Service
     Properties:
       Role: "arn:aws:iam::837036139524:role/aws-service-role/ecs.amazonaws\
         .com/AWSServiceRoleForECS"
-      ServiceName: liquidity
+      ServiceName: !Ref AWS::StackName
       DesiredCount: 1
       DeploymentConfiguration:
         MinimumHealthyPercent: 0
@@ -62,5 +57,5 @@ Resources:
       LoadBalancers:
         - ContainerName: liquidity
           ContainerPort: 8080
-          TargetGroupArn: "arn:aws:elasticloadbalancing:eu-west-2:837036139524\
-            :targetgroup/liquidity/4c85a4c214f702d3"
+          TargetGroupArn:
+            Fn::ImportValue: !Sub "${Stack}-ALBTargetGroup"

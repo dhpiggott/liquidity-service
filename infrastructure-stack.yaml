@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  RDSUsername:
+    Type: String
+  RDSPassword:
+    Type: String
+  ECSInstanceImageId:
+    Type: AWS::EC2::Image::Id
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+  CertificateArn:
+    Type: String
+  AlertTopicArn:
+    Type: String
+Resources:
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName}-rds"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          CidrIpv6: "::/0"
+  RDSDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: !Ref AWS::StackName
+      Family: mysql5.7
+      Parameters:
+        character-set-client-handshake: 0
+        character_set_server: utf8mb4
+        collation_server: utf8mb4_unicode_ci
+  RDS:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Retain
+    Properties:
+      Engine: MySQL
+      EngineVersion: "5.7.19"
+      DBInstanceClass: db.t2.micro
+      StorageType: gp2
+      AllocatedStorage: "20"
+      BackupRetentionPeriod: "30"
+      DBParameterGroupName: !Ref RDSDBParameterGroup
+      VPCSecurityGroups:
+        - !GetAtt RDSSecurityGroup.GroupId
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+  ECSInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ECSInstanceImageId
+      InstanceType: t2.nano
+      IamInstanceProfile: "ecsInstanceRole"
+      Monitoring: true
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName}-alb"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: "::/0"
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      SecurityGroups:
+        - !GetAtt ALBSecurityGroup.GroupId
+      Subnets: !Ref Subnets
+      IpAddressType: dualstack
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: "60"
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: "/status"
+      Port: 80
+      Protocol: "HTTP"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "0"
+      VpcId: !Ref VPCId
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      LoadBalancerArn: !Ref ALB
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+  CloudWatchTargetGroupAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/ApplicationELB
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !Ref ALB
+        - Name: TargetGroup
+          Value: !Ref ALBTargetGroup
+      MetricName: UnHealthyHostCount
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertTopicArn
+      OKActions:
+        - !Ref AlertTopicArn
+      ActionsEnabled: true
+  CloudWatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref AWS::StackName
+      RetentionInDays: 30
+Outputs:
+  RDSHostname:
+    Value: !GetAtt RDS.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSHostname"
+  RDSUsername:
+    Value: !Ref RDSUsername
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSUsername"
+  RDSPassword:
+    Value: !Ref RDSPassword
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSPassword"
+  ALBTargetGroup:
+    Value: !Ref ALBTargetGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-ALBTargetGroup"
+  CloudWatchLogGroup:
+    Value: !Ref CloudWatchLogGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudWatchLogGroup"

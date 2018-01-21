@@ -44,9 +44,10 @@ jobs:
           aws cloudformation \
             update-stack \
             --region eu-west-2 \
-            --stack-name liquidity \
+            --stack-name liquidity-application \
             --use-previous-template \
             --parameters \
+              ParameterKey=Stack,ParameterValue=liquidity-infrastructure \
               ParameterKey=Tag,ParameterValue=$TAG
 cache:
   directories:

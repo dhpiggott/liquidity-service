@@ -1,16 +1,19 @@
 package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
+import java.security.KeyFactory
+import java.security.spec.X509EncodedKeySpec
 
+import akka.NotUsed
 import akka.http.scaladsl.common._
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.ws.Message
+import akka.http.scaladsl.model.{HttpResponse, StatusCode}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.stream.scaladsl.{Flow, Source}
-import akka.NotUsed
 import cats.instances.future._
 import cats.syntax.apply._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
@@ -24,10 +27,12 @@ import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
 import com.trueaccord.scalapb.GeneratedMessage
 import com.trueaccord.scalapb.json.JsonFormat
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
+import pdi.jwt.{JwtAlgorithm, JwtJson, JwtOptions}
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import play.api.libs.json.{JsValue, Json, OWrites}
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 object HttpController {
 
@@ -56,27 +61,11 @@ trait HttpController {
 
   protected[this] def httpRoutes(enableClientRelay: Boolean)(
       implicit ec: ExecutionContext): Route =
-    version ~ diagnostics ~ (if (enableClientRelay) ws else reject) ~ status ~ analytics
-
-  private[this] implicit def generatedMessageEntityMarshaller(
-      implicit jsValueEntityMarshaller: ToEntityMarshaller[JsValue])
-    : ToEntityMarshaller[GeneratedMessage] =
-    jsValueEntityMarshaller
-      .compose[String](Json.parse)
-      .compose[GeneratedMessage](JsonFormat.toJsonString)
-
-  private[this] implicit val jsonStreamingSupport: JsonEntityStreamingSupport =
-    EntityStreamingSupport.json()
-
-  private[this] implicit def optionResponseMarshaller[A](
-      implicit entityMarshaller: ToEntityMarshaller[Option[A]])
-    : ToResponseMarshaller[Option[A]] =
-    Marshaller[Option[A], HttpResponse](
-      implicit ec =>
-        entity =>
-          Marshaller.fromToEntityMarshaller(status =
-            if (entity.isEmpty) NotFound else OK)(entityMarshaller)(entity)
-    )
+    version ~ status ~
+      (if (enableClientRelay) ws else reject) ~
+      administratorRealm(
+        diagnostics ~ analytics
+      )
 
   private[this] def version: Route =
     path("version")(
@@ -87,21 +76,6 @@ trait HttpController {
               .mapValues(value => toJsFieldJsValueWrapper(value.toString))
               .toSeq: _*
           ))))
-
-  private[this] def diagnostics: Route =
-    get(
-      pathPrefix("diagnostics")(
-        pathPrefix("events")(
-          pathPrefix(Remaining)(persistenceId =>
-            parameters(("fromSequenceNr".as[Long] ? 0L,
-                        "toSequenceNr".as[Long] ? Long.MaxValue)) {
-              (fromSequenceNr, toSequenceNr) =>
-                complete(events(persistenceId, fromSequenceNr, toSequenceNr))
-          })
-        ) ~ pathPrefix("zones")(
-          path(JavaUUID)(id => complete(zoneState(ZoneId(id.toString))))
-        )
-      ))
 
   private[this] def ws: Route =
     path("ws")(extractClientIP(_.toOption match {
@@ -182,6 +156,94 @@ trait HttpController {
                 )
               ))))
 
+  private[this] def administratorRealm: Directive0 =
+    for {
+      publicKey <- authenticateSelfSignedToken
+      _ <- authorizeByPublicKey(publicKey)
+    } yield ()
+
+  private[this] def authenticateSelfSignedToken: Directive1[PublicKey] =
+    for {
+      credentials <- extractCredentials
+      token <- credentials match {
+        case Some(OAuth2BearerToken(value)) =>
+          provide(value)
+
+        case _ =>
+          unauthorized[String]("Bearer token authorization must be presented.")
+      }
+      claims <- JwtJson
+        .decodeJson(token, JwtOptions(signature = false))
+        .map(provide)
+        .getOrElse(unauthorized("Token must be a JWT."))
+      subject <- (claims \ "sub")
+        .asOpt[String]
+        .map(provide)
+        .getOrElse(unauthorized("Token claims must contain a subject."))
+      publicKey <- Try(
+        KeyFactory
+          .getInstance("RSA")
+          .generatePublic(
+            new X509EncodedKeySpec(
+              okio.ByteString.decodeBase64(subject).toByteArray
+            )
+          )
+      ).map(provide)
+        .getOrElse(unauthorized("Token subject must be an RSA public key."))
+      _ <- {
+        if (JwtJson.isValid(token, publicKey, Seq(JwtAlgorithm.RS256)))
+          provide(())
+        else
+          unauthorized[Unit]("Token must be signed by subject's private key.")
+      }
+    } yield PublicKey(publicKey.getEncoded)
+
+  private[this] def authorizeByPublicKey(
+      publicKey: PublicKey): Directive1[PublicKey] =
+    onSuccess(isAdministrator(publicKey)).flatMap { isAdministrator =>
+      if (isAdministrator) provide(publicKey)
+      else
+        unauthorized(
+          s"${publicKey.fingerprint} is not an administrator.",
+          code = Forbidden
+        )
+    }
+
+  private[this] def unauthorized[A](
+      message: String,
+      code: StatusCode = Unauthorized): Directive1[A] =
+    complete(
+      (
+        code,
+        message
+      )
+    )
+
+  private[this] implicit def generatedMessageEntityMarshaller(
+      implicit jsValueEntityMarshaller: ToEntityMarshaller[JsValue])
+    : ToEntityMarshaller[GeneratedMessage] =
+    jsValueEntityMarshaller
+      .compose[String](Json.parse)
+      .compose[GeneratedMessage](JsonFormat.toJsonString)
+
+  private[this] implicit val jsonStreamingSupport: JsonEntityStreamingSupport =
+    EntityStreamingSupport.json()
+
+  private[this] def diagnostics: Route =
+    get(
+      pathPrefix("diagnostics")(
+        pathPrefix("events")(
+          pathPrefix(Remaining)(persistenceId =>
+            parameters(("fromSequenceNr".as[Long] ? 0L,
+                        "toSequenceNr".as[Long] ? Long.MaxValue)) {
+              (fromSequenceNr, toSequenceNr) =>
+                complete(events(persistenceId, fromSequenceNr, toSequenceNr))
+          })
+        ) ~ pathPrefix("zones")(
+          path(JavaUUID)(id => complete(zoneState(ZoneId(id.toString))))
+        )
+      ))
+
   private[this] def analytics(implicit ec: ExecutionContext): Route =
     pathPrefix("analytics")(pathPrefix("zones")(pathPrefix(JavaUUID) { uuid =>
       val zoneId = ZoneId(uuid.toString)
@@ -189,6 +251,16 @@ trait HttpController {
         path("balances")(balances(zoneId)) ~
         path("client-sessions")(clientSessions(zoneId))
     }))
+
+  private[this] implicit def optionResponseMarshaller[A](
+      implicit entityMarshaller: ToEntityMarshaller[Option[A]])
+    : ToResponseMarshaller[Option[A]] =
+    Marshaller[Option[A], HttpResponse](
+      implicit ec =>
+        entity =>
+          Marshaller.fromToEntityMarshaller(status =
+            if (entity.isEmpty) NotFound else OK)(entityMarshaller)(entity)
+    )
 
   private[this] def zone(zoneId: ZoneId)(implicit ec: ExecutionContext): Route =
     get(
@@ -215,6 +287,8 @@ trait HttpController {
               clientSessionId.value.toString -> toJsFieldJsValueWrapper(
                 Json.obj(
                   "id" -> clientSession.id.value.toString,
+                  "remoteAddress" -> clientSession.remoteAddress.map(
+                    _.getHostAddress),
                   "actorRef" -> clientSession.actorRef,
                   "publicKeyFingerprint" -> clientSession.publicKey.fingerprint,
                   "joined" -> clientSession.joined,
@@ -223,15 +297,8 @@ trait HttpController {
           }.toSeq: _*)
       )))
 
-  protected[this] def events(persistenceId: String,
-                             fromSequenceNr: Long,
-                             toSequenceNr: Long): Source[EventEnvelope, NotUsed]
-  protected[this] def zoneState(
-      zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
-
   protected[this] def webSocketApi(
       remoteAddress: InetAddress): Flow[Message, Message, NotUsed]
-
   protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]]
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
   protected[this] def getZoneCount: Future[Long]
@@ -239,6 +306,13 @@ trait HttpController {
   protected[this] def getMemberCount: Future[Long]
   protected[this] def getAccountCount: Future[Long]
   protected[this] def getTransactionCount: Future[Long]
+
+  protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean]
+  protected[this] def events(persistenceId: String,
+                             fromSequenceNr: Long,
+                             toSequenceNr: Long): Source[EventEnvelope, NotUsed]
+  protected[this] def zoneState(
+      zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
   protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
   protected[this] def getBalances(
       zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]

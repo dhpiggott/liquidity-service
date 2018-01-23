@@ -1,6 +1,8 @@
 package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
+import java.security.KeyPairGenerator
+import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.time.Instant
 import java.util.UUID
 
@@ -8,7 +10,7 @@ import akka.NotUsed
 import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.client.RequestBuilding
-import akka.http.scaladsl.model.headers.`Remote-Address`
+import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.model.{RemoteAddress, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
@@ -29,6 +31,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import okio.ByteString
 import org.scalatest.FreeSpec
+import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
@@ -36,6 +39,7 @@ import scala.concurrent.Future
 
 object HttpControllerSpec {
 
+  private val remoteAddress = InetAddress.getByName("192.0.2.0")
   private val publicKey = PublicKey(ByteString.decodeBase64(
     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1V7/LB8zmkptcEH1/b6hUjdvzRW47/ZadR189o1EizOulLXRpWTgarXQ9bMcP8/exkHO/TKPPmRj/n206ydApG2lsq2px7lhOJnheQzGf8A/X/IpDOGL0sP4e23EV8MaxocsbuzGWrqM6z478L/+Qk1ntG7DmOTReSfWpgQ70IzVTgnq9fUqP+qu6/3qSmT4JMFE0YBYfCCtiMYrGN2LoQ0sq9peapuguxtCOIoOXAlo4UsnbN6KZrr1ggEIfOwUfSgoOpZ6andxwPh9M7f3AdD5RLneounQBz7bX5TKvICZz0PL3SkBxpBX0qENZtxnnPpgy15AeSTVVTDHUFhu2QIDAQAB"))
   private val zoneId = ZoneId("32824da3-094f-45f0-9b35-23b7827547c6")
@@ -72,6 +76,21 @@ object HttpControllerSpec {
     AccountId("1") -> BigDecimal(5000)
   )
 
+  private val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    val keyPair = keyPairGenerator.generateKeyPair
+    (keyPair.getPrivate, keyPair.getPublic)
+  }
+  private val administratorJwt =
+    JwtJson.encode(
+      Json.obj(
+        "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
+      ),
+      rsaPrivateKey,
+      JwtAlgorithm.RS256
+    )
+
 }
 
 class HttpControllerSpec
@@ -79,7 +98,6 @@ class HttpControllerSpec
     with HttpController
     with ScalatestRouteTest {
 
-  private val remoteAddress = InetAddress.getByName("192.0.2.0")
   private val actorRef =
     ActorRefResolver(system.toTyped).toSerializationFormat(TestProbe().ref)
   private val joined = Instant.now()
@@ -105,10 +123,184 @@ class HttpControllerSpec
         assert(keys.contains("builtAtMillis"))
       }
     }
+    "accepts WebSocket connections" in {
+      val wsProbe = WSProbe()
+      WS("/ws", wsProbe.flow)
+        .addHeader(
+          `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
+        ) ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(isWebSocketUpgrade === true)
+        val message = "Hello"
+        wsProbe.sendMessage(message)
+        wsProbe.expectMessage(message)
+        wsProbe.sendCompletion()
+        wsProbe.expectCompletion()
+      }
+    }
+    "provides status information" in {
+      val getRequest = RequestBuilding.Get("/status")
+      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        assert(
+          entityAs[JsValue] === Json.parse(
+            """
+              |{
+              |  "activeClients" : {
+              |    "count" : 1,
+              |    "publicKeyFingerprints" : [ "0280473ff02de92c971948a1253a3318507f870d20f314e844520058888512be" ]
+              |  },
+              |  "activeZones" : {
+              |    "count" : 1,
+              |    "zones" : [ {
+              |      "zoneIdFingerprint" : "b697e3a3a1eceb99d9e0b3e932e47596e77dfab19697d6fe15b3b0db75e96f12",
+              |      "metadata" : null,
+              |      "members" : 2,
+              |      "accounts" : 2,
+              |      "transactions" : 1,
+              |      "clientConnections" : {
+              |        "count" : 1,
+              |        "publicKeyFingerprints" : [ "0280473ff02de92c971948a1253a3318507f870d20f314e844520058888512be" ]
+              |      }
+              |    } ]
+              |  },
+              |  "totals" : {
+              |    "zones" : 1,
+              |    "publicKeys" : 1,
+              |    "members" : 2,
+              |    "accounts" : 2,
+              |    "transactions" : 1
+              |  }
+              |}
+            """.stripMargin
+          ))
+      }
+    }
+    "rejects access" - {
+      "when no bearer token is presented" in {
+        val getRequest =
+          RequestBuilding
+            .Get("/")
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Unauthorized)
+          assert(
+            entityAs[String] === "Bearer token authorization must be presented.")
+        }
+      }
+      "when the token is not a JWT" in {
+        val getRequest =
+          RequestBuilding
+            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .withHeaders(Authorization(OAuth2BearerToken("")))
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Unauthorized)
+          assert(entityAs[String] === "Token must be a JWT.")
+        }
+      }
+      "when the token claims do not contain a subject" in {
+        val getRequest =
+          RequestBuilding
+            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .withHeaders(
+              Authorization(
+                OAuth2BearerToken(
+                  JwtJson.encode(
+                    Json.obj(),
+                    rsaPrivateKey,
+                    JwtAlgorithm.RS256
+                  )
+                )
+              )
+            )
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Unauthorized)
+          assert(entityAs[String] === "Token claims must contain a subject.")
+        }
+      }
+    }
+    "when the token subject is not an RSA public key" in {
+      val getRequest =
+        RequestBuilding
+          .Get(s"/diagnostics/events/zone-${zone.id.value}")
+          .withHeaders(
+            Authorization(
+              OAuth2BearerToken(
+                JwtJson.encode(
+                  Json.obj("sub" -> ""),
+                  rsaPrivateKey,
+                  JwtAlgorithm.RS256
+                )
+              )
+            )
+          )
+      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.Unauthorized)
+        assert(entityAs[String] === "Token subject must be an RSA public key.")
+      }
+    }
+    "when the token is not signed by the subject's private key" in {
+      val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+      keyPairGenerator.initialize(2048)
+      val otherRsaPrivateKey = keyPairGenerator.generateKeyPair.getPrivate
+      val getRequest =
+        RequestBuilding
+          .Get(s"/diagnostics/events/zone-${zone.id.value}")
+          .withHeaders(
+            Authorization(
+              OAuth2BearerToken(
+                JwtJson.encode(
+                  Json.obj(
+                    "sub" -> okio.ByteString
+                      .of(rsaPublicKey.getEncoded: _*)
+                      .base64()
+                  ),
+                  otherRsaPrivateKey,
+                  JwtAlgorithm.RS256
+                )
+              )
+            )
+          )
+      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.Unauthorized)
+        assert(
+          entityAs[String] === "Token must be signed by subject's private key.")
+      }
+    }
+    "when the subject is not an administrator" in {
+      val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+      keyPairGenerator.initialize(2048)
+      val keyPair = keyPairGenerator.generateKeyPair
+      val otherRsaPrivateKey = keyPair.getPrivate
+      val otherRsaPublicKey = keyPair.getPublic
+      val getRequest =
+        RequestBuilding
+          .Get(s"/diagnostics/events/zone-${zone.id.value}")
+          .withHeaders(
+            Authorization(
+              OAuth2BearerToken(
+                JwtJson.encode(
+                  Json.obj(
+                    "sub" -> okio.ByteString
+                      .of(otherRsaPublicKey.getEncoded: _*)
+                      .base64()
+                  ),
+                  otherRsaPrivateKey,
+                  JwtAlgorithm.RS256
+                )
+              )
+            )
+          )
+      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.Forbidden)
+        assert(
+          entityAs[String] === s"${PublicKey(otherRsaPublicKey.getEncoded).fingerprint} is not an administrator.")
+      }
+    }
     "provides diagnostic information" - {
       "for events" in {
         val getRequest =
-          RequestBuilding.Get(s"/diagnostics/events/zone-${zone.id.value}")
+          RequestBuilding
+            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -203,7 +395,9 @@ class HttpControllerSpec
       }
       "for zones" in {
         val getRequest =
-          RequestBuilding.Get(s"/diagnostics/zones/${zone.id.value}")
+          RequestBuilding
+            .Get(s"/diagnostics/zones/${zone.id.value}")
+            .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -232,70 +426,22 @@ class HttpControllerSpec
         }
       }
     }
-    "accepts WebSocket connections" in {
-      val wsProbe = WSProbe()
-      WS("/ws", wsProbe.flow)
-        .addHeader(
-          `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
-        ) ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(isWebSocketUpgrade === true)
-        val message = "Hello"
-        wsProbe.sendMessage(message)
-        wsProbe.expectMessage(message)
-        wsProbe.sendCompletion()
-        wsProbe.expectCompletion()
-      }
-    }
-    "provides status information" in {
-      val getRequest = RequestBuilding.Get("/status")
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.OK)
-        assert(
-          entityAs[JsValue] === Json.parse(
-            """
-              |{
-              |  "activeClients" : {
-              |    "count" : 1,
-              |    "publicKeyFingerprints" : [ "0280473ff02de92c971948a1253a3318507f870d20f314e844520058888512be" ]
-              |  },
-              |  "activeZones" : {
-              |    "count" : 1,
-              |    "zones" : [ {
-              |      "zoneIdFingerprint" : "b697e3a3a1eceb99d9e0b3e932e47596e77dfab19697d6fe15b3b0db75e96f12",
-              |      "metadata" : null,
-              |      "members" : 2,
-              |      "accounts" : 2,
-              |      "transactions" : 1,
-              |      "clientConnections" : {
-              |        "count" : 1,
-              |        "publicKeyFingerprints" : [ "0280473ff02de92c971948a1253a3318507f870d20f314e844520058888512be" ]
-              |      }
-              |    } ]
-              |  },
-              |  "totals" : {
-              |    "zones" : 1,
-              |    "publicKeys" : 1,
-              |    "members" : 2,
-              |    "accounts" : 2,
-              |    "transactions" : 1
-              |  }
-              |}
-            """.stripMargin
-          ))
-      }
-    }
     "provides analytics information" - {
       "for zones" - {
         "with status 404 when the zone does not exist" in {
           val getRequest =
-            RequestBuilding.Get(s"/analytics/zones/${UUID.randomUUID()}")
+            RequestBuilding
+              .Get(s"/analytics/zones/${UUID.randomUUID()}")
+              .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
           getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
             assert(status === StatusCodes.NotFound)
           }
         }
         "with status 200 when the zone exists" in {
           val getRequest =
-            RequestBuilding.Get(s"/analytics/zones/${zone.id.value}")
+            RequestBuilding
+              .Get(s"/analytics/zones/${zone.id.value}")
+              .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
           getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
             assert(status === StatusCodes.OK)
             assert(
@@ -324,7 +470,9 @@ class HttpControllerSpec
       }
       "for balances" in {
         val getRequest =
-          RequestBuilding.Get(s"/analytics/zones/${zone.id.value}/balances")
+          RequestBuilding
+            .Get(s"/analytics/zones/${zone.id.value}/balances")
+            .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -340,8 +488,9 @@ class HttpControllerSpec
       }
       "for client-sessions" in {
         val getRequest =
-          RequestBuilding.Get(
-            s"/analytics/zones/${zone.id.value}/client-sessions")
+          RequestBuilding
+            .Get(s"/analytics/zones/${zone.id.value}/client-sessions")
+            .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -350,6 +499,7 @@ class HttpControllerSpec
                 |{
                 |  "1" : {
                 |    "id" : "1",
+                |    "remoteAddress":"192.0.2.0",
                 |    "actorRef" : "$actorRef",
                 |    "publicKeyFingerprint" : "${publicKey.fingerprint}",
                 |    "joined" : "$joined",
@@ -362,6 +512,48 @@ class HttpControllerSpec
       }
     }
   }
+
+  override protected[this] def webSocketApi(
+      remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
+    Flow[Message]
+
+  override protected[this] def getActiveClientSummaries
+    : Future[Set[ActiveClientSummary]] =
+    Future.successful(Set(ActiveClientSummary(publicKey)))
+
+  override protected[this] def getActiveZoneSummaries
+    : Future[Set[ActiveZoneSummary]] =
+    Future.successful(
+      Set(
+        ActiveZoneSummary(
+          zoneId,
+          members = 2,
+          accounts = 2,
+          transactions = 1,
+          metadata = None,
+          clientConnections = Set(publicKey)
+        )
+      )
+    )
+
+  override protected[this] def getZoneCount: Future[Long] =
+    Future.successful(1)
+
+  override protected[this] def getPublicKeyCount: Future[Long] =
+    Future.successful(1)
+
+  override protected[this] def getMemberCount: Future[Long] =
+    Future.successful(2)
+
+  override protected[this] def getAccountCount: Future[Long] =
+    Future.successful(2)
+
+  override protected[this] def getTransactionCount: Future[Long] =
+    Future.successful(1)
+
+  protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean] =
+    Future.successful(
+      publicKey.value.toByteArray.sameElements(rsaPublicKey.getEncoded))
 
   override protected[this] def events(
       persistenceId: String,
@@ -432,29 +624,6 @@ class HttpControllerSpec
         )
     )
 
-  override protected[this] def webSocketApi(
-      remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
-    Flow[Message]
-
-  override protected[this] def getActiveClientSummaries
-    : Future[Set[ActiveClientSummary]] =
-    Future.successful(Set(ActiveClientSummary(publicKey)))
-
-  override protected[this] def getActiveZoneSummaries
-    : Future[Set[ActiveZoneSummary]] =
-    Future.successful(
-      Set(
-        ActiveZoneSummary(
-          zoneId,
-          members = 2,
-          accounts = 2,
-          transactions = 1,
-          metadata = None,
-          clientConnections = Set(publicKey)
-        )
-      )
-    )
-
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
     Future.successful(
       if (zoneId != zone.id) None
@@ -474,20 +643,5 @@ class HttpControllerSpec
       if (zoneId != zone.id) Map.empty
       else Map(clientSession.id -> clientSession)
     )
-
-  override protected[this] def getZoneCount: Future[Long] =
-    Future.successful(1)
-
-  override protected[this] def getPublicKeyCount: Future[Long] =
-    Future.successful(1)
-
-  override protected[this] def getMemberCount: Future[Long] =
-    Future.successful(2)
-
-  override protected[this] def getAccountCount: Future[Long] =
-    Future.successful(2)
-
-  override protected[this] def getTransactionCount: Future[Long] =
-    Future.successful(1)
 
 }

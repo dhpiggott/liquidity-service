@@ -10,6 +10,7 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
@@ -35,6 +36,7 @@ import doobie.implicits._
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Inside}
+import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.{JsValue, Json}
 
 import scala.collection.immutable.Seq
@@ -49,6 +51,14 @@ object LiquidityServerSpec {
     val keyPair = keyPairGenerator.generateKeyPair
     (keyPair.getPrivate, keyPair.getPublic)
   }
+  private val administratorJwt =
+    JwtJson.encode(
+      Json.obj(
+        "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
+      ),
+      rsaPrivateKey,
+      JwtAlgorithm.RS256
+    )
 
   private def externalDockerComposeServicePorts(
       projectName: String,
@@ -96,6 +106,14 @@ object LiquidityServerSpec {
       .sequence
       .map(_ => ())
 
+  private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] = {
+    import SqlAdministratorStore.PublicKeyMeta
+    for (_ <- sql"""
+             INSERT INTO liquidity_administrators.administrators (public_key)
+               VALUES ($publicKey)
+           """.update.run)
+      yield ()
+  }
 }
 
 class LiquidityServerSpec
@@ -141,6 +159,12 @@ class LiquidityServerSpec
       .transact(transactor)
       .unsafeRunSync()
     execSqlFile("schemas/analytics.sql")
+      .transact(transactor)
+      .unsafeRunSync()
+    execSqlFile("schemas/administrators.sql")
+      .transact(transactor)
+      .unsafeRunSync()
+    addAdministrator(PublicKey(rsaPublicKey.getEncoded))
       .transact(transactor)
       .unsafeRunSync()
   }
@@ -813,7 +837,7 @@ class LiquidityServerSpec
           HttpRequest(
             uri = Uri(
               s"http://localhost:$akkaHttpPort/analytics/zones/${zone.id.value}")
-          )
+          ).withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         )
         .futureValue
       assert(response.status === StatusCodes.OK)
@@ -840,7 +864,7 @@ class LiquidityServerSpec
           HttpRequest(
             uri = Uri(
               s"http://localhost:$akkaHttpPort/analytics/zones/${zoneId.value}/balances")
-          )
+          ).withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         )
         .futureValue
       assert(response.status === StatusCodes.OK)

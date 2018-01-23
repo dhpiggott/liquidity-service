@@ -119,8 +119,8 @@ object SqlAnalyticsStore {
                      members,
                      accounts,
                      transactions,
-                     created.toEpochMilli(),
-                     expires.toEpochMilli(),
+                     created.toEpochMilli,
+                     expires.toEpochMilli,
                      name,
                      metadata))
         }
@@ -440,7 +440,7 @@ object SqlAnalyticsStore {
                               to,
                               value,
                               creator,
-                              created.toEpochMilli(),
+                              created.toEpochMilli,
                               description,
                               metadata)
         }.toMap)

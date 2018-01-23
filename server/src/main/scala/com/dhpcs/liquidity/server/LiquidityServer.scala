@@ -3,9 +3,9 @@ package com.dhpcs.liquidity.server
 import java.net.InetAddress
 import java.util.concurrent.Executors
 
-import akka.actor.typed.{ActorRefResolver, Props}
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
+import akka.actor.typed.{ActorRefResolver, Props}
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.Cluster
 import akka.cluster.sharding.typed.{ClusterSharding, ClusterShardingSettings}
@@ -31,6 +31,7 @@ import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
+import com.dhpcs.liquidity.server.SqlAdministratorStore.AdministratorsStore
 import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
 import com.dhpcs.liquidity.server.SqlAnalyticsStore._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
@@ -134,6 +135,16 @@ object LiquidityServer {
     CoordinatedShutdown(system).addTask(
       CoordinatedShutdown.PhaseClusterExitingDone,
       "akkaManagementStop")(() => akkaManagement.stop())
+    val administratorsTransactor = (for {
+      administratorsTransactor <- HikariTransactor.newHikariTransactor[IO](
+        driverClassName = "com.mysql.jdbc.Driver",
+        url = urlForDatabase("liquidity_administrators"),
+        user = getEnvVarOrExit("MYSQL_USERNAME"),
+        pass = getEnvVarOrExit("MYSQL_PASSWORD")
+      )
+      _ <- administratorsTransactor.configure(hikariDataSource =>
+        IO(hikariDataSource.setMaximumPoolSize(2)))
+    } yield administratorsTransactor).unsafeRunSync()
     val analyticsTransactor = (for {
       analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
@@ -148,6 +159,7 @@ object LiquidityServer {
                                         "liquidityServerUnbind")(() =>
       for (_ <- analyticsTransactor.shutdown.unsafeToFuture()) yield Done)
     val server = new LiquidityServer(
+      administratorsTransactor,
       analyticsTransactor,
       pingInterval = 30.seconds,
       httpInterface = "0.0.0.0",
@@ -185,6 +197,7 @@ object LiquidityServer {
 }
 
 class LiquidityServer(
+    administatorsTransactor: Transactor[IO],
     analyticsTransactor: Transactor[IO],
     pingInterval: FiniteDuration,
     httpInterface: String,
@@ -233,6 +246,45 @@ class LiquidityServer(
     httpPort
   )
 
+  override protected[this] def webSocketApi(
+      remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
+    ClientConnectionActor.webSocketFlow(
+      behavior = ClientConnectionActor.behavior(
+        pingInterval,
+        zoneValidatorShardRegion,
+        remoteAddress
+      )
+    )
+
+  override protected[this] def getActiveClientSummaries
+    : Future[Set[ActiveClientSummary]] =
+    clientMonitor ? GetActiveClientSummaries
+
+  override protected[this] def getActiveZoneSummaries
+    : Future[Set[ActiveZoneSummary]] =
+    zoneMonitor ? GetActiveZoneSummaries
+
+  override protected[this] def getZoneCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveCount)
+
+  override protected[this] def getPublicKeyCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(
+      MemberUpdatesStore.MemberOwnersStore.retrieveCount)
+
+  override protected[this] def getMemberCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(MembersStore.retrieveCount)
+
+  override protected[this] def getAccountCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(AccountsStore.retrieveCount)
+
+  override protected[this] def getTransactionCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(TransactionsStore.retrieveCount)
+
+  override protected[this] def isAdministrator(
+      publicKey: PublicKey): Future[Boolean] =
+    transactIoToFuture(administatorsTransactor)(
+      AdministratorsStore.exists(publicKey))
+
   override protected[this] def events(
       persistenceId: String,
       fromSequenceNr: Long,
@@ -264,22 +316,6 @@ class LiquidityServer(
         .asProto(_)(ActorRefResolver(system.toTyped)))
   }
 
-  override protected[this] def webSocketApi(
-      remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
-    ClientConnectionActor.webSocketFlow(
-      behavior = ClientConnectionActor.behavior(pingInterval,
-                                                zoneValidatorShardRegion,
-                                                remoteAddress)
-    )
-
-  override protected[this] def getActiveClientSummaries
-    : Future[Set[ActiveClientSummary]] =
-    clientMonitor ? GetActiveClientSummaries
-
-  override protected[this] def getActiveZoneSummaries
-    : Future[Set[ActiveZoneSummary]] =
-    zoneMonitor ? GetActiveZoneSummaries
-
   override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
     transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveOption(zoneId))
 
@@ -292,21 +328,5 @@ class LiquidityServer(
       zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]] =
     transactIoToFuture(analyticsTransactor)(
       ClientSessionsStore.retrieveAll(zoneId))
-
-  override protected[this] def getZoneCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveCount)
-
-  override protected[this] def getPublicKeyCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(
-      MemberUpdatesStore.MemberOwnersStore.retrieveCount)
-
-  override protected[this] def getMemberCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(MembersStore.retrieveCount)
-
-  override protected[this] def getAccountCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(AccountsStore.retrieveCount)
-
-  override protected[this] def getTransactionCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(TransactionsStore.retrieveCount)
 
 }

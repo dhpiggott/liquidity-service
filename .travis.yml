@@ -48,6 +48,7 @@ jobs:
             --use-previous-template \
             --parameters \
               ParameterKey=Stack,ParameterValue=liquidity-infrastructure \
+              ParameterKey=Subnets,ParameterValue=\"subnet-f1747889,subnet-35ba977f,subnet-5123f738\" \
               ParameterKey=Tag,ParameterValue=$TAG
 cache:
   directories:

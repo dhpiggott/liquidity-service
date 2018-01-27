@@ -2,6 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
   Stack:
     Type: String
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
   Tag:
     Type: String
 Resources:
@@ -9,13 +11,13 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Ref AWS::StackName
+      NetworkMode: awsvpc
       ContainerDefinitions:
         - Name: liquidity
           Image:
             !Sub "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${Tag}"
           ReadonlyRootFilesystem: true
           Memory: 384
-          Hostname: liquidity
           PortMappings:
           - ContainerPort: 8080
           LogConfiguration:
@@ -27,10 +29,10 @@ Resources:
               awslogs-stream-prefix: liquidity
           Environment:
             - Name: AKKA_HOSTNAME
-              Value: "liquidity"
+              Value: "localhost"
             - Name: JAVA_OPTS
               Value: "-Dakka.cluster.seed-nodes.0=\
-                akka.tcp://liquidity@liquidity:2552
+                akka.tcp://liquidity@localhost:2552
                 -Dakka.cluster.roles.0=zone-host
                 -Dakka.cluster.roles.1=client-relay
                 -Dakka.cluster.roles.2=analytics"
@@ -43,11 +45,24 @@ Resources:
             - Name: MYSQL_PASSWORD
               Value:
                 Fn::ImportValue: !Sub "${Stack}-RDSPassword"
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName}-service"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId:
+            Fn::ImportValue: !Sub "${Stack}-ALBSecurityGroup"
   Service:
     Type: AWS::ECS::Service
     Properties:
-      Role: "arn:aws:iam::837036139524:role/aws-service-role/ecs.amazonaws\
-        .com/AWSServiceRoleForECS"
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !GetAtt ServiceSecurityGroup.GroupId
+          Subnets: !Ref Subnets
       ServiceName: !Ref AWS::StackName
       DesiredCount: 1
       DeploymentConfiguration:

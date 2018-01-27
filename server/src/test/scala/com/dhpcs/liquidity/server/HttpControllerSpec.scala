@@ -262,7 +262,8 @@ class HttpControllerSpec
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.Unauthorized)
         assert(
-          entityAs[String] === "Token must be signed by subject's private key.")
+          entityAs[String] === "Token must be signed by subject's private " +
+            "key and used between nbf and iat claims.")
       }
     }
     "when the subject is not an administrator" in {

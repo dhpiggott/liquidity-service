@@ -173,7 +173,10 @@ trait HttpController {
           unauthorized[String]("Bearer token authorization must be presented.")
       }
       claims <- JwtJson
-        .decodeJson(token, JwtOptions(signature = false))
+        .decodeJson(
+          token,
+          JwtOptions(signature = false, expiration = false, notBefore = false)
+        )
         .map(provide)
         .getOrElse(unauthorized("Token must be a JWT."))
       subject <- (claims \ "sub")
@@ -194,7 +197,9 @@ trait HttpController {
         if (JwtJson.isValid(token, publicKey, Seq(JwtAlgorithm.RS256)))
           provide(())
         else
-          unauthorized[Unit]("Token must be signed by subject's private key.")
+          unauthorized[Unit](
+            "Token must be signed by subject's private key " +
+              "and used between nbf and iat claims.")
       }
     } yield PublicKey(publicKey.getEncoded)
 

@@ -10,16 +10,17 @@ fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
-docker run --rm \
-	--volume $DIR/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
+docker run \
+    --rm \
+    --volume $DIR/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
     mysql:5 \
-	mysql \
-		--ssl-ca=/rds-combined-ca-bundle.pem \
-		--ssl-mode=VERIFY_IDENTITY \
-		--host=$1 \
-		--user=$2 \
-		--password=$3 \
-		liquidity_analytics -e " \
+    mysql \
+        --ssl-ca=/rds-combined-ca-bundle.pem \
+        --ssl-mode=VERIFY_IDENTITY \
+        --host=$1 \
+        --user=$2 \
+        --password=$3 \
+        liquidity_analytics -e " \
           SELECT zones.zone_id, zones.created, zones.modified, zones.expires, \
             zones.metadata->\"$.currency\" AS currency, \
             LEFT(zone_name_changes.name, 20) \

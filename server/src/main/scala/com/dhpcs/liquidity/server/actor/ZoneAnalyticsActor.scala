@@ -6,7 +6,7 @@ import akka.actor.typed.{Behavior, PostStop}
 import akka.event.Logging
 import akka.persistence.query.Sequence
 import akka.persistence.query.scaladsl.{EventsByTagQuery, ReadJournal}
-import akka.stream.scaladsl.{Keep, Sink, Source}
+import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import cats.effect.IO
 import cats.syntax.applicative._
@@ -42,34 +42,35 @@ object ZoneAnalyticsActor {
             previousOffset.pure[ConnectionIO]
         }
       } yield offset)
-      val (killSwitch, done) =
-        Source
-          .fromFuture(offset)
-          .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
-          .viaMat(KillSwitches.single)(Keep.right)
-          .mapAsync(1) { eventEnvelope =>
-            val zoneId = ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
-            val zoneEventEnvelope =
-              eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
-            val offset = eventEnvelope.offset.asInstanceOf[Sequence]
-            transactIoToFuture(analyticsTransactor)(for {
-              _ <- projectEvent(zoneId, zoneEventEnvelope)
-              _ <- TagOffsetsStore.update(EventTags.ZoneEventTag, offset)
-            } yield offset)
-          }
-          .zipWithIndex
-          .groupedWithin(n = 1000, d = 30.seconds)
-          .map { group =>
-            val (offset, index) = group.last
-            log.info(
-              s"Projected ${group.size} zone events (total: ${index + 1}, offset: ${offset.value})")
-          }
-          .toMat(Sink.ignore)(Keep.both)
-          .run()
-      done.failed.foreach { t =>
-        log.error(t, "Analytics stream failure")
-        context.self ! StopZoneAnalytics
-      } { context.executionContext }
+      val killSwitch = RestartSource
+        .onFailuresWithBackoff(minBackoff = 3.seconds,
+                               maxBackoff = 30.seconds,
+                               randomFactor = 0.2)(
+          () =>
+            Source
+              .fromFuture(offset)
+              .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
+              .mapAsync(1) { eventEnvelope =>
+                val zoneId =
+                  ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
+                val zoneEventEnvelope =
+                  eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
+                val offset = eventEnvelope.offset.asInstanceOf[Sequence]
+                transactIoToFuture(analyticsTransactor)(for {
+                  _ <- projectEvent(zoneId, zoneEventEnvelope)
+                  _ <- TagOffsetsStore.update(EventTags.ZoneEventTag, offset)
+                } yield offset)
+              }
+              .zipWithIndex
+              .groupedWithin(n = 1000, d = 30.seconds)
+              .map { group =>
+                val (offset, index) = group.last
+                log.info(s"Projected ${group.size} zone events " +
+                  s"(total: ${index + 1}, offset: ${offset.value})")
+            })
+        .viaMat(KillSwitches.single)(Keep.right)
+        .to(Sink.ignore)
+        .run()
       Actor.immutable[ZoneAnalyticsMessage]((_, message) =>
         message match {
           case StopZoneAnalytics =>

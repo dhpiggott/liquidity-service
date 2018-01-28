@@ -12,8 +12,6 @@ Parameters:
     Type: AWS::EC2::VPC::Id
   CertificateArn:
     Type: String
-  AlertTopicArn:
-    Type: String
 Resources:
   RDSSubnetGroup:
       Type: AWS::RDS::DBSubnetGroup
@@ -111,6 +109,16 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Ref AWS::StackName
+  SNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SNSTopic
+      Protocol: email
+      Endpoint: "admin@liquidityapp.com"
   CloudWatchTargetGroupAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -128,10 +136,9 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       AlarmActions:
-        - !Ref AlertTopicArn
+        - !Ref SNSTopic
       OKActions:
-        - !Ref AlertTopicArn
-      ActionsEnabled: true
+        - !Ref SNSTopic
   CloudWatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:

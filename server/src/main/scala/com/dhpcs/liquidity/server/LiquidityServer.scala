@@ -197,7 +197,7 @@ object LiquidityServer {
 }
 
 class LiquidityServer(
-    administatorsTransactor: Transactor[IO],
+    administratorsTransactor: Transactor[IO],
     analyticsTransactor: Transactor[IO],
     pingInterval: FiniteDuration,
     httpInterface: String,
@@ -282,7 +282,7 @@ class LiquidityServer(
 
   override protected[this] def isAdministrator(
       publicKey: PublicKey): Future[Boolean] =
-    transactIoToFuture(administatorsTransactor)(
+    transactIoToFuture(administratorsTransactor)(
       AdministratorsStore.exists(publicKey))
 
   override protected[this] def events(

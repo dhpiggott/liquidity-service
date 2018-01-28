@@ -11,13 +11,17 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Ref AWS::StackName
+      Cpu: 256
+      Memory: 512
       NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: "arn:aws:iam::837036139524:role/ecsTaskExecutionRole"
       ContainerDefinitions:
         - Name: liquidity
           Image:
-            !Sub "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${Tag}"
+            !Sub "837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:${Tag}"
           ReadonlyRootFilesystem: true
-          Memory: 384
           PortMappings:
           - ContainerPort: 8080
           LogConfiguration:
@@ -60,9 +64,11 @@ Resources:
     Properties:
       NetworkConfiguration:
         AwsvpcConfiguration:
+          Subnets: !Ref Subnets
+          AssignPublicIp: ENABLED
           SecurityGroups:
             - !GetAtt ServiceSecurityGroup.GroupId
-          Subnets: !Ref Subnets
+      LaunchType: FARGATE
       ServiceName: !Ref AWS::StackName
       DesiredCount: 1
       DeploymentConfiguration:

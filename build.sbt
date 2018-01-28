@@ -129,7 +129,7 @@ lazy val server = project
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     Docker / packageName := "liquidity",
     dockerBaseImage := "openjdk:9-jre",
-    dockerRepository := Some("837036139524.dkr.ecr.eu-west-2.amazonaws.com")
+    dockerRepository := Some("837036139524.dkr.ecr.us-east-1.amazonaws.com")
   )
 
 lazy val evergreenVersionSettings = Seq(

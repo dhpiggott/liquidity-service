@@ -55,13 +55,6 @@ Resources:
       DBParameterGroupName: !Ref RDSParameterGroup
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
-  ECSInstance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !Ref ECSInstanceImageId
-      InstanceType: t2.nano
-      IamInstanceProfile: "ecsInstanceRole"
-      Monitoring: true
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:

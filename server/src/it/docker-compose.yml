@@ -13,7 +13,7 @@ services:
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "true"
   zone-host:
-    image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
+    image: "837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:${TAG}"
     ports:
      - "19999"
     extra_hosts:
@@ -27,7 +27,7 @@ services:
       MYSQL_USERNAME: "root"
       MYSQL_PASSWORD: ""
   client-relay:
-    image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
+    image: "837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:${TAG}"
     ports:
      - "19999"
      - "8080"
@@ -42,7 +42,7 @@ services:
       MYSQL_USERNAME: "root"
       MYSQL_PASSWORD: ""
   analytics:
-    image: "837036139524.dkr.ecr.eu-west-2.amazonaws.com/liquidity:${TAG}"
+    image: "837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:${TAG}"
     ports:
      - "19999"
     extra_hosts:

@@ -15,6 +15,11 @@ Parameters:
   AlertTopicArn:
     Type: String
 Resources:
+  RDSSubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: !Sub "${AWS::StackName}"
+        SubnetIds: !Ref Subnets
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -47,9 +52,11 @@ Resources:
       StorageType: gp2
       AllocatedStorage: "20"
       BackupRetentionPeriod: "30"
-      DBParameterGroupName: !Ref RDSDBParameterGroup
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      PubliclyAccessible: true
       VPCSecurityGroups:
         - !GetAtt RDSSecurityGroup.GroupId
+      DBParameterGroupName: !Ref RDSDBParameterGroup
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
   ECSInstance:

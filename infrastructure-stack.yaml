@@ -166,6 +166,8 @@ Outputs:
     Value: !GetAtt ALBSecurityGroup.GroupId
     Export:
       Name: !Sub "${AWS::StackName}-ALBSecurityGroup"
+  ALBDNSName:
+    Value: !GetAtt ALB.DNSName
   ALBTargetGroup:
     Value: !Ref ALBTargetGroup
     Export:

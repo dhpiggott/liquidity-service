@@ -1,17 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
   RDSUsername:
     Type: String
   RDSPassword:
     Type: String
   ECSInstanceImageId:
     Type: AWS::EC2::Image::Id
-  Subnets:
-    Type: List<AWS::EC2::Subnet::Id>
-  VPCId:
-    Type: AWS::EC2::VPC::Id
-  CertificateArn:
-    Type: String
 Resources:
   RDSSubnetGroup:
       Type: AWS::RDS::DBSubnetGroup
@@ -31,7 +29,7 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           CidrIpv6: "::/0"
-  RDSDBParameterGroup:
+  RDSParameterGroup:
     Type: AWS::RDS::DBParameterGroup
     Properties:
       Description: !Ref AWS::StackName
@@ -54,7 +52,7 @@ Resources:
       PubliclyAccessible: true
       VPCSecurityGroups:
         - !GetAtt RDSSecurityGroup.GroupId
-      DBParameterGroupName: !Ref RDSDBParameterGroup
+      DBParameterGroupName: !Ref RDSParameterGroup
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
   ECSInstance:
@@ -87,6 +85,13 @@ Resources:
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: "60"
+  ALBListenerCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: "api.liquidityapp.com"
+      DomainValidationOptions:
+        - DomainName: "api.liquidityapp.com"
+          ValidationDomain: "liquidityapp.com"
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -105,7 +110,7 @@ Resources:
       Protocol: HTTPS
       Port: 443
       Certificates:
-        - CertificateArn: !Ref CertificateArn
+        - CertificateArn: !Ref ALBListenerCertificate
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup

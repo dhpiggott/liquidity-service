@@ -14,6 +14,7 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.model.{RemoteAddress, StatusCodes}
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
+import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
 import akka.stream.scaladsl.{Flow, Source}
 import akka.testkit.TestProbe
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
@@ -183,7 +184,19 @@ class HttpControllerSpec
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
-            entityAs[String] === "Bearer token authorization must be presented.")
+            header[`WWW-Authenticate`].contains(
+              `WWW-Authenticate`(
+                HttpChallenges
+                  .oAuth2(realm = "Administration")
+                  .copy(
+                    params = Map(
+                      "error" -> "Bearer token authorization must be presented.")
+                  )
+              )
+            )
+          )
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
         }
       }
       "when the token is not a JWT" in {
@@ -193,7 +206,19 @@ class HttpControllerSpec
             .withHeaders(Authorization(OAuth2BearerToken("")))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
-          assert(entityAs[String] === "Token must be a JWT.")
+          assert(
+            header[`WWW-Authenticate`].contains(
+              `WWW-Authenticate`(
+                HttpChallenges
+                  .oAuth2(realm = "Administration")
+                  .copy(
+                    params = Map("error" -> "Token must be a JWT.")
+                  )
+              )
+            )
+          )
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
         }
       }
       "when the token claims do not contain a subject" in {
@@ -213,7 +238,20 @@ class HttpControllerSpec
             )
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
-          assert(entityAs[String] === "Token claims must contain a subject.")
+          assert(
+            header[`WWW-Authenticate`].contains(
+              `WWW-Authenticate`(
+                HttpChallenges
+                  .oAuth2(realm = "Administration")
+                  .copy(
+                    params =
+                      Map("error" -> "Token claims must contain a subject.")
+                  )
+              )
+            )
+          )
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
         }
       }
     }
@@ -234,7 +272,20 @@ class HttpControllerSpec
           )
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.Unauthorized)
-        assert(entityAs[String] === "Token subject must be an RSA public key.")
+        assert(
+          header[`WWW-Authenticate`].contains(
+            `WWW-Authenticate`(
+              HttpChallenges
+                .oAuth2(realm = "Administration")
+                .copy(
+                  params =
+                    Map("error" -> "Token subject must be an RSA public key.")
+                )
+            )
+          )
+        )
+        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+        assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
       }
     }
     "when the token is not signed by the subject's private key" in {
@@ -262,8 +313,21 @@ class HttpControllerSpec
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.Unauthorized)
         assert(
-          entityAs[String] === "Token must be signed by subject's private " +
-            "key and used between nbf and iat claims.")
+          header[`WWW-Authenticate`].contains(
+            `WWW-Authenticate`(
+              HttpChallenges
+                .oAuth2(realm = "Administration")
+                .copy(
+                  params = Map(
+                    "error" -> ("Token must be signed by subject's private " +
+                      "key and used between nbf and iat claims.")
+                  )
+                )
+            )
+          )
+        )
+        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+        assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
       }
     }
     "when the subject is not an administrator" in {
@@ -292,8 +356,8 @@ class HttpControllerSpec
           )
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.Forbidden)
-        assert(
-          entityAs[String] === s"${PublicKey(otherRsaPublicKey.getEncoded).fingerprint} is not an administrator.")
+        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+        assert(entityAs[String] === StatusCodes.Forbidden.defaultMessage)
       }
     }
     "provides diagnostic information" - {

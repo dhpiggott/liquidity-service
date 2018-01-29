@@ -7,10 +7,10 @@ import java.security.spec.X509EncodedKeySpec
 import akka.NotUsed
 import akka.http.scaladsl.common._
 import akka.http.scaladsl.marshalling._
+import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.Message
-import akka.http.scaladsl.model.{HttpResponse, StatusCode}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.stream.scaladsl.{Flow, Source}
@@ -31,6 +31,7 @@ import pdi.jwt.{JwtAlgorithm, JwtJson, JwtOptions}
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import play.api.libs.json.{JsValue, Json, OWrites}
 
+import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
@@ -207,22 +208,25 @@ trait HttpController {
       publicKey: PublicKey): Directive1[PublicKey] =
     onSuccess(isAdministrator(publicKey)).flatMap { isAdministrator =>
       if (isAdministrator) provide(publicKey)
-      else
-        unauthorized(
-          s"${publicKey.fingerprint} is not an administrator.",
-          code = Forbidden
-        )
+      else forbidden
     }
 
-  private[this] def unauthorized[A](
-      message: String,
-      code: StatusCode = Unauthorized): Directive1[A] =
+  private[this] def unauthorized[A](error: String): Directive1[A] =
     complete(
       (
-        code,
-        message
+        Unauthorized,
+        Seq(
+          `WWW-Authenticate`(
+            HttpChallenges
+              .oAuth2(realm = "Administration")
+              .copy(params = Map("error" -> error))
+          )
+        )
       )
     )
+
+  private[this] def forbidden[A]: Directive1[A] =
+    complete(Forbidden)
 
   private[this] implicit def generatedMessageEntityMarshaller(
       implicit jsValueEntityMarshaller: ToEntityMarshaller[JsValue])

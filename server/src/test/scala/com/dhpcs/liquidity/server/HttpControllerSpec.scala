@@ -180,7 +180,7 @@ class HttpControllerSpec
       "when no bearer token is presented" in {
         val getRequest =
           RequestBuilding
-            .Get("/")
+            .Get(s"/diagnostics/events/zone-${zone.id.value}")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
@@ -190,7 +190,9 @@ class HttpControllerSpec
                   .oAuth2(realm = "Administration")
                   .copy(
                     params = Map(
-                      "error" -> "Bearer token authorization must be presented.")
+                      "error" ->
+                        "Bearer token authorization must be presented."
+                    )
                   )
               )
             )
@@ -254,110 +256,113 @@ class HttpControllerSpec
           assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
         }
       }
-    }
-    "when the token subject is not an RSA public key" in {
-      val getRequest =
-        RequestBuilding
-          .Get(s"/diagnostics/events/zone-${zone.id.value}")
-          .withHeaders(
-            Authorization(
-              OAuth2BearerToken(
-                JwtJson.encode(
-                  Json.obj("sub" -> ""),
-                  rsaPrivateKey,
-                  JwtAlgorithm.RS256
-                )
-              )
-            )
-          )
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.Unauthorized)
-        assert(
-          header[`WWW-Authenticate`].contains(
-            `WWW-Authenticate`(
-              HttpChallenges
-                .oAuth2(realm = "Administration")
-                .copy(
-                  params =
-                    Map("error" -> "Token subject must be an RSA public key.")
-                )
-            )
-          )
-        )
-        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
-        assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
-      }
-    }
-    "when the token is not signed by the subject's private key" in {
-      val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-      keyPairGenerator.initialize(2048)
-      val otherRsaPrivateKey = keyPairGenerator.generateKeyPair.getPrivate
-      val getRequest =
-        RequestBuilding
-          .Get(s"/diagnostics/events/zone-${zone.id.value}")
-          .withHeaders(
-            Authorization(
-              OAuth2BearerToken(
-                JwtJson.encode(
-                  Json.obj(
-                    "sub" -> okio.ByteString
-                      .of(rsaPublicKey.getEncoded: _*)
-                      .base64()
-                  ),
-                  otherRsaPrivateKey,
-                  JwtAlgorithm.RS256
-                )
-              )
-            )
-          )
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.Unauthorized)
-        assert(
-          header[`WWW-Authenticate`].contains(
-            `WWW-Authenticate`(
-              HttpChallenges
-                .oAuth2(realm = "Administration")
-                .copy(
-                  params = Map(
-                    "error" -> ("Token must be signed by subject's private " +
-                      "key and used between nbf and iat claims.")
+      "when the token subject is not an RSA public key" in {
+        val getRequest =
+          RequestBuilding
+            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .withHeaders(
+              Authorization(
+                OAuth2BearerToken(
+                  JwtJson.encode(
+                    Json.obj("sub" -> ""),
+                    rsaPrivateKey,
+                    JwtAlgorithm.RS256
                   )
                 )
+              )
             )
-          )
-        )
-        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
-        assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
-      }
-    }
-    "when the subject is not an administrator" in {
-      val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-      keyPairGenerator.initialize(2048)
-      val keyPair = keyPairGenerator.generateKeyPair
-      val otherRsaPrivateKey = keyPair.getPrivate
-      val otherRsaPublicKey = keyPair.getPublic
-      val getRequest =
-        RequestBuilding
-          .Get(s"/diagnostics/events/zone-${zone.id.value}")
-          .withHeaders(
-            Authorization(
-              OAuth2BearerToken(
-                JwtJson.encode(
-                  Json.obj(
-                    "sub" -> okio.ByteString
-                      .of(otherRsaPublicKey.getEncoded: _*)
-                      .base64()
-                  ),
-                  otherRsaPrivateKey,
-                  JwtAlgorithm.RS256
-                )
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Unauthorized)
+          assert(
+            header[`WWW-Authenticate`].contains(
+              `WWW-Authenticate`(
+                HttpChallenges
+                  .oAuth2(realm = "Administration")
+                  .copy(
+                    params = Map(
+                      "error" ->
+                        "Token subject must be an RSA public key."
+                    )
+                  )
               )
             )
           )
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.Forbidden)
-        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
-        assert(entityAs[String] === StatusCodes.Forbidden.defaultMessage)
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
+        }
+      }
+      "when the token is not signed by the subject's private key" in {
+        val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+        keyPairGenerator.initialize(2048)
+        val otherRsaPrivateKey = keyPairGenerator.generateKeyPair.getPrivate
+        val getRequest =
+          RequestBuilding
+            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .withHeaders(
+              Authorization(
+                OAuth2BearerToken(
+                  JwtJson.encode(
+                    Json.obj(
+                      "sub" -> okio.ByteString
+                        .of(rsaPublicKey.getEncoded: _*)
+                        .base64()
+                    ),
+                    otherRsaPrivateKey,
+                    JwtAlgorithm.RS256
+                  )
+                )
+              )
+            )
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Unauthorized)
+          assert(
+            header[`WWW-Authenticate`].contains(
+              `WWW-Authenticate`(
+                HttpChallenges
+                  .oAuth2(realm = "Administration")
+                  .copy(
+                    params = Map(
+                      "error" ->
+                        ("Token must be signed by subject's private key and " +
+                          "used between nbf and iat claims.")
+                    )
+                  )
+              )
+            )
+          )
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
+        }
+      }
+      "when the subject is not an administrator" in {
+        val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+        keyPairGenerator.initialize(2048)
+        val keyPair = keyPairGenerator.generateKeyPair
+        val otherRsaPrivateKey = keyPair.getPrivate
+        val otherRsaPublicKey = keyPair.getPublic
+        val getRequest =
+          RequestBuilding
+            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .withHeaders(
+              Authorization(
+                OAuth2BearerToken(
+                  JwtJson.encode(
+                    Json.obj(
+                      "sub" -> okio.ByteString
+                        .of(otherRsaPublicKey.getEncoded: _*)
+                        .base64()
+                    ),
+                    otherRsaPrivateKey,
+                    JwtAlgorithm.RS256
+                  )
+                )
+              )
+            )
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Forbidden)
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Forbidden.defaultMessage)
+        }
       }
     }
     "provides diagnostic information" - {

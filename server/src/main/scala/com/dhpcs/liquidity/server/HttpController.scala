@@ -62,24 +62,93 @@ trait HttpController {
 
   protected[this] def httpRoutes(enableClientRelay: Boolean)(
       implicit ec: ExecutionContext): Route =
-    version ~ status ~
-      (if (enableClientRelay) ws else reject) ~
-      administratorRealm(
-        diagnostics ~ analytics
-      )
+    path("version")(version) ~
+      path("status")(status) ~
+      (if (enableClientRelay) path("ws")(ws) else reject) ~
+      pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
+      pathPrefix("analytics")(administratorRealm(analytics))
 
   private[this] def version: Route =
-    path("version")(
-      get(
-        complete(
-          Json.obj(
-            BuildInfo.toMap
-              .mapValues(value => toJsFieldJsValueWrapper(value.toString))
-              .toSeq: _*
-          ))))
+    get(
+      complete(
+        Json.obj(
+          BuildInfo.toMap
+            .mapValues(value => toJsFieldJsValueWrapper(value.toString))
+            .toSeq: _*
+        )
+      )
+    )
+
+  private[this] def status(implicit ec: ExecutionContext): Route =
+    get(
+      complete(
+        for ((activeClientSummaries,
+              activeZoneSummaries,
+              zoneCount,
+              publicKeyCount,
+              memberCount,
+              accountCount,
+              transactionCount) <- (getActiveClientSummaries,
+                                    getActiveZoneSummaries,
+                                    getZoneCount,
+                                    getPublicKeyCount,
+                                    getMemberCount,
+                                    getAccountCount,
+                                    getTransactionCount).tupled)
+          yield
+            Json.obj(
+              "activeClients" -> Json.obj(
+                "count" -> activeClientSummaries.size,
+                "publicKeyFingerprints" -> activeClientSummaries
+                  .map(_.publicKey.fingerprint)
+                  .toSeq
+                  .sorted
+              ),
+              "activeZones" -> Json.obj(
+                "count" -> activeZoneSummaries.size,
+                "zones" -> activeZoneSummaries.toSeq
+                  .sortBy(_.zoneId.value)
+                  .map {
+                    case ActiveZoneSummary(zoneId,
+                                           members,
+                                           accounts,
+                                           transactions,
+                                           metadata,
+                                           clientConnections) =>
+                      Json.obj(
+                        "zoneIdFingerprint" -> okio.ByteString
+                          .encodeUtf8(zoneId.value)
+                          .sha256
+                          .hex,
+                        "metadata" -> metadata
+                          .map(JsonFormat.toJsonString)
+                          .map(Json.parse),
+                        "members" -> members,
+                        "accounts" -> accounts,
+                        "transactions" -> transactions,
+                        "clientConnections" -> Json.obj(
+                          "count" -> clientConnections.size,
+                          "publicKeyFingerprints" -> clientConnections
+                            .map(_.fingerprint)
+                            .toSeq
+                            .sorted
+                        )
+                      )
+                  }
+              ),
+              "totals" -> Json.obj(
+                "zones" -> zoneCount,
+                "publicKeys" -> publicKeyCount,
+                "members" -> memberCount,
+                "accounts" -> accountCount,
+                "transactions" -> transactionCount
+              )
+            )
+      )
+    )
 
   private[this] def ws: Route =
-    path("ws")(extractClientIP(_.toOption match {
+    extractClientIP(_.toOption match {
       case None =>
         complete(
           (InternalServerError,
@@ -88,74 +157,7 @@ trait HttpController {
         )
       case Some(remoteAddress) =>
         handleWebSocketMessages(webSocketApi(remoteAddress))
-    }))
-
-  private[this] def status(implicit ec: ExecutionContext): Route =
-    path("status")(
-      get(
-        complete(
-          for ((activeClientSummaries,
-                activeZoneSummaries,
-                zoneCount,
-                publicKeyCount,
-                memberCount,
-                accountCount,
-                transactionCount) <- (getActiveClientSummaries,
-                                      getActiveZoneSummaries,
-                                      getZoneCount,
-                                      getPublicKeyCount,
-                                      getMemberCount,
-                                      getAccountCount,
-                                      getTransactionCount).tupled)
-            yield
-              Json.obj(
-                "activeClients" -> Json.obj(
-                  "count" -> activeClientSummaries.size,
-                  "publicKeyFingerprints" -> activeClientSummaries
-                    .map(_.publicKey.fingerprint)
-                    .toSeq
-                    .sorted
-                ),
-                "activeZones" -> Json.obj(
-                  "count" -> activeZoneSummaries.size,
-                  "zones" -> activeZoneSummaries.toSeq
-                    .sortBy(_.zoneId.value)
-                    .map {
-                      case ActiveZoneSummary(zoneId,
-                                             members,
-                                             accounts,
-                                             transactions,
-                                             metadata,
-                                             clientConnections) =>
-                        Json.obj(
-                          "zoneIdFingerprint" -> okio.ByteString
-                            .encodeUtf8(zoneId.value)
-                            .sha256
-                            .hex,
-                          "metadata" -> metadata
-                            .map(JsonFormat.toJsonString)
-                            .map(Json.parse),
-                          "members" -> members,
-                          "accounts" -> accounts,
-                          "transactions" -> transactions,
-                          "clientConnections" -> Json.obj(
-                            "count" -> clientConnections.size,
-                            "publicKeyFingerprints" -> clientConnections
-                              .map(_.fingerprint)
-                              .toSeq
-                              .sorted
-                          )
-                        )
-                    }
-                ),
-                "totals" -> Json.obj(
-                  "zones" -> zoneCount,
-                  "publicKeys" -> publicKeyCount,
-                  "members" -> memberCount,
-                  "accounts" -> accountCount,
-                  "transactions" -> transactionCount
-                )
-              ))))
+    })
 
   private[this] def administratorRealm: Directive0 =
     for {
@@ -239,27 +241,27 @@ trait HttpController {
     EntityStreamingSupport.json()
 
   private[this] def diagnostics: Route =
-    get(
-      pathPrefix("diagnostics")(
-        pathPrefix("events")(
-          pathPrefix(Remaining)(persistenceId =>
-            parameters(("fromSequenceNr".as[Long] ? 0L,
-                        "toSequenceNr".as[Long] ? Long.MaxValue)) {
-              (fromSequenceNr, toSequenceNr) =>
-                complete(events(persistenceId, fromSequenceNr, toSequenceNr))
-          })
-        ) ~ pathPrefix("zones")(
-          path(JavaUUID)(id => complete(zoneState(ZoneId(id.toString))))
-        )
-      ))
+    pathPrefix("events")(
+      pathPrefix(Remaining)(
+        persistenceId =>
+          parameters(("fromSequenceNr".as[Long] ? 0L,
+                      "toSequenceNr".as[Long] ? Long.MaxValue)) {
+            (fromSequenceNr, toSequenceNr) =>
+              get(complete(events(persistenceId, fromSequenceNr, toSequenceNr)))
+        })
+    ) ~ pathPrefix("zones")(
+      path(JavaUUID)(id => get(complete(zoneState(ZoneId(id.toString)))))
+    )
 
   private[this] def analytics(implicit ec: ExecutionContext): Route =
-    pathPrefix("analytics")(pathPrefix("zones")(pathPrefix(JavaUUID) { uuid =>
-      val zoneId = ZoneId(uuid.toString)
-      pathEnd(zone(zoneId)) ~
-        path("balances")(balances(zoneId)) ~
-        path("client-sessions")(clientSessions(zoneId))
-    }))
+    pathPrefix("zones")(
+      pathPrefix(JavaUUID) { uuid =>
+        val zoneId = ZoneId(uuid.toString)
+        pathEnd(zone(zoneId)) ~
+          path("balances")(balances(zoneId)) ~
+          path("client-sessions")(clientSessions(zoneId))
+      }
+    )
 
   private[this] implicit def optionResponseMarshaller[A](
       implicit entityMarshaller: ToEntityMarshaller[Option[A]])
@@ -276,20 +278,24 @@ trait HttpController {
       complete(
         getZone(zoneId).map(_.map(zone =>
           Json.parse(JsonFormat.toJsonString(
-            ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(())))))))
+            ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(())))))
+      ))
 
   private[this] def balances(zoneId: ZoneId)(
       implicit ec: ExecutionContext): Route =
-    get(complete(getBalances(zoneId).map(balances =>
-      Json.obj(balances.map {
-        case (accountId, balance) =>
-          accountId.value.toString -> toJsFieldJsValueWrapper(balance)
-      }.toSeq: _*))))
+    get(
+      complete(
+        getBalances(zoneId).map(balances =>
+          Json.obj(balances.map {
+            case (accountId, balance) =>
+              accountId.value.toString -> toJsFieldJsValueWrapper(balance)
+          }.toSeq: _*))
+      ))
 
   private[this] def clientSessions(zoneId: ZoneId)(
       implicit ec: ExecutionContext): Route =
-    get(
-      complete(getClientSessions(zoneId).map(
+    get(complete(
+      getClientSessions(zoneId).map(
         clientSessions =>
           Json.obj(clientSessions.map {
             case (clientSessionId, clientSession) =>
@@ -304,7 +310,8 @@ trait HttpController {
                   "quit" -> clientSession.quit
                 ))
           }.toSeq: _*)
-      )))
+      )
+    ))
 
   protected[this] def webSocketApi(
       remoteAddress: InetAddress): Flow[Message, Message, NotUsed]

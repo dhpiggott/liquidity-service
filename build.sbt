@@ -90,7 +90,7 @@ lazy val server = project
       "com.chuusai" %% "shapeless" % "2.3.3",
       "org.typelevel" %% "cats-core" % "1.0.1",
       "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.9",
-      "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.8.0",
+      "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.10.0",
       "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.9",
       "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.9",
       "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.9",

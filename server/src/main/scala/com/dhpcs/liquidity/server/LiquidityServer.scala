@@ -14,10 +14,11 @@ import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives.logRequestResult
+import akka.http.scaladsl.server.StandardRoute
 import akka.management.AkkaManagement
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
-import akka.stream.scaladsl.{Flow, Source}
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
 import akka.{Done, NotUsed}
@@ -90,7 +91,10 @@ object LiquidityServer {
         |    bind-hostname = "0.0.0.0"
         |  }
         |  cluster.metrics.enabled = off
-        |  management.http.hostname = "0.0.0.0"
+        |  management.http {
+        |    hostname = "127.0.0.1"
+        |    base-path = "akka-management"
+        |  }
         |  extensions += "akka.persistence.Persistence"
         |  persistence {
         |    journal {
@@ -246,44 +250,18 @@ class LiquidityServer(
     httpPort
   )
 
-  override protected[this] def webSocketApi(
-      remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
-    ClientConnectionActor.webSocketFlow(
-      behavior = ClientConnectionActor.behavior(
-        pingInterval,
-        zoneValidatorShardRegion,
-        remoteAddress
-      )
-    )
-
-  override protected[this] def getActiveClientSummaries
-    : Future[Set[ActiveClientSummary]] =
-    clientMonitor ? GetActiveClientSummaries
-
-  override protected[this] def getActiveZoneSummaries
-    : Future[Set[ActiveZoneSummary]] =
-    zoneMonitor ? GetActiveZoneSummaries
-
-  override protected[this] def getZoneCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveCount)
-
-  override protected[this] def getPublicKeyCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(
-      MemberUpdatesStore.MemberOwnersStore.retrieveCount)
-
-  override protected[this] def getMemberCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(MembersStore.retrieveCount)
-
-  override protected[this] def getAccountCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(AccountsStore.retrieveCount)
-
-  override protected[this] def getTransactionCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(TransactionsStore.retrieveCount)
-
   override protected[this] def isAdministrator(
       publicKey: PublicKey): Future[Boolean] =
     transactIoToFuture(administratorsTransactor)(
       AdministratorsStore.exists(publicKey))
+
+  override protected[this] def akkaManagement: StandardRoute =
+    requestContext =>
+      Source
+        .single(requestContext.request)
+        .via(Http().outgoingConnection("127.0.0.1", 19999))
+        .runWith(Sink.head)
+        .flatMap(requestContext.complete(_))
 
   override protected[this] def events(
       persistenceId: String,
@@ -328,5 +306,39 @@ class LiquidityServer(
       zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]] =
     transactIoToFuture(analyticsTransactor)(
       ClientSessionsStore.retrieveAll(zoneId))
+
+  override protected[this] def getActiveClientSummaries
+    : Future[Set[ActiveClientSummary]] =
+    clientMonitor ? GetActiveClientSummaries
+
+  override protected[this] def getActiveZoneSummaries
+    : Future[Set[ActiveZoneSummary]] =
+    zoneMonitor ? GetActiveZoneSummaries
+
+  override protected[this] def getZoneCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveCount)
+
+  override protected[this] def getPublicKeyCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(
+      MemberUpdatesStore.MemberOwnersStore.retrieveCount)
+
+  override protected[this] def getMemberCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(MembersStore.retrieveCount)
+
+  override protected[this] def getAccountCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(AccountsStore.retrieveCount)
+
+  override protected[this] def getTransactionCount: Future[Long] =
+    transactIoToFuture(analyticsTransactor)(TransactionsStore.retrieveCount)
+
+  override protected[this] def webSocketApi(
+      remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
+    ClientConnectionActor.webSocketFlow(
+      behavior = ClientConnectionActor.behavior(
+        pingInterval,
+        zoneValidatorShardRegion,
+        remoteAddress
+      )
+    )
 
 }

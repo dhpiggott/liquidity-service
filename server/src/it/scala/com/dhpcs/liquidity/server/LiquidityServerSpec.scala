@@ -171,6 +171,10 @@ class LiquidityServerSpec
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
+    assert(dockerCompose(projectName, "logs", "mysql").! === 0)
+    assert(dockerCompose(projectName, "logs", "zone-host").! === 0)
+    assert(dockerCompose(projectName, "logs", "client-relay").! === 0)
+    assert(dockerCompose(projectName, "logs", "analytics").! === 0)
     assert(dockerCompose(projectName, "down", "--volumes").! === 0)
     super.afterAll()
   }
@@ -178,13 +182,14 @@ class LiquidityServerSpec
   "The LiquidityServer" - {
     "forms a cluster" in {
       eventually {
-        val (_, akkaManagementPort) =
-          externalDockerComposeServicePorts(projectName, "zone-host", 19999).head
+        val (_, akkaHttpPort) =
+          externalDockerComposeServicePorts(projectName, "zone-host", 8080).head
         val response = Http()
           .singleRequest(
             HttpRequest(
-              uri = Uri(s"http://localhost:$akkaManagementPort/cluster/members")
-            )
+              uri = Uri(
+                s"http://localhost:$akkaHttpPort/akka-management/cluster/members")
+            ).withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
           )
           .futureValue
         assert(response.status === StatusCodes.OK)

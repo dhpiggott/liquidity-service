@@ -10,9 +10,11 @@ import akka.NotUsed
 import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.client.RequestBuilding
+import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.model.{RemoteAddress, StatusCodes}
+import akka.http.scaladsl.server.StandardRoute
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
 import akka.stream.scaladsl.{Flow, Source}
@@ -114,68 +116,6 @@ class HttpControllerSpec
   override def testConfig: Config = ConfigFactory.defaultReference()
 
   "The HttpController" - {
-    "provides version information" in {
-      val getRequest = RequestBuilding.Get("/version")
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.OK)
-        val keys = entityAs[JsObject].value.keySet
-        assert(keys.contains("version"))
-        assert(keys.contains("builtAtString"))
-        assert(keys.contains("builtAtMillis"))
-      }
-    }
-    "accepts WebSocket connections" in {
-      val wsProbe = WSProbe()
-      WS("/ws", wsProbe.flow)
-        .addHeader(
-          `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
-        ) ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(isWebSocketUpgrade === true)
-        val message = "Hello"
-        wsProbe.sendMessage(message)
-        wsProbe.expectMessage(message)
-        wsProbe.sendCompletion()
-        wsProbe.expectCompletion()
-      }
-    }
-    "provides status information" in {
-      val getRequest = RequestBuilding.Get("/status")
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.OK)
-        assert(
-          entityAs[JsValue] === Json.parse(
-            """
-              |{
-              |  "activeClients" : {
-              |    "count" : 1,
-              |    "publicKeyFingerprints" : [ "0280473ff02de92c971948a1253a3318507f870d20f314e844520058888512be" ]
-              |  },
-              |  "activeZones" : {
-              |    "count" : 1,
-              |    "zones" : [ {
-              |      "zoneIdFingerprint" : "b697e3a3a1eceb99d9e0b3e932e47596e77dfab19697d6fe15b3b0db75e96f12",
-              |      "metadata" : null,
-              |      "members" : 2,
-              |      "accounts" : 2,
-              |      "transactions" : 1,
-              |      "clientConnections" : {
-              |        "count" : 1,
-              |        "publicKeyFingerprints" : [ "0280473ff02de92c971948a1253a3318507f870d20f314e844520058888512be" ]
-              |      }
-              |    } ]
-              |  },
-              |  "totals" : {
-              |    "zones" : 1,
-              |    "publicKeys" : 1,
-              |    "members" : 2,
-              |    "accounts" : 2,
-              |    "transactions" : 1
-              |  }
-              |}
-            """.stripMargin
-          ))
-      }
-    }
     "rejects access" - {
       "when no bearer token is presented" in {
         val getRequest =
@@ -363,6 +303,17 @@ class HttpControllerSpec
           import PredefinedFromEntityUnmarshallers.stringUnmarshaller
           assert(entityAs[String] === StatusCodes.Forbidden.defaultMessage)
         }
+      }
+    }
+    "proxies /akka-management to akkaManagement" in {
+      val getRequest =
+        RequestBuilding
+          .Get("/akka-management")
+          .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
+      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+        assert(entityAs[String] === "akka-management")
       }
     }
     "provides diagnostic information" - {
@@ -581,6 +532,68 @@ class HttpControllerSpec
         }
       }
     }
+    "provides version information" in {
+      val getRequest = RequestBuilding.Get("/version")
+      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        val keys = entityAs[JsObject].value.keySet
+        assert(keys.contains("version"))
+        assert(keys.contains("builtAtString"))
+        assert(keys.contains("builtAtMillis"))
+      }
+    }
+    "provides status information" in {
+      val getRequest = RequestBuilding.Get("/status")
+      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        assert(
+          entityAs[JsValue] === Json.parse(
+            """
+              |{
+              |  "activeClients" : {
+              |    "count" : 1,
+              |    "publicKeyFingerprints" : [ "0280473ff02de92c971948a1253a3318507f870d20f314e844520058888512be" ]
+              |  },
+              |  "activeZones" : {
+              |    "count" : 1,
+              |    "zones" : [ {
+              |      "zoneIdFingerprint" : "b697e3a3a1eceb99d9e0b3e932e47596e77dfab19697d6fe15b3b0db75e96f12",
+              |      "metadata" : null,
+              |      "members" : 2,
+              |      "accounts" : 2,
+              |      "transactions" : 1,
+              |      "clientConnections" : {
+              |        "count" : 1,
+              |        "publicKeyFingerprints" : [ "0280473ff02de92c971948a1253a3318507f870d20f314e844520058888512be" ]
+              |      }
+              |    } ]
+              |  },
+              |  "totals" : {
+              |    "zones" : 1,
+              |    "publicKeys" : 1,
+              |    "members" : 2,
+              |    "accounts" : 2,
+              |    "transactions" : 1
+              |  }
+              |}
+            """.stripMargin
+          ))
+      }
+    }
+    "accepts WebSocket connections" in {
+      val wsProbe = WSProbe()
+      WS("/ws", wsProbe.flow)
+        .addHeader(
+          `Remote-Address`(RemoteAddress(InetAddress.getLoopbackAddress))
+        ) ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(isWebSocketUpgrade === true)
+        val message = "Hello"
+        wsProbe.sendMessage(message)
+        wsProbe.expectMessage(message)
+        wsProbe.sendCompletion()
+        wsProbe.expectCompletion()
+      }
+    }
   }
 
   override protected[this] def webSocketApi(
@@ -624,6 +637,12 @@ class HttpControllerSpec
   protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean] =
     Future.successful(
       publicKey.value.toByteArray.sameElements(rsaPublicKey.getEncoded))
+
+  override protected[this] def akkaManagement: StandardRoute =
+    requestContext => {
+      import PredefinedToEntityMarshallers.StringMarshaller
+      requestContext.complete("akka-management")
+    }
 
   override protected[this] def events(
       persistenceId: String,

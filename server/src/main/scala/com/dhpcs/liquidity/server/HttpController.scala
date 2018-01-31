@@ -12,7 +12,7 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.Message
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Directive1, Route}
+import akka.http.scaladsl.server._
 import akka.stream.scaladsl.{Flow, Source}
 import cats.instances.future._
 import cats.syntax.apply._
@@ -62,102 +62,12 @@ trait HttpController {
 
   protected[this] def httpRoutes(enableClientRelay: Boolean)(
       implicit ec: ExecutionContext): Route =
-    path("version")(version) ~
-      path("status")(status) ~
-      (if (enableClientRelay) path("ws")(ws) else reject) ~
+    pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
       pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
-      pathPrefix("analytics")(administratorRealm(analytics))
-
-  private[this] def version: Route =
-    get(
-      complete(
-        Json.obj(
-          BuildInfo.toMap
-            .mapValues(value => toJsFieldJsValueWrapper(value.toString))
-            .toSeq: _*
-        )
-      )
-    )
-
-  private[this] def status(implicit ec: ExecutionContext): Route =
-    get(
-      complete(
-        for ((activeClientSummaries,
-              activeZoneSummaries,
-              zoneCount,
-              publicKeyCount,
-              memberCount,
-              accountCount,
-              transactionCount) <- (getActiveClientSummaries,
-                                    getActiveZoneSummaries,
-                                    getZoneCount,
-                                    getPublicKeyCount,
-                                    getMemberCount,
-                                    getAccountCount,
-                                    getTransactionCount).tupled)
-          yield
-            Json.obj(
-              "activeClients" -> Json.obj(
-                "count" -> activeClientSummaries.size,
-                "publicKeyFingerprints" -> activeClientSummaries
-                  .map(_.publicKey.fingerprint)
-                  .toSeq
-                  .sorted
-              ),
-              "activeZones" -> Json.obj(
-                "count" -> activeZoneSummaries.size,
-                "zones" -> activeZoneSummaries.toSeq
-                  .sortBy(_.zoneId.value)
-                  .map {
-                    case ActiveZoneSummary(zoneId,
-                                           members,
-                                           accounts,
-                                           transactions,
-                                           metadata,
-                                           clientConnections) =>
-                      Json.obj(
-                        "zoneIdFingerprint" -> okio.ByteString
-                          .encodeUtf8(zoneId.value)
-                          .sha256
-                          .hex,
-                        "metadata" -> metadata
-                          .map(JsonFormat.toJsonString)
-                          .map(Json.parse),
-                        "members" -> members,
-                        "accounts" -> accounts,
-                        "transactions" -> transactions,
-                        "clientConnections" -> Json.obj(
-                          "count" -> clientConnections.size,
-                          "publicKeyFingerprints" -> clientConnections
-                            .map(_.fingerprint)
-                            .toSeq
-                            .sorted
-                        )
-                      )
-                  }
-              ),
-              "totals" -> Json.obj(
-                "zones" -> zoneCount,
-                "publicKeys" -> publicKeyCount,
-                "members" -> memberCount,
-                "accounts" -> accountCount,
-                "transactions" -> transactionCount
-              )
-            )
-      )
-    )
-
-  private[this] def ws: Route =
-    extractClientIP(_.toOption match {
-      case None =>
-        complete(
-          (InternalServerError,
-           "Could not extract remote address. Check " +
-             "akka.http.server.remote-address-header = on.")
-        )
-      case Some(remoteAddress) =>
-        handleWebSocketMessages(webSocketApi(remoteAddress))
-    })
+      pathPrefix("analytics")(administratorRealm(analytics)) ~
+      path("version")(version) ~
+      path("status")(status) ~
+      (if (enableClientRelay) path("ws")(ws) else reject)
 
   private[this] def administratorRealm: Directive0 =
     for {
@@ -263,6 +173,97 @@ trait HttpController {
       }
     )
 
+  private[this] def version: Route =
+    get(
+      complete(
+        Json.obj(
+          BuildInfo.toMap
+            .mapValues(value => toJsFieldJsValueWrapper(value.toString))
+            .toSeq: _*
+        )
+      )
+    )
+
+  private[this] def status(implicit ec: ExecutionContext): Route =
+    get(
+      complete(
+        for ((activeClientSummaries,
+              activeZoneSummaries,
+              zoneCount,
+              publicKeyCount,
+              memberCount,
+              accountCount,
+              transactionCount) <- (getActiveClientSummaries,
+                                    getActiveZoneSummaries,
+                                    getZoneCount,
+                                    getPublicKeyCount,
+                                    getMemberCount,
+                                    getAccountCount,
+                                    getTransactionCount).tupled)
+          yield
+            Json.obj(
+              "activeClients" -> Json.obj(
+                "count" -> activeClientSummaries.size,
+                "publicKeyFingerprints" -> activeClientSummaries
+                  .map(_.publicKey.fingerprint)
+                  .toSeq
+                  .sorted
+              ),
+              "activeZones" -> Json.obj(
+                "count" -> activeZoneSummaries.size,
+                "zones" -> activeZoneSummaries.toSeq
+                  .sortBy(_.zoneId.value)
+                  .map {
+                    case ActiveZoneSummary(zoneId,
+                                           members,
+                                           accounts,
+                                           transactions,
+                                           metadata,
+                                           clientConnections) =>
+                      Json.obj(
+                        "zoneIdFingerprint" -> okio.ByteString
+                          .encodeUtf8(zoneId.value)
+                          .sha256
+                          .hex,
+                        "metadata" -> metadata
+                          .map(JsonFormat.toJsonString)
+                          .map(Json.parse),
+                        "members" -> members,
+                        "accounts" -> accounts,
+                        "transactions" -> transactions,
+                        "clientConnections" -> Json.obj(
+                          "count" -> clientConnections.size,
+                          "publicKeyFingerprints" -> clientConnections
+                            .map(_.fingerprint)
+                            .toSeq
+                            .sorted
+                        )
+                      )
+                  }
+              ),
+              "totals" -> Json.obj(
+                "zones" -> zoneCount,
+                "publicKeys" -> publicKeyCount,
+                "members" -> memberCount,
+                "accounts" -> accountCount,
+                "transactions" -> transactionCount
+              )
+            )
+      )
+    )
+
+  private[this] def ws: Route =
+    extractClientIP(_.toOption match {
+      case None =>
+        complete(
+          (InternalServerError,
+           "Could not extract remote address. Check " +
+             "akka.http.server.remote-address-header = on.")
+        )
+      case Some(remoteAddress) =>
+        handleWebSocketMessages(webSocketApi(remoteAddress))
+    })
+
   private[this] implicit def optionResponseMarshaller[A](
       implicit entityMarshaller: ToEntityMarshaller[Option[A]])
     : ToResponseMarshaller[Option[A]] =
@@ -313,8 +314,22 @@ trait HttpController {
       )
     ))
 
-  protected[this] def webSocketApi(
-      remoteAddress: InetAddress): Flow[Message, Message, NotUsed]
+  protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean]
+
+  protected[this] def akkaManagement: StandardRoute
+
+  protected[this] def events(persistenceId: String,
+                             fromSequenceNr: Long,
+                             toSequenceNr: Long): Source[EventEnvelope, NotUsed]
+  protected[this] def zoneState(
+      zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
+
+  protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
+  protected[this] def getBalances(
+      zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
+  protected[this] def getClientSessions(
+      zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]]
+
   protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]]
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
   protected[this] def getZoneCount: Future[Long]
@@ -323,16 +338,7 @@ trait HttpController {
   protected[this] def getAccountCount: Future[Long]
   protected[this] def getTransactionCount: Future[Long]
 
-  protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean]
-  protected[this] def events(persistenceId: String,
-                             fromSequenceNr: Long,
-                             toSequenceNr: Long): Source[EventEnvelope, NotUsed]
-  protected[this] def zoneState(
-      zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
-  protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
-  protected[this] def getBalances(
-      zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
-  protected[this] def getClientSessions(
-      zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]]
+  protected[this] def webSocketApi(
+      remoteAddress: InetAddress): Flow[Message, Message, NotUsed]
 
 }

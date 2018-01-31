@@ -15,7 +15,7 @@ services:
   zone-host:
     image: "837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:${TAG}"
     ports:
-     - "19999"
+     - "8080"
     extra_hosts:
       - "zone-host:127.0.0.1"
     environment:
@@ -29,7 +29,6 @@ services:
   client-relay:
     image: "837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:${TAG}"
     ports:
-     - "19999"
      - "8080"
     extra_hosts:
       - "client-relay:127.0.0.1"
@@ -44,7 +43,7 @@ services:
   analytics:
     image: "837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:${TAG}"
     ports:
-     - "19999"
+     - "8080"
     extra_hosts:
       - "analytics:127.0.0.1"
     environment:

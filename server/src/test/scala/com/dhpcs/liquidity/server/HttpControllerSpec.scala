@@ -13,7 +13,7 @@ import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.Message
-import akka.http.scaladsl.model.{RemoteAddress, StatusCodes}
+import akka.http.scaladsl.model.{RemoteAddress, StatusCodes, Uri}
 import akka.http.scaladsl.server.StandardRoute
 import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
 import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
@@ -120,7 +120,7 @@ class HttpControllerSpec
       "when no bearer token is presented" in {
         val getRequest =
           RequestBuilding
-            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .Get("/akka-management")
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
@@ -144,7 +144,7 @@ class HttpControllerSpec
       "when the token is not a JWT" in {
         val getRequest =
           RequestBuilding
-            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .Get("/akka-management")
             .withHeaders(Authorization(OAuth2BearerToken("")))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
@@ -166,7 +166,7 @@ class HttpControllerSpec
       "when the token claims do not contain a subject" in {
         val getRequest =
           RequestBuilding
-            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .Get("/akka-management")
             .withHeaders(
               Authorization(
                 OAuth2BearerToken(
@@ -199,7 +199,7 @@ class HttpControllerSpec
       "when the token subject is not an RSA public key" in {
         val getRequest =
           RequestBuilding
-            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .Get("/akka-management")
             .withHeaders(
               Authorization(
                 OAuth2BearerToken(
@@ -237,7 +237,7 @@ class HttpControllerSpec
         val otherRsaPrivateKey = keyPairGenerator.generateKeyPair.getPrivate
         val getRequest =
           RequestBuilding
-            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .Get("/akka-management")
             .withHeaders(
               Authorization(
                 OAuth2BearerToken(
@@ -282,7 +282,7 @@ class HttpControllerSpec
         val otherRsaPublicKey = keyPair.getPublic
         val getRequest =
           RequestBuilding
-            .Get(s"/diagnostics/events/zone-${zone.id.value}")
+            .Get("/akka-management")
             .withHeaders(
               Authorization(
                 OAuth2BearerToken(
@@ -318,10 +318,13 @@ class HttpControllerSpec
     }
     "provides diagnostic information" - {
       "for events" in {
-        val getRequest =
-          RequestBuilding
-            .Get(s"/diagnostics/events/zone-${zone.id.value}")
-            .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
+        val getRequest = RequestBuilding
+          .Get(
+            Uri.Empty.withPath(
+              Uri.Path("/diagnostics/events") / s"zone-${zone.id.value}"
+            )
+          )
+          .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -415,10 +418,13 @@ class HttpControllerSpec
         }
       }
       "for zones" in {
-        val getRequest =
-          RequestBuilding
-            .Get(s"/diagnostics/zones/${zone.id.value}")
-            .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
+        val getRequest = RequestBuilding
+          .Get(
+            Uri.Empty.withPath(
+              Uri.Path("/diagnostics/zones") / zone.id.value
+            )
+          )
+          .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(
@@ -450,10 +456,13 @@ class HttpControllerSpec
     "provides analytics information" - {
       "for zones" - {
         "with status 404 when the zone does not exist" in {
-          val getRequest =
-            RequestBuilding
-              .Get(s"/analytics/zones/${UUID.randomUUID()}")
-              .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
+          val getRequest = RequestBuilding
+            .Get(
+              Uri.Empty.withPath(
+                Uri.Path("/analytics/zones") / UUID.randomUUID().toString
+              )
+            )
+            .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
           getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
             assert(status === StatusCodes.NotFound)
           }

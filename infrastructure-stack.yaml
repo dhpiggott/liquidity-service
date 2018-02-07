@@ -8,8 +8,6 @@ Parameters:
     Type: String
   RDSPassword:
     Type: String
-  ECSInstanceImageId:
-    Type: AWS::EC2::Image::Id
 Resources:
   RDSSubnetGroup:
       Type: AWS::RDS::DBSubnetGroup

@@ -179,7 +179,7 @@ object SqlAnalyticsStore {
                  WHERE zone_id = $zoneId
              """
           .query[MemberId]
-          .vector
+          .to[Vector]
         memberOwnerPublicKeysNamesAndMetadata <- memberIds
           .map(
             memberId =>
@@ -311,7 +311,7 @@ object SqlAnalyticsStore {
                  WHERE zone_id = $zoneId
              """
           .query[AccountId]
-          .vector
+          .to[Vector]
         accountOwnerMemberIdsNamesAndMetadata <- accountIds
           .map(
             accountId =>
@@ -336,7 +336,7 @@ object SqlAnalyticsStore {
              WHERE zone_id = $zoneId
          """
         .query[(AccountId, BigDecimal)]
-        .vector
+        .to[Vector]
         .map(_.toMap)
 
   }
@@ -432,7 +432,7 @@ object SqlAnalyticsStore {
                 Instant,
                 Option[String],
                 Option[com.google.protobuf.struct.Struct])]
-        .vector
+        .to[Vector]
         .map(_.map {
           case (id, from, to, value, creator, created, description, metadata) =>
             id -> Transaction(id,
@@ -502,7 +502,7 @@ object SqlAnalyticsStore {
                 PublicKey,
                 Instant,
                 Option[Instant])]
-        .vector
+        .to[Vector]
         .map(_.map {
           case (id, remoteAddress, actorRef, publicKey, joined, quit) =>
             id -> ClientSession(id,

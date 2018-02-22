@@ -47,7 +47,7 @@ lazy val `ws-protocol-scala-binding` = project
   .settings(
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-core" % "1.0.1",
-      "com.squareup.okio" % "okio" % "1.13.0"
+      "com.squareup.okio" % "okio" % "1.14.0"
     ))
 
 lazy val `actor-protocol` = project

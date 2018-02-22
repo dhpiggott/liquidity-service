@@ -13,7 +13,6 @@ import akka.actor.typed.{ActorRef, Behavior, PostStop, Terminated}
 import akka.actor.{ActorRefFactory, Props, typed}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
-import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message => WsMessage}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{Materializer, OverflowStrategy}
@@ -134,8 +133,7 @@ object ClientConnectionActor {
     : Behavior[ClientConnectionMessage] =
     Behaviors.setup(context =>
       Behaviors.withTimers { timers =>
-        val log = Logging(context.system.toUntyped, context.self.toUntyped)
-        log.info(s"Starting for $remoteAddress")
+        context.log.info(s"Starting for $remoteAddress")
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         timers.startPeriodicTimer(PublishStatusTimerKey,
                                   PublishClientStatusTick,
@@ -146,7 +144,6 @@ object ClientConnectionActor {
         waitingForActorSinkInit(zoneValidatorShardRegion,
                                 remoteAddress,
                                 webSocketOut,
-                                log,
                                 mediator,
                                 pingGenerator)
     })
@@ -156,12 +153,11 @@ object ClientConnectionActor {
         SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
-      log: LoggingAdapter,
       mediator: ActorRef[Publish],
       pingGeneratorActor: typed.ActorRef[
         PingGeneratorActor.PingGeneratorMessage])
     : Behavior[ClientConnectionMessage] =
-    Behaviors.immutable[ClientConnectionMessage]((_, message) =>
+    Behaviors.immutable[ClientConnectionMessage]((context, message) =>
       message match {
         case InitActorSink(webSocketIn) =>
           webSocketIn ! ActorSinkAck
@@ -175,7 +171,6 @@ object ClientConnectionActor {
           waitingForKeyOwnershipProof(zoneValidatorShardRegion,
                                       remoteAddress,
                                       webSocketOut,
-                                      log,
                                       mediator,
                                       pingGeneratorActor,
                                       keyOwnershipChallenge)
@@ -184,17 +179,17 @@ object ClientConnectionActor {
           Behaviors.same
 
         case wrappedServerMessage: ActorFlowServerMessage =>
-          log.warning(
+          context.log.warning(
             s"Stopping due to unexpected message; required ActorSinkInit but received $wrappedServerMessage")
           Behaviors.stopped
 
         case zoneResponseEnvelope: ZoneResponseEnvelope =>
-          log.warning(
+          context.log.warning(
             s"Stopping due to unexpected message; required ActorSinkInit but received $zoneResponseEnvelope")
           Behaviors.stopped
 
         case zoneNotificationEnvelope: ZoneNotificationEnvelope =>
-          log.warning(
+          context.log.warning(
             s"Stopping due to unexpected message; required ActorSinkInit but received $zoneNotificationEnvelope")
           Behaviors.stopped
     })
@@ -204,7 +199,6 @@ object ClientConnectionActor {
         SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
-      log: LoggingAdapter,
       mediator: ActorRef[Publish],
       pingGeneratorActor: typed.ActorRef[
         PingGeneratorActor.PingGeneratorMessage],
@@ -213,7 +207,7 @@ object ClientConnectionActor {
     Behaviors.immutable[ClientConnectionMessage] { (context, message) =>
       message match {
         case actorSinkInit: InitActorSink =>
-          log.warning(
+          context.log.warning(
             s"Stopping due to unexpected message; required KeyOwnershipProof but received $actorSinkInit")
           Behaviors.stopped
 
@@ -231,7 +225,7 @@ object ClientConnectionActor {
             case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
                 _: proto.ws.protocol.ServerMessage.Message.Command |
                 _: proto.ws.protocol.ServerMessage.Message.Response) =>
-              log.warning(
+              context.log.warning(
                 s"Stopping due to unexpected message; required KeyOwnershipProof but received $other")
               Behaviors.stopped
 
@@ -240,7 +234,7 @@ object ClientConnectionActor {
               val publicKey = PublicKey(keyOwnershipProof.publicKey.toByteArray)
               if (!isValidKeyOwnershipProof(keyOwnershipChallenge,
                                             keyOwnershipProof)) {
-                log.warning(
+                context.log.warning(
                   "Stopping due to invalid key ownership proof for public key with fingerprint " +
                     s"${publicKey.fingerprint}.")
                 Behaviors.stopped
@@ -250,7 +244,6 @@ object ClientConnectionActor {
                   zoneValidatorShardRegion,
                   remoteAddress,
                   webSocketOut,
-                  log,
                   mediator,
                   pingGeneratorActor,
                   publicKey,
@@ -259,18 +252,18 @@ object ClientConnectionActor {
           }
 
         case zoneResponseEnvelope: ZoneResponseEnvelope =>
-          log.warning(
+          context.log.warning(
             s"Stopping due to unexpected message; required KeyOwnershipProof but received $zoneResponseEnvelope")
           Behaviors.stopped
 
         case zoneNotificationEnvelope: ZoneNotificationEnvelope =>
-          log.warning(
+          context.log.warning(
             s"Stopping due to unexpected message; required KeyOwnershipProof but received $zoneNotificationEnvelope")
           Behaviors.stopped
       }
     } onSignal {
-      case (_, PostStop) =>
-        log.info(s"Stopped for $remoteAddress")
+      case (context, PostStop) =>
+        context.log.info(s"Stopped for $remoteAddress")
         Behaviors.same
     }
 
@@ -279,7 +272,6 @@ object ClientConnectionActor {
         SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
-      log: LoggingAdapter,
       mediator: ActorRef[Publish],
       pingGeneratorActor: typed.ActorRef[
         PingGeneratorActor.PingGeneratorMessage],
@@ -290,7 +282,7 @@ object ClientConnectionActor {
     Behaviors.immutable[ClientConnectionMessage] { (context, message) =>
       message match {
         case actorSinkInit: InitActorSink =>
-          log.warning(
+          context.log.warning(
             s"Stopping due to unexpected message; received $actorSinkInit")
           Behaviors.stopped
 
@@ -312,7 +304,7 @@ object ClientConnectionActor {
           serverMessage.message match {
             case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
                 _: proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof) =>
-              log.warning(
+              context.log.warning(
                 s"Stopping due to unexpected message; required Command or Response but received $other")
               Behaviors.stopped
 
@@ -358,7 +350,7 @@ object ClientConnectionActor {
                                  Any].asScala(protoZoneCommand)(())
                   zoneCommand match {
                     case _: CreateZoneCommand =>
-                      log.warning(
+                      context.log.warning(
                         s"Stopping due to receipt of illegally enveloped CreateZoneCommand")
                       Behaviors.stopped
 
@@ -379,7 +371,7 @@ object ClientConnectionActor {
                   .Response(protoResponse) =>
               protoResponse.response match {
                 case proto.ws.protocol.ServerMessage.Response.Response.Empty =>
-                  log.warning(
+                  context.log.warning(
                     "Stopping due to unexpected message; required PingResponse but received Empty")
                   Behaviors.stopped
 
@@ -410,7 +402,6 @@ object ClientConnectionActor {
                 zoneValidatorShardRegion,
                 remoteAddress,
                 webSocketOut,
-                log,
                 mediator,
                 pingGeneratorActor,
                 publicKey,
@@ -422,7 +413,6 @@ object ClientConnectionActor {
                 zoneValidatorShardRegion,
                 remoteAddress,
                 webSocketOut,
-                log,
                 mediator,
                 pingGeneratorActor,
                 publicKey,
@@ -438,13 +428,13 @@ object ClientConnectionActor {
                                       zoneNotification) =>
           notificationSequenceNumbers.get(zoneValidator) match {
             case None =>
-              log.warning(
+              context.log.warning(
                 "Stopping due to unexpected notification (JoinZoneCommand sent but no JoinZoneResponse received)")
               Behaviors.stopped
 
             case Some(expectedSequenceNumber) =>
               if (sequenceNumber != expectedSequenceNumber) {
-                log.warning(
+                context.log.warning(
                   s"Stopping due to unexpected notification ($sequenceNumber != $expectedSequenceNumber)")
                 Behaviors.stopped
               } else {
@@ -471,7 +461,6 @@ object ClientConnectionActor {
                   zoneValidatorShardRegion,
                   remoteAddress,
                   webSocketOut,
-                  log,
                   mediator,
                   pingGeneratorActor,
                   publicKey,
@@ -481,12 +470,12 @@ object ClientConnectionActor {
           }
       }
     } onSignal {
-      case (_, PostStop) =>
-        log.info(s"Stopped for $remoteAddress")
+      case (context, PostStop) =>
+        context.log.info(s"Stopped for $remoteAddress")
         Behaviors.same
 
-      case (_, Terminated(ref)) =>
-        log.warning(s"Stopping due to termination of joined zone $ref")
+      case (context, Terminated(ref)) =>
+        context.log.warning(s"Stopping due to termination of joined zone $ref")
         Behaviors.stopped
     }
 

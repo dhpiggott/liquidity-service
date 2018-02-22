@@ -5,7 +5,6 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
-import akka.event.{Logging, LoggingAdapter}
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 
 import scala.concurrent.duration._
@@ -19,23 +18,21 @@ object ClientMonitorActor {
   def behavior: Behavior[ClientMonitorMessage] =
     Behaviors.setup(context =>
       Behaviors.withTimers { timers =>
-        val log = Logging(context.system.toUntyped, context.self.toUntyped)
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         mediator ! Subscribe(ClientStatusTopic, context.self.toUntyped)
         timers.startPeriodicTimer(LogActiveClientsCountTimerKey,
                                   LogActiveClientsCount,
                                   5.minutes)
-        withSummaries(log, Map.empty)
+        withSummaries(Map.empty)
     })
 
   private def withSummaries(
-      log: LoggingAdapter,
       activeClientSummaries: Map[ActorRef[Nothing], ActiveClientSummary])
     : Behavior[ClientMonitorMessage] =
     Behaviors.immutable[ClientMonitorMessage]((context, message) =>
       message match {
         case LogActiveClientsCount =>
-          log.info(s"${activeClientSummaries.size} clients are active")
+          context.log.info(s"${activeClientSummaries.size} clients are active")
           Behaviors.same
 
         case GetActiveClientSummaries(replyTo) =>
@@ -45,11 +42,10 @@ object ClientMonitorActor {
           if (!activeClientSummaries.contains(clientConnection))
             context.watch(clientConnection)
           withSummaries(
-            log,
             activeClientSummaries + (clientConnection -> activeClientSummary))
     }) onSignal {
       case (_, Terminated(ref)) =>
-        withSummaries(log, activeClientSummaries - ref)
+        withSummaries(activeClientSummaries - ref)
     }
 
 }

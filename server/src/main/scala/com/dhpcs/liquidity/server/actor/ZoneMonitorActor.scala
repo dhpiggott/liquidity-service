@@ -5,7 +5,6 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
-import akka.event.{Logging, LoggingAdapter}
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 
 import scala.concurrent.duration._
@@ -19,23 +18,21 @@ object ZoneMonitorActor {
   def behavior: Behavior[ZoneMonitorMessage] =
     Behaviors.setup(context =>
       Behaviors.withTimers { timers =>
-        val log = Logging(context.system.toUntyped, context.self.toUntyped)
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         mediator ! Subscribe(ZoneStatusTopic, context.self.toUntyped)
         timers.startPeriodicTimer(LogActiveZonesCountTimerKey,
                                   LogActiveZonesCount,
                                   5.minutes)
-        withSummaries(log, Map.empty)
+        withSummaries(Map.empty)
     })
 
   private def withSummaries(
-      log: LoggingAdapter,
       activeZoneSummaries: Map[ActorRef[Nothing], ActiveZoneSummary])
     : Behavior[ZoneMonitorMessage] =
     Behaviors.immutable[ZoneMonitorMessage]((context, message) =>
       message match {
         case LogActiveZonesCount =>
-          log.info(s"${activeZoneSummaries.size} zones are active")
+          context.log.info(s"${activeZoneSummaries.size} zones are active")
           Behaviors.same
 
         case GetActiveZoneSummaries(replyTo) =>
@@ -47,11 +44,10 @@ object ZoneMonitorActor {
           if (!activeZoneSummaries.contains(zoneValidatorActorRef))
             context.watch(zoneValidatorActorRef)
           withSummaries(
-            log,
             activeZoneSummaries + (zoneValidatorActorRef -> activeZoneSummary))
     }) onSignal {
       case (_, Terminated(ref)) =>
-        withSummaries(log, activeZoneSummaries - ref)
+        withSummaries(activeZoneSummaries - ref)
     }
 
 }

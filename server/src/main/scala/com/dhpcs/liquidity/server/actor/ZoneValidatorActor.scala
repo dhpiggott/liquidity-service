@@ -12,7 +12,6 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.typed.ShardingMessageExtractor
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
-import akka.event.Logging
 import akka.persistence.typed.scaladsl.PersistentBehaviors
 import akka.persistence.typed.scaladsl.PersistentBehaviors._
 import cats.Semigroupal
@@ -133,31 +132,33 @@ object ZoneValidatorActor {
   def shardingBehavior(
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
     Behaviors
-      .setup[ZoneValidatorMessage] { context =>
-        val log = Logging(context.system.toUntyped, context.self.toUntyped)
-        log.info("Starting")
+      .setup[ZoneValidatorMessage] { wrapperContext =>
+        wrapperContext.log.info("Starting")
         val notificationSequenceNumbers =
           mutable.Map.empty[ActorRef[SerializableClientConnectionMessage], Long]
-        val mediator = DistributedPubSub(context.system.toUntyped).mediator
+        val mediator =
+          DistributedPubSub(wrapperContext.system.toUntyped).mediator
         // Workarounds for the limitation described in
         // https://github.com/akka/akka/pull/23674
         // TODO: Remove these once that limitation is resolved
         val passivationCountdown =
-          context.spawn(PassivationCountdownActor.behavior(context.self),
-                        "passivationCountdown")
+          wrapperContext.spawn(
+            PassivationCountdownActor.behavior(wrapperContext.self),
+            "passivationCountdown")
         val clientConnectionWatcher =
-          context.spawn(ClientConnectionWatcherActor.behavior(context.self),
-                        "clientConnectionWatcher")
+          wrapperContext.spawn(
+            ClientConnectionWatcherActor.behavior(wrapperContext.self),
+            "clientConnectionWatcher")
         implicit val resolver: ActorRefResolver =
-          ActorRefResolver(context.system)
-        val zoneValidator = context.spawnAnonymous(
+          ActorRefResolver(wrapperContext.system)
+        val zoneValidator = wrapperContext.spawnAnonymous(
           persistentBehavior(ZoneId.fromPersistenceId(entityId),
                              notificationSequenceNumbers,
                              mediator,
                              passivationCountdown,
                              clientConnectionWatcher)
         )
-        context.watch(zoneValidator)
+        wrapperContext.watch(zoneValidator)
         Behaviors.withTimers { timers =>
           timers.startPeriodicTimer(PublishStatusTimerKey,
                                     PublishZoneStatusTick,
@@ -170,8 +171,8 @@ object ZoneValidatorActor {
             case (_, Terminated(_)) =>
               Behaviors.stopped
 
-            case (_, PostStop) =>
-              log.info("Stopped")
+            case (context, PostStop) =>
+              context.log.info("Stopped")
               Behaviors.same
           }
         }

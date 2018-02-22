@@ -1,9 +1,7 @@
 package com.dhpcs.liquidity.server.actor
 
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{Behavior, PostStop}
-import akka.event.Logging
 import akka.persistence.query.Sequence
 import akka.persistence.query.scaladsl.{EventsByTagQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
@@ -30,7 +28,6 @@ object ZoneAnalyticsActor {
                         transactIoToFuture: TransactIoToFuture)(
       implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Behaviors.setup { context =>
-      val log = Logging(context.system.toUntyped, context.self.toUntyped)
       val offset = transactIoToFuture(analyticsTransactor)(for {
         maybePreviousOffset <- TagOffsetsStore.retrieve(EventTags.ZoneEventTag)
         offset <- maybePreviousOffset match {
@@ -65,7 +62,7 @@ object ZoneAnalyticsActor {
               .groupedWithin(n = 1000, d = 30.seconds)
               .map { group =>
                 val (offset, index) = group.last
-                log.info(s"Projected ${group.size} zone events " +
+                context.log.info(s"Projected ${group.size} zone events " +
                   s"(total: ${index + 1}, offset: ${offset.value})")
             })
         .viaMat(KillSwitches.single)(Keep.right)

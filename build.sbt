@@ -109,7 +109,7 @@ lazy val server = project
   .settings(libraryDependencies ++= Seq(
     "com.h2database" % "h2" % "1.4.196" % Test,
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
-    "org.scalatest" %% "scalatest" % "3.0.4" % Test,
+    "org.scalatest" %% "scalatest" % "3.0.5" % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.11" % Test,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.9" % Test
   ))
@@ -117,7 +117,7 @@ lazy val server = project
   .settings(Defaults.itSettings)
   .settings(inConfig(IntegrationTest)(scalafmtSettings))
   .settings(libraryDependencies ++= Seq(
-    "org.scalatest" %% "scalatest" % "3.0.4" % IntegrationTest,
+    "org.scalatest" %% "scalatest" % "3.0.5" % IntegrationTest,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.0.11" % IntegrationTest,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.9" % IntegrationTest
   ))

@@ -34,8 +34,8 @@ class ZoneValidatorActorSpec
   override protected def withFixture(test: OneArgTest): Outcome = {
     val clientConnectionTestProbe = TestProbe()
     val zoneId = ZoneId(UUID.randomUUID().toString)
-    val zoneValidator = system.spawn(ZoneValidatorActor.shardingBehavior,
-                                     name = zoneId.persistenceId)
+    val zoneValidator = system.spawnAnonymous(
+      ZoneValidatorActor.shardingBehavior(entityId = zoneId.persistenceId))
     try withFixture(
       test.toNoArgTest((clientConnectionTestProbe, zoneId, zoneValidator))
     )

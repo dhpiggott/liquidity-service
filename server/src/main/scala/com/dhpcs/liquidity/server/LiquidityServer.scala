@@ -8,7 +8,8 @@ import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRefResolver, Props}
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.Cluster
-import akka.cluster.sharding.typed.{ClusterSharding, ClusterShardingSettings}
+import akka.cluster.sharding.typed.ClusterShardingSettings
+import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{ClusterSingleton, ClusterSingletonSettings}
 import akka.event.Logging
 import akka.http.scaladsl.Http
@@ -223,13 +224,13 @@ class LiquidityServer(
     system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
 
   private[this] val zoneValidatorShardRegion =
-    ClusterSharding(system.toTyped).spawn(
+    ClusterSharding(system.toTyped).spawnWithMessageExtractor(
       behavior = ZoneValidatorActor.shardingBehavior,
       entityProps = Props.empty,
       typeKey = ZoneValidatorActor.ShardingTypeName,
       settings = ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
       messageExtractor = ZoneValidatorActor.messageExtractor,
-      handOffStopMessage = StopZone
+      allocationStrategy = None
     )
 
   ClusterSingleton(system.toTyped).spawn(

@@ -6,14 +6,15 @@ import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
 
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.scaladsl.{Actor, ActorContext}
+import akka.actor.typed.scaladsl.{Behaviors, ActorContext}
 import akka.actor.typed._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
-import akka.cluster.sharding.typed.{EntityTypeKey, ShardingMessageExtractor}
+import akka.cluster.sharding.typed.ShardingMessageExtractor
+import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
 import akka.event.Logging
-import akka.persistence.typed.scaladsl.PersistentActor
-import akka.persistence.typed.scaladsl.PersistentActor._
+import akka.persistence.typed.scaladsl.PersistentBehaviors
+import akka.persistence.typed.scaladsl.PersistentBehaviors._
 import cats.Semigroupal
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
@@ -42,23 +43,23 @@ object ZoneValidatorActor {
   val messageExtractor
     : ShardingMessageExtractor[SerializableZoneValidatorMessage,
                                SerializableZoneValidatorMessage] =
-    ShardingMessageExtractor.noEnvelope(
-      MaxNumberOfShards, {
-        // This has to be part of SerializableZoneValidatorMessage because the
-        // akka-typed sharding API requires that the hand-off stop-message is a
-        // subtype of the ShardingMessageExtractor Envelope type. Of course,
-        // hand-off stop-messages are sent directly to the entity to be
-        // stopped, so this extractor won't actually encounter them.
-        case StopZone =>
-          throw new IllegalArgumentException("Received StopZone")
+    ShardingMessageExtractor.noEnvelope[SerializableZoneValidatorMessage](
+      MaxNumberOfShards,
+      handOffStopMessage = StopZone) {
+      // This has to be part of SerializableZoneValidatorMessage because the
+      // akka-typed sharding API requires that the hand-off stop-message is a
+      // subtype of the ShardingMessageExtractor Envelope type. Of course,
+      // hand-off stop-messages are sent directly to the entity to be
+      // stopped, so this extractor won't actually encounter them.
+      case StopZone =>
+        throw new IllegalArgumentException("Received StopZone")
 
-        case GetZoneStateCommand(_, zoneId) =>
-          zoneId.value
+      case GetZoneStateCommand(_, zoneId) =>
+        zoneId.value
 
-        case ZoneCommandEnvelope(_, zoneId, _, _, _, _) =>
-          zoneId.value
-      }
-    )
+      case ZoneCommandEnvelope(_, zoneId, _, _, _, _) =>
+        zoneId.value
+    }
 
   private case object PublishStatusTimerKey
 
@@ -77,24 +78,24 @@ object ZoneValidatorActor {
 
     def behavior(zoneValidator: ActorRef[ZoneValidatorMessage])
       : Behavior[PassivationCountdownMessage] =
-      Actor.deferred { context =>
+      Behaviors.setup { context =>
         context.self ! Start
-        Actor.immutable[PassivationCountdownMessage]((_, message) =>
+        Behaviors.immutable[PassivationCountdownMessage]((_, message) =>
           message match {
             case Start =>
               context.setReceiveTimeout(PassivationTimeout, ReceiveTimeout)
-              Actor.same
+              Behaviors.same
 
             case Stop =>
               context.cancelReceiveTimeout()
-              Actor.same
+              Behaviors.same
 
             case CommandReceivedEvent =>
-              Actor.same
+              Behaviors.same
 
             case ReceiveTimeout =>
               zoneValidator ! StopZone
-              Actor.same
+              Behaviors.same
         })
       }
 
@@ -112,29 +113,29 @@ object ZoneValidatorActor {
 
     def behavior(zoneValidator: ActorRef[ZoneValidatorMessage])
       : Behavior[ClientConnectionWatcherMessage] =
-      Actor.immutable[ClientConnectionWatcherMessage]((context, message) =>
+      Behaviors.immutable[ClientConnectionWatcherMessage]((context, message) =>
         message match {
           case Watch(clientConnection) =>
             context.watch(clientConnection)
-            Actor.same
+            Behaviors.same
 
           case Unwatch(clientConnection) =>
             context.watch(clientConnection)
-            Actor.same
+            Behaviors.same
       }) onSignal {
         case (_, Terminated(ref)) =>
           zoneValidator ! RemoveClient(ref.upcast)
-          Actor.same
+          Behaviors.same
       }
 
   }
 
-  def shardingBehavior: Behavior[SerializableZoneValidatorMessage] =
-    Actor
-      .deferred[ZoneValidatorMessage] { context =>
+  def shardingBehavior(
+      entityId: String): Behavior[SerializableZoneValidatorMessage] =
+    Behaviors
+      .setup[ZoneValidatorMessage] { context =>
         val log = Logging(context.system.toUntyped, context.self.toUntyped)
         log.info("Starting")
-        val persistenceId = context.self.path.name
         val notificationSequenceNumbers =
           mutable.Map.empty[ActorRef[SerializableClientConnectionMessage], Long]
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
@@ -150,27 +151,28 @@ object ZoneValidatorActor {
         implicit val resolver: ActorRefResolver =
           ActorRefResolver(context.system)
         val zoneValidator = context.spawnAnonymous(
-          persistentBehavior(ZoneId.fromPersistenceId(persistenceId),
+          persistentBehavior(ZoneId.fromPersistenceId(entityId),
                              notificationSequenceNumbers,
                              mediator,
                              passivationCountdown,
                              clientConnectionWatcher)
         )
         context.watch(zoneValidator)
-        Actor.withTimers { timers =>
+        Behaviors.withTimers { timers =>
           timers.startPeriodicTimer(PublishStatusTimerKey,
                                     PublishZoneStatusTick,
                                     30.seconds)
-          Actor.immutable[ZoneValidatorMessage] { (_, zoneValidatorMessage) =>
-            zoneValidator ! zoneValidatorMessage
-            Actor.same
+          Behaviors.immutable[ZoneValidatorMessage] {
+            (_, zoneValidatorMessage) =>
+              zoneValidator ! zoneValidatorMessage
+              Behaviors.same
           } onSignal {
             case (_, Terminated(_)) =>
-              Actor.stopped
+              Behaviors.stopped
 
             case (_, PostStop) =>
               log.info("Stopped")
-              Actor.same
+              Behaviors.same
           }
         }
       }
@@ -187,80 +189,78 @@ object ZoneValidatorActor {
       clientConnectionWatcher: ActorRef[
         ClientConnectionWatcherActor.ClientConnectionWatcherMessage])(
       implicit resolver: ActorRefResolver): Behavior[ZoneValidatorMessage] =
-    PersistentActor
+    PersistentBehaviors
       .immutable[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
         persistenceId = id.persistenceId,
         initialState = ZoneState(zone = None,
                                  balances = Map.empty,
                                  connectedClients = Map.empty),
-        commandHandler =
-          CommandHandler[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
-            (context, state, command) =>
-              command match {
-                case PublishZoneStatusTick =>
-                  state.zone.foreach(
-                    zone =>
-                      mediator ! Publish(
-                        ZoneMonitorActor.ZoneStatusTopic,
-                        UpsertActiveZoneSummary(
-                          context.self,
-                          ActiveZoneSummary(
+        commandHandler = (context, state, command) =>
+          command match {
+            case PublishZoneStatusTick =>
+              state.zone.foreach(
+                zone =>
+                  mediator ! Publish(
+                    ZoneMonitorActor.ZoneStatusTopic,
+                    UpsertActiveZoneSummary(
+                      context.self,
+                      ActiveZoneSummary(
+                        id,
+                        zone.members.size,
+                        zone.accounts.size,
+                        zone.transactions.size,
+                        zone.metadata,
+                        state.connectedClients.values.toSet
+                      )
+                    )
+                ))
+              Effect.none
+
+            case StopZone =>
+              Effect.stop
+
+            case GetZoneStateCommand(replyTo, _) =>
+              replyTo ! state
+              Effect.none
+
+            case zoneCommandEnvelope: ZoneCommandEnvelope =>
+              passivationCountdown !
+                PassivationCountdownActor.CommandReceivedEvent
+              handleCommand(context,
                             id,
-                            zone.members.size,
-                            zone.accounts.size,
-                            zone.transactions.size,
-                            zone.metadata,
-                            state.connectedClients.values.toSet
-                          )
+                            notificationSequenceNumbers,
+                            state,
+                            zoneCommandEnvelope)
+
+            case RemoveClient(clientConnection) =>
+              state.connectedClients.get(clientConnection) match {
+                case None =>
+                  Effect.none
+                case Some(publicKey) =>
+                  Effect
+                    .persist(
+                      ZoneEventEnvelope(
+                        remoteAddress = None,
+                        Some(publicKey),
+                        timestamp = Instant.now(),
+                        ClientQuitEvent(Some(
+                          resolver.toSerializationFormat(clientConnection)))
+                      )
+                    )
+                    .andThen(state =>
+                      deliverNotification(
+                        context.self,
+                        id,
+                        state.connectedClients.keys,
+                        notificationSequenceNumbers,
+                        ClientQuitNotification(
+                          ActorRefResolver(context.system)
+                            .toSerializationFormat(clientConnection),
+                          publicKey
                         )
                     ))
-                  Effect.none
-
-                case StopZone =>
-                  Effect.stop
-
-                case GetZoneStateCommand(replyTo, _) =>
-                  replyTo ! state
-                  Effect.none
-
-                case zoneCommandEnvelope: ZoneCommandEnvelope =>
-                  passivationCountdown !
-                    PassivationCountdownActor.CommandReceivedEvent
-                  handleCommand(context,
-                                id,
-                                notificationSequenceNumbers,
-                                state,
-                                zoneCommandEnvelope)
-
-                case RemoveClient(clientConnection) =>
-                  state.connectedClients.get(clientConnection) match {
-                    case None =>
-                      Effect.none
-                    case Some(publicKey) =>
-                      Effect
-                        .persist(
-                          ZoneEventEnvelope(
-                            remoteAddress = None,
-                            Some(publicKey),
-                            timestamp = Instant.now(),
-                            ClientQuitEvent(Some(
-                              resolver.toSerializationFormat(clientConnection)))
-                          )
-                        )
-                        .andThen(state =>
-                          deliverNotification(
-                            context.self,
-                            id,
-                            state.connectedClients.keys,
-                            notificationSequenceNumbers,
-                            ClientQuitNotification(
-                              ActorRefResolver(context.system)
-                                .toSerializationFormat(clientConnection),
-                              publicKey
-                            )
-                        ))
-                  }
-            }),
+              }
+        },
         eventHandler(notificationSequenceNumbers,
                      passivationCountdown,
                      clientConnectionWatcher)

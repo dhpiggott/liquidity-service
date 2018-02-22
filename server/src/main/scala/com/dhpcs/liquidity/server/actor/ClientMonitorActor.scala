@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
-import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
@@ -17,8 +17,8 @@ object ClientMonitorActor {
   private case object LogActiveClientsCountTimerKey
 
   def behavior: Behavior[ClientMonitorMessage] =
-    Actor.deferred(context =>
-      Actor.withTimers { timers =>
+    Behaviors.setup(context =>
+      Behaviors.withTimers { timers =>
         val log = Logging(context.system.toUntyped, context.self.toUntyped)
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         mediator ! Subscribe(ClientStatusTopic, context.self.toUntyped)
@@ -32,15 +32,15 @@ object ClientMonitorActor {
       log: LoggingAdapter,
       activeClientSummaries: Map[ActorRef[Nothing], ActiveClientSummary])
     : Behavior[ClientMonitorMessage] =
-    Actor.immutable[ClientMonitorMessage]((context, message) =>
+    Behaviors.immutable[ClientMonitorMessage]((context, message) =>
       message match {
         case LogActiveClientsCount =>
           log.info(s"${activeClientSummaries.size} clients are active")
-          Actor.same
+          Behaviors.same
 
         case GetActiveClientSummaries(replyTo) =>
           replyTo ! activeClientSummaries.values.toSet
-          Actor.same
+          Behaviors.same
         case UpsertActiveClientSummary(clientConnection, activeClientSummary) =>
           if (!activeClientSummaries.contains(clientConnection))
             context.watch(clientConnection)

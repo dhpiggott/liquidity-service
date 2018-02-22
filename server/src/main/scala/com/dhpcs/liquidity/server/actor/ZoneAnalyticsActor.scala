@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
-import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{Behavior, PostStop}
 import akka.event.Logging
@@ -29,7 +29,7 @@ object ZoneAnalyticsActor {
                         analyticsTransactor: Transactor[IO],
                         transactIoToFuture: TransactIoToFuture)(
       implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
-    Actor.deferred { context =>
+    Behaviors.setup { context =>
       val log = Logging(context.system.toUntyped, context.self.toUntyped)
       val offset = transactIoToFuture(analyticsTransactor)(for {
         maybePreviousOffset <- TagOffsetsStore.retrieve(EventTags.ZoneEventTag)
@@ -71,14 +71,14 @@ object ZoneAnalyticsActor {
         .viaMat(KillSwitches.single)(Keep.right)
         .to(Sink.ignore)
         .run()
-      Actor.immutable[ZoneAnalyticsMessage]((_, message) =>
+      Behaviors.immutable[ZoneAnalyticsMessage]((_, message) =>
         message match {
           case StopZoneAnalytics =>
-            Actor.stopped
+            Behaviors.stopped
       }) onSignal {
         case (_, PostStop) =>
           killSwitch.shutdown()
-          Actor.same
+          Behaviors.same
       }
     }
 

@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
-import akka.actor.typed.scaladsl.Actor
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRef, Behavior, Terminated}
 import akka.cluster.pubsub.DistributedPubSub
@@ -17,8 +17,8 @@ object ZoneMonitorActor {
   private case object LogActiveZonesCountTimerKey
 
   def behavior: Behavior[ZoneMonitorMessage] =
-    Actor.deferred(context =>
-      Actor.withTimers { timers =>
+    Behaviors.setup(context =>
+      Behaviors.withTimers { timers =>
         val log = Logging(context.system.toUntyped, context.self.toUntyped)
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         mediator ! Subscribe(ZoneStatusTopic, context.self.toUntyped)
@@ -32,15 +32,15 @@ object ZoneMonitorActor {
       log: LoggingAdapter,
       activeZoneSummaries: Map[ActorRef[Nothing], ActiveZoneSummary])
     : Behavior[ZoneMonitorMessage] =
-    Actor.immutable[ZoneMonitorMessage]((context, message) =>
+    Behaviors.immutable[ZoneMonitorMessage]((context, message) =>
       message match {
         case LogActiveZonesCount =>
           log.info(s"${activeZoneSummaries.size} zones are active")
-          Actor.same
+          Behaviors.same
 
         case GetActiveZoneSummaries(replyTo) =>
           replyTo ! activeZoneSummaries.values.toSet
-          Actor.same
+          Behaviors.same
 
         case UpsertActiveZoneSummary(zoneValidatorActorRef,
                                      activeZoneSummary) =>

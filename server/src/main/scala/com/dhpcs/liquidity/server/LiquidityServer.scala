@@ -109,15 +109,7 @@ object LiquidityServer {
         |  }
         |  http.server.remote-address-header = on
         |}
-        |jdbc-journal {
-        |  slick = $${slick}
-        |  event-adapters {
-        |    zone-event = "com.dhpcs.liquidity.server.ZoneEventAdapter"
-        |  }
-        |  event-adapter-bindings {
-        |    "com.dhpcs.liquidity.persistence.zone.ZoneEventEnvelope" = zone-event
-        |  }
-        |}
+        |jdbc-journal.slick = $${slick}
         |jdbc-snapshot-store.slick = $${slick}
         |jdbc-read-journal.slick = $${slick}
         |slick {

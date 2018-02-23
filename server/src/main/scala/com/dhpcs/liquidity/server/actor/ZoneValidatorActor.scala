@@ -6,7 +6,7 @@ import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
 
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.scaladsl.{Behaviors, ActorContext}
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
@@ -25,6 +25,7 @@ import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.persistence.EventTags
 import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.ws.protocol._
 
@@ -263,6 +264,7 @@ object ZoneValidatorActor {
                      clientConnectionWatcher)
       )
       .snapshotEvery(SnapShotInterval)
+      .withTagger(_ => Set(EventTags.ZoneEventTag))
 
   private def handleCommand(context: ActorContext[ZoneValidatorMessage],
                             id: ZoneId,

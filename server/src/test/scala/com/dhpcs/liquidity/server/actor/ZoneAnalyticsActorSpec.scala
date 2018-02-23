@@ -12,12 +12,14 @@ import akka.pattern.ask
 import akka.persistence.PersistentActor
 import akka.persistence.inmemory.extension._
 import akka.persistence.inmemory.query.scaladsl.InMemoryReadJournal
+import akka.persistence.journal.Tagged
 import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.TestProbe
 import akka.util.Timeout
 import cats.effect.IO
 import com.dhpcs.liquidity.model._
+import com.dhpcs.liquidity.persistence.EventTags
 import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.server.LiquidityServer.TransactIoToFuture
 import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore.ClientSession
@@ -164,7 +166,7 @@ object ZoneAnalyticsActorSpec {
     override def receiveRecover: Receive = Actor.emptyBehavior
     override def receiveCommand: Receive = {
       case zoneEventEnvelope: ZoneEventEnvelope =>
-        persist(zoneEventEnvelope)(_ => ())
+        persist(Tagged(zoneEventEnvelope, Set(EventTags.ZoneEventTag)))(_ => ())
     }
   }
 }

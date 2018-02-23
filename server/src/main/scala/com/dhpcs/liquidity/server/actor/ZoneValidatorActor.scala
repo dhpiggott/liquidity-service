@@ -63,8 +63,7 @@ object ZoneValidatorActor {
   private case object PublishStatusTimerKey
 
   private final val PassivationTimeout = 2.minutes
-  // TODO: Re-enable snapshots once the akka-typed API supports it
-  // private final val SnapShotInterval   = 100
+  private final val SnapShotInterval = 100
   private final val ZoneLifetime = java.time.Duration.ofDays(30)
 
   private object PassivationCountdownActor {
@@ -197,22 +196,21 @@ object ZoneValidatorActor {
         commandHandler = (context, state, command) =>
           command match {
             case PublishZoneStatusTick =>
-              state.zone.foreach(
-                zone =>
-                  mediator ! Publish(
-                    ZoneMonitorActor.ZoneStatusTopic,
-                    UpsertActiveZoneSummary(
-                      context.self,
-                      ActiveZoneSummary(
-                        id,
-                        zone.members.size,
-                        zone.accounts.size,
-                        zone.transactions.size,
-                        zone.metadata,
-                        state.connectedClients.values.toSet
-                      )
+              state.zone.foreach(zone =>
+                mediator ! Publish(
+                  ZoneMonitorActor.ZoneStatusTopic,
+                  UpsertActiveZoneSummary(
+                    context.self,
+                    ActiveZoneSummary(
+                      id,
+                      zone.members.size,
+                      zone.accounts.size,
+                      zone.transactions.size,
+                      zone.metadata,
+                      state.connectedClients.values.toSet
                     )
-                ))
+                  )
+              ))
               Effect.none
 
             case StopZone =>
@@ -264,6 +262,7 @@ object ZoneValidatorActor {
                      passivationCountdown,
                      clientConnectionWatcher)
       )
+      .snapshotEvery(SnapShotInterval)
 
   private def handleCommand(context: ActorContext[ZoneValidatorMessage],
                             id: ZoneId,

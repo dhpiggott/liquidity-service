@@ -10,11 +10,12 @@ import akka.NotUsed
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRef, Behavior, PostStop, Terminated}
-import akka.actor.{ActorRefFactory, Props, typed}
+import akka.actor.{ActorSystem, typed}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message => WsMessage}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.util.ByteString
 import cats.data.Validated.Valid
@@ -32,12 +33,13 @@ import scala.util.Random
 
 object ClientConnectionActor {
 
-  def webSocketFlow[A](
-      behavior: ActorRef[proto.ws.protocol.ClientMessage] => Behavior[A])(
-      implicit factory: ActorRefFactory,
+  def webSocketFlow(
+      behavior: ActorRef[proto.ws.protocol.ClientMessage] => Behavior[
+        ClientConnectionMessage])(
+      implicit system: ActorSystem,
       mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
-      .via(actorFlow[A](behavior))
+      .via(ActorFlow.actorFlow(behavior))
       .via(OutFlow)
 
   private final val InFlow
@@ -57,45 +59,69 @@ object ClientConnectionActor {
       serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
     )
 
-  private case object StopActorSink
+  private object ActorFlow {
 
-  private def actorFlow[A](
-      behavior: ActorRef[proto.ws.protocol.ClientMessage] => Behavior[A])(
-      implicit factory: ActorRefFactory,
-      mat: Materializer): Flow[proto.ws.protocol.ServerMessage,
-                               proto.ws.protocol.ClientMessage,
-                               NotUsed] = {
-    val (outActor, publisher) = Source
-      .actorRef[proto.ws.protocol.ClientMessage](bufferSize = 16,
-                                                 overflowStrategy =
-                                                   OverflowStrategy.fail)
-      .toMat(Sink.asPublisher(false))(Keep.both)
-      .run()
-    Flow.fromSinkAndSourceCoupled(
-      Sink.actorRefWithAck(
-        factory.actorOf(Props(new akka.actor.Actor {
+    sealed abstract class ActorFlowMessage
+    final case class ForwardInit(webSocketIn: ActorRef[ActorSinkAck.type])
+        extends ActorFlowMessage
+    final case class ForwardMessage(
+        webSocketIn: ActorRef[ActorSinkAck.type],
+        serverMessage: proto.ws.protocol.ServerMessage)
+        extends ActorFlowMessage
+    case object Stop extends ActorFlowMessage
 
-          private[this] val flow =
-            context.watch(context.spawnAnonymous(behavior(outActor)).toUntyped)
+    def actorFlow(
+        behavior: ActorRef[proto.ws.protocol.ClientMessage] => Behavior[
+          ClientConnectionMessage])(
+        implicit system: ActorSystem,
+        mat: Materializer): Flow[proto.ws.protocol.ServerMessage,
+                                 proto.ws.protocol.ClientMessage,
+                                 NotUsed] = {
+      val (outActor, publisher) = ActorSource
+        .actorRef[proto.ws.protocol.ClientMessage](
+          completionMatcher = PartialFunction.empty,
+          failureMatcher = PartialFunction.empty,
+          bufferSize = 16,
+          overflowStrategy = OverflowStrategy.fail
+        )
+        .toMat(Sink.asPublisher(false))(Keep.both)
+        .run()
+      Flow.fromSinkAndSourceCoupled(
+        ActorSink.actorRefWithAck[proto.ws.protocol.ServerMessage,
+                                  ActorFlowMessage,
+                                  ActorSinkAck.type](
+          system.spawnAnonymous(
+            Behaviors.setup[ActorFlowMessage] { context =>
+              val flow = context.spawnAnonymous(behavior(outActor))
+              context.watch(flow)
+              Behaviors.immutable[ActorFlowMessage]((_, message) =>
+                message match {
+                  case ForwardInit(webSocketIn) =>
+                    flow ! InitActorSink(webSocketIn)
+                    Behaviors.same
 
-          override def receive: Receive = {
-            case InitActorSink(_) =>
-              flow ! InitActorSink(sender())
+                  case ForwardMessage(webSocketIn, serverMessage) =>
+                    flow ! ActorFlowServerMessage(webSocketIn, serverMessage)
+                    Behaviors.same
 
-            case serverMessage: proto.ws.protocol.ServerMessage =>
-              flow ! ActorFlowServerMessage(sender(), serverMessage)
-
-            case StopActorSink =>
-              context.stop(self)
-          }
-        })),
-        onInitMessage = InitActorSink(akka.actor.Actor.noSender),
-        ackMessage = ActorSinkAck,
-        onCompleteMessage = StopActorSink,
-        onFailureMessage = _ => StopActorSink
-      ),
-      Source.fromPublisher(publisher)
-    )
+                  case Stop =>
+                    Behaviors.stopped
+              }) onSignal {
+                case (_, Terminated(_)) =>
+                  Behaviors.stopped
+              }
+            }
+          ),
+          messageAdapter = (webSocketIn, serverMessage) =>
+            ForwardMessage(webSocketIn, serverMessage),
+          onInitMessage = ForwardInit,
+          ackMessage = ActorSinkAck,
+          onCompleteMessage = Stop,
+          onFailureMessage = _ => Stop
+        ),
+        Source.fromPublisher(publisher)
+      )
+    }
   }
 
   private case object PublishStatusTimerKey

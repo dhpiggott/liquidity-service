@@ -132,33 +132,31 @@ object ZoneValidatorActor {
   def shardingBehavior(
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
     Behaviors
-      .setup[ZoneValidatorMessage] { wrapperContext =>
-        wrapperContext.log.info("Starting")
+      .setup[ZoneValidatorMessage] { context =>
+        context.log.info("Starting")
         val notificationSequenceNumbers =
           mutable.Map.empty[ActorRef[SerializableClientConnectionMessage], Long]
         val mediator =
-          DistributedPubSub(wrapperContext.system.toUntyped).mediator
+          DistributedPubSub(context.system.toUntyped).mediator
         // Workarounds for the limitation described in
         // https://github.com/akka/akka/pull/23674
         // TODO: Remove these once that limitation is resolved
         val passivationCountdown =
-          wrapperContext.spawn(
-            PassivationCountdownActor.behavior(wrapperContext.self),
-            "passivationCountdown")
+          context.spawn(PassivationCountdownActor.behavior(context.self),
+                        "passivationCountdown")
         val clientConnectionWatcher =
-          wrapperContext.spawn(
-            ClientConnectionWatcherActor.behavior(wrapperContext.self),
-            "clientConnectionWatcher")
+          context.spawn(ClientConnectionWatcherActor.behavior(context.self),
+                        "clientConnectionWatcher")
         implicit val resolver: ActorRefResolver =
-          ActorRefResolver(wrapperContext.system)
-        val zoneValidator = wrapperContext.spawnAnonymous(
+          ActorRefResolver(context.system)
+        val zoneValidator = context.spawnAnonymous(
           persistentBehavior(ZoneId.fromPersistenceId(entityId),
                              notificationSequenceNumbers,
                              mediator,
                              passivationCountdown,
                              clientConnectionWatcher)
         )
-        wrapperContext.watch(zoneValidator)
+        context.watch(zoneValidator)
         Behaviors.withTimers { timers =>
           timers.startPeriodicTimer(PublishStatusTimerKey,
                                     PublishZoneStatusTick,
@@ -171,7 +169,7 @@ object ZoneValidatorActor {
             case (_, Terminated(_)) =>
               Behaviors.stopped
 
-            case (context, PostStop) =>
+            case (_, PostStop) =>
               context.log.info("Stopped")
               Behaviors.same
           }

@@ -75,7 +75,7 @@ object ZoneValidatorActor {
     case object CommandReceivedEvent extends PassivationCountdownMessage
     case object ReceiveTimeout extends PassivationCountdownMessage
 
-    def behavior(zoneValidator: ActorRef[ZoneValidatorMessage])
+    def behavior(zoneValidator: ActorRef[StopZone.type])
       : Behavior[PassivationCountdownMessage] =
       Behaviors.setup { context =>
         context.self ! Start
@@ -110,7 +110,7 @@ object ZoneValidatorActor {
         clientConnection: ActorRef[SerializableClientConnectionMessage])
         extends ClientConnectionWatcherMessage
 
-    def behavior(zoneValidator: ActorRef[ZoneValidatorMessage])
+    def behavior(zoneValidator: ActorRef[RemoveClient])
       : Behavior[ClientConnectionWatcherMessage] =
       Behaviors.immutable[ClientConnectionWatcherMessage]((context, message) =>
         message match {

@@ -7,10 +7,9 @@ import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRefResolver, Props}
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
-import akka.cluster.Cluster
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
-import akka.cluster.typed.{ClusterSingleton, ClusterSingletonSettings}
+import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.Message
@@ -238,7 +237,7 @@ class LiquidityServer(
   def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
     logRequestResult(("HTTP API", Logging.InfoLevel))(
       httpRoutes(enableClientRelay =
-        Cluster(system).selfMember.roles.contains(ClientRelayRole))),
+        Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole))),
     httpInterface,
     httpPort
   )

@@ -5,9 +5,8 @@ import java.security.KeyPairGenerator
 import java.time.Instant
 import java.util.UUID
 
-import akka.actor.typed
-import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
+import akka.actor.typed.{ActorRef, ActorRefResolver}
 import akka.testkit.TestProbe
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
@@ -29,7 +28,7 @@ class ZoneValidatorActorSpec
   private[this] val publicKey = PublicKey(rsaPublicKey.getEncoded)
 
   override protected type FixtureParam =
-    (TestProbe, ZoneId, typed.ActorRef[SerializableZoneValidatorMessage])
+    (TestProbe, ZoneId, ActorRef[SerializableZoneValidatorMessage])
 
   override protected def withFixture(test: OneArgTest): Outcome = {
     val clientConnectionTestProbe = TestProbe()

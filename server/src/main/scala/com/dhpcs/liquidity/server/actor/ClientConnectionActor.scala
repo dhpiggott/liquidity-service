@@ -7,10 +7,10 @@ import java.security.{KeyFactory, Signature}
 import java.util.UUID
 
 import akka.NotUsed
+import akka.actor.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRef, Behavior, PostStop, Terminated}
-import akka.actor.{ActorSystem, typed}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message => WsMessage}
@@ -134,7 +134,7 @@ object ClientConnectionActor {
     case object ReceiveTimeout extends PingGeneratorMessage
 
     def behavior(pingInterval: FiniteDuration,
-                 clientConnection: typed.ActorRef[ClientConnectionMessage])
+                 clientConnection: ActorRef[SendPingTick.type])
       : Behavior[PingGeneratorMessage] =
       Behaviors.setup { context =>
         context.setReceiveTimeout(pingInterval, ReceiveTimeout)
@@ -151,10 +151,10 @@ object ClientConnectionActor {
 
   }
 
-  def behavior(pingInterval: FiniteDuration,
-               zoneValidatorShardRegion: typed.ActorRef[
-                 SerializableZoneValidatorMessage],
-               remoteAddress: InetAddress)(
+  def behavior(
+      pingInterval: FiniteDuration,
+      zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
+      remoteAddress: InetAddress)(
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage])
     : Behavior[ClientConnectionMessage] =
     Behaviors.setup(context =>
@@ -175,13 +175,11 @@ object ClientConnectionActor {
     })
 
   def waitingForActorSinkInit(
-      zoneValidatorShardRegion: typed.ActorRef[
-        SerializableZoneValidatorMessage],
+      zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
       mediator: ActorRef[Publish],
-      pingGeneratorActor: typed.ActorRef[
-        PingGeneratorActor.PingGeneratorMessage])
+      pingGeneratorActor: ActorRef[PingGeneratorActor.PingGeneratorMessage])
     : Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage]((context, message) =>
       message match {
@@ -221,13 +219,11 @@ object ClientConnectionActor {
     })
 
   private def waitingForKeyOwnershipProof(
-      zoneValidatorShardRegion: typed.ActorRef[
-        SerializableZoneValidatorMessage],
+      zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
       mediator: ActorRef[Publish],
-      pingGeneratorActor: typed.ActorRef[
-        PingGeneratorActor.PingGeneratorMessage],
+      pingGeneratorActor: ActorRef[PingGeneratorActor.PingGeneratorMessage],
       keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge)
     : Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage] { (context, message) =>
@@ -294,16 +290,13 @@ object ClientConnectionActor {
     }
 
   private def receiveActorSinkMessages(
-      zoneValidatorShardRegion: typed.ActorRef[
-        SerializableZoneValidatorMessage],
+      zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
       mediator: ActorRef[Publish],
-      pingGeneratorActor: typed.ActorRef[
-        PingGeneratorActor.PingGeneratorMessage],
+      pingGeneratorActor: ActorRef[PingGeneratorActor.PingGeneratorMessage],
       publicKey: PublicKey,
-      notificationSequenceNumbers: Map[typed.ActorRef[ZoneValidatorMessage],
-                                       Long])
+      notificationSequenceNumbers: Map[ActorRef[ZoneValidatorMessage], Long])
     : Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage] { (context, message) =>
       message match {
@@ -507,8 +500,8 @@ object ClientConnectionActor {
 
   private def sendPingCommand(
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
-      pingGeneratorActor: typed.ActorRef[
-        PingGeneratorActor.PingGeneratorMessage]): Unit =
+      pingGeneratorActor: ActorRef[PingGeneratorActor.PingGeneratorMessage])
+    : Unit =
     sendClientMessage(
       webSocketOut,
       pingGeneratorActor,
@@ -522,8 +515,7 @@ object ClientConnectionActor {
 
   private def sendClientMessage(
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
-      pingGeneratorActor: typed.ActorRef[
-        PingGeneratorActor.PingGeneratorMessage],
+      pingGeneratorActor: ActorRef[PingGeneratorActor.PingGeneratorMessage],
       clientMessage: proto.ws.protocol.ClientMessage.Message): Unit = {
     webSocketOut ! proto.ws.protocol.ClientMessage(clientMessage)
     pingGeneratorActor ! PingGeneratorActor.FrameSentEvent

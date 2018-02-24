@@ -287,6 +287,8 @@ object ZoneValidatorActor {
           name,
           metadata
           ) =>
+        val validatedEquityOwnerPublicKey = validatePublicKey(
+          equityOwnerPublicKey)
         val validatedEquityOwnerName = validateTag(equityOwnerName)
         val validatedParams = {
           val validatedEquityOwnerMetadata = validateMetadata(
@@ -296,7 +298,8 @@ object ZoneValidatorActor {
             equityAccountMetadata)
           val validatedName = validateTag(name)
           val validatedMetadata = validateMetadata(metadata)
-          (validatedEquityOwnerName,
+          (validatedEquityOwnerPublicKey,
+           validatedEquityOwnerName,
            validatedEquityOwnerMetadata,
            validatedEquityAccountName,
            validatedEquityAccountMetadata,
@@ -312,7 +315,14 @@ object ZoneValidatorActor {
               CreateZoneResponse(Validated.invalid(errors))
             )
             Effect.none
-          case Valid(_) =>
+          case Valid(
+              (validEquityOwnerPublicKey,
+               validEquityOwnerName,
+               validEquityOwnerMetadata,
+               validEquityAccountName,
+               vaildEquityAccountMetadata,
+               validName,
+               validMetadata)) =>
             state.zone match {
               case Some(zone) =>
                 // We already accepted the command; this was just a redelivery
@@ -326,16 +336,15 @@ object ZoneValidatorActor {
               case None =>
                 val equityOwner = Member(
                   MemberId(0.toString),
-                  // TODO: Validation
-                  Set(equityOwnerPublicKey),
-                  equityOwnerName,
-                  equityOwnerMetadata
+                  Set(validEquityOwnerPublicKey),
+                  validEquityOwnerName,
+                  validEquityOwnerMetadata
                 )
                 val equityAccount = Account(
                   AccountId(0.toString),
                   Set(equityOwner.id),
-                  equityAccountName,
-                  equityAccountMetadata
+                  validEquityAccountName,
+                  vaildEquityAccountMetadata
                 )
                 val created = System.currentTimeMillis()
                 val expires = created + ZoneLifetime.toMillis
@@ -347,8 +356,8 @@ object ZoneValidatorActor {
                   transactions = Map.empty,
                   created,
                   expires,
-                  name,
-                  metadata
+                  validName,
+                  validMetadata
                 )
                 acceptCommand(
                   context.self,
@@ -769,25 +778,26 @@ object ZoneValidatorActor {
 
   private[this] final val ZoneLifetime = java.time.Duration.ofDays(30)
 
+  private[this] def validatePublicKey(
+      publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
+    Try(
+      KeyFactory
+        .getInstance("RSA")
+        .generatePublic(new X509EncodedKeySpec(publicKey.value.toByteArray))
+        .asInstanceOf[RSAPublicKey]) match {
+      case Failure(_: InvalidKeySpecException) =>
+        Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
+      case Failure(_) =>
+        Validated.invalidNel(ZoneResponse.Error.invalidPublicKey)
+      case Success(value)
+          if value.getModulus.bitLength() != ZoneCommand.RequiredKeySize =>
+        Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)
+      case Success(_) =>
+        Validated.valid(publicKey)
+    }
+
   private[this] def validatePublicKeys(publicKeys: Set[PublicKey])
     : ValidatedNel[ZoneResponse.Error, Set[PublicKey]] = {
-    def validatePublicKey(
-        publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
-      Try(
-        KeyFactory
-          .getInstance("RSA")
-          .generatePublic(new X509EncodedKeySpec(publicKey.value.toByteArray))
-          .asInstanceOf[RSAPublicKey]) match {
-        case Failure(_: InvalidKeySpecException) =>
-          Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
-        case Failure(_) =>
-          Validated.invalidNel(ZoneResponse.Error.invalidPublicKey)
-        case Success(value)
-            if value.getModulus.bitLength() != ZoneCommand.RequiredKeySize =>
-          Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)
-        case Success(_) =>
-          Validated.valid(publicKey)
-      }
     if (publicKeys.isEmpty)
       Validated.invalidNel(ZoneResponse.Error.noPublicKeys)
     else

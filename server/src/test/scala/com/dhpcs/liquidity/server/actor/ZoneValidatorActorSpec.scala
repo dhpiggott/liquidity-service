@@ -28,6 +28,46 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
 
   "A ZoneValidatorActor" - {
     "receiving create zone commands" - {
+      "rejects it if a public key of invalid type is given" in { fixture =>
+        createZone(fixture)
+        val keyPairGenerator = KeyPairGenerator.getInstance("DSA")
+        keyPairGenerator.initialize(2048)
+        sendCommand(fixture)(
+          CreateZoneCommand(
+            equityOwnerPublicKey = PublicKey(
+              keyPairGenerator.generateKeyPair().getPublic.getEncoded),
+            equityOwnerName = Some("Dave"),
+            equityOwnerMetadata = None,
+            equityAccountName = None,
+            equityAccountMetadata = None,
+            name = Some("Dave's Game"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === CreateZoneResponse(
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)))
+      }
+      "rejects it if a public key of invalid length is given" in { fixture =>
+        createZone(fixture)
+        val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+        keyPairGenerator.initialize(4096)
+        sendCommand(fixture)(
+          CreateZoneCommand(
+            equityOwnerPublicKey = PublicKey(
+              keyPairGenerator.generateKeyPair().getPublic.getEncoded),
+            equityOwnerName = Some("Dave"),
+            equityOwnerMetadata = None,
+            equityAccountName = None,
+            equityAccountMetadata = None,
+            name = Some("Dave's Game"),
+            metadata = None
+          )
+        )
+        assert(
+          expectResponse(fixture) === CreateZoneResponse(
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)))
+      }
       "rejects it if the name is too long" in { fixture =>
         sendCommand(fixture)(
           CreateZoneCommand(

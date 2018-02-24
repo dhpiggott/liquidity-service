@@ -1,45 +1,30 @@
 package com.dhpcs.liquidity.server.actor
 
-import java.net.InetAddress
+import java.net.{InetAddress, InetSocketAddress}
+import java.nio.channels.ServerSocketChannel
 import java.security.KeyPairGenerator
 import java.time.Instant
 import java.util.UUID
 
+import akka.actor.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRef, ActorRefResolver}
-import akka.testkit.TestProbe
+import akka.testkit.{TestKit, TestProbe}
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
+import com.dhpcs.liquidity.server.actor.ZoneValidatorActorSpec._
 import com.dhpcs.liquidity.ws.protocol._
+import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
-import org.scalatest.{Inside, Outcome, fixture}
+import org.scalatest._
+import org.scalatest.Assertions._
+import org.scalatest.Inside._
 
 import scala.util.Random
 
-class ZoneValidatorActorSpec
-    extends fixture.FreeSpec
-    with InmemoryPersistenceTestFixtures
-    with Inside {
-
-  private[this] val remoteAddress = InetAddress.getLoopbackAddress
-  private[this] val publicKey = PublicKey(rsaPublicKey.getEncoded)
-
-  override protected type FixtureParam =
-    (TestProbe, ZoneId, ActorRef[SerializableZoneValidatorMessage])
-
-  override protected def withFixture(test: OneArgTest): Outcome = {
-    val clientConnectionTestProbe = TestProbe()
-    val zoneId = ZoneId(UUID.randomUUID().toString)
-    val zoneValidator = system.spawnAnonymous(
-      ZoneValidatorActor.shardingBehavior(entityId = zoneId.persistenceId))
-    try withFixture(
-      test.toNoArgTest((clientConnectionTestProbe, zoneId, zoneValidator))
-    )
-    finally system.stop(zoneValidator.toUntyped)
-  }
+class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
 
   "A ZoneValidatorActor" - {
     "receiving create zone commands" - {
@@ -630,6 +615,58 @@ class ZoneValidatorActorSpec
     }
   }
 
+  override protected type FixtureParam = ZoneValidatorActorSpec.FixtureParam
+
+  override protected def withFixture(test: OneArgTest): Outcome = {
+    val clientConnectionTestProbe = TestProbe()
+    val zoneId = ZoneId(UUID.randomUUID().toString)
+    val zoneValidator = system.spawnAnonymous(
+      ZoneValidatorActor.shardingBehavior(entityId = zoneId.persistenceId))
+    try withFixture(
+      test.toNoArgTest((clientConnectionTestProbe, zoneId, zoneValidator))
+    )
+    finally system.stop(zoneValidator.toUntyped)
+  }
+
+  private[this] lazy val akkaRemotingPort = {
+    val serverSocket = ServerSocketChannel.open().socket()
+    serverSocket.bind(new InetSocketAddress("localhost", 0))
+    val port = serverSocket.getLocalPort
+    serverSocket.close()
+    port
+  }
+  private[this] val config = ConfigFactory.parseString(s"""
+       |akka {
+       |  loglevel = "WARNING"
+       |  actor {
+       |    provider = "cluster"
+       |    serializers {
+       |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
+       |    }
+       |    serialization-bindings {
+       |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
+       |    }
+       |    allow-java-serialization = off
+       |  }
+       |  remote.netty.tcp {
+       |    hostname = "localhost"
+       |    port = $akkaRemotingPort
+       |  }
+       |  cluster {
+       |    metrics.enabled = off
+       |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
+       |    jmx.multi-mbeans-in-same-jvm = on
+       |  }
+       |  persistence {
+       |    journal.plugin = "inmemory-journal"
+       |    snapshot-store.plugin = "inmemory-snapshot-store"
+       |  }
+       |}
+     """.stripMargin)
+
+  protected[this] implicit val system: ActorSystem =
+    ActorSystem("zoneValidatorActorSpec", config)
+
   private[this] def createZone(fixture: FixtureParam): Zone = {
     sendCommand(fixture)(
       CreateZoneCommand(
@@ -844,7 +881,27 @@ class ZoneValidatorActorSpec
     ()
   }
 
-  private[this] def sendCommand(fixture: FixtureParam)(
+  override protected def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
+}
+
+object ZoneValidatorActorSpec {
+
+  private type FixtureParam =
+    (TestProbe, ZoneId, ActorRef[SerializableZoneValidatorMessage])
+
+  private val remoteAddress = InetAddress.getLoopbackAddress
+  private val rsaPublicKey = {
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    val keyPair = keyPairGenerator.generateKeyPair
+    keyPair.getPublic
+  }
+  private val publicKey = PublicKey(rsaPublicKey.getEncoded)
+
+  private def sendCommand(fixture: FixtureParam)(
       zoneCommand: ZoneCommand): Unit = {
     val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
     clientConnectionTestProbe.send(
@@ -860,7 +917,7 @@ class ZoneValidatorActorSpec
     )
   }
 
-  private[this] def expectResponse(fixture: FixtureParam): ZoneResponse = {
+  private def expectResponse(fixture: FixtureParam): ZoneResponse = {
     val (clientConnectionTestProbe, _, _) = fixture
     val responseWithIds =
       clientConnectionTestProbe.expectMsgType[ZoneResponseEnvelope]
@@ -868,8 +925,7 @@ class ZoneValidatorActorSpec
     responseWithIds.zoneResponse
   }
 
-  private[this] def expectNotification(
-      fixture: FixtureParam): ZoneNotification = {
+  private def expectNotification(fixture: FixtureParam): ZoneNotification = {
     val (clientConnectionTestProbe, _, _) = fixture
     val notificationWithIds =
       clientConnectionTestProbe.expectMsgType[ZoneNotificationEnvelope]

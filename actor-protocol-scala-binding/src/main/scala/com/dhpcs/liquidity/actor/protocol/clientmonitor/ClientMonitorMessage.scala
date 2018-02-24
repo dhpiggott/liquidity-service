@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.actor.protocol.clientmonitor
 
 import akka.actor.typed.ActorRef
-import com.dhpcs.liquidity.actor.protocol.clientconnection.ClientConnectionMessage
 import com.dhpcs.liquidity.model.PublicKey
 
 final case class ActiveClientSummary(publicKey: PublicKey)
@@ -16,6 +15,6 @@ sealed abstract class SerializableClientMonitorMessage
     extends ClientMonitorMessage
     with Serializable
 final case class UpsertActiveClientSummary(
-    clientConnection: ActorRef[ClientConnectionMessage],
+    clientConnection: ActorRef[Nothing],
     activeClientSummary: ActiveClientSummary)
     extends SerializableClientMonitorMessage

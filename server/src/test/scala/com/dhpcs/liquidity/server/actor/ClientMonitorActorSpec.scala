@@ -1,32 +1,69 @@
 package com.dhpcs.liquidity.server.actor
 
-import akka.actor.typed.scaladsl.adapter._
-import akka.testkit.TestProbe
+import java.net.InetSocketAddress
+import java.nio.channels.ServerSocketChannel
+import java.security.KeyPairGenerator
+
+import akka.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.model.PublicKey
-import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
-import org.scalatest.FreeSpec
+import com.dhpcs.liquidity.server.actor.ClientMonitorActorSpec._
+import com.typesafe.config.{Config, ConfigFactory}
+import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class ClientMonitorActorSpec
     extends FreeSpec
-    with InmemoryPersistenceTestFixtures {
+    with ActorTestKit
+    with BeforeAndAfterAll {
 
   "A ClientMonitorActor" - {
     "provides a summary of the active clients" in {
-      val clientMonitor =
-        system.spawn(ClientMonitorActor.behavior, "clientMonitor")
-      val testProbe = TestProbe()
+      val clientMonitor = spawn(ClientMonitorActor.behavior, "clientMonitor")
+      val testProbe = TestProbe[Set[ActiveClientSummary]]()
       val activeClientSummary =
         ActiveClientSummary(PublicKey(rsaPublicKey.getEncoded))
-      testProbe.send(
-        clientMonitor.toUntyped,
-        UpsertActiveClientSummary(testProbe.ref, activeClientSummary)
-      )
-      testProbe.send(
-        clientMonitor.toUntyped,
-        GetActiveClientSummaries(testProbe.ref)
-      )
-      testProbe.expectMsg(Set(activeClientSummary))
+      clientMonitor ! UpsertActiveClientSummary(testProbe.ref,
+                                                activeClientSummary)
+      clientMonitor ! GetActiveClientSummaries(testProbe.ref)
+      testProbe.expectMessage(Set(activeClientSummary))
     }
+  }
+
+  private[this] lazy val akkaRemotingPort = {
+    val serverSocket = ServerSocketChannel.open().socket()
+    serverSocket.bind(new InetSocketAddress("localhost", 0))
+    val port = serverSocket.getLocalPort
+    serverSocket.close()
+    port
+  }
+
+  override def config: Config = ConfigFactory.parseString(s"""
+       |akka {
+       |  loglevel = "WARNING"
+       |  actor.provider = "cluster"
+       |  remote.netty.tcp {
+       |    hostname = "localhost"
+       |    port = $akkaRemotingPort
+       |  }
+       |  cluster {
+       |    metrics.enabled = off
+       |    seed-nodes = ["akka.tcp://$name@localhost:$akkaRemotingPort"]
+       |    jmx.multi-mbeans-in-same-jvm = on
+       |  }
+       |}
+     """.stripMargin)
+
+  override protected def afterAll(): Unit =
+    shutdownTestKit()
+
+}
+
+object ClientMonitorActorSpec {
+
+  private val rsaPublicKey = {
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    val keyPair = keyPairGenerator.generateKeyPair
+    keyPair.getPublic
   }
 }

@@ -35,7 +35,8 @@ import doobie._
 import doobie.implicits._
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
-import org.scalatest.{BeforeAndAfterAll, FreeSpec, Inside}
+import org.scalatest.{BeforeAndAfterAll, FreeSpec}
+import org.scalatest.Inside._
 import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.{JsValue, Json}
 
@@ -121,8 +122,7 @@ class LiquidityServerSpec
     with BeforeAndAfterAll
     with Eventually
     with ScalaFutures
-    with IntegrationPatience
-    with Inside {
+    with IntegrationPatience {
 
   private[this] val projectName = UUID.randomUUID().toString
 

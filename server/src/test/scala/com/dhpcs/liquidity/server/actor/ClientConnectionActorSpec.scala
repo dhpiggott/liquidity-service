@@ -1,64 +1,38 @@
 package com.dhpcs.liquidity.server.actor
 
-import java.net.InetAddress
+import java.net.{InetAddress, InetSocketAddress}
+import java.nio.channels.ServerSocketChannel
+import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
+import java.security.{KeyPairGenerator, Signature}
 
-import akka.actor.ActorRef
-import akka.actor.typed.ActorRefResolver
-import akka.actor.typed.scaladsl.adapter._
-import akka.testkit.TestProbe
+import akka.actor.typed.{ActorRef, ActorRefResolver}
+import akka.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
-import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
+import com.dhpcs.liquidity.server.actor.ClientConnectionActorSpec._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
-import org.scalatest.{Inside, Outcome, fixture}
+import com.typesafe.config.{Config, ConfigFactory}
+import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
+import org.scalatest.Inside._
 
 import scala.concurrent.duration._
 import scala.util.Random
 
 class ClientConnectionActorSpec
     extends fixture.FreeSpec
-    with InmemoryPersistenceTestFixtures
-    with Inside {
-
-  private[this] val publicKey = PublicKey(rsaPublicKey.getEncoded)
-
-  override protected type FixtureParam =
-    (TestProbe, TestProbe, TestProbe, ActorRef)
-
-  override protected def withFixture(test: OneArgTest): Outcome = {
-    val sinkTestProbe = TestProbe()
-    val zoneValidatorShardRegionTestProbe = TestProbe()
-    val webSocketOutTestProbe = TestProbe()
-    val clientConnection = system.spawnAnonymous(
-      ClientConnectionActor.behavior(
-        pingInterval = 3.seconds,
-        zoneValidatorShardRegionTestProbe.ref,
-        InetAddress.getLoopbackAddress)(webSocketOutTestProbe.ref)
-    )
-    sinkTestProbe.send(clientConnection.toUntyped,
-                       InitActorSink(sinkTestProbe.ref))
-    sinkTestProbe.expectMsg(ActorSinkAck)
-    try withFixture(
-      test.toNoArgTest(
-        (sinkTestProbe,
-         zoneValidatorShardRegionTestProbe,
-         webSocketOutTestProbe,
-         clientConnection.toUntyped))
-    )
-    finally system.stop(clientConnection.toUntyped)
-  }
+    with ActorTestKit
+    with BeforeAndAfterAll {
 
   "A ClientConnectionActor" - {
     "receiving a KeyOwnershipProof" - {
       "rejects it if the signature is invalid" in { fixture =>
-        val (sinkTestProbe, _, webSocketOutTestProbe, clientConnection) =
-          fixture
-        inside(expectMessage(webSocketOutTestProbe)) {
+        val (_, _, webSocketOutTestProbe, _) = fixture
+        inside(expectMessage(fixture)) {
           case proto.ws.protocol.ClientMessage.Message
                 .KeyOwnershipChallenge(_) =>
             ()
@@ -71,7 +45,7 @@ class ClientConnectionActorSpec
               .copyFrom(rsaPublicKey.getEncoded),
             com.google.protobuf.ByteString.copyFrom(invalidSignature)
           )
-        sendMessage(sinkTestProbe, clientConnection)(
+        sendMessage(fixture)(
           proto.ws.protocol.ServerMessage.Message
             .KeyOwnershipProof(keyOwnershipProof)
         )
@@ -106,8 +80,7 @@ class ClientConnectionActorSpec
     }
     "left idle" - {
       "sends a PingCommand" in { fixture =>
-        val (_, _, webSocketOutTestProbe, _) = fixture
-        inside(expectMessage(webSocketOutTestProbe)) {
+        inside(expectMessage(fixture)) {
           case proto.ws.protocol.ClientMessage.Message
                 .KeyOwnershipChallenge(_) =>
             ()
@@ -117,11 +90,59 @@ class ClientConnectionActorSpec
     }
   }
 
+  override protected type FixtureParam =
+    ClientConnectionActorSpec.FixtureParam
+
+  override protected def withFixture(test: OneArgTest): Outcome = {
+    val sinkTestProbe = TestProbe[ActorSinkAck.type]()
+    val zoneValidatorShardRegionTestProbe = TestProbe[ZoneValidatorMessage]()
+    val webSocketOutTestProbe = TestProbe[proto.ws.protocol.ClientMessage]()
+    val clientConnection = spawn(
+      ClientConnectionActor.behavior(
+        pingInterval = 3.seconds,
+        zoneValidatorShardRegionTestProbe.ref,
+        InetAddress.getLoopbackAddress)(webSocketOutTestProbe.ref)
+    )
+    clientConnection ! InitActorSink(sinkTestProbe.ref)
+    sinkTestProbe.expectMessage(ActorSinkAck)
+    withFixture(
+      test.toNoArgTest(
+        (sinkTestProbe,
+         zoneValidatorShardRegionTestProbe,
+         webSocketOutTestProbe,
+         clientConnection))
+    )
+  }
+
+  private[this] lazy val akkaRemotingPort = {
+    val serverSocket = ServerSocketChannel.open().socket()
+    serverSocket.bind(new InetSocketAddress("localhost", 0))
+    val port = serverSocket.getLocalPort
+    serverSocket.close()
+    port
+  }
+
+  override def config: Config = ConfigFactory.parseString(s"""
+       |akka {
+       |  loglevel = "WARNING"
+       |  actor.provider = "cluster"
+       |  remote.netty.tcp {
+       |    hostname = "localhost"
+       |    port = $akkaRemotingPort
+       |  }
+       |  cluster {
+       |    metrics.enabled = off
+       |    seed-nodes = ["akka.tcp://$name@localhost:$akkaRemotingPort"]
+       |    jmx.multi-mbeans-in-same-jvm = on
+       |  }
+       |}
+     """.stripMargin)
+
   private[this] def receivePing(fixture: FixtureParam): Unit = {
     val (_, _, webSocketOutTestProbe, _) = fixture
     webSocketOutTestProbe.within(3.5.seconds)(
       assert(
-        expectClientCommand(webSocketOutTestProbe) === proto.ws.protocol.ClientMessage.Command.Command
+        expectClientCommand(fixture) === proto.ws.protocol.ClientMessage.Command.Command
           .PingCommand(com.google.protobuf.ByteString.EMPTY)
       )
     )
@@ -129,13 +150,12 @@ class ClientConnectionActorSpec
   }
 
   private[this] def authenticate(fixture: FixtureParam): Unit = {
-    val (sinkTestProbe, _, webSocketOutTestProbe, clientConnection) = fixture
-    val keyOwnershipChallenge = inside(expectMessage(webSocketOutTestProbe)) {
+    val keyOwnershipChallenge = inside(expectMessage(fixture)) {
       case proto.ws.protocol.ClientMessage.Message
             .KeyOwnershipChallenge(value) =>
         value
     }
-    sendMessage(sinkTestProbe, clientConnection)(
+    sendMessage(fixture)(
       proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof(
         createKeyOwnershipProof(
           rsaPublicKey,
@@ -147,10 +167,7 @@ class ClientConnectionActorSpec
   }
 
   private[this] def createZone(fixture: FixtureParam): Zone = {
-    val (sinkTestProbe,
-         zoneValidatorShardRegionTestProbe,
-         webSocketOutTestProbe,
-         clientConnection) = fixture
+    val (_, zoneValidatorShardRegionTestProbe, _, clientConnection) = fixture
     val createZoneCommand = CreateZoneCommand(
       equityOwnerPublicKey = publicKey,
       equityOwnerName = Some("Dave"),
@@ -161,10 +178,9 @@ class ClientConnectionActorSpec
       metadata = None
     )
     val correlationId = 0L
-    sendCreateZoneCommand(sinkTestProbe, clientConnection)(createZoneCommand,
-                                                           correlationId)
+    sendCreateZoneCommand(fixture)(createZoneCommand, correlationId)
     val zoneCommandEnvelope =
-      zoneValidatorShardRegionTestProbe.expectMsgType[ZoneCommandEnvelope]
+      zoneValidatorShardRegionTestProbe.expectMessageType[ZoneCommandEnvelope]
     assert(zoneCommandEnvelope.publicKey === publicKey)
     assert(zoneCommandEnvelope.correlationId === correlationId)
     val zoneId = zoneCommandEnvelope.zoneId
@@ -197,92 +213,107 @@ class ClientConnectionActorSpec
       metadata = None
     )
     val createZoneResponse = CreateZoneResponse(Validated.valid(zone))
-    zoneValidatorShardRegionTestProbe.send(
-      clientConnection,
-      ZoneResponseEnvelope(zoneValidatorShardRegionTestProbe.ref,
-                           correlationId,
-                           createZoneResponse)
+    clientConnection ! ZoneResponseEnvelope(
+      zoneValidatorShardRegionTestProbe.ref,
+      correlationId,
+      createZoneResponse
     )
-    assert(expectZoneResponse(webSocketOutTestProbe) === createZoneResponse)
+    assert(expectZoneResponse(fixture) === createZoneResponse)
     zone
   }
 
   private[this] def joinZone(fixture: FixtureParam, zone: Zone): Unit = {
-    val (sinkTestProbe,
-         zoneValidatorShardRegionTestProbe,
-         webSocketOutTestProbe,
-         clientConnection) = fixture
+    val (_, zoneValidatorShardRegionTestProbe, _, clientConnection) = fixture
     val correlationId = 0L
-    sendZoneCommand(sinkTestProbe, clientConnection)(zone.id,
-                                                     JoinZoneCommand,
-                                                     correlationId)
+    sendZoneCommand(fixture)(zone.id, JoinZoneCommand, correlationId)
     val joinZoneResponse = JoinZoneResponse(
       Validated.valid(
         (zone,
          Map(
-           ActorRefResolver(system.toTyped)
+           ActorRefResolver(system)
              .toSerializationFormat(clientConnection) -> publicKey))
       )
     )
-    zoneValidatorShardRegionTestProbe.send(
-      clientConnection,
-      ZoneResponseEnvelope(zoneValidatorShardRegionTestProbe.ref,
-                           correlationId,
-                           joinZoneResponse)
+    clientConnection ! ZoneResponseEnvelope(
+      zoneValidatorShardRegionTestProbe.ref,
+      correlationId,
+      joinZoneResponse
     )
-    assert(expectZoneResponse(webSocketOutTestProbe) === joinZoneResponse)
+    assert(expectZoneResponse(fixture) === joinZoneResponse)
     val notification = ClientJoinedNotification(
-      connectionId = ActorRefResolver(system.toTyped)
+      connectionId = ActorRefResolver(system)
         .toSerializationFormat(clientConnection),
       publicKey
     )
-    zoneValidatorShardRegionTestProbe.send(
-      clientConnection,
-      ZoneNotificationEnvelope(zoneValidatorShardRegionTestProbe.ref,
-                               zone.id,
-                               sequenceNumber = 0,
-                               notification)
+    clientConnection ! ZoneNotificationEnvelope(
+      zoneValidatorShardRegionTestProbe.ref,
+      zone.id,
+      sequenceNumber = 0,
+      notification
     )
-    assert(expectZoneNotification(webSocketOutTestProbe) === notification)
+    assert(expectZoneNotification(fixture) === notification)
     ()
   }
 
   private[this] def quitZone(fixture: FixtureParam, zone: Zone): Unit = {
-    val (sinkTestProbe,
-         zoneValidatorShardRegionTestProbe,
-         webSocketOutTestProbe,
-         clientConnection) = fixture
+    val (_, zoneValidatorShardRegionTestProbe, _, clientConnection) = fixture
     val correlationId = 0L
-    sendZoneCommand(sinkTestProbe, clientConnection)(zone.id,
-                                                     QuitZoneCommand,
-                                                     correlationId)
+    sendZoneCommand(fixture)(zone.id, QuitZoneCommand, correlationId)
     val quitZoneResponse = QuitZoneResponse(Validated.valid(()))
-    zoneValidatorShardRegionTestProbe.send(
-      clientConnection,
-      ZoneResponseEnvelope(zoneValidatorShardRegionTestProbe.ref,
-                           correlationId,
-                           quitZoneResponse)
+    clientConnection ! ZoneResponseEnvelope(
+      zoneValidatorShardRegionTestProbe.ref,
+      correlationId,
+      quitZoneResponse
     )
-    assert(expectZoneResponse(webSocketOutTestProbe) === quitZoneResponse)
+    assert(expectZoneResponse(fixture) === quitZoneResponse)
     ()
   }
 
-  private[this] def expectClientCommand(webSocketOutTestProbe: TestProbe)
-    : proto.ws.protocol.ClientMessage.Command.Command =
-    inside(
-      webSocketOutTestProbe
-        .expectMsgType[proto.ws.protocol.ClientMessage]
-        .message) {
-      case proto.ws.protocol.ClientMessage.Message.Command(
-          proto.ws.protocol.ClientMessage.Command(_, protoCommand)) =>
-        protoCommand
-    }
+  override protected def afterAll(): Unit = shutdownTestKit()
 
-  private[this] def sendCreateZoneCommand(sinkTestProbe: TestProbe,
-                                          clientConnection: ActorRef)(
+}
+
+object ClientConnectionActorSpec {
+
+  private type FixtureParam = (TestProbe[ActorSinkAck.type],
+                               TestProbe[ZoneValidatorMessage],
+                               TestProbe[proto.ws.protocol.ClientMessage],
+                               ActorRef[ClientConnectionMessage])
+
+  private val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    val keyPair = keyPairGenerator.generateKeyPair
+    (keyPair.getPrivate, keyPair.getPublic)
+  }
+
+  private val publicKey = PublicKey(rsaPublicKey.getEncoded)
+
+  private def createKeyOwnershipProof(
+      publicKey: RSAPublicKey,
+      privateKey: RSAPrivateKey,
+      keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge)
+    : proto.ws.protocol.ServerMessage.KeyOwnershipProof = {
+    def signMessage(privateKey: RSAPrivateKey)(
+        message: Array[Byte]): Array[Byte] = {
+      val s = Signature.getInstance("SHA256withRSA")
+      s.initSign(privateKey)
+      s.update(message)
+      s.sign
+    }
+    val nonce = keyOwnershipChallenge.nonce.toByteArray
+    proto.ws.protocol.ServerMessage.KeyOwnershipProof(
+      com.google.protobuf.ByteString.copyFrom(publicKey.getEncoded),
+      com.google.protobuf.ByteString.copyFrom(
+        signMessage(privateKey)(nonce)
+      )
+    )
+  }
+
+  private def sendCreateZoneCommand(fixture: FixtureParam)(
       createZoneCommand: CreateZoneCommand,
-      correlationId: Long): Unit =
-    sendMessage(sinkTestProbe, clientConnection)(
+      correlationId: Long): Unit = {
+    sendMessage(fixture)(
       proto.ws.protocol.ServerMessage.Message.Command(
         proto.ws.protocol.ServerMessage.Command(
           correlationId,
@@ -292,13 +323,13 @@ class ClientConnectionActorSpec
                          Any]
               .asProto(createZoneCommand)(()))
         )))
+  }
 
-  private[this] def sendZoneCommand(sinkTestProbe: TestProbe,
-                                    clientConnection: ActorRef)(
+  private def sendZoneCommand(fixture: FixtureParam)(
       zoneId: ZoneId,
       zoneCommand: ZoneCommand,
       correlationId: Long): Unit =
-    sendMessage(sinkTestProbe, clientConnection)(
+    sendMessage(fixture)(
       proto.ws.protocol.ServerMessage.Message.Command(
         proto.ws.protocol.ServerMessage.Command(
           correlationId,
@@ -310,21 +341,26 @@ class ClientConnectionActorSpec
           )
         )))
 
-  private[this] def sendMessage(sinkTestProbe: TestProbe,
-                                clientConnection: ActorRef)(
+  private def sendMessage(fixture: FixtureParam)(
       message: proto.ws.protocol.ServerMessage.Message): Unit = {
-    sinkTestProbe.send(
-      clientConnection,
-      ActorFlowServerMessage(sinkTestProbe.ref,
-                             proto.ws.protocol.ServerMessage(message))
-    )
-    sinkTestProbe.expectMsg(ActorSinkAck)
+    val (sinkTestProbe, _, _, clientConnection) = fixture
+    clientConnection ! ActorFlowServerMessage(
+      sinkTestProbe.ref,
+      proto.ws.protocol.ServerMessage(message))
+    sinkTestProbe.expectMessage(ActorSinkAck)
     ()
   }
 
-  private[this] def expectZoneResponse(
-      webSocketOutTestProbe: TestProbe): ZoneResponse =
-    inside(expectMessage(webSocketOutTestProbe)) {
+  private def expectClientCommand(
+      fixture: FixtureParam): proto.ws.protocol.ClientMessage.Command.Command =
+    inside(expectMessage(fixture)) {
+      case proto.ws.protocol.ClientMessage.Message.Command(
+          proto.ws.protocol.ClientMessage.Command(_, protoCommand)) =>
+        protoCommand
+    }
+
+  private def expectZoneResponse(fixture: FixtureParam): ZoneResponse =
+    inside(expectMessage(fixture)) {
       case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
         inside(protoResponse.response) {
           case proto.ws.protocol.ClientMessage.Response.Response
@@ -334,9 +370,8 @@ class ClientConnectionActorSpec
         }
     }
 
-  private[this] def expectZoneNotification(
-      webSocketOutTestProbe: TestProbe): ZoneNotification =
-    inside(expectMessage(webSocketOutTestProbe)) {
+  private def expectZoneNotification(fixture: FixtureParam): ZoneNotification =
+    inside(expectMessage(fixture)) {
       case proto.ws.protocol.ClientMessage.Message
             .Notification(protoNotification) =>
         inside(protoNotification.notification) {
@@ -350,8 +385,11 @@ class ClientConnectionActorSpec
         }
     }
 
-  private[this] def expectMessage(webSocketOutTestProbe: TestProbe)
-    : proto.ws.protocol.ClientMessage.Message =
-    webSocketOutTestProbe.expectMsgType[proto.ws.protocol.ClientMessage].message
-
+  private def expectMessage(
+      fixture: FixtureParam): proto.ws.protocol.ClientMessage.Message = {
+    val (_, _, webSocketOutTestProbe, _) = fixture
+    webSocketOutTestProbe
+      .expectMessageType[proto.ws.protocol.ClientMessage]
+      .message
+  }
 }

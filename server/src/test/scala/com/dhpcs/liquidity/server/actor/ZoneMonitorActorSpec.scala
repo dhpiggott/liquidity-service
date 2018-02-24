@@ -1,22 +1,24 @@
 package com.dhpcs.liquidity.server.actor
 
+import java.net.InetSocketAddress
+import java.nio.channels.ServerSocketChannel
 import java.util.UUID
 
-import akka.actor.typed.scaladsl.adapter._
-import akka.testkit.TestProbe
+import akka.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.ZoneId
-import com.dhpcs.liquidity.server.InmemoryPersistenceTestFixtures
-import org.scalatest.FreeSpec
+import com.typesafe.config.{Config, ConfigFactory}
+import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class ZoneMonitorActorSpec
     extends FreeSpec
-    with InmemoryPersistenceTestFixtures {
+    with ActorTestKit
+    with BeforeAndAfterAll {
 
   "A ZoneMonitorActor" - {
     "provides a summary of the active zones" in {
-      val zoneMonitor = system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
-      val testProbe = TestProbe()
+      val zoneMonitor = spawn(ZoneMonitorActor.behavior, "zoneMonitor")
+      val testProbe = TestProbe[Set[ActiveZoneSummary]]()
       val activeZoneSummary = ActiveZoneSummary(
         zoneId = ZoneId(UUID.randomUUID().toString),
         members = 0,
@@ -25,15 +27,37 @@ class ZoneMonitorActorSpec
         metadata = None,
         clientConnections = Set.empty
       )
-      testProbe.send(
-        zoneMonitor.toUntyped,
-        UpsertActiveZoneSummary(testProbe.ref, activeZoneSummary)
-      )
-      testProbe.send(
-        zoneMonitor.toUntyped,
-        GetActiveZoneSummaries(testProbe.ref)
-      )
-      testProbe.expectMsg(Set(activeZoneSummary))
+      zoneMonitor ! UpsertActiveZoneSummary(testProbe.ref, activeZoneSummary)
+      zoneMonitor ! GetActiveZoneSummaries(testProbe.ref)
+      testProbe.expectMessage(Set(activeZoneSummary))
     }
   }
+
+  private[this] lazy val akkaRemotingPort = {
+    val serverSocket = ServerSocketChannel.open().socket()
+    serverSocket.bind(new InetSocketAddress("localhost", 0))
+    val port = serverSocket.getLocalPort
+    serverSocket.close()
+    port
+  }
+
+  override def config: Config = ConfigFactory.parseString(s"""
+       |akka {
+       |  loglevel = "WARNING"
+       |  actor.provider = "cluster"
+       |  remote.netty.tcp {
+       |    hostname = "localhost"
+       |    port = $akkaRemotingPort
+       |  }
+       |  cluster {
+       |    metrics.enabled = off
+       |    seed-nodes = ["akka.tcp://$name@localhost:$akkaRemotingPort"]
+       |    jmx.multi-mbeans-in-same-jvm = on
+       |  }
+       |}
+     """.stripMargin)
+
+  override protected def afterAll(): Unit =
+    shutdownTestKit()
+
 }

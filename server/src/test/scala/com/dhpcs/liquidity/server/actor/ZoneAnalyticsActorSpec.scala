@@ -1,13 +1,14 @@
 package com.dhpcs.liquidity.server.actor
 
 import java.net.InetAddress
+import java.security.KeyPairGenerator
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Executors
 
 import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.pattern.ask
 import akka.persistence.PersistentActor
 import akka.persistence.inmemory.extension._
@@ -15,7 +16,7 @@ import akka.persistence.inmemory.query.scaladsl.InMemoryReadJournal
 import akka.persistence.journal.Tagged
 import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
-import akka.testkit.TestProbe
+import akka.testkit.{TestKit, TestProbe}
 import akka.util.Timeout
 import cats.effect.IO
 import com.dhpcs.liquidity.model._
@@ -23,8 +24,9 @@ import com.dhpcs.liquidity.persistence.EventTags
 import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.server.LiquidityServer.TransactIoToFuture
 import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore.ClientSession
-import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActorSpec._
 import com.dhpcs.liquidity.server._
+import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActorSpec._
+import com.typesafe.config.ConfigFactory
 import doobie._
 import doobie.implicits._
 import org.h2.tools.Server
@@ -34,212 +36,12 @@ import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext}
 
-object ZoneAnalyticsActorSpec {
-
-  private val initAnalytics: ConnectionIO[Unit] = for {
-    _ <- sql"""
-           CREATE TABLE zones (
-             zone_id VARCHAR(36) NOT NULL,
-             modified TIMESTAMP NULL,
-             equity_account_id VARCHAR(36) NOT NULL,
-             created TIMESTAMP NOT NULL,
-             expires TIMESTAMP NOT NULL,
-             metadata VARCHAR(1024) NULL,
-             PRIMARY KEY (zone_id)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE zone_name_changes (
-             zone_id VARCHAR(36) NOT NULL,
-             change_id INT NOT NULL AUTO_INCREMENT,
-             changed TIMESTAMP NOT NULL,
-             name VARCHAR(160) NULL,
-             PRIMARY KEY (change_id),
-             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
-           );
-    """.update.run
-    _ <- sql"""
-           CREATE TABLE members (
-             zone_id CHAR(36) NOT NULL,
-             member_id VARCHAR(36) NOT NULL,
-             created TIMESTAMP NOT NULL,
-             PRIMARY KEY (zone_id, member_id),
-             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE member_updates (
-             zone_id CHAR(36) NOT NULL,
-             member_id VARCHAR(36) NOT NULL,
-             update_id INT NOT NULL AUTO_INCREMENT,
-             updated TIMESTAMP NOT NULL,
-             name VARCHAR(160) NULL,
-             metadata VARCHAR(1024) NULL,
-             PRIMARY KEY (update_id),
-             FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
-             FOREIGN KEY (zone_id, member_id) REFERENCES members(zone_id, member_id)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE member_owners (
-             update_id INT NOT NULL,
-             public_key BLOB NOT NULL,
-             fingerprint CHAR(64) NOT NULL,
-             PRIMARY KEY (update_id),
-             FOREIGN KEY (update_id) REFERENCES member_updates(update_id)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE accounts (
-             zone_id CHAR(36) NOT NULL,
-             account_id VARCHAR(36) NOT NULL,
-             created TIMESTAMP NOT NULL,
-             balance TEXT NOT NULL,
-             PRIMARY KEY (zone_id, account_id),
-             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE account_updates (
-             zone_id CHAR(36) NOT NULL,
-             account_id VARCHAR(36) NOT NULL,
-             update_id INT NOT NULL AUTO_INCREMENT,
-             updated TIMESTAMP NOT NULL,
-             name VARCHAR(160) NULL,
-             metadata VARCHAR(1024) NULL,
-             PRIMARY KEY (update_id),
-             FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
-             FOREIGN KEY (zone_id, account_id) REFERENCES accounts(zone_id, account_id)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE account_owners (
-             update_id INT NOT NULL,
-             member_id VARCHAR(36) NOT NULL,
-             PRIMARY KEY (update_id),
-             FOREIGN KEY (update_id) REFERENCES account_updates(update_id)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE transactions (
-             zone_id CHAR(36) NOT NULL,
-             transaction_id VARCHAR(36) NOT NULL,
-             "from" VARCHAR(36) NOT NULL,
-             "to" VARCHAR(36) NOT NULL,
-             "value" TEXT NOT NULL,
-             creator VARCHAR(36) NOT NULL,
-             created TIMESTAMP NOT NULL,
-             description VARCHAR(160) NULL,
-             metadata VARCHAR(1024) NULL,
-             PRIMARY KEY (zone_id, transaction_id),
-             FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
-             FOREIGN KEY (zone_id, "from") REFERENCES accounts(zone_id, account_id),
-             FOREIGN KEY (zone_id, "to") REFERENCES accounts(zone_id, account_id),
-             FOREIGN KEY (zone_id, creator) REFERENCES members(zone_id, member_id)
-            );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE client_sessions (
-             zone_id CHAR(36) NOT NULL,
-             session_id INT NOT NULL AUTO_INCREMENT,
-             remote_address VARCHAR(45) NULL,
-             actor_ref VARCHAR(100) NOT NULL,
-             public_key BLOB NULL,
-             fingerprint CHAR(64) NULL,
-             joined TIMESTAMP NOT NULL,
-             quit TIMESTAMP NULL,
-             PRIMARY KEY (session_id),
-             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE tag_offsets (
-             tag VARCHAR(10) NOT NULL,
-             "offset" INT NOT NULL,
-             PRIMARY KEY (tag)
-           );
-         """.update.run
-  } yield ()
-
-  private class WriterActor(override val persistenceId: String)
-      extends PersistentActor {
-    override def receiveRecover: Receive = Actor.emptyBehavior
-    override def receiveCommand: Receive = {
-      case zoneEventEnvelope: ZoneEventEnvelope =>
-        persist(Tagged(zoneEventEnvelope, Set(EventTags.ZoneEventTag)))(_ => ())
-    }
-  }
-}
-
 class ZoneAnalyticsActorSpec
     extends fixture.FreeSpec
-    with InmemoryPersistenceTestFixtures
     with BeforeAndAfterAll
     with Eventually
     with ScalaFutures
     with IntegrationPatience {
-
-  private[this] val readJournal = PersistenceQuery(system)
-    .readJournalFor[InMemoryReadJournal](InMemoryReadJournal.Identifier)
-
-  private[this] implicit val mat: Materializer = ActorMaterializer()
-
-  private[this] val remoteAddress = InetAddress.getLoopbackAddress
-  private[this] val publicKey = PublicKey(rsaPublicKey.getEncoded)
-
-  private[this] val h2Server = Server.createTcpServer()
-  private[this] val transactIoToFuture = new TransactIoToFuture(
-    ExecutionContext.fromExecutorService(Executors.newCachedThreadPool()))
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    h2Server.start()
-    ()
-  }
-
-  override def afterAll(): Unit = {
-    h2Server.stop()
-    super.afterAll()
-  }
-
-  override protected type FixtureParam = (Transactor[IO], ZoneId, ActorRef)
-
-  override protected def withFixture(test: OneArgTest): Outcome = {
-    val transactor = Transactor.fromDriverManager[IO](
-      driver = "org.h2.Driver",
-      url =
-        s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID()};" +
-          "DATABASE_TO_UPPER=false;" +
-          "DB_CLOSE_DELAY=-1",
-      user = "sa",
-      pass = ""
-    )
-    initAnalytics.transact(transactor).unsafeRunSync()
-    val analytics = system.spawn(
-      ZoneAnalyticsActor.singletonBehavior(
-        readJournal,
-        transactor,
-        transactIoToFuture
-      ),
-      name = "zoneAnalytics"
-    )
-    val zoneId = ZoneId(UUID.randomUUID().toString)
-    val writer =
-      system.actorOf(Props(classOf[WriterActor], zoneId.persistenceId))
-    try withFixture(
-      test.toNoArgTest((transactor, zoneId, writer))
-    )
-    finally {
-      system.stop(writer)
-      system.stop(analytics.toUntyped)
-      implicit val askTimeout: Timeout = Timeout(5.seconds)
-      Await.result(
-        StorageExtension(system).journalStorage ? InMemoryJournalStorage.ClearJournal,
-        askTimeout.duration
-      )
-      ()
-    }
-  }
 
   "The ZoneAnalyticsActor" - {
     "projects zone created events" in { fixture =>
@@ -285,6 +87,81 @@ class ZoneAnalyticsActorSpec
       val member = memberCreated(fixture)
       val account = accountCreated(fixture, owner = member.id)
       transactionAdded(fixture, zone, to = account.id)
+    }
+  }
+
+  private[this] val config = ConfigFactory.parseString(s"""
+       |akka {
+       |  loglevel = "WARNING"
+       |  actor {
+       |    serializers {
+       |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
+       |    }
+       |    serialization-bindings {
+       |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
+       |    }
+       |    allow-java-serialization = off
+       |  }
+       |  persistence {
+       |    journal.plugin = "inmemory-journal"
+       |    snapshot-store.plugin = "inmemory-snapshot-store"
+       |  }
+       |}
+     """.stripMargin)
+
+  private[this] implicit val system: ActorSystem =
+    ActorSystem("zoneAnalyticsActorSpec", config)
+  private[this] implicit val mat: Materializer = ActorMaterializer()
+
+  private[this] val readJournal = PersistenceQuery(system)
+    .readJournalFor[InMemoryReadJournal](InMemoryReadJournal.Identifier)
+
+  private[this] val h2Server = Server.createTcpServer()
+  private[this] val transactIoToFuture = new TransactIoToFuture(
+    ExecutionContext.fromExecutorService(Executors.newCachedThreadPool()))
+
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    h2Server.start()
+    ()
+  }
+
+  override protected type FixtureParam = ZoneAnalyticsActorSpec.FixtureParam
+
+  override protected def withFixture(test: OneArgTest): Outcome = {
+    val transactor = Transactor.fromDriverManager[IO](
+      driver = "org.h2.Driver",
+      url =
+        s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID()};" +
+          "DATABASE_TO_UPPER=false;" +
+          "DB_CLOSE_DELAY=-1",
+      user = "sa",
+      pass = ""
+    )
+    initAnalytics.transact(transactor).unsafeRunSync()
+    val analytics = system.spawn(
+      ZoneAnalyticsActor.singletonBehavior(
+        readJournal,
+        transactor,
+        transactIoToFuture
+      ),
+      name = "zoneAnalytics"
+    )
+    val zoneId = ZoneId(UUID.randomUUID().toString)
+    val writer =
+      system.actorOf(Props(classOf[WriterActor], zoneId.persistenceId))
+    try withFixture(
+      test.toNoArgTest((transactor, zoneId, writer))
+    )
+    finally {
+      system.stop(writer)
+      system.stop(analytics.toUntyped)
+      implicit val askTimeout: Timeout = Timeout(5.seconds)
+      Await.result(
+        StorageExtension(system).journalStorage ? InMemoryJournalStorage.ClearJournal,
+        askTimeout.duration
+      )
+      ()
     }
   }
 
@@ -507,9 +384,163 @@ class ZoneAnalyticsActorSpec
     ()
   }
 
-  private[this] def writeEvent(fixture: FixtureParam,
-                               event: ZoneEvent,
-                               timestamp: Instant = Instant.now()): Unit = {
+  override def afterAll(): Unit = {
+    h2Server.stop()
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
+}
+
+object ZoneAnalyticsActorSpec {
+
+  private type FixtureParam = (Transactor[IO], ZoneId, ActorRef)
+
+  private val remoteAddress = InetAddress.getLoopbackAddress
+  private val rsaPublicKey = {
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    val keyPair = keyPairGenerator.generateKeyPair
+    keyPair.getPublic
+  }
+  private val publicKey = PublicKey(rsaPublicKey.getEncoded)
+
+  private val initAnalytics: ConnectionIO[Unit] = for {
+    _ <- sql"""
+           CREATE TABLE zones (
+             zone_id VARCHAR(36) NOT NULL,
+             modified TIMESTAMP NULL,
+             equity_account_id VARCHAR(36) NOT NULL,
+             created TIMESTAMP NOT NULL,
+             expires TIMESTAMP NOT NULL,
+             metadata VARCHAR(1024) NULL,
+             PRIMARY KEY (zone_id)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE zone_name_changes (
+             zone_id VARCHAR(36) NOT NULL,
+             change_id INT NOT NULL AUTO_INCREMENT,
+             changed TIMESTAMP NOT NULL,
+             name VARCHAR(160) NULL,
+             PRIMARY KEY (change_id),
+             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
+           );
+    """.update.run
+    _ <- sql"""
+           CREATE TABLE members (
+             zone_id CHAR(36) NOT NULL,
+             member_id VARCHAR(36) NOT NULL,
+             created TIMESTAMP NOT NULL,
+             PRIMARY KEY (zone_id, member_id),
+             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE member_updates (
+             zone_id CHAR(36) NOT NULL,
+             member_id VARCHAR(36) NOT NULL,
+             update_id INT NOT NULL AUTO_INCREMENT,
+             updated TIMESTAMP NOT NULL,
+             name VARCHAR(160) NULL,
+             metadata VARCHAR(1024) NULL,
+             PRIMARY KEY (update_id),
+             FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
+             FOREIGN KEY (zone_id, member_id) REFERENCES members(zone_id, member_id)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE member_owners (
+             update_id INT NOT NULL,
+             public_key BLOB NOT NULL,
+             fingerprint CHAR(64) NOT NULL,
+             PRIMARY KEY (update_id),
+             FOREIGN KEY (update_id) REFERENCES member_updates(update_id)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE accounts (
+             zone_id CHAR(36) NOT NULL,
+             account_id VARCHAR(36) NOT NULL,
+             created TIMESTAMP NOT NULL,
+             balance TEXT NOT NULL,
+             PRIMARY KEY (zone_id, account_id),
+             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE account_updates (
+             zone_id CHAR(36) NOT NULL,
+             account_id VARCHAR(36) NOT NULL,
+             update_id INT NOT NULL AUTO_INCREMENT,
+             updated TIMESTAMP NOT NULL,
+             name VARCHAR(160) NULL,
+             metadata VARCHAR(1024) NULL,
+             PRIMARY KEY (update_id),
+             FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
+             FOREIGN KEY (zone_id, account_id) REFERENCES accounts(zone_id, account_id)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE account_owners (
+             update_id INT NOT NULL,
+             member_id VARCHAR(36) NOT NULL,
+             PRIMARY KEY (update_id),
+             FOREIGN KEY (update_id) REFERENCES account_updates(update_id)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE transactions (
+             zone_id CHAR(36) NOT NULL,
+             transaction_id VARCHAR(36) NOT NULL,
+             "from" VARCHAR(36) NOT NULL,
+             "to" VARCHAR(36) NOT NULL,
+             "value" TEXT NOT NULL,
+             creator VARCHAR(36) NOT NULL,
+             created TIMESTAMP NOT NULL,
+             description VARCHAR(160) NULL,
+             metadata VARCHAR(1024) NULL,
+             PRIMARY KEY (zone_id, transaction_id),
+             FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
+             FOREIGN KEY (zone_id, "from") REFERENCES accounts(zone_id, account_id),
+             FOREIGN KEY (zone_id, "to") REFERENCES accounts(zone_id, account_id),
+             FOREIGN KEY (zone_id, creator) REFERENCES members(zone_id, member_id)
+            );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE client_sessions (
+             zone_id CHAR(36) NOT NULL,
+             session_id INT NOT NULL AUTO_INCREMENT,
+             remote_address VARCHAR(45) NULL,
+             actor_ref VARCHAR(100) NOT NULL,
+             public_key BLOB NULL,
+             fingerprint CHAR(64) NULL,
+             joined TIMESTAMP NOT NULL,
+             quit TIMESTAMP NULL,
+             PRIMARY KEY (session_id),
+             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE tag_offsets (
+             tag VARCHAR(10) NOT NULL,
+             "offset" INT NOT NULL,
+             PRIMARY KEY (tag)
+           );
+         """.update.run
+  } yield ()
+
+  private class WriterActor(override val persistenceId: String)
+      extends PersistentActor {
+    override def receiveRecover: Receive = Actor.emptyBehavior
+    override def receiveCommand: Receive = {
+      case zoneEventEnvelope: ZoneEventEnvelope =>
+        persist(Tagged(zoneEventEnvelope, Set(EventTags.ZoneEventTag)))(_ => ())
+    }
+  }
+
+  private def writeEvent(fixture: FixtureParam,
+                         event: ZoneEvent,
+                         timestamp: Instant = Instant.now()): Unit = {
     val (_, _, writer) = fixture
     writer ! ZoneEventEnvelope(
       remoteAddress = Some(remoteAddress),

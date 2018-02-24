@@ -6,48 +6,18 @@ import shapeless._
 
 import scala.reflect.ClassTag
 
-object ProtoBindings extends LowPriorityImplicits {
+sealed abstract class LowerPriorityImplicits {
 
-  implicit def identityProtoBinding[A, C]: ProtoBinding[A, A, C] =
-    ProtoBinding.instance((a, _) => a, (a, _) => a)
-
-  implicit def nonEmptyListBinding[S, PV, PW, C](
-      implicit pwGen: Lazy[Generic.Aux[PW, Seq[PV] :: HNil]],
-      vBinding: Lazy[ProtoBinding[S, PV, C]]
-  ): ProtoBinding[NonEmptyList[S], PW, C] =
-    new ProtoBinding[NonEmptyList[S], PW, C] {
-      override def asProto(nonEmptyList: NonEmptyList[S])(implicit c: C): PW =
-        pwGen.value.from(
-          nonEmptyList.toList.map(vBinding.value.asProto) :: HNil)
-      override def asScala(p: PW)(implicit c: C): NonEmptyList[S] =
-        NonEmptyList.fromListUnsafe(
-          pwGen.value.to(p).head.toList.map(vBinding.value.asScala))
+  implicit def wrappedOneofProtoBinding[S, PV, PW, C](
+      implicit pwGen: Lazy[Generic.Aux[PW, PV :: HNil]],
+      vBinding: Lazy[ProtoBinding[S, PV, C]]): ProtoBinding[S, PW, C] =
+    new ProtoBinding[S, PW, C] {
+      override def asProto(s: S)(implicit c: C): PW =
+        pwGen.value.from(vBinding.value.asProto(s) :: HNil)
+      override def asScala(p: PW)(implicit c: C): S =
+        vBinding.value.asScala(pwGen.value.to(p).head)
     }
 
-  implicit def validatedNelProtoBinding[SE, SA, PEW, PA, PW, PEmpty, C](
-      implicit pwGen: Lazy[Generic.Aux[PW, PEmpty :+: PEW :+: PA :+: CNil]],
-      eBinding: Lazy[ProtoBinding[NonEmptyList[SE], PEW, C]],
-      aBinding: Lazy[ProtoBinding[SA, PA, C]]
-  ): ProtoBinding[ValidatedNel[SE, SA], PW, C] =
-    new ProtoBinding[ValidatedNel[SE, SA], PW, C] {
-      override def asProto(validated: ValidatedNel[SE, SA])(implicit c: C): PW =
-        validated match {
-          case Invalid(e) =>
-            pwGen.value.from(Inr(Inl(eBinding.value.asProto(e))))
-          case Valid(a) =>
-            pwGen.value.from(Inr(Inr(Inl(aBinding.value.asProto(a)))))
-        }
-      override def asScala(p: PW)(implicit c: C): ValidatedNel[SE, SA] =
-        pwGen.value.to(p) match {
-          case Inl(_) =>
-            throw new IllegalArgumentException("Empty or unsupported result")
-          case Inr(Inl(errors)) =>
-            Validated.invalid(eBinding.value.asScala(errors))
-          case Inr(Inr(Inl(pv))) => Validated.valid(aBinding.value.asScala(pv))
-          case Inr(Inr(Inr(_))) =>
-            throw new IllegalArgumentException("Inconceivable")
-        }
-    }
 }
 
 sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
@@ -120,16 +90,50 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
           case Inr(tail) => Inr(rBinding.value.asScala(tail))
         }
     }
+
 }
 
-sealed abstract class LowerPriorityImplicits {
-  implicit def wrappedOneofProtoBinding[S, PV, PW, C](
-      implicit pwGen: Lazy[Generic.Aux[PW, PV :: HNil]],
-      vBinding: Lazy[ProtoBinding[S, PV, C]]): ProtoBinding[S, PW, C] =
-    new ProtoBinding[S, PW, C] {
-      override def asProto(s: S)(implicit c: C): PW =
-        pwGen.value.from(vBinding.value.asProto(s) :: HNil)
-      override def asScala(p: PW)(implicit c: C): S =
-        vBinding.value.asScala(pwGen.value.to(p).head)
+object ProtoBindings extends LowPriorityImplicits {
+
+  implicit def identityProtoBinding[A, C]: ProtoBinding[A, A, C] =
+    ProtoBinding.instance((a, _) => a, (a, _) => a)
+
+  implicit def nonEmptyListBinding[S, PV, PW, C](
+      implicit pwGen: Lazy[Generic.Aux[PW, Seq[PV] :: HNil]],
+      vBinding: Lazy[ProtoBinding[S, PV, C]]
+  ): ProtoBinding[NonEmptyList[S], PW, C] =
+    new ProtoBinding[NonEmptyList[S], PW, C] {
+      override def asProto(nonEmptyList: NonEmptyList[S])(implicit c: C): PW =
+        pwGen.value.from(
+          nonEmptyList.toList.map(vBinding.value.asProto) :: HNil)
+      override def asScala(p: PW)(implicit c: C): NonEmptyList[S] =
+        NonEmptyList.fromListUnsafe(
+          pwGen.value.to(p).head.toList.map(vBinding.value.asScala))
     }
+
+  implicit def validatedNelProtoBinding[SE, SA, PEW, PA, PW, PEmpty, C](
+      implicit pwGen: Lazy[Generic.Aux[PW, PEmpty :+: PEW :+: PA :+: CNil]],
+      eBinding: Lazy[ProtoBinding[NonEmptyList[SE], PEW, C]],
+      aBinding: Lazy[ProtoBinding[SA, PA, C]]
+  ): ProtoBinding[ValidatedNel[SE, SA], PW, C] =
+    new ProtoBinding[ValidatedNel[SE, SA], PW, C] {
+      override def asProto(validated: ValidatedNel[SE, SA])(implicit c: C): PW =
+        validated match {
+          case Invalid(e) =>
+            pwGen.value.from(Inr(Inl(eBinding.value.asProto(e))))
+          case Valid(a) =>
+            pwGen.value.from(Inr(Inr(Inl(aBinding.value.asProto(a)))))
+        }
+      override def asScala(p: PW)(implicit c: C): ValidatedNel[SE, SA] =
+        pwGen.value.to(p) match {
+          case Inl(_) =>
+            throw new IllegalArgumentException("Empty or unsupported result")
+          case Inr(Inl(errors)) =>
+            Validated.invalid(eBinding.value.asScala(errors))
+          case Inr(Inr(Inl(pv))) => Validated.valid(aBinding.value.asScala(pv))
+          case Inr(Inr(Inr(_))) =>
+            throw new IllegalArgumentException("Inconceivable")
+        }
+    }
+
 }

@@ -47,151 +47,6 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-object LiquidityServer {
-
-  private final val ZoneHostRole = "zone-host"
-  private final val ClientRelayRole = "client-relay"
-  private final val AnalyticsRole = "analytics"
-
-  class TransactIoToFuture(ec: ExecutionContext) {
-    def apply[A](transactor: Transactor[IO])(io: ConnectionIO[A]): Future[A] =
-      (for {
-        a <- io.transact(transactor)
-        _ <- IO.shift(ec)
-      } yield a).unsafeToFuture()
-  }
-
-  def main(args: Array[String]): Unit = {
-    val config = ConfigFactory
-      .parseString(s"""
-        |akka {
-        |  loggers = ["akka.event.slf4j.Slf4jLogger"]
-        |  loglevel = "DEBUG"
-        |  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
-        |  actor {
-        |    provider = "cluster"
-        |    serializers {
-        |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
-        |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
-        |      zone-monitor-message = "com.dhpcs.liquidity.server.serialization.ZoneMonitorMessageSerializer"
-        |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
-        |      client-monitor-message = "com.dhpcs.liquidity.server.serialization.ClientMonitorMessageSerializer"
-        |    }
-        |    serialization-bindings {
-        |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
-        |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.SerializableZoneValidatorMessage" = zone-validator-message
-        |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.SerializableZoneMonitorMessage" = zone-monitor-message
-        |      "com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage" = client-connection-message
-        |      "com.dhpcs.liquidity.actor.protocol.clientmonitor.SerializableClientMonitorMessage" = client-monitor-message
-        |    }
-        |    allow-java-serialization = off
-        |  }
-        |  remote.netty.tcp {
-        |    hostname = "${getEnvVarOrExit("AKKA_HOSTNAME")}"
-        |    bind-hostname = "0.0.0.0"
-        |  }
-        |  cluster.metrics.enabled = off
-        |  management.http {
-        |    hostname = "127.0.0.1"
-        |    base-path = "akka-management"
-        |  }
-        |  extensions += "akka.persistence.Persistence"
-        |  persistence {
-        |    journal {
-        |      auto-start-journals = ["jdbc-journal"]
-        |      plugin = "jdbc-journal"
-        |    }
-        |    snapshot-store {
-        |      auto-start-snapshot-stores = ["jdbc-snapshot-store"]
-        |      plugin = "jdbc-snapshot-store"
-        |    }
-        |  }
-        |  http.server.remote-address-header = on
-        |}
-        |jdbc-journal.slick = $${slick}
-        |jdbc-snapshot-store.slick = $${slick}
-        |jdbc-read-journal.slick = $${slick}
-        |slick {
-        |  profile = "slick.jdbc.MySQLProfile$$"
-        |  db {
-        |    driver = "com.mysql.jdbc.Driver"
-        |    url = "${urlForDatabase("liquidity_journal")}"
-        |    user = "${getEnvVarOrExit("MYSQL_USERNAME")}"
-        |    password = "${getEnvVarOrExit("MYSQL_PASSWORD")}"
-        |    maxConnections = 2
-        |  }
-        |}
-      """.stripMargin)
-      .resolve()
-    implicit val system: ActorSystem = ActorSystem("liquidity", config)
-    implicit val mat: Materializer = ActorMaterializer()
-    implicit val ec: ExecutionContext = ExecutionContext.global
-    val akkaManagement = AkkaManagement(system)
-    akkaManagement.start()
-    CoordinatedShutdown(system).addTask(
-      CoordinatedShutdown.PhaseClusterExitingDone,
-      "akkaManagementStop")(() => akkaManagement.stop())
-    val administratorsTransactor = (for {
-      administratorsTransactor <- HikariTransactor.newHikariTransactor[IO](
-        driverClassName = "com.mysql.jdbc.Driver",
-        url = urlForDatabase("liquidity_administrators"),
-        user = getEnvVarOrExit("MYSQL_USERNAME"),
-        pass = getEnvVarOrExit("MYSQL_PASSWORD")
-      )
-      _ <- administratorsTransactor.configure(hikariDataSource =>
-        IO(hikariDataSource.setMaximumPoolSize(2)))
-    } yield administratorsTransactor).unsafeRunSync()
-    val analyticsTransactor = (for {
-      analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
-        driverClassName = "com.mysql.jdbc.Driver",
-        url = urlForDatabase("liquidity_analytics"),
-        user = getEnvVarOrExit("MYSQL_USERNAME"),
-        pass = getEnvVarOrExit("MYSQL_PASSWORD")
-      )
-      _ <- analyticsTransactor.configure(hikariDataSource =>
-        IO(hikariDataSource.setMaximumPoolSize(2)))
-    } yield analyticsTransactor).unsafeRunSync()
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
-                                        "liquidityServerUnbind")(() =>
-      for (_ <- analyticsTransactor.shutdown.unsafeToFuture()) yield Done)
-    val server = new LiquidityServer(
-      administratorsTransactor,
-      analyticsTransactor,
-      pingInterval = 30.seconds,
-      httpInterface = "0.0.0.0",
-      httpPort = 8080
-    )
-    val httpBinding = server.bindHttp()
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
-                                        "liquidityServerUnbind")(() =>
-      for (_ <- httpBinding.flatMap(_.unbind())) yield Done)
-  }
-
-  private[this] val log = LoggerFactory.getLogger(getClass)
-
-  private[this] def urlForDatabase(database: String): String =
-    s"jdbc:mysql://${getEnvVarOrExit("MYSQL_HOSTNAME")}/$database?" +
-      "useSSL=false&" +
-      "cacheCallableStmts=true&" +
-      "cachePrepStmts=true&" +
-      "cacheResultSetMetadata=true&" +
-      "cacheServerConfiguration=true&" +
-      "useLocalSessionState=true&" +
-      "useLocalSessionState=true&" +
-      "useServerPrepStmts=true"
-
-  private[this] def getEnvVarOrExit(name: String): String =
-    sys.env.get(name) match {
-      case None =>
-        log.error(s"Required environment variable <$name> is not set. Halting.")
-        sys.exit(1)
-
-      case Some(value) =>
-        value
-    }
-
-}
-
 class LiquidityServer(
     administratorsTransactor: Transactor[IO],
     analyticsTransactor: Transactor[IO],
@@ -234,7 +89,7 @@ class LiquidityServer(
     terminationMessage = StopZoneAnalytics
   )
 
-  def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
+  private def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
     logRequestResult(("HTTP API", Logging.InfoLevel))(
       httpRoutes(enableClientRelay =
         Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole))),
@@ -326,11 +181,150 @@ class LiquidityServer(
   override protected[this] def webSocketApi(
       remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
     ClientConnectionActor.webSocketFlow(
-      behavior = ClientConnectionActor.behavior(
-        pingInterval,
-        zoneValidatorShardRegion,
-        remoteAddress
-      )
+      pingInterval,
+      zoneValidatorShardRegion,
+      remoteAddress
     )
+
+}
+
+object LiquidityServer {
+
+  private final val ZoneHostRole = "zone-host"
+  private final val ClientRelayRole = "client-relay"
+  private final val AnalyticsRole = "analytics"
+
+  class TransactIoToFuture(ec: ExecutionContext) {
+    def apply[A](transactor: Transactor[IO])(io: ConnectionIO[A]): Future[A] =
+      (for {
+        a <- io.transact(transactor)
+        _ <- IO.shift(ec)
+      } yield a).unsafeToFuture()
+  }
+
+  def main(args: Array[String]): Unit = {
+    val config = ConfigFactory
+      .parseString(s"""
+           |akka {
+           |  loggers = ["akka.event.slf4j.Slf4jLogger"]
+           |  loglevel = "DEBUG"
+           |  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
+           |  actor {
+           |    provider = "cluster"
+           |    serializers {
+           |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
+           |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
+           |      zone-monitor-message = "com.dhpcs.liquidity.server.serialization.ZoneMonitorMessageSerializer"
+           |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
+           |      client-monitor-message = "com.dhpcs.liquidity.server.serialization.ClientMonitorMessageSerializer"
+           |    }
+           |    serialization-bindings {
+           |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
+           |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.SerializableZoneValidatorMessage" = zone-validator-message
+           |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.SerializableZoneMonitorMessage" = zone-monitor-message
+           |      "com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage" = client-connection-message
+           |      "com.dhpcs.liquidity.actor.protocol.clientmonitor.SerializableClientMonitorMessage" = client-monitor-message
+           |    }
+           |    allow-java-serialization = off
+           |  }
+           |  remote.netty.tcp {
+           |    hostname = "${getEnvVarOrExit("AKKA_HOSTNAME")}"
+           |    bind-hostname = "0.0.0.0"
+           |  }
+           |  cluster.metrics.enabled = off
+           |  management.http {
+           |    hostname = "127.0.0.1"
+           |    base-path = "akka-management"
+           |  }
+           |  extensions += "akka.persistence.Persistence"
+           |  persistence {
+           |    journal {
+           |      auto-start-journals = ["jdbc-journal"]
+           |      plugin = "jdbc-journal"
+           |    }
+           |    snapshot-store {
+           |      auto-start-snapshot-stores = ["jdbc-snapshot-store"]
+           |      plugin = "jdbc-snapshot-store"
+           |    }
+           |  }
+           |  http.server.remote-address-header = on
+           |}
+           |jdbc-journal.slick = $${slick}
+           |jdbc-snapshot-store.slick = $${slick}
+           |jdbc-read-journal.slick = $${slick}
+           |slick {
+           |  profile = "slick.jdbc.MySQLProfile$$"
+           |  db {
+           |    driver = "com.mysql.jdbc.Driver"
+           |    url = "${urlForDatabase("liquidity_journal")}"
+           |    user = "${getEnvVarOrExit("MYSQL_USERNAME")}"
+           |    password = "${getEnvVarOrExit("MYSQL_PASSWORD")}"
+           |    maxConnections = 2
+           |  }
+           |}
+         """.stripMargin)
+      .resolve()
+    implicit val system: ActorSystem = ActorSystem("liquidity", config)
+    implicit val mat: Materializer = ActorMaterializer()
+    implicit val ec: ExecutionContext = ExecutionContext.global
+    val akkaManagement = AkkaManagement(system)
+    akkaManagement.start()
+    CoordinatedShutdown(system).addTask(
+      CoordinatedShutdown.PhaseClusterExitingDone,
+      "akkaManagementStop")(() => akkaManagement.stop())
+    val administratorsTransactor = (for {
+      administratorsTransactor <- HikariTransactor.newHikariTransactor[IO](
+        driverClassName = "com.mysql.jdbc.Driver",
+        url = urlForDatabase("liquidity_administrators"),
+        user = getEnvVarOrExit("MYSQL_USERNAME"),
+        pass = getEnvVarOrExit("MYSQL_PASSWORD")
+      )
+      _ <- administratorsTransactor.configure(hikariDataSource =>
+        IO(hikariDataSource.setMaximumPoolSize(2)))
+    } yield administratorsTransactor).unsafeRunSync()
+    val analyticsTransactor = (for {
+      analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
+        driverClassName = "com.mysql.jdbc.Driver",
+        url = urlForDatabase("liquidity_analytics"),
+        user = getEnvVarOrExit("MYSQL_USERNAME"),
+        pass = getEnvVarOrExit("MYSQL_PASSWORD")
+      )
+      _ <- analyticsTransactor.configure(hikariDataSource =>
+        IO(hikariDataSource.setMaximumPoolSize(2)))
+    } yield analyticsTransactor).unsafeRunSync()
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
+                                        "liquidityServerUnbind")(() =>
+      for (_ <- analyticsTransactor.shutdown.unsafeToFuture()) yield Done)
+    val server = new LiquidityServer(
+      administratorsTransactor,
+      analyticsTransactor,
+      pingInterval = 30.seconds,
+      httpInterface = "0.0.0.0",
+      httpPort = 8080
+    )
+    val httpBinding = server.bindHttp()
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
+                                        "liquidityServerUnbind")(() =>
+      for (_ <- httpBinding.flatMap(_.unbind())) yield Done)
+  }
+
+  private[this] def urlForDatabase(database: String): String =
+    s"jdbc:mysql://${getEnvVarOrExit("MYSQL_HOSTNAME")}/$database?" +
+      "useSSL=false&" +
+      "cacheCallableStmts=true&" +
+      "cachePrepStmts=true&" +
+      "cacheResultSetMetadata=true&" +
+      "cacheServerConfiguration=true&" +
+      "useLocalSessionState=true&" +
+      "useLocalSessionState=true&" +
+      "useServerPrepStmts=true"
+
+  private[this] def getEnvVarOrExit(name: String): String =
+    sys.env.getOrElse(name, {
+      log.error(s"Required environment variable <$name> is not set. Halting.")
+      sys.exit(1)
+    })
+
+  private[this] val log = LoggerFactory.getLogger(getClass)
 
 }

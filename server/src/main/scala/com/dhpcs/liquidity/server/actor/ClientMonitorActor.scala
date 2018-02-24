@@ -13,7 +13,7 @@ object ClientMonitorActor {
 
   final val ClientStatusTopic = "Client"
 
-  private case object LogActiveClientsCountTimerKey
+  private[this] case object LogActiveClientsCountTimerKey
 
   def behavior: Behavior[ClientMonitorMessage] =
     Behaviors.setup(context =>
@@ -26,7 +26,7 @@ object ClientMonitorActor {
         withSummaries(Map.empty)
     })
 
-  private def withSummaries(
+  private[this] def withSummaries(
       activeClientSummaries: Map[ActorRef[Nothing], ActiveClientSummary])
     : Behavior[ClientMonitorMessage] =
     Behaviors.immutable[ClientMonitorMessage]((context, message) =>

@@ -30,7 +30,6 @@ import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server.HttpControllerSpec._
 import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
-import com.typesafe.config.{Config, ConfigFactory}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import okio.ByteString
 import org.scalatest.FreeSpec
@@ -40,80 +39,10 @@ import play.api.libs.json.{JsObject, JsValue, Json}
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
 
-object HttpControllerSpec {
-
-  private val remoteAddress = InetAddress.getByName("192.0.2.0")
-  private val publicKey = PublicKey(ByteString.decodeBase64(
-    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1V7/LB8zmkptcEH1/b6hUjdvzRW47/ZadR189o1EizOulLXRpWTgarXQ9bMcP8/exkHO/TKPPmRj/n206ydApG2lsq2px7lhOJnheQzGf8A/X/IpDOGL0sP4e23EV8MaxocsbuzGWrqM6z478L/+Qk1ntG7DmOTReSfWpgQ70IzVTgnq9fUqP+qu6/3qSmT4JMFE0YBYfCCtiMYrGN2LoQ0sq9peapuguxtCOIoOXAlo4UsnbN6KZrr1ggEIfOwUfSgoOpZ6andxwPh9M7f3AdD5RLneounQBz7bX5TKvICZz0PL3SkBxpBX0qENZtxnnPpgy15AeSTVVTDHUFhu2QIDAQAB"))
-  private val zoneId = ZoneId("32824da3-094f-45f0-9b35-23b7827547c6")
-  private val created = 1514156286183L
-  private val equityAccountId = AccountId(0.toString)
-  private val equityAccountOwnerId = MemberId(0.toString)
-  private val zone = Zone(
-    id = zoneId,
-    equityAccountId,
-    members = Map(
-      equityAccountOwnerId -> Member(
-        equityAccountOwnerId,
-        ownerPublicKeys = Set(publicKey),
-        name = Some("Dave"),
-        metadata = None
-      )
-    ),
-    accounts = Map(
-      equityAccountId -> Account(
-        equityAccountId,
-        ownerMemberIds = Set(equityAccountOwnerId),
-        name = None,
-        metadata = None
-      )
-    ),
-    transactions = Map.empty,
-    created = created,
-    expires = created + java.time.Duration.ofDays(30).toMillis,
-    name = Some("Dave's Game"),
-    metadata = None
-  )
-  private val balances = Map(
-    equityAccountId -> BigDecimal(-5000),
-    AccountId("1") -> BigDecimal(5000)
-  )
-
-  private val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
-    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(2048)
-    val keyPair = keyPairGenerator.generateKeyPair
-    (keyPair.getPrivate, keyPair.getPublic)
-  }
-  private val administratorJwt =
-    JwtJson.encode(
-      Json.obj(
-        "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
-      ),
-      rsaPrivateKey,
-      JwtAlgorithm.RS256
-    )
-
-}
-
 class HttpControllerSpec
     extends FreeSpec
     with HttpController
     with ScalatestRouteTest {
-
-  private val actorRef =
-    ActorRefResolver(system.toTyped).toSerializationFormat(TestProbe().ref)
-  private val joined = Instant.now()
-  private val clientSession = ClientSession(
-    id = ClientSessionId(1),
-    remoteAddress = Some(remoteAddress),
-    actorRef = actorRef,
-    publicKey = publicKey,
-    joined = joined,
-    quit = None
-  )
-
-  override def testConfig: Config = ConfigFactory.defaultReference()
 
   "The HttpController" - {
     "rejects access" - {
@@ -605,6 +534,18 @@ class HttpControllerSpec
     }
   }
 
+  private[this] val actorRef =
+    ActorRefResolver(system.toTyped).toSerializationFormat(TestProbe().ref)
+  private[this] val joined = Instant.now()
+  private[this] val clientSession = ClientSession(
+    id = ClientSessionId(1),
+    remoteAddress = Some(remoteAddress),
+    actorRef = actorRef,
+    publicKey = publicKey,
+    joined = joined,
+    quit = None
+  )
+
   override protected[this] def webSocketApi(
       remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
     Flow[Message]
@@ -740,6 +681,62 @@ class HttpControllerSpec
     Future.successful(
       if (zoneId != zone.id) Map.empty
       else Map(clientSession.id -> clientSession)
+    )
+
+}
+
+object HttpControllerSpec {
+
+  private val remoteAddress = InetAddress.getByName("192.0.2.0")
+  private val publicKey = PublicKey(ByteString.decodeBase64(
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1V7/LB8zmkptcEH1/b6hUjdvzRW47/ZadR189o1EizOulLXRpWTgarXQ9bMcP8/exkHO/TKPPmRj/n206ydApG2lsq2px7lhOJnheQzGf8A/X/IpDOGL0sP4e23EV8MaxocsbuzGWrqM6z478L/+Qk1ntG7DmOTReSfWpgQ70IzVTgnq9fUqP+qu6/3qSmT4JMFE0YBYfCCtiMYrGN2LoQ0sq9peapuguxtCOIoOXAlo4UsnbN6KZrr1ggEIfOwUfSgoOpZ6andxwPh9M7f3AdD5RLneounQBz7bX5TKvICZz0PL3SkBxpBX0qENZtxnnPpgy15AeSTVVTDHUFhu2QIDAQAB"))
+  private val zoneId = ZoneId("32824da3-094f-45f0-9b35-23b7827547c6")
+  private val created = 1514156286183L
+  private val equityAccountId = AccountId(0.toString)
+  private val equityAccountOwnerId = MemberId(0.toString)
+  private val zone = Zone(
+    id = zoneId,
+    equityAccountId,
+    members = Map(
+      equityAccountOwnerId -> Member(
+        equityAccountOwnerId,
+        ownerPublicKeys = Set(publicKey),
+        name = Some("Dave"),
+        metadata = None
+      )
+    ),
+    accounts = Map(
+      equityAccountId -> Account(
+        equityAccountId,
+        ownerMemberIds = Set(equityAccountOwnerId),
+        name = None,
+        metadata = None
+      )
+    ),
+    transactions = Map.empty,
+    created = created,
+    expires = created + java.time.Duration.ofDays(30).toMillis,
+    name = Some("Dave's Game"),
+    metadata = None
+  )
+  private val balances = Map(
+    equityAccountId -> BigDecimal(-5000),
+    AccountId("1") -> BigDecimal(5000)
+  )
+
+  private val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    val keyPair = keyPairGenerator.generateKeyPair
+    (keyPair.getPrivate, keyPair.getPublic)
+  }
+  private val administratorJwt =
+    JwtJson.encode(
+      Json.obj(
+        "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
+      ),
+      rsaPrivateKey,
+      JwtAlgorithm.RS256
     )
 
 }

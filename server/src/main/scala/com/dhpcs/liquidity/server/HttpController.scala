@@ -35,29 +35,6 @@ import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-object HttpController {
-
-  final case class EventEnvelope(sequenceNr: Long, event: GeneratedMessage)
-
-  object EventEnvelope {
-    implicit final val GeneratedMessageEnvelopeWrites: OWrites[EventEnvelope] =
-      OWrites(
-        GeneratedMessageEnvelope =>
-          Json.obj(
-            "sequenceNr" -> GeneratedMessageEnvelope.sequenceNr,
-            // ScalaPB gives us a way to get a json4s representation of
-            // messages, but not play-json. So we parse the string form as a
-            // play-json JsValue (doing this, as opposed to just passing it
-            // through as a string means that it will get marshaled by
-            // akka-http-play-json, which by default will _pretty_ print it -
-            // and we really want that, given this is purely a diagnostics
-            // endpoint and should thus be developer-readable).
-            "event" -> Json.parse(
-              JsonFormat.toJsonString(GeneratedMessageEnvelope.event))
-        ))
-  }
-}
-
 trait HttpController {
 
   protected[this] def httpRoutes(enableClientRelay: Boolean)(
@@ -341,4 +318,27 @@ trait HttpController {
   protected[this] def webSocketApi(
       remoteAddress: InetAddress): Flow[Message, Message, NotUsed]
 
+}
+
+object HttpController {
+
+  final case class EventEnvelope(sequenceNr: Long, event: GeneratedMessage)
+
+  object EventEnvelope {
+    implicit final val GeneratedMessageEnvelopeWrites: OWrites[EventEnvelope] =
+      OWrites(
+        GeneratedMessageEnvelope =>
+          Json.obj(
+            "sequenceNr" -> GeneratedMessageEnvelope.sequenceNr,
+            // ScalaPB gives us a way to get a json4s representation of
+            // messages, but not play-json. So we parse the string form as a
+            // play-json JsValue (doing this, as opposed to just passing it
+            // through as a string means that it will get marshaled by
+            // akka-http-play-json, which by default will _pretty_ print it -
+            // and we really want that, given this is purely a diagnostics
+            // endpoint and should thus be developer-readable).
+            "event" -> Json.parse(
+              JsonFormat.toJsonString(GeneratedMessageEnvelope.event))
+        ))
+  }
 }

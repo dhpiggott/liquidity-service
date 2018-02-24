@@ -34,15 +34,20 @@ import scala.util.Random
 object ClientConnectionActor {
 
   def webSocketFlow(
-      behavior: ActorRef[proto.ws.protocol.ClientMessage] => Behavior[
-        ClientConnectionMessage])(
+      pingInterval: FiniteDuration,
+      zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
+      remoteAddress: InetAddress)(
       implicit system: ActorSystem,
       mat: Materializer): Flow[WsMessage, WsMessage, NotUsed] =
     InFlow
-      .via(ActorFlow.actorFlow(behavior))
+      .via(
+        ActorFlow.actorFlow(
+          behavior(pingInterval, zoneValidatorShardRegion, remoteAddress)
+        )
+      )
       .via(OutFlow)
 
-  private final val InFlow
+  private[this] final val InFlow
     : Flow[WsMessage, proto.ws.protocol.ServerMessage, NotUsed] =
     Flow[WsMessage].flatMapConcat(
       wsMessage =>
@@ -53,22 +58,17 @@ object ClientConnectionActor {
              })
           yield proto.ws.protocol.ServerMessage.parseFrom(byteString.toArray))
 
-  private final val OutFlow
-    : Flow[proto.ws.protocol.ClientMessage, WsMessage, NotUsed] =
-    Flow[proto.ws.protocol.ClientMessage].map(
-      serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
-    )
+  private[this] object ActorFlow {
 
-  private object ActorFlow {
-
-    sealed abstract class ActorFlowMessage
-    final case class ForwardInit(webSocketIn: ActorRef[ActorSinkAck.type])
+    private[this] sealed abstract class ActorFlowMessage
+    private[this] final case class ForwardInit(
+        webSocketIn: ActorRef[ActorSinkAck.type])
         extends ActorFlowMessage
-    final case class ForwardMessage(
+    private[this] final case class ForwardMessage(
         webSocketIn: ActorRef[ActorSinkAck.type],
         serverMessage: proto.ws.protocol.ServerMessage)
         extends ActorFlowMessage
-    case object Stop extends ActorFlowMessage
+    private[this] case object Stop extends ActorFlowMessage
 
     def actorFlow(
         behavior: ActorRef[proto.ws.protocol.ClientMessage] => Behavior[
@@ -124,9 +124,32 @@ object ClientConnectionActor {
     }
   }
 
-  private case object PublishStatusTimerKey
+  def behavior(
+      pingInterval: FiniteDuration,
+      zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
+      remoteAddress: InetAddress)(
+      webSocketOut: ActorRef[proto.ws.protocol.ClientMessage])
+    : Behavior[ClientConnectionMessage] =
+    Behaviors.setup(context =>
+      Behaviors.withTimers { timers =>
+        context.log.info(s"Starting for $remoteAddress")
+        val mediator = DistributedPubSub(context.system.toUntyped).mediator
+        timers.startPeriodicTimer(PublishStatusTimerKey,
+                                  PublishClientStatusTick,
+                                  30.seconds)
+        val pingGenerator =
+          context.spawn(PingGeneratorActor.behavior(pingInterval, context.self),
+                        "pingGenerator")
+        waitingForActorSinkInit(zoneValidatorShardRegion,
+                                remoteAddress,
+                                webSocketOut,
+                                mediator,
+                                pingGenerator)
+    })
 
-  private object PingGeneratorActor {
+  private[this] case object PublishStatusTimerKey
+
+  private[this] object PingGeneratorActor {
 
     sealed abstract class PingGeneratorMessage
     case object FrameReceivedEvent extends PingGeneratorMessage
@@ -151,30 +174,7 @@ object ClientConnectionActor {
 
   }
 
-  def behavior(
-      pingInterval: FiniteDuration,
-      zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
-      remoteAddress: InetAddress)(
-      webSocketOut: ActorRef[proto.ws.protocol.ClientMessage])
-    : Behavior[ClientConnectionMessage] =
-    Behaviors.setup(context =>
-      Behaviors.withTimers { timers =>
-        context.log.info(s"Starting for $remoteAddress")
-        val mediator = DistributedPubSub(context.system.toUntyped).mediator
-        timers.startPeriodicTimer(PublishStatusTimerKey,
-                                  PublishClientStatusTick,
-                                  30.seconds)
-        val pingGenerator =
-          context.spawn(PingGeneratorActor.behavior(pingInterval, context.self),
-                        "pingGenerator")
-        waitingForActorSinkInit(zoneValidatorShardRegion,
-                                remoteAddress,
-                                webSocketOut,
-                                mediator,
-                                pingGenerator)
-    })
-
-  def waitingForActorSinkInit(
+  private[this] def waitingForActorSinkInit(
       zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
@@ -204,21 +204,24 @@ object ClientConnectionActor {
 
         case wrappedServerMessage: ActorFlowServerMessage =>
           context.log.warning(
-            s"Stopping due to unexpected message; required ActorSinkInit but received $wrappedServerMessage")
+            s"Stopping due to unexpected message; required ActorSinkInit " +
+              s"but received $wrappedServerMessage")
           Behaviors.stopped
 
         case zoneResponseEnvelope: ZoneResponseEnvelope =>
           context.log.warning(
-            s"Stopping due to unexpected message; required ActorSinkInit but received $zoneResponseEnvelope")
+            s"Stopping due to unexpected message; required ActorSinkInit " +
+              s"but received $zoneResponseEnvelope")
           Behaviors.stopped
 
         case zoneNotificationEnvelope: ZoneNotificationEnvelope =>
           context.log.warning(
-            s"Stopping due to unexpected message; required ActorSinkInit but received $zoneNotificationEnvelope")
+            s"Stopping due to unexpected message; required ActorSinkInit " +
+              s"but received $zoneNotificationEnvelope")
           Behaviors.stopped
     })
 
-  private def waitingForKeyOwnershipProof(
+  private[this] def waitingForKeyOwnershipProof(
       zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
@@ -230,7 +233,8 @@ object ClientConnectionActor {
       message match {
         case actorSinkInit: InitActorSink =>
           context.log.warning(
-            s"Stopping due to unexpected message; required KeyOwnershipProof but received $actorSinkInit")
+            s"Stopping due to unexpected message; required " +
+              s"KeyOwnershipProof but received $actorSinkInit")
           Behaviors.stopped
 
         case PublishClientStatusTick =>
@@ -248,7 +252,8 @@ object ClientConnectionActor {
                 _: proto.ws.protocol.ServerMessage.Message.Command |
                 _: proto.ws.protocol.ServerMessage.Message.Response) =>
               context.log.warning(
-                s"Stopping due to unexpected message; required KeyOwnershipProof but received $other")
+                s"Stopping due to unexpected message; required " +
+                  s"KeyOwnershipProof but received $other")
               Behaviors.stopped
 
             case proto.ws.protocol.ServerMessage.Message
@@ -257,7 +262,8 @@ object ClientConnectionActor {
               if (!isValidKeyOwnershipProof(keyOwnershipChallenge,
                                             keyOwnershipProof)) {
                 context.log.warning(
-                  "Stopping due to invalid key ownership proof for public key with fingerprint " +
+                  "Stopping due to invalid key ownership proof for public " +
+                    "key with fingerprint " +
                     s"${publicKey.fingerprint}.")
                 Behaviors.stopped
               } else {
@@ -275,12 +281,14 @@ object ClientConnectionActor {
 
         case zoneResponseEnvelope: ZoneResponseEnvelope =>
           context.log.warning(
-            s"Stopping due to unexpected message; required KeyOwnershipProof but received $zoneResponseEnvelope")
+            s"Stopping due to unexpected message; required " +
+              s"KeyOwnershipProof but received $zoneResponseEnvelope")
           Behaviors.stopped
 
         case zoneNotificationEnvelope: ZoneNotificationEnvelope =>
           context.log.warning(
-            s"Stopping due to unexpected message; required KeyOwnershipProof but received $zoneNotificationEnvelope")
+            s"Stopping due to unexpected message; required " +
+              s"KeyOwnershipProof but received $zoneNotificationEnvelope")
           Behaviors.stopped
       }
     } onSignal {
@@ -289,7 +297,7 @@ object ClientConnectionActor {
         Behaviors.same
     }
 
-  private def receiveActorSinkMessages(
+  private[this] def receiveActorSinkMessages(
       zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
@@ -324,7 +332,8 @@ object ClientConnectionActor {
             case other @ (proto.ws.protocol.ServerMessage.Message.Empty |
                 _: proto.ws.protocol.ServerMessage.Message.KeyOwnershipProof) =>
               context.log.warning(
-                s"Stopping due to unexpected message; required Command or Response but received $other")
+                s"Stopping due to unexpected message; required Command or " +
+                  s"Response but received $other")
               Behaviors.stopped
 
             case proto.ws.protocol.ServerMessage.Message
@@ -370,7 +379,8 @@ object ClientConnectionActor {
                   zoneCommand match {
                     case _: CreateZoneCommand =>
                       context.log.warning(
-                        s"Stopping due to receipt of illegally enveloped CreateZoneCommand")
+                        s"Stopping due to receipt of illegally enveloped " +
+                          s"CreateZoneCommand")
                       Behaviors.stopped
 
                     case _ =>
@@ -391,7 +401,8 @@ object ClientConnectionActor {
               protoResponse.response match {
                 case proto.ws.protocol.ServerMessage.Response.Response.Empty =>
                   context.log.warning(
-                    "Stopping due to unexpected message; required PingResponse but received Empty")
+                    "Stopping due to unexpected message; required " +
+                      "PingResponse but received Empty")
                   Behaviors.stopped
 
                 case proto.ws.protocol.ServerMessage.Response.Response
@@ -448,7 +459,8 @@ object ClientConnectionActor {
           notificationSequenceNumbers.get(zoneValidator) match {
             case None =>
               context.log.warning(
-                "Stopping due to unexpected notification (JoinZoneCommand sent but no JoinZoneResponse received)")
+                "Stopping due to unexpected notification (JoinZoneCommand " +
+                  "sent but no JoinZoneResponse received)")
               Behaviors.stopped
 
             case Some(expectedSequenceNumber) =>
@@ -498,7 +510,7 @@ object ClientConnectionActor {
         Behaviors.stopped
     }
 
-  private def sendPingCommand(
+  private[this] def sendPingCommand(
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
       pingGeneratorActor: ActorRef[PingGeneratorActor.PingGeneratorMessage])
     : Unit =
@@ -513,7 +525,7 @@ object ClientConnectionActor {
         ))
     )
 
-  private def sendClientMessage(
+  private[this] def sendClientMessage(
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage],
       pingGeneratorActor: ActorRef[PingGeneratorActor.PingGeneratorMessage],
       clientMessage: proto.ws.protocol.ClientMessage.Message): Unit = {
@@ -521,9 +533,9 @@ object ClientConnectionActor {
     pingGeneratorActor ! PingGeneratorActor.FrameSentEvent
   }
 
-  private final val KeySize = 2048
+  private[this] final val KeySize = 2048
 
-  private def createKeyOwnershipChallenge()
+  private[this] def createKeyOwnershipChallenge()
     : proto.ws.protocol.ClientMessage.KeyOwnershipChallenge = {
     val nonce = new Array[Byte](KeySize / 8)
     Random.nextBytes(nonce)
@@ -532,7 +544,7 @@ object ClientConnectionActor {
     )
   }
 
-  private def isValidKeyOwnershipProof(
+  private[this] def isValidKeyOwnershipProof(
       keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge,
       keyOwnershipProof: proto.ws.protocol.ServerMessage.KeyOwnershipProof)
     : Boolean = {
@@ -553,4 +565,11 @@ object ClientConnectionActor {
     val signature = keyOwnershipProof.signature.toByteArray
     isValidMessageSignature(publicKey)(nonce, signature)
   }
+
+  private[this] final val OutFlow
+    : Flow[proto.ws.protocol.ClientMessage, WsMessage, NotUsed] =
+    Flow[proto.ws.protocol.ClientMessage].map(
+      serverMessage => BinaryMessage(ByteString(serverMessage.toByteArray))
+    )
+
 }

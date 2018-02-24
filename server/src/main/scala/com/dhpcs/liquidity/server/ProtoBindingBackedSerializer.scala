@@ -16,29 +16,6 @@ import scala.collection.immutable.Seq
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success}
 
-object ProtoBindingBackedSerializer {
-
-  object AnyRefProtoBinding {
-    def apply[S, P](implicit scalaClassTag: ClassTag[S],
-                    protoClassTag: ClassTag[P],
-                    protoBinding: ProtoBinding[S, P, ActorRefResolver])
-      : AnyRefProtoBinding[S, P] =
-      new AnyRefProtoBinding(scalaClassTag, protoClassTag, protoBinding)
-  }
-
-  class AnyRefProtoBinding[S, P](
-      val scalaClassTag: ClassTag[S],
-      val protoClassTag: ClassTag[P],
-      protoBinding: ProtoBinding[S, P, ActorRefResolver]) {
-    def anyRefScalaAsAnyRefProto(s: AnyRef)(
-        implicit resolver: ActorRefResolver): AnyRef =
-      protoBinding.asProto(s.asInstanceOf[S])(resolver).asInstanceOf[AnyRef]
-    def anyRefProtoAsAnyRefScala(p: AnyRef)(
-        implicit resolver: ActorRefResolver): AnyRef =
-      protoBinding.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]
-  }
-}
-
 abstract class ProtoBindingBackedSerializer(
     system: ExtendedActorSystem,
     protoBindings: Seq[AnyRefProtoBinding[_, _]],
@@ -116,5 +93,28 @@ abstract class ProtoBindingBackedSerializer(
       .anyRefProtoAsAnyRefScala(
         protobufSerializer.fromBinary(bytes, Some(protoClass))
       )(resolver)
+  }
+}
+
+object ProtoBindingBackedSerializer {
+
+  object AnyRefProtoBinding {
+    def apply[S, P](implicit scalaClassTag: ClassTag[S],
+                    protoClassTag: ClassTag[P],
+                    protoBinding: ProtoBinding[S, P, ActorRefResolver])
+      : AnyRefProtoBinding[S, P] =
+      new AnyRefProtoBinding(scalaClassTag, protoClassTag, protoBinding)
+  }
+
+  class AnyRefProtoBinding[S, P](
+      val scalaClassTag: ClassTag[S],
+      val protoClassTag: ClassTag[P],
+      protoBinding: ProtoBinding[S, P, ActorRefResolver]) {
+    def anyRefScalaAsAnyRefProto(s: AnyRef)(
+        implicit resolver: ActorRefResolver): AnyRef =
+      protoBinding.asProto(s.asInstanceOf[S])(resolver).asInstanceOf[AnyRef]
+    def anyRefProtoAsAnyRefScala(p: AnyRef)(
+        implicit resolver: ActorRefResolver): AnyRef =
+      protoBinding.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]
   }
 }

@@ -13,7 +13,7 @@ object ZoneMonitorActor {
 
   final val ZoneStatusTopic = "Zone"
 
-  private case object LogActiveZonesCountTimerKey
+  private[this] case object LogActiveZonesCountTimerKey
 
   def behavior: Behavior[ZoneMonitorMessage] =
     Behaviors.setup(context =>
@@ -26,7 +26,7 @@ object ZoneMonitorActor {
         withSummaries(Map.empty)
     })
 
-  private def withSummaries(
+  private[this] def withSummaries(
       activeZoneSummaries: Map[ActorRef[Nothing], ActiveZoneSummary])
     : Behavior[ZoneMonitorMessage] =
     Behaviors.immutable[ZoneMonitorMessage]((context, message) =>

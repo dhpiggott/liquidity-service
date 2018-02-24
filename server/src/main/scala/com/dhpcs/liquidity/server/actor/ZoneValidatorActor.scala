@@ -38,7 +38,7 @@ object ZoneValidatorActor {
   final val ShardingTypeName =
     EntityTypeKey[SerializableZoneValidatorMessage]("zoneValidator")
 
-  private final val MaxNumberOfShards = 10
+  private[this] final val MaxNumberOfShards = 10
 
   val messageExtractor
     : ShardingMessageExtractor[SerializableZoneValidatorMessage,
@@ -60,74 +60,6 @@ object ZoneValidatorActor {
       case ZoneCommandEnvelope(_, zoneId, _, _, _, _) =>
         zoneId.value
     }
-
-  private case object PublishStatusTimerKey
-
-  private final val PassivationTimeout = 2.minutes
-  private final val SnapShotInterval = 100
-  private final val ZoneLifetime = java.time.Duration.ofDays(30)
-
-  private object PassivationCountdownActor {
-
-    sealed abstract class PassivationCountdownMessage
-    case object Start extends PassivationCountdownMessage
-    case object Stop extends PassivationCountdownMessage
-    case object CommandReceivedEvent extends PassivationCountdownMessage
-    case object ReceiveTimeout extends PassivationCountdownMessage
-
-    def behavior(zoneValidator: ActorRef[StopZone.type])
-      : Behavior[PassivationCountdownMessage] =
-      Behaviors.setup { context =>
-        context.self ! Start
-        Behaviors.immutable[PassivationCountdownMessage]((_, message) =>
-          message match {
-            case Start =>
-              context.setReceiveTimeout(PassivationTimeout, ReceiveTimeout)
-              Behaviors.same
-
-            case Stop =>
-              context.cancelReceiveTimeout()
-              Behaviors.same
-
-            case CommandReceivedEvent =>
-              Behaviors.same
-
-            case ReceiveTimeout =>
-              zoneValidator ! StopZone
-              Behaviors.same
-        })
-      }
-
-  }
-
-  private object ClientConnectionWatcherActor {
-
-    sealed abstract class ClientConnectionWatcherMessage
-    final case class Watch(
-        clientConnection: ActorRef[SerializableClientConnectionMessage])
-        extends ClientConnectionWatcherMessage
-    final case class Unwatch(
-        clientConnection: ActorRef[SerializableClientConnectionMessage])
-        extends ClientConnectionWatcherMessage
-
-    def behavior(zoneValidator: ActorRef[RemoveClient])
-      : Behavior[ClientConnectionWatcherMessage] =
-      Behaviors.immutable[ClientConnectionWatcherMessage]((context, message) =>
-        message match {
-          case Watch(clientConnection) =>
-            context.watch(clientConnection)
-            Behaviors.same
-
-          case Unwatch(clientConnection) =>
-            context.watch(clientConnection)
-            Behaviors.same
-      }) onSignal {
-        case (_, Terminated(ref)) =>
-          zoneValidator ! RemoveClient(ref.upcast)
-          Behaviors.same
-      }
-
-  }
 
   def shardingBehavior(
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
@@ -177,7 +109,73 @@ object ZoneValidatorActor {
       }
       .narrow[SerializableZoneValidatorMessage]
 
-  private def persistentBehavior(
+  private[this] case object PublishStatusTimerKey
+
+  private[this] object PassivationCountdownActor {
+
+    sealed abstract class PassivationCountdownMessage
+    case object Start extends PassivationCountdownMessage
+    case object Stop extends PassivationCountdownMessage
+    case object CommandReceivedEvent extends PassivationCountdownMessage
+    case object ReceiveTimeout extends PassivationCountdownMessage
+
+    def behavior(zoneValidator: ActorRef[StopZone.type])
+      : Behavior[PassivationCountdownMessage] =
+      Behaviors.setup { context =>
+        context.self ! Start
+        Behaviors.immutable[PassivationCountdownMessage]((_, message) =>
+          message match {
+            case Start =>
+              context.setReceiveTimeout(PassivationTimeout, ReceiveTimeout)
+              Behaviors.same
+
+            case Stop =>
+              context.cancelReceiveTimeout()
+              Behaviors.same
+
+            case CommandReceivedEvent =>
+              Behaviors.same
+
+            case ReceiveTimeout =>
+              zoneValidator ! StopZone
+              Behaviors.same
+        })
+      }
+
+    private[this] final val PassivationTimeout = 2.minutes
+
+  }
+
+  private[this] object ClientConnectionWatcherActor {
+
+    sealed abstract class ClientConnectionWatcherMessage
+    final case class Watch(
+        clientConnection: ActorRef[SerializableClientConnectionMessage])
+        extends ClientConnectionWatcherMessage
+    final case class Unwatch(
+        clientConnection: ActorRef[SerializableClientConnectionMessage])
+        extends ClientConnectionWatcherMessage
+
+    def behavior(zoneValidator: ActorRef[RemoveClient])
+      : Behavior[ClientConnectionWatcherMessage] =
+      Behaviors.immutable[ClientConnectionWatcherMessage]((context, message) =>
+        message match {
+          case Watch(clientConnection) =>
+            context.watch(clientConnection)
+            Behaviors.same
+
+          case Unwatch(clientConnection) =>
+            context.watch(clientConnection)
+            Behaviors.same
+      }) onSignal {
+        case (_, Terminated(ref)) =>
+          zoneValidator ! RemoveClient(ref.upcast)
+          Behaviors.same
+      }
+
+  }
+
+  private[this] def persistentBehavior(
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[
         ActorRef[SerializableClientConnectionMessage],
@@ -266,13 +264,14 @@ object ZoneValidatorActor {
       .snapshotEvery(SnapShotInterval)
       .withTagger(_ => Set(EventTags.ZoneEventTag))
 
-  private def handleCommand(context: ActorContext[ZoneValidatorMessage],
-                            id: ZoneId,
-                            notificationSequenceNumbers: mutable.Map[
-                              ActorRef[SerializableClientConnectionMessage],
-                              Long],
-                            state: ZoneState,
-                            zoneCommandEnvelope: ZoneCommandEnvelope)(
+  private[this] def handleCommand(
+      context: ActorContext[ZoneValidatorMessage],
+      id: ZoneId,
+      notificationSequenceNumbers: mutable.Map[
+        ActorRef[SerializableClientConnectionMessage],
+        Long],
+      state: ZoneState,
+      zoneCommandEnvelope: ZoneCommandEnvelope)(
       implicit resolver: ActorRefResolver)
     : Effect[ZoneEventEnvelope, ZoneState] =
     zoneCommandEnvelope.zoneCommand match {
@@ -327,6 +326,7 @@ object ZoneValidatorActor {
               case None =>
                 val equityOwner = Member(
                   MemberId(0.toString),
+                  // TODO: Validation
                   Set(equityOwnerPublicKey),
                   equityOwnerName,
                   equityOwnerMetadata
@@ -767,7 +767,9 @@ object ZoneValidatorActor {
         }
     }
 
-  private def validatePublicKeys(publicKeys: Set[PublicKey])
+  private[this] final val ZoneLifetime = java.time.Duration.ofDays(30)
+
+  private[this] def validatePublicKeys(publicKeys: Set[PublicKey])
     : ValidatedNel[ZoneResponse.Error, Set[PublicKey]] = {
     def validatePublicKey(
         publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
@@ -796,7 +798,7 @@ object ZoneValidatorActor {
             validatedPublicKeys.combine(validatedPublicKey.map(Set(_))))
   }
 
-  private def validateMemberIds(zone: Zone, memberIds: Set[MemberId])
+  private[this] def validateMemberIds(zone: Zone, memberIds: Set[MemberId])
     : ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
     def validateMemberId(
         memberId: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
@@ -813,7 +815,7 @@ object ZoneValidatorActor {
             validatedMemberIds.combine(validatedMemberId.map(Set(_))))
   }
 
-  private def validateCanUpdateMember(
+  private[this] def validateCanUpdateMember(
       zone: Zone,
       memberId: MemberId,
       publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
@@ -826,7 +828,7 @@ object ZoneValidatorActor {
         Validated.valid(())
     }
 
-  private def validateCanUpdateAccount(
+  private[this] def validateCanUpdateAccount(
       zone: Zone,
       publicKey: PublicKey,
       actingAs: MemberId,
@@ -845,7 +847,7 @@ object ZoneValidatorActor {
         }
     }
 
-  private def validateFromAccount(
+  private[this] def validateFromAccount(
       zone: Zone,
       actingAs: MemberId,
       accountId: AccountId): ValidatedNel[ZoneResponse.Error, AccountId] =
@@ -858,7 +860,7 @@ object ZoneValidatorActor {
         Validated.valid(accountId)
     }
 
-  private def validateToAccount(
+  private[this] def validateToAccount(
       zone: Zone,
       from: AccountId,
       accountId: AccountId): ValidatedNel[ZoneResponse.Error, AccountId] =
@@ -871,7 +873,7 @@ object ZoneValidatorActor {
         Validated.valid(accountId)
     }
 
-  private def validateActingAs(
+  private[this] def validateActingAs(
       zone: Zone,
       publicKey: PublicKey,
       actingAs: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
@@ -882,10 +884,11 @@ object ZoneValidatorActor {
         Validated.valid(actingAs)
     }
 
-  private def validateTransactionValue(from: AccountId,
-                                       value: BigDecimal,
-                                       zone: Zone,
-                                       balances: Map[AccountId, BigDecimal])
+  private[this] def validateTransactionValue(
+      from: AccountId,
+      value: BigDecimal,
+      zone: Zone,
+      balances: Map[AccountId, BigDecimal])
     : ValidatedNel[ZoneResponse.Error, BigDecimal] =
     (if (value.compare(0) == -1)
        Validated.invalidNel(ZoneResponse.Error.negativeTransactionValue)
@@ -897,7 +900,7 @@ object ZoneValidatorActor {
           Validated.valid(value)
     )
 
-  private def validateTag(
+  private[this] def validateTag(
       tag: Option[String]): ValidatedNel[ZoneResponse.Error, Option[String]] =
     tag.map(_.length) match {
       case Some(tagLength) if tagLength > ZoneCommand.MaximumTagLength =>
@@ -906,7 +909,7 @@ object ZoneValidatorActor {
         Validated.valid(tag)
     }
 
-  private def validateMetadata(
+  private[this] def validateMetadata(
       metadata: Option[com.google.protobuf.struct.Struct])
     : ValidatedNel[ZoneResponse.Error,
                    Option[com.google.protobuf.struct.Struct]] =
@@ -918,7 +921,7 @@ object ZoneValidatorActor {
         Validated.valid(metadata)
     }
 
-  private def acceptCommand(
+  private[this] def acceptCommand(
       self: ActorRef[ZoneValidatorMessage],
       id: ZoneId,
       resolver: ActorRefResolver,
@@ -1032,17 +1035,18 @@ object ZoneValidatorActor {
                                 _)
         ))
 
-  private def deliverResponse(self: ActorRef[ZoneValidatorMessage],
-                              clientConnection: ActorRef[ZoneResponseEnvelope],
-                              correlationId: Long,
-                              response: ZoneResponse): Unit =
+  private[this] def deliverResponse(
+      self: ActorRef[ZoneValidatorMessage],
+      clientConnection: ActorRef[ZoneResponseEnvelope],
+      correlationId: Long,
+      response: ZoneResponse): Unit =
     clientConnection ! ZoneResponseEnvelope(
       self,
       correlationId,
       response
     )
 
-  private def deliverNotification(
+  private[this] def deliverNotification(
       self: ActorRef[ZoneValidatorMessage],
       id: ZoneId,
       clientConnections: Iterable[
@@ -1061,7 +1065,7 @@ object ZoneValidatorActor {
       notificationSequenceNumbers += clientConnection -> nextSequenceNumber
     }
 
-  private def eventHandler(
+  private[this] def eventHandler(
       notificationSequenceNumbers: mutable.Map[
         ActorRef[SerializableClientConnectionMessage],
         Long],
@@ -1186,5 +1190,7 @@ object ZoneValidatorActor {
             ))
         )
     }
+
+  private[this] final val SnapShotInterval = 100
 
 }

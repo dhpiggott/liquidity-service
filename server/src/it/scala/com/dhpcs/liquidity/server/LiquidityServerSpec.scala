@@ -44,140 +44,12 @@ import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.sys.process.{Process, ProcessBuilder}
 
-object LiquidityServerSpec {
-
-  private val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
-    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(2048)
-    val keyPair = keyPairGenerator.generateKeyPair
-    (keyPair.getPrivate, keyPair.getPublic)
-  }
-  private val administratorJwt =
-    JwtJson.encode(
-      Json.obj(
-        "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
-      ),
-      rsaPrivateKey,
-      JwtAlgorithm.RS256
-    )
-
-  private def externalDockerComposeServicePorts(
-      projectName: String,
-      serviceName: String,
-      internalPort: Int
-  ): Map[String, Int] = {
-    val serviceInstances =
-      dockerCompose(projectName, "ps", "-q", serviceName).!!.split('\n')
-    val ExternalIpAndPortRegex = "^(.+):(\\d+)$".r
-    serviceInstances.zipWithIndex.map {
-      case (instanceId, index) =>
-        val ExternalIpAndPortRegex(_, externalPort) =
-          dockerCompose(projectName,
-                        "port",
-                        "--index",
-                        (index + 1).toString,
-                        serviceName,
-                        internalPort.toString).!!.trim
-        instanceId -> externalPort.toInt
-    }.toMap
-  }
-
-  private def dockerCompose(projectName: String,
-                            commandArgs: String*): ProcessBuilder =
-    Process(
-      command = Seq(
-        "docker-compose",
-        "--project-name",
-        projectName,
-        "--file",
-        new File("server/src/it/docker-compose.yml").getCanonicalPath) ++
-        commandArgs,
-      cwd = None,
-      extraEnv = "TAG" -> BuildInfo.version
-    )
-
-  private def execSqlFile(path: String): ConnectionIO[Unit] =
-    scala.io.Source
-      .fromFile(path)
-      .mkString("")
-      .split(';')
-      .filter(!_.trim.isEmpty)
-      .map(Fragment.const0(_).update.run)
-      .toList
-      .sequence
-      .map(_ => ())
-
-  private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] = {
-    import SqlAdministratorStore.PublicKeyMeta
-    for (_ <- sql"""
-             INSERT INTO liquidity_administrators.administrators (public_key)
-               VALUES ($publicKey)
-           """.update.run)
-      yield ()
-  }
-}
-
 class LiquidityServerSpec
     extends FreeSpec
     with BeforeAndAfterAll
     with Eventually
     with ScalaFutures
     with IntegrationPatience {
-
-  private[this] val projectName = UUID.randomUUID().toString
-
-  private[this] implicit val system: ActorSystem = ActorSystem()
-  private[this] implicit val mat: Materializer = ActorMaterializer()
-
-  override protected def beforeAll(): Unit = {
-    super.beforeAll()
-    assert(dockerCompose(projectName, "up", "-d", "--remove-orphans").! === 0)
-    val (_, mysqlPort) =
-      externalDockerComposeServicePorts(projectName, "mysql", 3306).head
-    val transactor = Transactor.fromDriverManager[IO](
-      driver = "com.mysql.jdbc.Driver",
-      url =
-        s"jdbc:mysql://localhost:$mysqlPort/?" +
-          "useSSL=false&" +
-          "cacheCallableStmts=true&" +
-          "cachePrepStmts=true&" +
-          "cacheResultSetMetadata=true&" +
-          "cacheServerConfiguration=true&" +
-          "useLocalSessionState=true&" +
-          "useLocalSessionState=true&" +
-          "useServerPrepStmts=true",
-      user = "root",
-      pass = ""
-    )
-    val connectionTest = for (_ <- sql"SELECT 1".query[Int].unique) yield ()
-    eventually(
-      connectionTest
-        .transact(transactor)
-        .unsafeRunSync()
-    )
-    execSqlFile("schemas/journal.sql")
-      .transact(transactor)
-      .unsafeRunSync()
-    execSqlFile("schemas/analytics.sql")
-      .transact(transactor)
-      .unsafeRunSync()
-    execSqlFile("schemas/administrators.sql")
-      .transact(transactor)
-      .unsafeRunSync()
-    addAdministrator(PublicKey(rsaPublicKey.getEncoded))
-      .transact(transactor)
-      .unsafeRunSync()
-  }
-
-  override protected def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    assert(dockerCompose(projectName, "logs", "mysql").! === 0)
-    assert(dockerCompose(projectName, "logs", "zone-host").! === 0)
-    assert(dockerCompose(projectName, "logs", "client-relay").! === 0)
-    assert(dockerCompose(projectName, "logs", "analytics").! === 0)
-    assert(dockerCompose(projectName, "down", "--volumes").! === 0)
-    super.afterAll()
-  }
 
   "The LiquidityServer" - {
     "forms a cluster" in {
@@ -362,6 +234,51 @@ class LiquidityServerSpec
       ()
     }
   }
+
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    assert(dockerCompose(projectName, "up", "-d", "--remove-orphans").! === 0)
+    val (_, mysqlPort) =
+      externalDockerComposeServicePorts(projectName, "mysql", 3306).head
+    val transactor = Transactor.fromDriverManager[IO](
+      driver = "com.mysql.jdbc.Driver",
+      url =
+        s"jdbc:mysql://localhost:$mysqlPort/?" +
+          "useSSL=false&" +
+          "cacheCallableStmts=true&" +
+          "cachePrepStmts=true&" +
+          "cacheResultSetMetadata=true&" +
+          "cacheServerConfiguration=true&" +
+          "useLocalSessionState=true&" +
+          "useLocalSessionState=true&" +
+          "useServerPrepStmts=true",
+      user = "root",
+      pass = ""
+    )
+    val connectionTest = for (_ <- sql"SELECT 1".query[Int].unique) yield ()
+    eventually(
+      connectionTest
+        .transact(transactor)
+        .unsafeRunSync()
+    )
+    execSqlFile("schemas/journal.sql")
+      .transact(transactor)
+      .unsafeRunSync()
+    execSqlFile("schemas/analytics.sql")
+      .transact(transactor)
+      .unsafeRunSync()
+    execSqlFile("schemas/administrators.sql")
+      .transact(transactor)
+      .unsafeRunSync()
+    addAdministrator(PublicKey(rsaPublicKey.getEncoded))
+      .transact(transactor)
+      .unsafeRunSync()
+  }
+
+  private[this] val projectName = UUID.randomUUID().toString
+
+  private[this] implicit val system: ActorSystem = ActorSystem()
+  private[this] implicit val mat: Materializer = ActorMaterializer()
 
   private[this] def withWsTestProbes(
       test: (TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
@@ -743,96 +660,6 @@ class LiquidityServerSpec
     )
   }
 
-  private[this] def expectCommand(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
-    : proto.ws.protocol.ClientMessage.Command.Command =
-    inside(sub.requestNext().message) {
-      case proto.ws.protocol.ClientMessage.Message.Command(
-          proto.ws.protocol.ClientMessage.Command(_, protoCommand)
-          ) =>
-        protoCommand
-    }
-
-  private[this] def sendCreateZoneCommand(
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
-      createZoneCommand: CreateZoneCommand,
-      correlationId: Long): Unit =
-    sendMessage(pub)(
-      proto.ws.protocol.ServerMessage.Message.Command(
-        proto.ws.protocol.ServerMessage.Command(
-          correlationId,
-          proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-            ProtoBinding[CreateZoneCommand,
-                         proto.ws.protocol.ZoneCommand.CreateZoneCommand,
-                         Any]
-              .asProto(createZoneCommand)(())
-          )
-        )))
-
-  private[this] def sendZoneCommand(
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
-      zoneId: ZoneId,
-      zoneCommand: ZoneCommand,
-      correlationId: Long): Unit =
-    sendMessage(pub)(
-      proto.ws.protocol.ServerMessage.Message.Command(
-        proto.ws.protocol.ServerMessage.Command(
-          correlationId,
-          proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
-            proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
-              zoneId.value.toString,
-              Some(
-                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
-                  .asProto(zoneCommand)(())
-              )))
-        )))
-
-  private[this] def sendMessage(
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
-      message: proto.ws.protocol.ServerMessage.Message): Unit = {
-    pub.sendNext(
-      proto.ws.protocol.ServerMessage(message)
-    )
-    ()
-  }
-
-  private[this] def expectZoneResponse(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      expectedCorrelationId: Long): ZoneResponse =
-    inside(expectMessage(sub)) {
-      case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
-        assert(protoResponse.correlationId == expectedCorrelationId)
-        inside(protoResponse.response) {
-          case proto.ws.protocol.ClientMessage.Response.Response
-                .ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
-              .asScala(protoZoneResponse)(())
-        }
-    }
-
-  private[this] def expectZoneNotification(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
-    : ZoneNotification =
-    inside(expectMessage(sub)) {
-      case proto.ws.protocol.ClientMessage.Message
-            .Notification(protoNotification) =>
-        inside(protoNotification.notification) {
-          case proto.ws.protocol.ClientMessage.Notification.Notification
-                .ZoneNotificationEnvelope(
-                proto.ws.protocol.ClientMessage.Notification
-                  .ZoneNotificationEnvelope(_, Some(protoZoneNotification))) =>
-            ProtoBinding[ZoneNotification,
-                         proto.ws.protocol.ZoneNotification,
-                         Any]
-              .asScala(protoZoneNotification)(())
-        }
-    }
-
-  private[this] def expectMessage(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
-    : proto.ws.protocol.ClientMessage.Message =
-    sub.requestNext().message
-
   private[this] def awaitZoneProjection(zone: Zone): Zone = {
     val (_, akkaHttpPort) =
       externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
@@ -884,4 +711,178 @@ class LiquidityServerSpec
     }
     balances
   }
+
+  override protected def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    assert(dockerCompose(projectName, "logs", "mysql").! === 0)
+    assert(dockerCompose(projectName, "logs", "zone-host").! === 0)
+    assert(dockerCompose(projectName, "logs", "client-relay").! === 0)
+    assert(dockerCompose(projectName, "logs", "analytics").! === 0)
+    assert(dockerCompose(projectName, "down", "--volumes").! === 0)
+    super.afterAll()
+  }
+}
+
+object LiquidityServerSpec {
+
+  private val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    val keyPair = keyPairGenerator.generateKeyPair
+    (keyPair.getPrivate, keyPair.getPublic)
+  }
+  private val administratorJwt =
+    JwtJson.encode(
+      Json.obj(
+        "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
+      ),
+      rsaPrivateKey,
+      JwtAlgorithm.RS256
+    )
+
+  private def externalDockerComposeServicePorts(
+      projectName: String,
+      serviceName: String,
+      internalPort: Int
+  ): Map[String, Int] = {
+    val serviceInstances =
+      dockerCompose(projectName, "ps", "-q", serviceName).!!.split('\n')
+    val ExternalIpAndPortRegex = "^(.+):(\\d+)$".r
+    serviceInstances.zipWithIndex.map {
+      case (instanceId, index) =>
+        val ExternalIpAndPortRegex(_, externalPort) =
+          dockerCompose(projectName,
+                        "port",
+                        "--index",
+                        (index + 1).toString,
+                        serviceName,
+                        internalPort.toString).!!.trim
+        instanceId -> externalPort.toInt
+    }.toMap
+  }
+
+  private def dockerCompose(projectName: String,
+                            commandArgs: String*): ProcessBuilder =
+    Process(
+      command = Seq(
+        "docker-compose",
+        "--project-name",
+        projectName,
+        "--file",
+        new File("server/src/it/docker-compose.yml").getCanonicalPath) ++
+        commandArgs,
+      cwd = None,
+      extraEnv = "TAG" -> BuildInfo.version
+    )
+
+  private def execSqlFile(path: String): ConnectionIO[Unit] =
+    scala.io.Source
+      .fromFile(path)
+      .mkString("")
+      .split(';')
+      .filter(!_.trim.isEmpty)
+      .map(Fragment.const0(_).update.run)
+      .toList
+      .sequence
+      .map(_ => ())
+
+  private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] = {
+    import SqlAdministratorStore.PublicKeyMeta
+    for (_ <- sql"""
+             INSERT INTO liquidity_administrators.administrators (public_key)
+               VALUES ($publicKey)
+           """.update.run)
+      yield ()
+  }
+
+  private def sendCreateZoneCommand(
+      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
+      createZoneCommand: CreateZoneCommand,
+      correlationId: Long): Unit =
+    sendMessage(pub)(
+      proto.ws.protocol.ServerMessage.Message.Command(
+        proto.ws.protocol.ServerMessage.Command(
+          correlationId,
+          proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
+            ProtoBinding[CreateZoneCommand,
+                         proto.ws.protocol.ZoneCommand.CreateZoneCommand,
+                         Any]
+              .asProto(createZoneCommand)(())
+          )
+        )))
+
+  private def sendZoneCommand(
+      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
+      zoneId: ZoneId,
+      zoneCommand: ZoneCommand,
+      correlationId: Long): Unit =
+    sendMessage(pub)(
+      proto.ws.protocol.ServerMessage.Message.Command(
+        proto.ws.protocol.ServerMessage.Command(
+          correlationId,
+          proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
+            proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
+              zoneId.value.toString,
+              Some(
+                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
+                  .asProto(zoneCommand)(())
+              )))
+        )))
+
+  private def sendMessage(
+      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
+      message: proto.ws.protocol.ServerMessage.Message): Unit = {
+    pub.sendNext(
+      proto.ws.protocol.ServerMessage(message)
+    )
+    ()
+  }
+
+  private def expectZoneResponse(
+      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
+      expectedCorrelationId: Long): ZoneResponse =
+    inside(expectMessage(sub)) {
+      case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
+        assert(protoResponse.correlationId == expectedCorrelationId)
+        inside(protoResponse.response) {
+          case proto.ws.protocol.ClientMessage.Response.Response
+                .ZoneResponse(protoZoneResponse) =>
+            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
+              .asScala(protoZoneResponse)(())
+        }
+    }
+
+  private def expectZoneNotification(
+      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
+    : ZoneNotification =
+    inside(expectMessage(sub)) {
+      case proto.ws.protocol.ClientMessage.Message
+            .Notification(protoNotification) =>
+        inside(protoNotification.notification) {
+          case proto.ws.protocol.ClientMessage.Notification.Notification
+                .ZoneNotificationEnvelope(
+                proto.ws.protocol.ClientMessage.Notification
+                  .ZoneNotificationEnvelope(_, Some(protoZoneNotification))) =>
+            ProtoBinding[ZoneNotification,
+                         proto.ws.protocol.ZoneNotification,
+                         Any]
+              .asScala(protoZoneNotification)(())
+        }
+    }
+
+  private def expectCommand(
+      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
+    : proto.ws.protocol.ClientMessage.Command.Command =
+    inside(expectMessage(sub)) {
+      case proto.ws.protocol.ClientMessage.Message.Command(
+          proto.ws.protocol.ClientMessage.Command(_, protoCommand)
+          ) =>
+        protoCommand
+    }
+
+  private def expectMessage(
+      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
+    : proto.ws.protocol.ClientMessage.Message =
+    sub.requestNext().message
+
 }

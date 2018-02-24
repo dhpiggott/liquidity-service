@@ -1,5 +1,13 @@
 package com.dhpcs.liquidity.proto.binding
 
+trait ProtoBinding[S, P, -C] {
+
+  def asProto(s: S)(implicit c: C): P
+
+  def asScala(p: P)(implicit c: C): S
+
+}
+
 object ProtoBinding {
 
   def instance[S, P, C](apply: (S, C) => P,
@@ -13,9 +21,4 @@ object ProtoBinding {
       implicit protoBinding: ProtoBinding[S, P, C]): ProtoBinding[S, P, C] =
     protoBinding
 
-}
-
-trait ProtoBinding[S, P, -C] {
-  def asProto(s: S)(implicit c: C): P
-  def asScala(p: P)(implicit c: C): S
 }

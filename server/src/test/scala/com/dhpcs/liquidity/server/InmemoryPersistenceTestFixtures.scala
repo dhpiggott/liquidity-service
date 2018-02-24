@@ -53,7 +53,7 @@ trait InmemoryPersistenceTestFixtures extends BeforeAndAfterAll { this: Suite =>
        |akka {
        |  loglevel = "WARNING"
        |  actor {
-       |    provider = "akka.cluster.ClusterActorRefProvider"
+       |    provider = "cluster"
        |    serializers {
        |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
        |    }

@@ -70,7 +70,7 @@ object LiquidityServer {
         |  loglevel = "DEBUG"
         |  logging-filter = "akka.event.slf4j.Slf4jLoggingFilter"
         |  actor {
-        |    provider = "akka.cluster.ClusterActorRefProvider"
+        |    provider = "cluster"
         |    serializers {
         |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
         |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"

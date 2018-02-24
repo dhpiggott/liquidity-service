@@ -350,7 +350,7 @@ class HttpControllerSpec
         val getRequest = RequestBuilding
           .Get(
             Uri.Empty.withPath(
-              Uri.Path("/diagnostics/zones") / zone.id.value
+              Uri.Path("/diagnostics/zone") / zone.id.value
             )
           )
           .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
@@ -388,7 +388,7 @@ class HttpControllerSpec
           val getRequest = RequestBuilding
             .Get(
               Uri.Empty.withPath(
-                Uri.Path("/analytics/zones") / UUID.randomUUID().toString
+                Uri.Path("/analytics/zone") / UUID.randomUUID().toString
               )
             )
             .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
@@ -399,7 +399,7 @@ class HttpControllerSpec
         "with status 200 when the zone exists" in {
           val getRequest =
             RequestBuilding
-              .Get(s"/analytics/zones/${zone.id.value}")
+              .Get(s"/analytics/zone/${zone.id.value}")
               .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
           getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
             assert(status === StatusCodes.OK)
@@ -430,7 +430,7 @@ class HttpControllerSpec
       "for balances" in {
         val getRequest =
           RequestBuilding
-            .Get(s"/analytics/zones/${zone.id.value}/balances")
+            .Get(s"/analytics/zone/${zone.id.value}/balances")
             .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
@@ -448,7 +448,7 @@ class HttpControllerSpec
       "for client-sessions" in {
         val getRequest =
           RequestBuilding
-            .Get(s"/analytics/zones/${zone.id.value}/client-sessions")
+            .Get(s"/analytics/zone/${zone.id.value}/client-sessions")
             .withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)

@@ -668,7 +668,7 @@ class LiquidityServerSpec
         .singleRequest(
           HttpRequest(
             uri = Uri(s"http://localhost:$akkaHttpPort")
-              .withPath(Uri.Path("/analytics/zones") / zone.id.value)
+              .withPath(Uri.Path("/analytics/zone") / zone.id.value)
           ).withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         )
         .futureValue
@@ -695,8 +695,7 @@ class LiquidityServerSpec
         .singleRequest(
           HttpRequest(
             uri = Uri(s"http://localhost:$akkaHttpPort")
-              .withPath(
-                Uri.Path("/analytics/zones") / zoneId.value / "balances")
+              .withPath(Uri.Path("/analytics/zone") / zoneId.value / "balances")
           ).withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
         )
         .futureValue

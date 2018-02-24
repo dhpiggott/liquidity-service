@@ -128,27 +128,21 @@ trait HttpController {
     EntityStreamingSupport.json()
 
   private[this] def diagnostics: Route =
-    pathPrefix("events")(
-      pathPrefix(Remaining)(
-        persistenceId =>
-          parameters(("fromSequenceNr".as[Long] ? 0L,
-                      "toSequenceNr".as[Long] ? Long.MaxValue)) {
-            (fromSequenceNr, toSequenceNr) =>
-              get(complete(events(persistenceId, fromSequenceNr, toSequenceNr)))
-        })
-    ) ~ pathPrefix("zones")(
-      path(JavaUUID)(id => get(complete(zoneState(ZoneId(id.toString)))))
-    )
+    path("events" / Segment)(
+      persistenceId =>
+        parameters(("fromSequenceNr".as[Long] ? 0L,
+                    "toSequenceNr".as[Long] ? Long.MaxValue)) {
+          (fromSequenceNr, toSequenceNr) =>
+            get(complete(events(persistenceId, fromSequenceNr, toSequenceNr)))
+      }) ~
+      path("zone" / zoneIdMatcher)(zoneId => get(complete(zoneState(zoneId))))
 
   private[this] def analytics(implicit ec: ExecutionContext): Route =
-    pathPrefix("zones")(
-      pathPrefix(JavaUUID) { uuid =>
-        val zoneId = ZoneId(uuid.toString)
-        pathEnd(zone(zoneId)) ~
-          path("balances")(balances(zoneId)) ~
-          path("client-sessions")(clientSessions(zoneId))
-      }
-    )
+    pathPrefix("zone" / zoneIdMatcher) { zoneId =>
+      pathEnd(zone(zoneId)) ~
+        path("balances")(balances(zoneId)) ~
+        path("client-sessions")(clientSessions(zoneId))
+    }
 
   private[this] def version: Route =
     get(
@@ -321,6 +315,8 @@ trait HttpController {
 }
 
 object HttpController {
+
+  private val zoneIdMatcher = JavaUUID.map(uuid => ZoneId(uuid.toString))
 
   final case class EventEnvelope(sequenceNr: Long, event: GeneratedMessage)
 

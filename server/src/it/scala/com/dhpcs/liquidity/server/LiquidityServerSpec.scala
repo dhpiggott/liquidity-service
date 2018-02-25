@@ -107,7 +107,7 @@ class LiquidityServerSpec
               |{
               |  "activeClients" : {
               |    "count" : 0,
-              |    "publicKeyFingerprints" : [ ]
+              |    "clients" : [ ]
               |  },
               |  "activeZones" : {
               |    "count" : 0,

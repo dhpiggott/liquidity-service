@@ -316,8 +316,10 @@ object ClientConnectionActor {
         case PublishClientStatusTick =>
           mediator ! Publish(
             ClientMonitorActor.ClientStatusTopic,
-            UpsertActiveClientSummary(context.self,
-                                      ActiveClientSummary(publicKey))
+            UpsertActiveClientSummary(
+              context.self,
+              ActiveClientSummary(remoteAddress, publicKey)
+            )
           )
           Behaviors.same
 

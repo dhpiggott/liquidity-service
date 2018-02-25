@@ -5,7 +5,8 @@ package dhpcs.liquidity.actor.protocol.clientmonitor;
 option java_package = "com.dhpcs.liquidity.proto.actor.protocol.clientmonitor";
 
 message ActiveClientSummary {
-    bytes public_key = 1;
+    bytes remote_address = 1;
+    bytes public_key = 2;
 }
 
 message UpsertActiveClientSummary {

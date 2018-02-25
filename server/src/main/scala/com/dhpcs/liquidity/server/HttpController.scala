@@ -175,10 +175,25 @@ trait HttpController {
             Json.obj(
               "activeClients" -> Json.obj(
                 "count" -> activeClientSummaries.size,
-                "publicKeyFingerprints" -> activeClientSummaries
-                  .map(_.publicKey.fingerprint)
+                "clients" -> activeClientSummaries
+                  .groupBy(_.remoteAddress)
                   .toSeq
-                  .sorted
+                  .sortBy {
+                    case (remoteAddress, _) => remoteAddress.getHostAddress
+                  }
+                  .map {
+                    case (remoteAddress, clients) =>
+                      Json.obj(
+                        okio.ByteString
+                          .encodeUtf8(remoteAddress.getHostAddress)
+                          .sha256
+                          .hex -> Json.obj(
+                          "publicKeyFingerprints" -> clients
+                            .map(_.publicKey.fingerprint)
+                            .toSeq
+                            .sorted
+                        ))
+                  }
               ),
               "activeZones" -> Json.obj(
                 "count" -> activeZoneSummaries.size,

@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.server.actor
 
-import java.net.InetSocketAddress
+import java.net.{InetAddress, InetSocketAddress}
 import java.nio.channels.ServerSocketChannel
 import java.security.KeyPairGenerator
 
@@ -20,8 +20,7 @@ class ClientMonitorActorSpec
     "provides a summary of the active clients" in {
       val clientMonitor = spawn(ClientMonitorActor.behavior, "clientMonitor")
       val testProbe = TestProbe[Set[ActiveClientSummary]]()
-      val activeClientSummary =
-        ActiveClientSummary(PublicKey(rsaPublicKey.getEncoded))
+      val activeClientSummary = ActiveClientSummary(remoteAddress, publicKey)
       clientMonitor ! UpsertActiveClientSummary(testProbe.ref,
                                                 activeClientSummary)
       clientMonitor ! GetActiveClientSummaries(testProbe.ref)
@@ -60,10 +59,13 @@ class ClientMonitorActorSpec
 
 object ClientMonitorActorSpec {
 
+  private val remoteAddress = InetAddress.getLoopbackAddress
   private val rsaPublicKey = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(2048)
     val keyPair = keyPairGenerator.generateKeyPair
     keyPair.getPublic
   }
+  private val publicKey = PublicKey(rsaPublicKey.getEncoded)
+
 }

@@ -18,9 +18,9 @@ import com.dhpcs.liquidity.server.actor.ZoneValidatorActorSpec._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
-import org.scalatest._
 import org.scalatest.Assertions._
 import org.scalatest.Inside._
+import org.scalatest._
 
 import scala.util.Random
 
@@ -694,7 +694,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
        |  }
        |  cluster {
        |    metrics.enabled = off
-       |    seed-nodes = ["akka.tcp://liquidity@localhost:$akkaRemotingPort"]
+       |    seed-nodes = ["akka.tcp://zoneValidatorActorSpec@localhost:$akkaRemotingPort"]
        |    jmx.multi-mbeans-in-same-jvm = on
        |  }
        |  persistence {
@@ -743,8 +743,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           zone.created === Spread(
-            pivot = System.currentTimeMillis(),
-            tolerance = 5000L
+            pivot = Instant.now().toEpochMilli,
+            tolerance = 5000
           )
         )
         assert(
@@ -789,8 +789,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           zone.created === Spread(
-            pivot = System.currentTimeMillis(),
-            tolerance = 5000L
+            pivot = Instant.now().toEpochMilli,
+            tolerance = 5000
           )
         )
         assert(
@@ -913,8 +913,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
             .ownerMemberIds
             .head)
         assert(
-          transaction.created === Spread(pivot = Instant.now().toEpochMilli,
-                                         tolerance = 5000L))
+          transaction.created === Spread(
+            pivot = Instant.now().toEpochMilli,
+            tolerance = 5000
+          )
+        )
         assert(transaction.description === Some("Jenny's Lottery Win"))
         assert(transaction.metadata === None)
     }

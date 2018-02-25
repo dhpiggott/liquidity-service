@@ -1,10 +1,9 @@
 package com.dhpcs.liquidity.model
 
-import shapeless.cachedImplicit
-
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.proto.binding.ProtoBindings._
+import shapeless.cachedImplicit
 
 object ProtoBindings {
 

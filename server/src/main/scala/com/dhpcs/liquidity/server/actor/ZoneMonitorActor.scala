@@ -39,12 +39,12 @@ object ZoneMonitorActor {
           replyTo ! activeZoneSummaries.values.toSet
           Behaviors.same
 
-        case UpsertActiveZoneSummary(zoneValidatorActorRef,
-                                     activeZoneSummary) =>
-          if (!activeZoneSummaries.contains(zoneValidatorActorRef))
-            context.watch(zoneValidatorActorRef)
+        case UpsertActiveZoneSummary(zoneValidator, activeZoneSummary) =>
+          if (!activeZoneSummaries.contains(zoneValidator))
+            // TODO: Use watchWith?
+            context.watch(zoneValidator)
           withSummaries(
-            activeZoneSummaries + (zoneValidatorActorRef -> activeZoneSummary))
+            activeZoneSummaries + (zoneValidator -> activeZoneSummary))
     }) onSignal {
       case (_, Terminated(ref)) =>
         withSummaries(activeZoneSummaries - ref)

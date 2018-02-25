@@ -241,6 +241,10 @@ message ZoneNotification {
     message TransactionAddedNotification {
         dhpcs.liquidity.model.Transaction transaction = 1;
     }
+    message ZoneStateNotification {
+        dhpcs.liquidity.model.Zone zone = 1;
+        map<string, bytes> connected_clients = 2;
+    }
     oneof zone_notification {
         ClientJoinedZoneNotification client_joined_zone_notification = 1;
         ClientQuitZoneNotification client_quit_zone_notification = 2;
@@ -250,5 +254,7 @@ message ZoneNotification {
         AccountCreatedNotification account_created_notification = 6;
         AccountUpdatedNotification account_updated_notification = 7;
         TransactionAddedNotification transaction_added_notification = 8;
+        ZoneStateNotification zone_state_notification = 9;
+        bytes ping_notification = 10;
     }
 }

@@ -25,7 +25,7 @@ class ZoneMonitorActorSpec
         accounts = 0,
         transactions = 0,
         metadata = None,
-        clientConnections = Set.empty
+        connectedClients = Set.empty
       )
       zoneMonitor ! UpsertActiveZoneSummary(testProbe.ref, activeZoneSummary)
       zoneMonitor ! GetActiveZoneSummaries(testProbe.ref)

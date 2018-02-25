@@ -9,7 +9,7 @@ final case class ActiveZoneSummary(
     accounts: Int,
     transactions: Int,
     metadata: Option[com.google.protobuf.struct.Struct],
-    clientConnections: Set[PublicKey])
+    connectedClients: Set[PublicKey])
 
 sealed abstract class ZoneMonitorMessage
 case object LogActiveZonesCount extends ZoneMonitorMessage

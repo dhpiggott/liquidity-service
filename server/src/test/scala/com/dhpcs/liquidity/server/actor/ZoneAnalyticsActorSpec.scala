@@ -167,7 +167,7 @@ class ZoneAnalyticsActorSpec
 
   private[this] def zoneCreated(fixture: FixtureParam): Zone = {
     val (transactor, zoneId, _) = fixture
-    val created = System.currentTimeMillis
+    val created = Instant.now().toEpochMilli
     val equityAccountId = AccountId(0.toString)
     val equityAccountOwnerId = MemberId(0.toString)
     val zone = Zone(
@@ -357,7 +357,7 @@ class ZoneAnalyticsActorSpec
       to = to,
       value = BigDecimal(5000),
       creator = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
-      created = System.currentTimeMillis(),
+      created = Instant.now().toEpochMilli,
       description = Some("Jenny's Lottery Win"),
       metadata = None
     )

@@ -11,6 +11,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
+import akka.http.scaladsl.model.ws.{Message => WsMessage}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl.{Flow, Keep, Source}
 import akka.stream.testkit.scaladsl.{TestSink, TestSource}
@@ -33,9 +34,9 @@ import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import doobie._
 import doobie.implicits._
 import org.scalactic.TripleEqualsSupport.Spread
+import org.scalatest.Inside._
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
-import org.scalatest.Inside._
 import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.{JsValue, Json}
 import scalapb.json4s.JsonFormat
@@ -61,7 +62,7 @@ class LiquidityServerSpec
             HttpRequest(
               uri = Uri(
                 s"http://localhost:$akkaHttpPort/akka-management/cluster/members")
-            ).withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
+            ).withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
           )
           .futureValue
         assert(response.status === StatusCodes.OK)
@@ -337,8 +338,8 @@ class LiquidityServerSpec
   }
 
   private final val InFlow
-    : Flow[ws.Message, proto.ws.protocol.ClientMessage, NotUsed] =
-    Flow[ws.Message].flatMapConcat(
+    : Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
+    Flow[WsMessage].flatMapConcat(
       wsMessage =>
         for (byteString <- wsMessage.asBinaryMessage match {
                case ws.BinaryMessage.Streamed(dataStream) =>
@@ -348,7 +349,7 @@ class LiquidityServerSpec
           yield proto.ws.protocol.ClientMessage.parseFrom(byteString.toArray))
 
   private final val OutFlow
-    : Flow[proto.ws.protocol.ServerMessage, ws.Message, NotUsed] =
+    : Flow[proto.ws.protocol.ServerMessage, WsMessage, NotUsed] =
     Flow[proto.ws.protocol.ServerMessage].map(
       serverMessage => ws.BinaryMessage(ByteString(serverMessage.toByteArray))
     )
@@ -367,9 +368,9 @@ class LiquidityServerSpec
         name = Some("Dave's Game"),
         metadata = None
       ),
-      correlationId = 0L
+      correlationId = 0
     )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0L)) {
+    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
       case CreateZoneResponse(Validated.Valid(zone)) =>
         assert(zone.accounts.size === 1)
         assert(zone.members.size === 1)
@@ -394,8 +395,8 @@ class LiquidityServerSpec
         )
         assert(
           zone.created === Spread(
-            pivot = System.currentTimeMillis(),
-            tolerance = 5000L
+            pivot = Instant.now().toEpochMilli,
+            tolerance = 5000
           )
         )
         assert(
@@ -429,9 +430,9 @@ class LiquidityServerSpec
     sendZoneCommand(pub)(
       zoneId,
       JoinZoneCommand,
-      correlationId = 0L
+      correlationId = 0
     )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0L)) {
+    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
       case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
         val (_zone, _connectedClients) = zoneAndConnectedClients
         assert(_zone === zone)
@@ -454,10 +455,10 @@ class LiquidityServerSpec
     sendZoneCommand(pub)(
       zoneId,
       QuitZoneCommand,
-      correlationId = 0L
+      correlationId = 0
     )
     assert(
-      expectZoneResponse(sub, expectedCorrelationId = 0L) === QuitZoneResponse(
+      expectZoneResponse(sub, expectedCorrelationId = 0) === QuitZoneResponse(
         Validated.valid(())))
     ()
   }
@@ -470,10 +471,10 @@ class LiquidityServerSpec
     sendZoneCommand(pub)(
       zoneId,
       ChangeZoneNameCommand(name = changedName),
-      correlationId = 0L
+      correlationId = 0
     )
     assert(
-      expectZoneResponse(sub, expectedCorrelationId = 0L) === ChangeZoneNameResponse(
+      expectZoneResponse(sub, expectedCorrelationId = 0) === ChangeZoneNameResponse(
         Validated.valid(())))
     changedName
   }
@@ -492,9 +493,9 @@ class LiquidityServerSpec
         name = Some("Jenny"),
         metadata = None
       ),
-      correlationId = 0L
+      correlationId = 0
     )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0L)) {
+    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
       case CreateMemberResponse(Validated.Valid(member)) =>
         assert(
           member.ownerPublicKeys === Set(PublicKey(rsaPublicKey.getEncoded)))
@@ -522,10 +523,10 @@ class LiquidityServerSpec
       UpdateMemberCommand(
         updatedMember
       ),
-      correlationId = 0L
+      correlationId = 0
     )
     assert(
-      expectZoneResponse(sub, expectedCorrelationId = 0L) === UpdateMemberResponse(
+      expectZoneResponse(sub, expectedCorrelationId = 0) === UpdateMemberResponse(
         Validated.valid(()))
     )
     updatedMember
@@ -551,9 +552,9 @@ class LiquidityServerSpec
         name = Some("Jenny's Account"),
         metadata = None
       ),
-      correlationId = 0L
+      correlationId = 0
     )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0L)) {
+    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
       case CreateAccountResponse(Validated.Valid(account)) =>
         assert(account.ownerMemberIds === Set(owner))
         assert(account.name === Some("Jenny's Account"))
@@ -589,10 +590,10 @@ class LiquidityServerSpec
         actingAs = account.ownerMemberIds.head,
         updatedAccount
       ),
-      correlationId = 0L
+      correlationId = 0
     )
     assert(
-      expectZoneResponse(sub, expectedCorrelationId = 0L) === UpdateAccountResponse(
+      expectZoneResponse(sub, expectedCorrelationId = 0) === UpdateAccountResponse(
         Validated.valid(())))
     updatedAccount
   }
@@ -620,9 +621,9 @@ class LiquidityServerSpec
         description = Some("Jenny's Lottery Win"),
         metadata = None
       ),
-      correlationId = 0L
+      correlationId = 0
     )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0L)) {
+    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
       case AddTransactionResponse(Validated.Valid(transaction)) =>
         assert(transaction.from === zone.equityAccountId)
         assert(transaction.to === to)
@@ -633,8 +634,11 @@ class LiquidityServerSpec
             .ownerMemberIds
             .head)
         assert(
-          transaction.created === Spread(pivot = Instant.now().toEpochMilli,
-                                         tolerance = 5000L))
+          transaction.created === Spread(
+            pivot = Instant.now().toEpochMilli,
+            tolerance = 5000
+          )
+        )
         assert(transaction.description === Some("Jenny's Lottery Win"))
         assert(transaction.metadata === None)
         transaction
@@ -669,7 +673,7 @@ class LiquidityServerSpec
           HttpRequest(
             uri = Uri(s"http://localhost:$akkaHttpPort")
               .withPath(Uri.Path("/analytics/zone") / zone.id.value)
-          ).withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
+          ).withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
         )
         .futureValue
       assert(response.status === StatusCodes.OK)
@@ -696,7 +700,7 @@ class LiquidityServerSpec
           HttpRequest(
             uri = Uri(s"http://localhost:$akkaHttpPort")
               .withPath(Uri.Path("/analytics/zone") / zoneId.value / "balances")
-          ).withHeaders(Authorization(OAuth2BearerToken(administratorJwt)))
+          ).withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
         )
         .futureValue
       assert(response.status === StatusCodes.OK)
@@ -730,7 +734,7 @@ object LiquidityServerSpec {
     val keyPair = keyPairGenerator.generateKeyPair
     (keyPair.getPrivate, keyPair.getPublic)
   }
-  private val administratorJwt =
+  private val selfSignedJwt =
     JwtJson.encode(
       Json.obj(
         "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()

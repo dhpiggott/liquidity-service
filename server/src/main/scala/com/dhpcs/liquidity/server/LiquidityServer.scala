@@ -1,6 +1,7 @@
 package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
+import java.util.UUID
 import java.util.concurrent.Executors
 
 import akka.actor.typed.scaladsl.AskPattern._
@@ -12,7 +13,7 @@ import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
 import akka.event.Logging
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.ws.Message
+import akka.http.scaladsl.model.ws.{Message => WsMessage}
 import akka.http.scaladsl.server.Directives.logRequestResult
 import akka.http.scaladsl.server.StandardRoute
 import akka.management.AkkaManagement
@@ -24,6 +25,7 @@ import akka.util.Timeout
 import akka.{Done, NotUsed}
 import cats.effect.IO
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
+import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
@@ -37,6 +39,7 @@ import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
 import com.dhpcs.liquidity.server.SqlAnalyticsStore._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
 import com.dhpcs.liquidity.server.actor._
+import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import doobie._
 import doobie.hikari._
@@ -60,7 +63,7 @@ class LiquidityServer(
 
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
-  private[this] implicit val askTimeout: Timeout = Timeout(30.seconds)
+  private[this] implicit val askTimeout: Timeout = Timeout(5.seconds)
   private[this] val transactIoToFuture = new TransactIoToFuture(
     ExecutionContext.fromExecutorService(Executors.newCachedThreadPool()))
 
@@ -178,8 +181,44 @@ class LiquidityServer(
   override protected[this] def getTransactionCount: Future[Long] =
     transactIoToFuture(analyticsTransactor)(TransactionsStore.retrieveCount)
 
-  override protected[this] def webSocketApi(
-      remoteAddress: InetAddress): Flow[Message, Message, NotUsed] =
+  override protected[this] def execCreateZoneCommand(
+      remoteAddress: InetAddress,
+      publicKey: PublicKey,
+      createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =
+    execZoneCommand(zoneId = ZoneId(UUID.randomUUID().toString),
+                    remoteAddress,
+                    publicKey,
+                    createZoneCommand)
+
+  override protected[this] def execZoneCommand(
+      zoneId: ZoneId,
+      remoteAddress: InetAddress,
+      publicKey: PublicKey,
+      zoneCommand: ZoneCommand): Future[ZoneResponse] =
+    for {
+      zoneResponseEnvelope <- zoneValidatorShardRegion.?[ZoneResponseEnvelope](
+        ZoneCommandEnvelope(_,
+                            zoneId,
+                            remoteAddress,
+                            publicKey,
+                            correlationId = 0,
+                            zoneCommand))
+    } yield zoneResponseEnvelope.zoneResponse
+
+  override protected[this] def zoneNotificationSource(
+      remoteAddress: InetAddress,
+      publicKey: PublicKey,
+      zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
+    ClientConnectionActor.zoneNotificationSource(
+      pingInterval,
+      zoneValidatorShardRegion,
+      remoteAddress,
+      publicKey,
+      zoneId
+    )
+
+  override protected[this] def webSocketFlow(
+      remoteAddress: InetAddress): Flow[WsMessage, WsMessage, NotUsed] =
     ClientConnectionActor.webSocketFlow(
       pingInterval,
       zoneValidatorShardRegion,

@@ -12,7 +12,7 @@ message ActiveZoneSummary {
     int32 accounts = 3;
     int32 transactions = 4;
     google.protobuf.Struct metadata = 5;
-    repeated bytes client_connections = 6;
+    repeated bytes connected_clients = 6;
 }
 
 message UpsertActiveZoneSummary {

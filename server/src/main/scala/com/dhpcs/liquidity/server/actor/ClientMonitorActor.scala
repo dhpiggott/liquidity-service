@@ -40,6 +40,7 @@ object ClientMonitorActor {
           Behaviors.same
         case UpsertActiveClientSummary(clientConnection, activeClientSummary) =>
           if (!activeClientSummaries.contains(clientConnection))
+            // TODO: Use watchWith?
             context.watch(clientConnection)
           withSummaries(
             activeClientSummaries + (clientConnection -> activeClientSummary))

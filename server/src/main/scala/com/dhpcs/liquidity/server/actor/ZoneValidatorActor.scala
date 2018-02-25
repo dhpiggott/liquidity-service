@@ -5,9 +5,9 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
 
+import akka.actor.typed._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.actor.typed._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.typed.ShardingMessageExtractor
@@ -88,6 +88,7 @@ object ZoneValidatorActor {
                              passivationCountdown,
                              clientConnectionWatcher)
         )
+        // TODO: Use watchWith?
         context.watch(zoneValidator)
         Behaviors.withTimers { timers =>
           timers.startPeriodicTimer(PublishStatusTimerKey,
@@ -161,11 +162,12 @@ object ZoneValidatorActor {
       Behaviors.immutable[ClientConnectionWatcherMessage]((context, message) =>
         message match {
           case Watch(clientConnection) =>
+            // TODO: Use watchWith?
             context.watch(clientConnection)
             Behaviors.same
 
           case Unwatch(clientConnection) =>
-            context.watch(clientConnection)
+            context.unwatch(clientConnection)
             Behaviors.same
       }) onSignal {
         case (_, Terminated(ref)) =>
@@ -346,7 +348,7 @@ object ZoneValidatorActor {
                   validEquityAccountName,
                   vaildEquityAccountMetadata
                 )
-                val created = System.currentTimeMillis()
+                val created = Instant.now().toEpochMilli
                 val expires = created + ZoneLifetime.toMillis
                 val zone = Zone(
                   id,
@@ -385,6 +387,7 @@ object ZoneValidatorActor {
             if (state.connectedClients.contains(
                   zoneCommandEnvelope.replyTo.upcast)) {
               // We already accepted the command; this was just a redelivery
+              notificationSequenceNumbers += zoneCommandEnvelope.replyTo.upcast -> 0
               deliverResponse(
                 context.self,
                 zoneCommandEnvelope.replyTo,

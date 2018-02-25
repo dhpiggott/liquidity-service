@@ -4,21 +4,25 @@ import java.net.{InetAddress, InetSocketAddress}
 import java.nio.channels.ServerSocketChannel
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.security.{KeyPairGenerator, Signature}
+import java.time.Instant
+import java.util.UUID
 
 import akka.actor.typed.{ActorRef, ActorRefResolver}
 import akka.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
 import cats.data.Validated
+import cats.syntax.validated._
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
+import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActorSpec._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.{Config, ConfigFactory}
-import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 import org.scalatest.Inside._
+import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 
 import scala.concurrent.duration._
 import scala.util.Random
@@ -28,7 +32,133 @@ class ClientConnectionActorSpec
     with ActorTestKit
     with BeforeAndAfterAll {
 
-  "A ClientConnectionActor" - {
+  // TODO: Test via zoneNotificationSource?
+  "A ZoneNotification ClientConnectionActor" - {
+    "receiving a JoinZoneResponse" - {
+      "relays it" in { _ =>
+        val zoneValidatorShardRegionTestProbe =
+          TestProbe[ZoneValidatorMessage]()
+        val zoneId = ZoneId(UUID.randomUUID().toString)
+        val zoneNotificationOutTestProbe = TestProbe[ActorSourceMessage]()
+        val clientConnection = spawn(
+          ClientConnectionActor.zoneNotificationBehavior(
+            pingInterval = 3.seconds,
+            zoneValidatorShardRegionTestProbe.ref,
+            InetAddress.getLoopbackAddress,
+            publicKey,
+            zoneId,
+            zoneNotificationOutTestProbe.ref
+          )
+        )
+        val created = Instant.now().toEpochMilli
+        val equityAccountId = AccountId(0.toString)
+        val equityAccountOwnerId = MemberId(0.toString)
+        val zone = Zone(
+          id = zoneId,
+          equityAccountId,
+          members = Map(
+            equityAccountOwnerId -> Member(
+              equityAccountOwnerId,
+              ownerPublicKeys = Set(publicKey),
+              name = Some("Dave"),
+              metadata = None
+            )
+          ),
+          accounts = Map(
+            equityAccountId -> Account(
+              equityAccountId,
+              ownerMemberIds = Set(equityAccountOwnerId),
+              name = None,
+              metadata = None
+            )
+          ),
+          transactions = Map.empty,
+          created = created,
+          expires = created + java.time.Duration.ofDays(30).toMillis,
+          name = Some("Dave's Game"),
+          metadata = None
+        )
+        val connectedClients = Map(
+          ActorRefResolver(system)
+            .toSerializationFormat(clientConnection) ->
+            publicKey
+        )
+        clientConnection ! ZoneResponseEnvelope(
+          zoneValidatorShardRegionTestProbe.ref,
+          correlationId = 0,
+          JoinZoneResponse((zone, connectedClients).valid)
+        )
+        zoneNotificationOutTestProbe.expectMessage(
+          ForwardZoneNotification(
+            ZoneStateNotification(zone, connectedClients)
+          )
+        )
+      }
+    }
+    "receiving a MemberCreatedNotification" - {
+      "relays it" in { _ =>
+        val zoneValidatorShardRegionTestProbe =
+          TestProbe[ZoneValidatorMessage]()
+        val zoneId = ZoneId(UUID.randomUUID().toString)
+        val zoneNotificationOutTestProbe = TestProbe[ActorSourceMessage]()
+        val clientConnection = spawn(
+          ClientConnectionActor.zoneNotificationBehavior(
+            pingInterval = 3.seconds,
+            zoneValidatorShardRegionTestProbe.ref,
+            InetAddress.getLoopbackAddress,
+            publicKey,
+            zoneId,
+            zoneNotificationOutTestProbe.ref
+          )
+        )
+        val member = Member(
+          id = MemberId("1"),
+          ownerPublicKeys = Set(publicKey),
+          name = Some("Jenny"),
+          metadata = None
+        )
+        clientConnection ! ZoneNotificationEnvelope(
+          zoneValidatorShardRegionTestProbe.ref,
+          zoneId,
+          sequenceNumber = 0,
+          MemberCreatedNotification(member)
+        )
+        zoneNotificationOutTestProbe.expectMessage(
+          ForwardZoneNotification(
+            MemberCreatedNotification(member)
+          )
+        )
+      }
+    }
+    "left idle" - {
+      "sends a PingNotification" in { _ =>
+        val zoneValidatorShardRegionTestProbe =
+          TestProbe[ZoneValidatorMessage]()
+        val zoneId = ZoneId(UUID.randomUUID().toString)
+        val zoneNotificationOutTestProbe = TestProbe[ActorSourceMessage]()
+        spawn(
+          ClientConnectionActor.zoneNotificationBehavior(
+            pingInterval = 3.seconds,
+            zoneValidatorShardRegionTestProbe.ref,
+            InetAddress.getLoopbackAddress,
+            publicKey,
+            zoneId,
+            zoneNotificationOutTestProbe.ref
+          )
+        )
+        zoneNotificationOutTestProbe.within(3.5.seconds)(
+          zoneNotificationOutTestProbe.expectMessage(
+            ForwardZoneNotification(
+              PingNotification(())
+            )
+          )
+        )
+      }
+    }
+  }
+
+  // TODO: Test via webSocketFlow?
+  "A WebSocket ClientConnectionActor" - {
     "receiving a KeyOwnershipProof" - {
       "rejects it if the signature is invalid" in { fixture =>
         val (_, _, webSocketOutTestProbe, _) = fixture
@@ -93,15 +223,18 @@ class ClientConnectionActorSpec
   override protected type FixtureParam =
     ClientConnectionActorSpec.FixtureParam
 
+  // TODO: ZoneNotificationSource version
   override protected def withFixture(test: OneArgTest): Outcome = {
     val sinkTestProbe = TestProbe[ActorSinkAck.type]()
     val zoneValidatorShardRegionTestProbe = TestProbe[ZoneValidatorMessage]()
     val webSocketOutTestProbe = TestProbe[proto.ws.protocol.ClientMessage]()
     val clientConnection = spawn(
-      ClientConnectionActor.behavior(
+      ClientConnectionActor.webSocketBehavior(
         pingInterval = 3.seconds,
         zoneValidatorShardRegionTestProbe.ref,
-        InetAddress.getLoopbackAddress)(webSocketOutTestProbe.ref)
+        InetAddress.getLoopbackAddress,
+        webSocketOutTestProbe.ref
+      )
     )
     clientConnection ! InitActorSink(sinkTestProbe.ref)
     sinkTestProbe.expectMessage(ActorSinkAck)
@@ -184,7 +317,7 @@ class ClientConnectionActorSpec
     assert(zoneCommandEnvelope.publicKey === publicKey)
     assert(zoneCommandEnvelope.correlationId === correlationId)
     val zoneId = zoneCommandEnvelope.zoneId
-    val created = System.currentTimeMillis
+    val created = Instant.now().toEpochMilli
     val equityAccountId = AccountId(0.toString)
     val equityAccountOwnerId = MemberId(0.toString)
     val zone = Zone(

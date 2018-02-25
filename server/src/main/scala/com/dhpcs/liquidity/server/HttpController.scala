@@ -7,13 +7,16 @@ import java.security.spec.X509EncodedKeySpec
 import akka.NotUsed
 import akka.http.scaladsl.common._
 import akka.http.scaladsl.marshalling._
-import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.model.StatusCodes._
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.ws.Message
+import akka.http.scaladsl.model.ws.{Message => WsMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
+import akka.http.scaladsl.unmarshalling._
+import akka.http.scaladsl.util.FastFuture
 import akka.stream.scaladsl.{Flow, Source}
+import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.apply._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor.ActiveClientSummary
@@ -24,16 +27,20 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._
 import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
+import com.dhpcs.liquidity.ws.protocol._
+import com.google.protobuf.CodedOutputStream
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import pdi.jwt.{JwtAlgorithm, JwtJson, JwtOptions}
+import play.api.libs.json.Json
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
-import play.api.libs.json.{JsValue, Json, OWrites}
-import scalapb.GeneratedMessage
 import scalapb.json4s.JsonFormat
+import scalapb.{GeneratedMessage, GeneratedMessageCompanion, Message}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
+import scala.util.control.NonFatal
 
 trait HttpController {
 
@@ -44,15 +51,36 @@ trait HttpController {
       pathPrefix("analytics")(administratorRealm(analytics)) ~
       path("version")(version) ~
       path("status")(status) ~
-      (if (enableClientRelay) path("ws")(ws) else reject)
+      (if (enableClientRelay)
+         extractClientIP(_.toOption match {
+           case None =>
+             complete(
+               (InternalServerError,
+                "Could not extract remote address. Check " +
+                  "akka.http.server.remote-address-header = on.")
+             )
+
+           case Some(remoteAddress) =>
+             pathPrefix("zone")(
+               authenticateSelfSignedJwt(
+                 publicKey =>
+                   zoneCommand(remoteAddress, publicKey) ~
+                     zoneNotifications(remoteAddress, publicKey)
+               )
+             ) ~
+               path("ws")(
+                 handleWebSocketMessages(webSocketFlow(remoteAddress))
+               )
+         })
+       else reject)
 
   private[this] def administratorRealm: Directive0 =
     for {
-      publicKey <- authenticateSelfSignedToken
+      publicKey <- authenticateSelfSignedJwt
       _ <- authorizeByPublicKey(publicKey)
     } yield ()
 
-  private[this] def authenticateSelfSignedToken: Directive1[PublicKey] =
+  private[this] def authenticateSelfSignedJwt: Directive1[PublicKey] =
     for {
       credentials <- extractCredentials
       token <- credentials match {
@@ -99,33 +127,6 @@ trait HttpController {
       if (isAdministrator) provide(publicKey)
       else forbidden
     }
-
-  private[this] def unauthorized[A](error: String): Directive1[A] =
-    complete(
-      (
-        Unauthorized,
-        Seq(
-          `WWW-Authenticate`(
-            HttpChallenges
-              .oAuth2(realm = "Administration")
-              .copy(params = Map("error" -> error))
-          )
-        )
-      )
-    )
-
-  private[this] def forbidden[A]: Directive1[A] =
-    complete(Forbidden)
-
-  private[this] implicit def generatedMessageEntityMarshaller(
-      implicit jsValueEntityMarshaller: ToEntityMarshaller[JsValue])
-    : ToEntityMarshaller[GeneratedMessage] =
-    jsValueEntityMarshaller
-      .compose[String](Json.parse)
-      .compose[GeneratedMessage](JsonFormat.toJsonString)
-
-  private[this] implicit val jsonStreamingSupport: JsonEntityStreamingSupport =
-    EntityStreamingSupport.json()
 
   private[this] def diagnostics: Route =
     path("events" / Segment)(
@@ -205,7 +206,7 @@ trait HttpController {
                                            accounts,
                                            transactions,
                                            metadata,
-                                           clientConnections) =>
+                                           connectedClients) =>
                       Json.obj(
                         "zoneIdFingerprint" -> okio.ByteString
                           .encodeUtf8(zoneId.value)
@@ -218,8 +219,8 @@ trait HttpController {
                         "accounts" -> accounts,
                         "transactions" -> transactions,
                         "clientConnections" -> Json.obj(
-                          "count" -> clientConnections.size,
-                          "publicKeyFingerprints" -> clientConnections
+                          "count" -> connectedClients.size,
+                          "publicKeyFingerprints" -> connectedClients
                             .map(_.fingerprint)
                             .toSeq
                             .sorted
@@ -238,26 +239,80 @@ trait HttpController {
       )
     )
 
-  private[this] def ws: Route =
-    extractClientIP(_.toOption match {
-      case None =>
-        complete(
-          (InternalServerError,
-           "Could not extract remote address. Check " +
-             "akka.http.server.remote-address-header = on.")
-        )
-      case Some(remoteAddress) =>
-        handleWebSocketMessages(webSocketApi(remoteAddress))
-    })
+  private[this] def zoneCommand(
+      remoteAddress: InetAddress,
+      publicKey: PublicKey)(implicit ec: ExecutionContext): Route =
+    put(
+      pathEnd(
+        entity(as[proto.ws.protocol.ZoneCommand.CreateZoneCommand]) {
+          protoCreateZoneCommand =>
+            val createZoneCommand =
+              ProtoBinding[CreateZoneCommand,
+                           proto.ws.protocol.ZoneCommand.CreateZoneCommand,
+                           Any].asScala(
+                protoCreateZoneCommand
+              )(())
+            complete(
+              execCreateZoneCommand(remoteAddress, publicKey, createZoneCommand)
+                .map(
+                  zoneResponse =>
+                    ProtoBinding[ZoneResponse,
+                                 proto.ws.protocol.ZoneResponse,
+                                 Any].asProto(
+                      zoneResponse
+                    )(()))
+            )
+        }
+      ) ~
+        path(zoneIdMatcher)(
+          zoneId =>
+            entity(as[proto.ws.protocol.ZoneCommand]) { protoZoneCommand =>
+              val zoneCommand =
+                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
+                  .asScala(
+                    protoZoneCommand
+                  )(())
+              zoneCommand match {
+                case _: CreateZoneCommand =>
+                  reject(
+                    ValidationRejection(
+                      "Zone ID cannot be specified with CreateZoneCommands"
+                    )
+                  )
 
-  private[this] implicit def optionResponseMarshaller[A](
-      implicit entityMarshaller: ToEntityMarshaller[Option[A]])
-    : ToResponseMarshaller[Option[A]] =
-    Marshaller[Option[A], HttpResponse](
-      implicit ec =>
-        entity =>
-          Marshaller.fromToEntityMarshaller(status =
-            if (entity.isEmpty) NotFound else OK)(entityMarshaller)(entity)
+                case _ =>
+                  complete(
+                    execZoneCommand(zoneId,
+                                    remoteAddress,
+                                    publicKey,
+                                    zoneCommand).map(
+                      zoneResponse =>
+                        ProtoBinding[ZoneResponse,
+                                     proto.ws.protocol.ZoneResponse,
+                                     Any].asProto(
+                          zoneResponse
+                        )(()))
+                  )
+              }
+          }
+        )
+    )
+
+  private[this] def zoneNotifications(remoteAddress: InetAddress,
+                                      publicKey: PublicKey): Route =
+    get(
+      path(zoneIdMatcher)(
+        zoneId =>
+          complete(
+            zoneNotificationSource(remoteAddress, publicKey, zoneId)
+              .map(
+                zoneNotification =>
+                  ProtoBinding[ZoneNotification,
+                               proto.ws.protocol.ZoneNotification,
+                               Any].asProto(zoneNotification)(())
+              )
+        )
+      )
     )
 
   private[this] def zone(zoneId: ZoneId)(implicit ec: ExecutionContext): Route =
@@ -324,32 +379,167 @@ trait HttpController {
   protected[this] def getAccountCount: Future[Long]
   protected[this] def getTransactionCount: Future[Long]
 
-  protected[this] def webSocketApi(
-      remoteAddress: InetAddress): Flow[Message, Message, NotUsed]
+  protected[this] def execCreateZoneCommand(
+      remoteAddress: InetAddress,
+      publicKey: PublicKey,
+      createZoneCommand: CreateZoneCommand): Future[ZoneResponse]
+  protected[this] def execZoneCommand(
+      zoneId: ZoneId,
+      remoteAddress: InetAddress,
+      publicKey: PublicKey,
+      zoneCommand: ZoneCommand): Future[ZoneResponse]
+  protected[this] def zoneNotificationSource(
+      remoteAddress: InetAddress,
+      publicKey: PublicKey,
+      zoneId: ZoneId): Source[ZoneNotification, NotUsed]
+  protected[this] def webSocketFlow(
+      remoteAddress: InetAddress): Flow[WsMessage, WsMessage, NotUsed]
 
 }
 
 object HttpController {
 
-  private val zoneIdMatcher = JavaUUID.map(uuid => ZoneId(uuid.toString))
+  private def unauthorized[A](error: String): Directive1[A] =
+    complete(
+      (
+        Unauthorized,
+        Seq(
+          `WWW-Authenticate`(
+            HttpChallenges
+              .oAuth2(realm = null)
+              .copy(params = Map("error" -> error))
+          )
+        )
+      )
+    )
+
+  private def forbidden[A]: Directive1[A] =
+    complete(Forbidden)
 
   final case class EventEnvelope(sequenceNr: Long, event: GeneratedMessage)
 
-  object EventEnvelope {
-    implicit final val GeneratedMessageEnvelopeWrites: OWrites[EventEnvelope] =
-      OWrites(
-        GeneratedMessageEnvelope =>
-          Json.obj(
-            "sequenceNr" -> GeneratedMessageEnvelope.sequenceNr,
-            // ScalaPB gives us a way to get a json4s representation of
-            // messages, but not play-json. So we parse the string form as a
-            // play-json JsValue (doing this, as opposed to just passing it
-            // through as a string means that it will get marshaled by
-            // akka-http-play-json, which by default will _pretty_ print it -
-            // and we really want that, given this is purely a diagnostics
-            // endpoint and should thus be developer-readable).
-            "event" -> Json.parse(
-              JsonFormat.toJsonString(GeneratedMessageEnvelope.event))
-        ))
-  }
+  implicit val eventEnvelopeEntityMarshaller
+    : ToEntityMarshaller[EventEnvelope] =
+    Marshaller
+      .stringMarshaller(MediaTypes.`application/json`)
+      .compose(
+        eventEnvelope =>
+          Json.prettyPrint(
+            Json.obj(
+              "sequenceNr" -> eventEnvelope.sequenceNr,
+              // ScalaPB gives us a way to get a json4s representation of
+              // messages, but not play-json. So we parse the string form as a
+              // play-json JsValue (doing this, as opposed to just passing it
+              // through as a string means that it will get marshaled by
+              // akka-http-play-json, which by default will _pretty_ print it -
+              // and we really want that, given this is purely a diagnostics
+              // endpoint and should thus be developer-readable).
+              "event" -> Json.parse(
+                JsonFormat.toJsonString(eventEnvelope.event)
+              )
+            )
+        )
+      )
+
+  implicit def generatedMessageSourceResponseMarshaller
+    : ToResponseMarshaller[Source[GeneratedMessage, NotUsed]] =
+    Marshaller.oneOf(
+      PredefinedToResponseMarshallers.fromEntityStreamingSupportAndEntityMarshaller,
+      Marshaller[Source[GeneratedMessage, NotUsed], HttpResponse](
+        implicit ec =>
+          source =>
+            FastFuture.successful(List(Marshalling.WithFixedContentType(
+              ContentType(
+                MediaType.customBinary(mainType = "application",
+                                       subType = "x-protobuf",
+                                       comp = MediaType.NotCompressible,
+                                       params = Map("delimited" -> "true"))
+              ),
+              () =>
+                HttpResponse(
+                  entity = HttpEntity(
+                    ContentType(
+                      MediaType.customBinary(
+                        mainType = "application",
+                        subType = "x-protobuf",
+                        comp = MediaType.NotCompressible,
+                        params = Map("delimited" -> "true"))
+                    ),
+                    source.map { generatedMessage =>
+                      val byteString = ByteString.newBuilder
+                      byteString.sizeHint(
+                        CodedOutputStream.computeUInt32SizeNoTag(
+                          generatedMessage.serializedSize) + generatedMessage.serializedSize
+                      )
+                      generatedMessage.writeDelimitedTo(
+                        byteString.asOutputStream
+                      )
+                      byteString.result()
+                    }
+                  )
+              )
+            ))))
+    )
+
+  implicit val jsonEntityStreamingSupport: JsonEntityStreamingSupport =
+    EntityStreamingSupport.json()
+
+  implicit val generatedMessageEntityMarshaller
+    : ToEntityMarshaller[GeneratedMessage] =
+    Marshaller
+      .oneOf(
+        Marshaller
+          .stringMarshaller(MediaTypes.`application/json`)
+          .compose(JsonFormat.toJsonString),
+        Marshaller
+          .byteArrayMarshaller(
+            ContentType(
+              MediaType.customBinary(mainType = "application",
+                                     subType = "x-protobuf",
+                                     comp = MediaType.NotCompressible)
+            )
+          )
+          .compose(_.toByteArray)
+      )
+
+  implicit def generatedMessageEntityUnmarshaller[
+      A <: GeneratedMessage with Message[A]](
+      implicit generatedMessageCompanion: GeneratedMessageCompanion[A])
+    : FromEntityUnmarshaller[A] =
+    Unmarshaller.firstOf(
+      Unmarshaller.stringUnmarshaller
+        .forContentTypes(ContentTypeRange(MediaTypes.`application/json`))
+        .map(
+          try JsonFormat.fromJsonString[A]
+          catch {
+            case NonFatal(e) =>
+              throw RejectionError(ValidationRejection(e.getMessage, Some(e)))
+          }
+        ),
+      Unmarshaller.byteStringUnmarshaller
+        .forContentTypes(
+          ContentTypeRange(
+            ContentType(
+              MediaType.customBinary(mainType = "application",
+                                     subType = "x-protobuf",
+                                     comp = MediaType.NotCompressible)
+            )
+          )
+        )
+        .map(byteString =>
+          generatedMessageCompanion.parseFrom(byteString.toArray))
+    )
+
+  implicit def optionResponseMarshaller[A](
+      implicit entityMarshaller: ToEntityMarshaller[Option[A]])
+    : ToResponseMarshaller[Option[A]] =
+    Marshaller[Option[A], HttpResponse](
+      implicit ec =>
+        entity =>
+          Marshaller.fromToEntityMarshaller(status =
+            if (entity.isEmpty) NotFound else OK)(entityMarshaller)(entity)
+    )
+
+  private val zoneIdMatcher = JavaUUID.map(uuid => ZoneId(uuid.toString))
+
 }

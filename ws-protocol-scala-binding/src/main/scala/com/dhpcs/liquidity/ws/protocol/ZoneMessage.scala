@@ -171,3 +171,7 @@ final case class AccountUpdatedNotification(actingAs: MemberId,
     extends ZoneNotification
 final case class TransactionAddedNotification(transaction: Transaction)
     extends ZoneNotification
+final case class ZoneStateNotification(zone: Zone,
+                                       connectedClients: Map[String, PublicKey])
+    extends ZoneNotification
+final case class PingNotification(unit: Unit) extends ZoneNotification

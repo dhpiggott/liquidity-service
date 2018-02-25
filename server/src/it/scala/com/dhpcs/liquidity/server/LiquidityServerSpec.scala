@@ -29,7 +29,6 @@ import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
-import com.trueaccord.scalapb.json.JsonFormat
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import doobie._
 import doobie.implicits._
@@ -39,6 +38,7 @@ import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 import org.scalatest.Inside._
 import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.{JsValue, Json}
+import scalapb.json4s.JsonFormat
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._

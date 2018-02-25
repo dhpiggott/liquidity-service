@@ -101,7 +101,7 @@ lazy val server = project
       "mysql" % "mysql-connector-java" % "5.1.45",
       "com.typesafe.akka" %% "akka-http" % "10.0.11",
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.10",
-      "com.trueaccord.scalapb" %% "scalapb-json4s" % "0.3.3",
+      "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.0",
       "com.typesafe.play" %% "play-json" % "2.6.8",
       "de.heikoseeberger" %% "akka-http-play-json" % "1.19.0",
       "com.pauldijou" %% "jwt-play-json" % "0.14.1"
@@ -144,9 +144,13 @@ lazy val evergreenVersionSettings = Seq(
 def protobufScalaSettings(project: Project) = Seq(
   Compile / PB.protoSources ++= (project / Compile / PB.protoSources).value,
   Compile / PB.targets := Seq(
-    scalapb
-      .gen(flatPackage = true, singleLineToString = true) -> (Compile / sourceManaged).value
+    scalapb.gen(
+      flatPackage = true,
+      javaConversions = false,
+      grpc = false,
+      singleLineToProtoString = true
+    ) -> (Compile / sourceManaged).value
   ),
-  libraryDependencies += "com.trueaccord.scalapb" %% "scalapb-runtime" %
-    com.trueaccord.scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
+  libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" %
+    scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
 )

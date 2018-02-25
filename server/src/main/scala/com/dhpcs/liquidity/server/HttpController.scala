@@ -24,12 +24,12 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._
 import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
-import com.trueaccord.scalapb.GeneratedMessage
-import com.trueaccord.scalapb.json.JsonFormat
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import pdi.jwt.{JwtAlgorithm, JwtJson, JwtOptions}
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import play.api.libs.json.{JsValue, Json, OWrites}
+import scalapb.GeneratedMessage
+import scalapb.json4s.JsonFormat
 
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}

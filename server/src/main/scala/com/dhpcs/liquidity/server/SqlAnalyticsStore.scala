@@ -9,10 +9,10 @@ import cats.syntax.applicative._
 import cats.syntax.apply._
 import cats.syntax.traverse._
 import com.dhpcs.liquidity.model._
-import com.trueaccord.scalapb.json.JsonFormat
 import doobie._
 import doobie.implicits._
 import okio.ByteString
+import scalapb.json4s.JsonFormat
 
 object SqlAnalyticsStore {
 

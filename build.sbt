@@ -14,6 +14,8 @@ lazy val `ws-protocol` = project
     startYear := Some(2015),
     description := "Virtual currencies for Monopoly and other board and " +
       "tabletop games.",
+    licenses += "Apache-2.0" -> url(
+      "https://www.apache.org/licenses/LICENSE-2.0.txt"),
     organization := "com.dhpcs",
     organizationHomepage := Some(url("https://www.dhpcs.com/")),
     organizationName := "dhpcs",

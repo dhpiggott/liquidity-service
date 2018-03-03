@@ -950,7 +950,8 @@ class HttpControllerSpec
 
   override protected[this] def getActiveClientSummaries
     : Future[Set[ActiveClientSummary]] =
-    Future.successful(Set(ActiveClientSummary(remoteAddress, publicKey, "test-connection-id")))
+    Future.successful(
+      Set(ActiveClientSummary(remoteAddress, publicKey, "test-connection-id")))
 
   override protected[this] def getActiveZoneSummaries
     : Future[Set[ActiveZoneSummary]] =

@@ -38,7 +38,7 @@ import org.scalatest.Inside._
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 import pdi.jwt.{JwtAlgorithm, JwtJson}
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsString, JsValue, Json}
 import scalapb.json4s.JsonFormat
 
 import scala.collection.immutable.Seq
@@ -96,34 +96,13 @@ class LiquidityServerSpec
         val response = Http()
           .singleRequest(
             HttpRequest(
-              uri = Uri(s"http://localhost:$akkaHttpPort/status")
+              uri = Uri(s"http://localhost:$akkaHttpPort/status/terse")
             )
           )
           .futureValue
         assert(response.status === StatusCodes.OK)
-        val asJsValue = Unmarshal(response.entity).to[JsValue].futureValue
         assert(
-          asJsValue === Json.parse(
-            """
-              |{
-              |  "activeClients" : {
-              |    "count" : 0,
-              |    "clients" : [ ]
-              |  },
-              |  "activeZones" : {
-              |    "count" : 0,
-              |    "zones" : [ ]
-              |  },
-              |  "totals" : {
-              |    "zones" : 0,
-              |    "publicKeys" : 0,
-              |    "members" : 0,
-              |    "accounts" : 0,
-              |    "transactions" : 0
-              |  }
-              |}
-            """.stripMargin
-          ))
+          Unmarshal(response.entity).to[JsValue].futureValue === JsString("OK"))
       }
     }
     "accepts and projects create zone commands" in withWsTestProbes {

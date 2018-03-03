@@ -38,7 +38,7 @@ import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.scalatest.FreeSpec
 import pdi.jwt.{JwtAlgorithm, JwtJson}
-import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.json.{JsObject, JsString, JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
@@ -489,11 +489,19 @@ class HttpControllerSpec
         assert(keys.contains("builtAtMillis"))
       }
     }
-    "provides status information" in {
-      val getRequest = RequestBuilding.Get("/status")
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.OK)
-        assert(entityAs[JsValue] === Json.parse(s"""
+    "provides status information" - {
+      "tersely" in {
+        val getRequest = RequestBuilding.Get("/status/terse")
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.OK)
+          assert(entityAs[JsValue] === JsString("OK"))
+        }
+      }
+      "verbosely" in {
+        val getRequest = RequestBuilding.Get("/status/verbose")
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.OK)
+          assert(entityAs[JsValue] === Json.parse(s"""
              |{
              |  "activeClients" : {
              |    "count" : 1,
@@ -535,6 +543,7 @@ class HttpControllerSpec
              |  }
              |}
            """.stripMargin))
+        }
       }
     }
     "accepts CreateZoneCommands" - {

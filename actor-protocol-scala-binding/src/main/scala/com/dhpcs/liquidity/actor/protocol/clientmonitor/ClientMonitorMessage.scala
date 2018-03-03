@@ -14,6 +14,8 @@ case object LogActiveClientsCount extends ClientMonitorMessage
 final case class GetActiveClientSummaries(
     replyTo: ActorRef[Set[ActiveClientSummary]])
     extends ClientMonitorMessage
+final case class DeleteActiveClientSummary(clientConnection: ActorRef[Nothing])
+    extends ClientMonitorMessage
 
 sealed abstract class SerializableClientMonitorMessage
     extends ClientMonitorMessage

@@ -17,6 +17,9 @@ final case class ActorFlowServerMessage(
     webSocketIn: ActorRef[ActorSinkAck.type],
     serverMessage: proto.ws.protocol.ServerMessage)
     extends ClientConnectionMessage
+case object ConnectionClosed extends ClientConnectionMessage
+final case class ZoneTerminated(zoneValidator: ActorRef[Nothing])
+    extends ClientConnectionMessage
 
 sealed abstract class SerializableClientConnectionMessage
     extends ClientConnectionMessage

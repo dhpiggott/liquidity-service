@@ -62,7 +62,8 @@ object ClientConnectionActor {
                                                      remoteAddress,
                                                      publicKey,
                                                      zoneId,
-                                                     outActor))
+                                                     outActor)
+    )
     Source.fromPublisher(publisher).collect {
       case ForwardZoneNotification(zoneNotification) => zoneNotification
     }
@@ -78,8 +79,7 @@ object ClientConnectionActor {
     : Behavior[ClientConnectionMessage] =
     Behaviors.setup { context =>
       Behaviors.withTimers { timers =>
-        // TODO: Use watchWith?
-        context.watch(zoneNotificationOut)
+        context.watchWith(zoneNotificationOut, ConnectionClosed)
         context.log.info(
           s"Starting for ${publicKey.fingerprint}@$remoteAddress")
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
@@ -123,10 +123,9 @@ object ClientConnectionActor {
       implicit resolver: ActorRefResolver): Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage]((context, message) =>
       message match {
-        case actorSinkInit: InitActorSink =>
+        case initActorSink: InitActorSink =>
           context.log.warning(
-            "Stopping due to unexpected message; received " +
-              s"$actorSinkInit")
+            s"Stopping due to unexpected message; received $initActorSink")
           Behaviors.stopped
 
         case PublishClientStatusTick =>
@@ -160,14 +159,12 @@ object ClientConnectionActor {
                 ZoneStateNotification(zone, connectedClients)
               )
               pingGenerator ! PingGeneratorActor.FrameSentEvent
-              // TODO: Use watchWith?
-              context.watch(zoneValidator)
+              context.watchWith(zoneValidator, ZoneTerminated(zoneValidator))
               Behaviors.same
 
             case unexpected =>
               context.log.warning(
-                "Stopping due to unexpected message; received " +
-                  s"$unexpected")
+                s"Stopping due to unexpected message; received $unexpected")
               Behaviors.stopped
           }
 
@@ -207,10 +204,15 @@ object ClientConnectionActor {
               expectedSequenceNumber = sequenceNumber + 1
             )
           }
-    }) onSignal {
-      case (_, Terminated(_)) =>
-        Behaviors.stopped
 
+        case ConnectionClosed =>
+          Behaviors.stopped
+
+        case zoneTerminated: ZoneTerminated =>
+          context.log.warning(
+            s"Stopping due to unexpected message; received $zoneTerminated")
+          Behaviors.stopped
+    }) onSignal {
       case (context, PostStop) =>
         zoneNotificationOut ! StopActorSource
         context.log.info(s"Stopped for ${publicKey.fingerprint}@$remoteAddress")
@@ -276,7 +278,7 @@ object ClientConnectionActor {
                                 ActorSinkAck.type](
         system.spawnAnonymous(
           Behaviors.setup[ActorFlowMessage] { context =>
-            val flow = context.spawnAnonymous(
+            val messageHandler = context.spawnAnonymous(
               webSocketBehavior(
                 pingInterval,
                 zoneValidatorShardRegion,
@@ -284,24 +286,21 @@ object ClientConnectionActor {
                 outActor
               )
             )
-            // TODO: Use watchWith?
-            context.watch(flow)
+            context.watchWith(messageHandler, StopActorFlow)
             Behaviors.immutable[ActorFlowMessage]((_, message) =>
               message match {
                 case ForwardInit(webSocketIn) =>
-                  flow ! InitActorSink(webSocketIn)
+                  messageHandler ! InitActorSink(webSocketIn)
                   Behaviors.same
 
                 case ForwardServerMessage(webSocketIn, serverMessage) =>
-                  flow ! ActorFlowServerMessage(webSocketIn, serverMessage)
+                  messageHandler ! ActorFlowServerMessage(webSocketIn,
+                                                          serverMessage)
                   Behaviors.same
 
                 case StopActorFlow =>
                   Behaviors.stopped
-            }) onSignal {
-              case (_, Terminated(_)) =>
-                Behaviors.stopped
-            }
+            })
           }
         ),
         messageAdapter = (webSocketIn, serverMessage) =>
@@ -410,6 +409,18 @@ object ClientConnectionActor {
             "Stopping due to unexpected message; required ActorSinkInit " +
               s"but received $zoneNotificationEnvelope")
           Behaviors.stopped
+
+        case ConnectionClosed =>
+          context.log.warning(
+            "Stopping due to unexpected message; required ActorSinkInit " +
+              "but received ConnectionClosed")
+          Behaviors.stopped
+
+        case zoneTerminated: ZoneTerminated =>
+          context.log.warning(
+            "Stopping due to unexpected message; required ActorSinkInit " +
+              s"but received $zoneTerminated")
+          Behaviors.stopped
     })
 
   private[this] def waitingForKeyOwnershipProof(
@@ -422,10 +433,10 @@ object ClientConnectionActor {
     : Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage] { (context, message) =>
       message match {
-        case actorSinkInit: InitActorSink =>
+        case initActorSink: InitActorSink =>
           context.log.warning(
             "Stopping due to unexpected message; required " +
-              s"KeyOwnershipProof but received $actorSinkInit")
+              s"KeyOwnershipProof but received $initActorSink")
           Behaviors.stopped
 
         case PublishClientStatusTick =>
@@ -483,6 +494,18 @@ object ClientConnectionActor {
             "Stopping due to unexpected message; required " +
               s"KeyOwnershipProof but received $zoneNotificationEnvelope")
           Behaviors.stopped
+
+        case ConnectionClosed =>
+          context.log.warning(
+            "Stopping due to unexpected message; required " +
+              "KeyOwnershipProof but received ConnectionClosed")
+          Behaviors.stopped
+
+        case zoneTerminated: ZoneTerminated =>
+          context.log.warning(
+            "Stopping due to unexpected message; required " +
+              s"KeyOwnershipProof but received $zoneTerminated")
+          Behaviors.stopped
       }
     } onSignal {
       case (context, PostStop) =>
@@ -501,9 +524,9 @@ object ClientConnectionActor {
       implicit resolver: ActorRefResolver): Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage] { (context, message) =>
       message match {
-        case actorSinkInit: InitActorSink =>
+        case initActorSink: InitActorSink =>
           context.log.warning(
-            s"Stopping due to unexpected message; received $actorSinkInit")
+            s"Stopping due to unexpected message; received $initActorSink")
           Behaviors.stopped
 
         case PublishClientStatusTick =>
@@ -624,8 +647,7 @@ object ClientConnectionActor {
           )
           zoneResponse match {
             case JoinZoneResponse(Valid(_)) =>
-              // TODO: Use watchWith?
-              context.watch(zoneValidator)
+              context.watchWith(zoneValidator, ZoneTerminated(zoneValidator))
               receiveActorSinkMessages(
                 zoneValidatorShardRegion,
                 remoteAddress,
@@ -698,12 +720,18 @@ object ClientConnectionActor {
                 )
               }
           }
+
+        case ConnectionClosed =>
+          context.log.warning(
+            "Stopping due to unexpected message; received ConnectionClosed")
+          Behaviors.stopped
+
+        case ZoneTerminated(zoneValidator) =>
+          context.log.warning(
+            s"Stopping due to termination of joined zone $zoneValidator")
+          Behaviors.stopped
       }
     } onSignal {
-      case (context, Terminated(ref)) =>
-        context.log.warning(s"Stopping due to termination of joined zone $ref")
-        Behaviors.stopped
-
       case (context, PostStop) =>
         context.log.info(s"Stopped for $remoteAddress")
         Behaviors.same

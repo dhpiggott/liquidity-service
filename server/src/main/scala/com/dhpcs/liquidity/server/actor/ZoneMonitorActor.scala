@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.actor
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.{ActorRef, Behavior, Terminated}
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
@@ -41,13 +41,13 @@ object ZoneMonitorActor {
 
         case UpsertActiveZoneSummary(zoneValidator, activeZoneSummary) =>
           if (!activeZoneSummaries.contains(zoneValidator))
-            // TODO: Use watchWith?
-            context.watch(zoneValidator)
+            context.watchWith(zoneValidator,
+                              DeleteActiveZoneSummary(zoneValidator))
           withSummaries(
             activeZoneSummaries + (zoneValidator -> activeZoneSummary))
-    }) onSignal {
-      case (_, Terminated(ref)) =>
-        withSummaries(activeZoneSummaries - ref)
-    }
+
+        case DeleteActiveZoneSummary(zoneValidator) =>
+          withSummaries(activeZoneSummaries - zoneValidator)
+    })
 
 }

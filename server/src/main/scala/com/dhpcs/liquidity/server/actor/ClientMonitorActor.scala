@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.server.actor
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.{ActorRef, Behavior, Terminated}
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Subscribe
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
@@ -38,15 +38,16 @@ object ClientMonitorActor {
         case GetActiveClientSummaries(replyTo) =>
           replyTo ! activeClientSummaries.values.toSet
           Behaviors.same
+
         case UpsertActiveClientSummary(clientConnection, activeClientSummary) =>
           if (!activeClientSummaries.contains(clientConnection))
-            // TODO: Use watchWith?
-            context.watch(clientConnection)
+            context.watchWith(clientConnection,
+                              DeleteActiveClientSummary(clientConnection))
           withSummaries(
             activeClientSummaries + (clientConnection -> activeClientSummary))
-    }) onSignal {
-      case (_, Terminated(ref)) =>
-        withSummaries(activeClientSummaries - ref)
-    }
+
+        case DeleteActiveClientSummary(clientConnection) =>
+          withSummaries(activeClientSummaries - clientConnection)
+    })
 
 }

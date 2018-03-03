@@ -16,6 +16,8 @@ case object LogActiveZonesCount extends ZoneMonitorMessage
 final case class GetActiveZoneSummaries(
     replyTo: ActorRef[Set[ActiveZoneSummary]])
     extends ZoneMonitorMessage
+final case class DeleteActiveZoneSummary(zoneValidator: ActorRef[Nothing])
+    extends ZoneMonitorMessage
 
 sealed abstract class SerializableZoneMonitorMessage
     extends ZoneMonitorMessage

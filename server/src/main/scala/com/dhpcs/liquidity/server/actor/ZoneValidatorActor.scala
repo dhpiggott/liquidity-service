@@ -67,7 +67,7 @@ object ZoneValidatorActor {
       .setup[ZoneValidatorMessage] { context =>
         context.log.info("Starting")
         val notificationSequenceNumbers =
-          mutable.Map.empty[ActorRef[SerializableClientConnectionMessage], Long]
+          mutable.Map.empty[ActorRef[Nothing], Long]
         val mediator =
           DistributedPubSub(context.system.toUntyped).mediator
         // Workarounds for the limitation described in
@@ -88,7 +88,6 @@ object ZoneValidatorActor {
                              passivationCountdown,
                              clientConnectionWatcher)
         )
-        // TODO: Use watchWith?
         context.watch(zoneValidator)
         Behaviors.withTimers { timers =>
           timers.startPeriodicTimer(PublishStatusTimerKey,
@@ -156,32 +155,32 @@ object ZoneValidatorActor {
     final case class Unwatch(
         clientConnection: ActorRef[SerializableClientConnectionMessage])
         extends ClientConnectionWatcherMessage
+    final case class ReportDeath(
+        clientConnection: ActorRef[SerializableClientConnectionMessage])
+        extends ClientConnectionWatcherMessage
 
     def behavior(zoneValidator: ActorRef[RemoveClient])
       : Behavior[ClientConnectionWatcherMessage] =
       Behaviors.immutable[ClientConnectionWatcherMessage]((context, message) =>
         message match {
           case Watch(clientConnection) =>
-            // TODO: Use watchWith?
-            context.watch(clientConnection)
+            context.watchWith(clientConnection, ReportDeath(clientConnection))
             Behaviors.same
 
           case Unwatch(clientConnection) =>
             context.unwatch(clientConnection)
             Behaviors.same
-      }) onSignal {
-        case (_, Terminated(ref)) =>
-          zoneValidator ! RemoveClient(ref.upcast)
-          Behaviors.same
-      }
+
+          case ReportDeath(clientConnection) =>
+            zoneValidator ! RemoveClient(clientConnection)
+            Behaviors.same
+      })
 
   }
 
   private[this] def persistentBehavior(
       id: ZoneId,
-      notificationSequenceNumbers: mutable.Map[
-        ActorRef[SerializableClientConnectionMessage],
-        Long],
+      notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       mediator: ActorRef[Publish],
       passivationCountdown: ActorRef[
         PassivationCountdownActor.PassivationCountdownMessage],
@@ -269,9 +268,7 @@ object ZoneValidatorActor {
   private[this] def handleCommand(
       context: ActorContext[ZoneValidatorMessage],
       id: ZoneId,
-      notificationSequenceNumbers: mutable.Map[
-        ActorRef[SerializableClientConnectionMessage],
-        Long],
+      notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       state: ZoneState,
       zoneCommandEnvelope: ZoneCommandEnvelope)(
       implicit resolver: ActorRefResolver)
@@ -406,8 +403,11 @@ object ZoneValidatorActor {
                 resolver,
                 notificationSequenceNumbers,
                 zoneCommandEnvelope,
-                ClientJoinedEvent(Some(
-                  resolver.toSerializationFormat(zoneCommandEnvelope.replyTo)))
+                ClientJoinedEvent(
+                  Some(
+                    resolver.toSerializationFormat(zoneCommandEnvelope.replyTo)
+                  )
+                )
               )
         }
 
@@ -440,8 +440,11 @@ object ZoneValidatorActor {
                 resolver,
                 notificationSequenceNumbers,
                 zoneCommandEnvelope,
-                ClientQuitEvent(Some(
-                  resolver.toSerializationFormat(zoneCommandEnvelope.replyTo)))
+                ClientQuitEvent(
+                  Some(
+                    resolver.toSerializationFormat(zoneCommandEnvelope.replyTo)
+                  )
+                )
               )
         }
 
@@ -938,9 +941,7 @@ object ZoneValidatorActor {
       self: ActorRef[ZoneValidatorMessage],
       id: ZoneId,
       resolver: ActorRefResolver,
-      notificationSequenceNumbers: mutable.Map[
-        ActorRef[SerializableClientConnectionMessage],
-        Long],
+      notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       zoneCommandEnvelope: ZoneCommandEnvelope,
       event: ZoneEvent): Effect[ZoneEventEnvelope, ZoneState] =
     Effect
@@ -1064,9 +1065,7 @@ object ZoneValidatorActor {
       id: ZoneId,
       clientConnections: Iterable[
         ActorRef[SerializableClientConnectionMessage]],
-      notificationSequenceNumbers: mutable.Map[
-        ActorRef[SerializableClientConnectionMessage],
-        Long],
+      notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       notification: ZoneNotification): Unit =
     clientConnections.foreach { clientConnection =>
       val sequenceNumber = notificationSequenceNumbers(clientConnection)
@@ -1079,9 +1078,7 @@ object ZoneValidatorActor {
     }
 
   private[this] def eventHandler(
-      notificationSequenceNumbers: mutable.Map[
-        ActorRef[SerializableClientConnectionMessage],
-        Long],
+      notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       passivationCountdown: ActorRef[
         PassivationCountdownActor.PassivationCountdownMessage],
       clientConnectionWatcher: ActorRef[

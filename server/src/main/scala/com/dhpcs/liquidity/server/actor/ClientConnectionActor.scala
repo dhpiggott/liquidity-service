@@ -10,7 +10,7 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.{ActorRef, Behavior, PostStop, Terminated}
+import akka.actor.typed._
 import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message => WsMessage}
@@ -96,6 +96,8 @@ object ClientConnectionActor {
                                                        publicKey,
                                                        correlationId = 0,
                                                        JoinZoneCommand)
+        implicit val resolver: ActorRefResolver =
+          ActorRefResolver(context.system)
         forwardingZoneNotifications(
           zoneValidatorShardRegion,
           remoteAddress,
@@ -117,7 +119,8 @@ object ClientConnectionActor {
       zoneNotificationOut: ActorRef[ActorSourceMessage],
       mediator: ActorRef[Publish],
       pingGenerator: ActorRef[PingGeneratorActor.PingGeneratorMessage],
-      expectedSequenceNumber: Long): Behavior[ClientConnectionMessage] =
+      expectedSequenceNumber: Long)(
+      implicit resolver: ActorRefResolver): Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage]((context, message) =>
       message match {
         case actorSinkInit: InitActorSink =>
@@ -131,7 +134,9 @@ object ClientConnectionActor {
             ClientMonitorActor.ClientStatusTopic,
             UpsertActiveClientSummary(
               context.self,
-              ActiveClientSummary(remoteAddress, publicKey)
+              ActiveClientSummary(remoteAddress,
+                                  publicKey,
+                                  resolver.toSerializationFormat(context.self))
             )
           )
           Behaviors.same
@@ -454,6 +459,8 @@ object ClientConnectionActor {
                 Behaviors.stopped
               } else {
                 context.self ! PublishClientStatusTick
+                implicit val resolver: ActorRefResolver =
+                  ActorRefResolver(context.system)
                 receiveActorSinkMessages(
                   zoneValidatorShardRegion,
                   remoteAddress,
@@ -490,8 +497,8 @@ object ClientConnectionActor {
       mediator: ActorRef[Publish],
       pingGenerator: ActorRef[PingGeneratorActor.PingGeneratorMessage],
       publicKey: PublicKey,
-      notificationSequenceNumbers: Map[ActorRef[ZoneValidatorMessage], Long])
-    : Behavior[ClientConnectionMessage] =
+      notificationSequenceNumbers: Map[ActorRef[ZoneValidatorMessage], Long])(
+      implicit resolver: ActorRefResolver): Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage] { (context, message) =>
       message match {
         case actorSinkInit: InitActorSink =>
@@ -504,7 +511,9 @@ object ClientConnectionActor {
             ClientMonitorActor.ClientStatusTopic,
             UpsertActiveClientSummary(
               context.self,
-              ActiveClientSummary(remoteAddress, publicKey)
+              ActiveClientSummary(remoteAddress,
+                                  publicKey,
+                                  resolver.toSerializationFormat(context.self))
             )
           )
           Behaviors.same

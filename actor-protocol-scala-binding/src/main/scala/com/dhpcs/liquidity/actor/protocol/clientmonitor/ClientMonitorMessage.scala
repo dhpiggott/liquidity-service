@@ -6,7 +6,8 @@ import akka.actor.typed.ActorRef
 import com.dhpcs.liquidity.model.PublicKey
 
 final case class ActiveClientSummary(remoteAddress: InetAddress,
-                                     publicKey: PublicKey)
+                                     publicKey: PublicKey,
+                                     connectionId: String)
 
 sealed abstract class ClientMonitorMessage
 case object LogActiveClientsCount extends ClientMonitorMessage

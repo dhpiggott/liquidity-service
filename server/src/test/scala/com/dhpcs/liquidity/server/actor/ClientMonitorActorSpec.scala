@@ -20,7 +20,8 @@ class ClientMonitorActorSpec
     "provides a summary of the active clients" in {
       val clientMonitor = spawn(ClientMonitorActor.behavior, "clientMonitor")
       val testProbe = TestProbe[Set[ActiveClientSummary]]()
-      val activeClientSummary = ActiveClientSummary(remoteAddress, publicKey)
+      val activeClientSummary =
+        ActiveClientSummary(remoteAddress, publicKey, "test-connection-id")
       clientMonitor ! UpsertActiveClientSummary(testProbe.ref,
                                                 activeClientSummary)
       clientMonitor ! GetActiveClientSummaries(testProbe.ref)

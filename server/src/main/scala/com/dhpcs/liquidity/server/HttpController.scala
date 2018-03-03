@@ -183,17 +183,34 @@ trait HttpController {
                     case (remoteAddress, _) => remoteAddress.getHostAddress
                   }
                   .map {
-                    case (remoteAddress, clients) =>
+                    case (remoteAddress, clientsAtHostAddress) =>
                       Json.obj(
-                        okio.ByteString
+                        "hostAddressFingerprint" -> okio.ByteString
                           .encodeUtf8(remoteAddress.getHostAddress)
                           .sha256
-                          .hex -> Json.obj(
-                          "publicKeyFingerprints" -> clients
-                            .map(_.publicKey.fingerprint)
-                            .toSeq
-                            .sorted
-                        ))
+                          .hex,
+                        "count" -> clientsAtHostAddress.size,
+                        "clientsAtHostAddress" -> clientsAtHostAddress
+                          .groupBy(_.publicKey)
+                          .toSeq
+                          .sortBy {
+                            case (publicKey, _) => publicKey.fingerprint
+                          }
+                          .map {
+                            case (publicKey, clientsWithPublicKey) =>
+                              Json.obj(
+                                "publicKeyFingerprint" -> publicKey.fingerprint,
+                                "count" -> clientsWithPublicKey.size,
+                                "clientsWithPublicKey" -> Json.obj(
+                                  "count" -> clientsWithPublicKey.size,
+                                  "connectionIds" -> clientsWithPublicKey
+                                    .map(_.connectionId)
+                                    .toSeq
+                                    .sorted
+                                )
+                              )
+                          }
+                      )
                   }
               ),
               "activeZones" -> Json.obj(

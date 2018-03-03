@@ -498,9 +498,18 @@ class HttpControllerSpec
              |  "activeClients" : {
              |    "count" : 1,
              |    "clients" : [ {
-             |      "14853799b55e545f862f2fc26bca37ab6adbb7a3696db3ee733c8c78714de3c4" : {
-             |        "publicKeyFingerprints" : [ "${publicKey.fingerprint}" ]
-             |      }
+             |      "hostAddressFingerprint" : "14853799b55e545f862f2fc26bca37ab6adbb7a3696db3ee733c8c78714de3c4",
+             |      "count" : 1,
+             |      "clientsAtHostAddress" : [ {
+             |        "publicKeyFingerprint" : "${publicKey.fingerprint}",
+             |        "count" : 1,
+             |        "clientsWithPublicKey" : {
+             |          "count" : 1,
+             |          "connectionIds" : [
+             |            "test-connection-id"
+             |          ]
+             |        }
+             |      } ]
              |    } ]
              |  },
              |  "activeZones" : {
@@ -941,7 +950,7 @@ class HttpControllerSpec
 
   override protected[this] def getActiveClientSummaries
     : Future[Set[ActiveClientSummary]] =
-    Future.successful(Set(ActiveClientSummary(remoteAddress, publicKey)))
+    Future.successful(Set(ActiveClientSummary(remoteAddress, publicKey, "test-connection-id")))
 
   override protected[this] def getActiveZoneSummaries
     : Future[Set[ActiveZoneSummary]] =

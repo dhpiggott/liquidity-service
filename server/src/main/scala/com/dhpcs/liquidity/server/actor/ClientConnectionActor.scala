@@ -83,6 +83,7 @@ object ClientConnectionActor {
         context.log.info(
           s"Starting for ${publicKey.fingerprint}@$remoteAddress")
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
+        context.self ! PublishClientStatusTick
         timers.startPeriodicTimer(PublishStatusTimerKey,
                                   PublishClientStatusTick,
                                   30.seconds)

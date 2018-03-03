@@ -230,7 +230,7 @@ class ClientConnectionActorSpec
     val webSocketOutTestProbe = TestProbe[proto.ws.protocol.ClientMessage]()
     val clientConnection = spawn(
       ClientConnectionActor.webSocketBehavior(
-        pingInterval = 3.seconds,
+        pingInterval = 0.5.seconds,
         zoneValidatorShardRegionTestProbe.ref,
         InetAddress.getLoopbackAddress,
         webSocketOutTestProbe.ref

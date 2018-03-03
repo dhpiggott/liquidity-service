@@ -286,7 +286,10 @@ object LiquidityServer {
            |      plugin = "jdbc-snapshot-store"
            |    }
            |  }
-           |  http.server.remote-address-header = on
+           |  http.server {
+           |    remote-address-header = on
+           |    idle-timeout = 10s
+           |  }
            |}
            |jdbc-journal.slick = $${slick}
            |jdbc-snapshot-store.slick = $${slick}
@@ -337,7 +340,7 @@ object LiquidityServer {
     val server = new LiquidityServer(
       administratorsTransactor,
       analyticsTransactor,
-      pingInterval = 30.seconds,
+      pingInterval = 5.seconds,
       httpInterface = "0.0.0.0",
       httpPort = 8080
     )

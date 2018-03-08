@@ -347,7 +347,7 @@ object LiquidityServer {
     val httpBinding = server.bindHttp()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
                                         "liquidityServerUnbind")(() =>
-      for (_ <- httpBinding.flatMap(_.unbind())) yield Done)
+      httpBinding.flatMap(_.unbind()))
   }
 
   private[this] def urlForDatabase(database: String): String =

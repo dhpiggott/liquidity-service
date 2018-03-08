@@ -157,7 +157,6 @@ class ClientConnectionActorSpec
     }
   }
 
-  // TODO: Test via webSocketFlow?
   "A WebSocket ClientConnectionActor" - {
     "receiving a KeyOwnershipProof" - {
       "rejects it if the signature is invalid" in { fixture =>
@@ -223,7 +222,6 @@ class ClientConnectionActorSpec
   override protected type FixtureParam =
     ClientConnectionActorSpec.FixtureParam
 
-  // TODO: ZoneNotificationSource version
   override protected def withFixture(test: OneArgTest): Outcome = {
     val sinkTestProbe = TestProbe[ActorSinkAck.type]()
     val zoneValidatorShardRegionTestProbe = TestProbe[ZoneValidatorMessage]()

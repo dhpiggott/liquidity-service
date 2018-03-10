@@ -17,9 +17,9 @@ services:
     ports:
      - "8080"
     environment:
-      JAVA_OPTS: "-Dakka.remote.netty.tcp.hostname=zone-host
-        -Dakka.remote.netty.tcp.bind-hostname=0.0.0.0
-        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
+      JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=zone-host
+        -Dakka.remote.artery.bind.hostname=0.0.0.0
+        -Dakka.cluster.seed-nodes.0=akka://liquidity@zone-host:25520
         -Dakka.cluster.roles.0=zone-host"
       MYSQL_HOSTNAME: "mysql"
       MYSQL_USERNAME: "root"
@@ -29,9 +29,9 @@ services:
     ports:
      - "8080"
     environment:
-      JAVA_OPTS: "-Dakka.remote.netty.tcp.hostname=client-relay
-        -Dakka.remote.netty.tcp.bind-hostname=0.0.0.0
-        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
+      JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=client-relay
+        -Dakka.remote.artery.bind.hostname=0.0.0.0
+        -Dakka.cluster.seed-nodes.0=akka://liquidity@zone-host:25520
         -Dakka.cluster.roles.0=client-relay"
       MYSQL_HOSTNAME: "mysql"
       MYSQL_USERNAME: "root"
@@ -41,9 +41,9 @@ services:
     ports:
      - "8080"
     environment:
-      JAVA_OPTS: "-Dakka.remote.netty.tcp.hostname=analytics
-        -Dakka.remote.netty.tcp.bind-hostname=0.0.0.0
-        -Dakka.cluster.seed-nodes.0=akka.tcp://liquidity@zone-host:2552
+      JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=analytics
+        -Dakka.remote.artery.bind.hostname=0.0.0.0
+        -Dakka.cluster.seed-nodes.0=akka://liquidity@zone-host:25520
         -Dakka.cluster.roles.0=analytics"
       MYSQL_HOSTNAME: "mysql"
       MYSQL_USERNAME: "root"

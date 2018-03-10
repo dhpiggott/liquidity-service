@@ -75,17 +75,17 @@ class LiquidityServerSpec
         } yield (node, (roles, status))
         assert(
           nodeRolesAndStatuses.toMap === Map(
-            ("akka.tcp://liquidity@zone-host:2552",
+            ("akka://liquidity@zone-host:25520",
              (Seq("zone-host", "dc-default"), "Up")),
-            ("akka.tcp://liquidity@client-relay:2552",
+            ("akka://liquidity@client-relay:25520",
              (Seq("client-relay", "dc-default"), "Up")),
-            ("akka.tcp://liquidity@analytics:2552",
+            ("akka://liquidity@analytics:25520",
              (Seq("analytics", "dc-default"), "Up"))
           )
         )
         assert(
           (asJsValue \ "selfNode")
-            .as[String] === "akka.tcp://liquidity@zone-host:2552")
+            .as[String] === "akka://liquidity@zone-host:25520")
         assert((asJsValue \ "unreachable").as[Seq[JsValue]] === Seq.empty)
       }
     }

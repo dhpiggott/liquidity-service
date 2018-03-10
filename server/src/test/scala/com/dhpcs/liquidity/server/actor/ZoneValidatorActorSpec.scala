@@ -693,9 +693,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
        |    port = $akkaRemotingPort
        |  }
        |  cluster {
-       |    metrics.enabled = off
        |    seed-nodes = ["akka.tcp://zoneValidatorActorSpec@localhost:$akkaRemotingPort"]
-       |    jmx.multi-mbeans-in-same-jvm = on
+       |    jmx.enabled = off
        |  }
        |  persistence {
        |    journal.plugin = "inmemory-journal"

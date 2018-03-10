@@ -45,14 +45,15 @@ class ZoneMonitorActorSpec
        |akka {
        |  loglevel = "WARNING"
        |  actor.provider = "cluster"
-       |  remote.netty.tcp {
-       |    hostname = "localhost"
-       |    port = $akkaRemotingPort
+       |  remote.artery {
+       |    enabled = on
+       |    transport = tcp
+       |    canonical.hostname = "localhost"
+       |    canonical.port = $akkaRemotingPort
        |  }
        |  cluster {
-       |    metrics.enabled = off
-       |    seed-nodes = ["akka.tcp://$name@localhost:$akkaRemotingPort"]
-       |    jmx.multi-mbeans-in-same-jvm = on
+       |    seed-nodes = ["akka://$name@localhost:$akkaRemotingPort"]
+       |    jmx.enabled = off
        |  }
        |}
      """.stripMargin)

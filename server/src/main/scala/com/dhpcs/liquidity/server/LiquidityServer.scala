@@ -289,8 +289,12 @@ object LiquidityServer {
            |    method = aws-api-ecs
            |    aws-api-ecs.class = com.dhpcs.liquidity.server.EcsSimpleServiceDiscovery
            |  }
-           |  remote.netty.tcp.hostname = "${getPrivateAddressOrExit.getHostAddress}"
-           |  cluster.metrics.enabled = off
+           |  remote.artery {
+           |    enabled = on
+           |    transport = tcp
+           |    canonical.hostname = "${getPrivateAddressOrExit.getHostAddress}"
+           |  }
+           |  cluster.jmx.enabled = off
            |  extensions += "akka.persistence.Persistence"
            |  persistence {
            |    journal {

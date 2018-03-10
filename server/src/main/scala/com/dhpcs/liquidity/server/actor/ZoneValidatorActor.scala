@@ -72,7 +72,8 @@ object ZoneValidatorActor {
           DistributedPubSub(context.system.toUntyped).mediator
         // Workarounds for the limitation described in
         // https://github.com/akka/akka/pull/23674
-        // TODO: Remove these once that limitation is resolved
+        // TODO: Remove these once that limitation is resolved, then convert
+        // ZoneValidatorActorSpec to use ActorTestKit
         val passivationCountdown =
           context.spawn(PassivationCountdownActor.behavior(context.self),
                         "passivationCountdown")

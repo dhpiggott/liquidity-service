@@ -7,16 +7,52 @@ Parameters:
   Tag:
     Type: String
 Resources:
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "EcsServiceDiscovery"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                 - "ecs:ListTasks"
+                 - "ecs:DescribeTasks"
+                Resource: "*"
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Ref AWS::StackName
       Cpu: 256
       Memory: 512
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      ExecutionRoleArn: "arn:aws:iam::837036139524:role/ecsTaskExecutionRole"
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
         - Name: liquidity
           Image:
@@ -32,11 +68,9 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: liquidity
           Environment:
-            - Name: AKKA_HOSTNAME
-              Value: "localhost"
             - Name: JAVA_OPTS
-              Value: "-Dakka.cluster.seed-nodes.0=\
-                akka.tcp://liquidity@localhost:2552
+              Value: !Sub "-Dakka.management.cluster.bootstrap.\
+                contact-point-discovery.service-name=${AWS::StackName}
                 -Dakka.cluster.roles.0=zone-host
                 -Dakka.cluster.roles.1=client-relay
                 -Dakka.cluster.roles.2=analytics"
@@ -59,6 +93,22 @@ Resources:
           ToPort: 8080
           SourceSecurityGroupId:
             Fn::ImportValue: !Sub "${Stack}-ALBSecurityGroup"
+  ServiceSecurityGroupAkkaManagementSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt ServiceSecurityGroup.GroupId
+      IpProtocol: "tcp"
+      FromPort: 19999
+      ToPort: 19999
+      SourceSecurityGroupId: !GetAtt ServiceSecurityGroup.GroupId
+  ServiceSecurityGroupAkkaClusterSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt ServiceSecurityGroup.GroupId
+      IpProtocol: "tcp"
+      FromPort: 2552
+      ToPort: 2552
+      SourceSecurityGroupId: !GetAtt ServiceSecurityGroup.GroupId
   Service:
     Type: AWS::ECS::Service
     Properties:

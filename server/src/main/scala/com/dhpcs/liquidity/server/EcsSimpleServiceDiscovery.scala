@@ -7,7 +7,6 @@ import akka.discovery.SimpleServiceDiscovery
 import akka.discovery.SimpleServiceDiscovery.{Resolved, ResolvedTarget}
 import akka.pattern.after
 import com.dhpcs.liquidity.server.EcsSimpleServiceDiscovery._
-import software.amazon.awssdk.core.regions.Region
 import software.amazon.awssdk.services.ecs._
 import software.amazon.awssdk.services.ecs.model._
 
@@ -15,16 +14,14 @@ import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
 import scala.compat.java8.FutureConverters._
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 
 class EcsSimpleServiceDiscovery(system: ActorSystem)
     extends SimpleServiceDiscovery {
 
   override def lookup(name: String,
                       resolveTimeout: FiniteDuration): Future[Resolved] = {
-//    val ecsClient = ECSAsyncClient.create()
-    val ecsClient =
-      ECSAsyncClient.builder().region(Region.US_EAST_1).build()
+    val ecsClient = ECSAsyncClient.create()
     implicit val ec: ExecutionContext = system.dispatcher
     Future.firstCompletedOf(
       Seq(
@@ -52,21 +49,6 @@ class EcsSimpleServiceDiscovery(system: ActorSystem)
 }
 
 object EcsSimpleServiceDiscovery {
-
-  def main(args: Array[String]): Unit =
-    Await.result(
-      awaitable = {
-        val system = ActorSystem()
-        implicit val ec: ExecutionContext = ExecutionContext.global
-        for {
-          resolved <- new EcsSimpleServiceDiscovery(system)
-            .lookup(name = args(0), resolveTimeout = 5.seconds)
-          _ = Console.out.println(resolved)
-          _ <- system.terminate()
-        } yield ()
-      },
-      atMost = 10.seconds
-    )
 
   private def resolveTasks(ecsClient: ECSAsyncClient, serviceName: String)(
       implicit ec: ExecutionContext): Future[Seq[Task]] =

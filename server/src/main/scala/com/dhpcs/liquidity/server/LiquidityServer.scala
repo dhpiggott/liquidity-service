@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.server
 
-import java.net.InetAddress
+import java.net.{InetAddress, NetworkInterface}
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -17,6 +17,7 @@ import akka.http.scaladsl.model.ws.{Message => WsMessage}
 import akka.http.scaladsl.server.Directives.logRequestResult
 import akka.http.scaladsl.server.StandardRoute
 import akka.management.AkkaManagement
+import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
 import akka.stream.scaladsl.{Flow, Sink, Source}
@@ -47,6 +48,8 @@ import doobie.hikari.implicits._
 import doobie.implicits._
 import org.slf4j.LoggerFactory
 
+import scala.collection.JavaConverters._
+import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -109,7 +112,7 @@ class LiquidityServer(
     requestContext =>
       Source
         .single(requestContext.request)
-        .via(Http().outgoingConnection("127.0.0.1", 19999))
+        .via(Http().outgoingConnection(httpInterface, 19999))
         .runWith(Sink.head)
         .flatMap(requestContext.complete(_))
 
@@ -241,9 +244,15 @@ object LiquidityServer {
       } yield a).unsafeToFuture()
   }
 
+  private[this] val log = LoggerFactory.getLogger(getClass)
+
   def main(args: Array[String]): Unit = {
+    val privateAddress = getPrivateAddressOrExit
     val config = ConfigFactory
-      .parseString(s"""
+      .systemProperties()
+      .withFallback(
+        ConfigFactory
+          .parseString(s"""
            |akka {
            |  loggers = ["akka.event.slf4j.Slf4jLogger"]
            |  loglevel = "DEBUG"
@@ -266,15 +275,22 @@ object LiquidityServer {
            |    }
            |    allow-java-serialization = off
            |  }
-           |  remote.netty.tcp {
-           |    hostname = "${getEnvVarOrExit("AKKA_HOSTNAME")}"
-           |    bind-hostname = "0.0.0.0"
+           |  management {
+           |    cluster.bootstrap {
+           |      contact-point-discovery.required-contact-point-nr = 1
+           |      contact-point.fallback-port = 19999
+           |    }
+           |    http {
+           |      hostname = "${privateAddress.getHostAddress}"
+           |      base-path = "akka-management"
+           |    }
            |  }
+           |  discovery {
+           |    method = aws-api-ecs
+           |    aws-api-ecs.class = com.dhpcs.liquidity.server.EcsSimpleServiceDiscovery
+           |  }
+           |  remote.netty.tcp.hostname = "${getPrivateAddressOrExit.getHostAddress}"
            |  cluster.metrics.enabled = off
-           |  management.http {
-           |    hostname = "127.0.0.1"
-           |    base-path = "akka-management"
-           |  }
            |  extensions += "akka.persistence.Persistence"
            |  persistence {
            |    journal {
@@ -305,7 +321,9 @@ object LiquidityServer {
            |  }
            |}
          """.stripMargin)
+      )
       .resolve()
+
     implicit val system: ActorSystem = ActorSystem("liquidity", config)
     implicit val mat: Materializer = ActorMaterializer()
     implicit val ec: ExecutionContext = ExecutionContext.global
@@ -337,11 +355,12 @@ object LiquidityServer {
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
                                         "liquidityServerUnbind")(() =>
       for (_ <- analyticsTransactor.shutdown.unsafeToFuture()) yield Done)
+    ClusterBootstrap(system).start()
     val server = new LiquidityServer(
       administratorsTransactor,
       analyticsTransactor,
       pingInterval = 5.seconds,
-      httpInterface = "0.0.0.0",
+      httpInterface = privateAddress.getHostAddress,
       httpPort = 8080
     )
     val httpBinding = server.bindHttp()
@@ -349,6 +368,22 @@ object LiquidityServer {
                                         "liquidityServerUnbind")(() =>
       httpBinding.flatMap(_.unbind()))
   }
+
+  private[this] def getPrivateAddressOrExit: InetAddress =
+    NetworkInterface.getNetworkInterfaces.asScala
+      .flatMap(_.getInetAddresses.asScala)
+      .filterNot(_.isLoopbackAddress)
+      .filter(_.isSiteLocalAddress)
+      .to[Seq] match {
+      case Seq(value) =>
+        value
+
+      case other =>
+        log.error(
+          s"Exactly one private address must be configured (found: $other). " +
+            "Halting.")
+        sys.exit(1)
+    }
 
   private[this] def urlForDatabase(database: String): String =
     s"jdbc:mysql://${getEnvVarOrExit("MYSQL_HOSTNAME")}/$database?" +
@@ -366,7 +401,5 @@ object LiquidityServer {
       log.error(s"Required environment variable <$name> is not set. Halting.")
       sys.exit(1)
     })
-
-  private[this] val log = LoggerFactory.getLogger(getClass)
 
 }

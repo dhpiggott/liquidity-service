@@ -42,7 +42,6 @@ class ClientConnectionActorSpec
         val zoneNotificationOutTestProbe = TestProbe[ActorSourceMessage]()
         val clientConnection = spawn(
           ClientConnectionActor.zoneNotificationBehavior(
-            pingInterval = 3.seconds,
             zoneValidatorShardRegionTestProbe.ref,
             InetAddress.getLoopbackAddress,
             publicKey,
@@ -103,7 +102,6 @@ class ClientConnectionActorSpec
         val zoneNotificationOutTestProbe = TestProbe[ActorSourceMessage]()
         val clientConnection = spawn(
           ClientConnectionActor.zoneNotificationBehavior(
-            pingInterval = 3.seconds,
             zoneValidatorShardRegionTestProbe.ref,
             InetAddress.getLoopbackAddress,
             publicKey,
@@ -126,31 +124,6 @@ class ClientConnectionActorSpec
         zoneNotificationOutTestProbe.expectMessage(
           ForwardZoneNotification(
             MemberCreatedNotification(member)
-          )
-        )
-      }
-    }
-    "left idle" - {
-      "sends a PingNotification" in { _ =>
-        val zoneValidatorShardRegionTestProbe =
-          TestProbe[ZoneValidatorMessage]()
-        val zoneId = ZoneId(UUID.randomUUID().toString)
-        val zoneNotificationOutTestProbe = TestProbe[ActorSourceMessage]()
-        spawn(
-          ClientConnectionActor.zoneNotificationBehavior(
-            pingInterval = 3.seconds,
-            zoneValidatorShardRegionTestProbe.ref,
-            InetAddress.getLoopbackAddress,
-            publicKey,
-            zoneId,
-            zoneNotificationOutTestProbe.ref
-          )
-        )
-        zoneNotificationOutTestProbe.within(3.5.seconds)(
-          zoneNotificationOutTestProbe.expectMessage(
-            ForwardZoneNotification(
-              PingNotification(())
-            )
           )
         )
       }

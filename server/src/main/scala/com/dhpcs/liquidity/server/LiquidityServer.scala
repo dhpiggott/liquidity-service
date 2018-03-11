@@ -56,7 +56,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class LiquidityServer(
     administratorsTransactor: Transactor[IO],
     analyticsTransactor: Transactor[IO],
-    pingInterval: FiniteDuration,
+    override protected[this] val pingInterval: FiniteDuration,
     httpInterface: String,
     httpPort: Int)(implicit system: ActorSystem, mat: Materializer)
     extends HttpController {
@@ -213,7 +213,6 @@ class LiquidityServer(
       publicKey: PublicKey,
       zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
     ClientConnectionActor.zoneNotificationSource(
-      pingInterval,
       zoneValidatorShardRegion,
       remoteAddress,
       publicKey,

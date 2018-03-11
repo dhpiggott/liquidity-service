@@ -38,6 +38,7 @@ import scalapb.json4s.JsonFormat
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion, Message}
 
 import scala.collection.immutable.Seq
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.util.control.NonFatal
@@ -342,6 +343,13 @@ trait HttpController {
                                proto.ws.protocol.ZoneNotification,
                                Any].asProto(zoneNotification)(())
               )
+              .keepAlive(
+                pingInterval,
+                () =>
+                  ProtoBinding[ZoneNotification,
+                               proto.ws.protocol.ZoneNotification,
+                               Any].asProto(PingNotification(()))(())
+              )
         )
       )
     )
@@ -423,6 +431,7 @@ trait HttpController {
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       zoneId: ZoneId): Source[ZoneNotification, NotUsed]
+  protected[this] def pingInterval: FiniteDuration
   protected[this] def webSocketFlow(
       remoteAddress: InetAddress): Flow[WsMessage, WsMessage, NotUsed]
 

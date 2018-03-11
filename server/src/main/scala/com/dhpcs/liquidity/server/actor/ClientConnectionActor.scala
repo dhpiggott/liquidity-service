@@ -39,7 +39,6 @@ object ClientConnectionActor {
   case object StopActorSource extends ActorSourceMessage
 
   def zoneNotificationSource(
-      pingInterval: FiniteDuration,
       zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       publicKey: PublicKey,
@@ -57,12 +56,13 @@ object ClientConnectionActor {
       .toMat(Sink.asPublisher(false))(Keep.both)
       .run()
     system.spawnAnonymous(
-      ClientConnectionActor.zoneNotificationBehavior(pingInterval,
-                                                     zoneValidatorShardRegion,
-                                                     remoteAddress,
-                                                     publicKey,
-                                                     zoneId,
-                                                     outActor)
+      ClientConnectionActor.zoneNotificationBehavior(
+        zoneValidatorShardRegion,
+        remoteAddress,
+        publicKey,
+        zoneId,
+        outActor
+      )
     )
     Source.fromPublisher(publisher).collect {
       case ForwardZoneNotification(zoneNotification) => zoneNotification
@@ -70,7 +70,6 @@ object ClientConnectionActor {
   }
 
   def zoneNotificationBehavior(
-      pingInterval: FiniteDuration,
       zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       publicKey: PublicKey,
@@ -87,15 +86,14 @@ object ClientConnectionActor {
         timers.startPeriodicTimer(PublishStatusTimerKey,
                                   PublishClientStatusTick,
                                   30.seconds)
-        val pingGenerator =
-          context.spawn(PingGeneratorActor.behavior(pingInterval, context.self),
-                        "pingGenerator")
-        zoneValidatorShardRegion ! ZoneCommandEnvelope(context.self,
-                                                       zoneId,
-                                                       remoteAddress,
-                                                       publicKey,
-                                                       correlationId = 0,
-                                                       JoinZoneCommand)
+        zoneValidatorShardRegion ! ZoneCommandEnvelope(
+          context.self,
+          zoneId,
+          remoteAddress,
+          publicKey,
+          correlationId = 0,
+          JoinZoneCommand
+        )
         implicit val resolver: ActorRefResolver =
           ActorRefResolver(context.system)
         forwardingZoneNotifications(
@@ -105,7 +103,6 @@ object ClientConnectionActor {
           zoneId,
           zoneNotificationOut,
           mediator,
-          pingGenerator,
           expectedSequenceNumber = 0
         )
       }
@@ -118,7 +115,6 @@ object ClientConnectionActor {
       zoneId: ZoneId,
       zoneNotificationOut: ActorRef[ActorSourceMessage],
       mediator: ActorRef[Publish],
-      pingGenerator: ActorRef[PingGeneratorActor.PingGeneratorMessage],
       expectedSequenceNumber: Long)(
       implicit resolver: ActorRefResolver): Behavior[ClientConnectionMessage] =
     Behaviors.immutable[ClientConnectionMessage]((context, message) =>
@@ -158,7 +154,6 @@ object ClientConnectionActor {
               zoneNotificationOut ! ForwardZoneNotification(
                 ZoneStateNotification(zone, connectedClients)
               )
-              pingGenerator ! PingGeneratorActor.FrameSentEvent
               context.watchWith(zoneValidator, ZoneTerminated(zoneValidator))
               Behaviors.same
 
@@ -187,12 +182,10 @@ object ClientConnectionActor {
               zoneId,
               zoneNotificationOut,
               mediator,
-              pingGenerator,
               expectedSequenceNumber = 0
             )
           } else {
             zoneNotificationOut ! ForwardZoneNotification(zoneNotification)
-            pingGenerator ! PingGeneratorActor.FrameSentEvent
             forwardingZoneNotifications(
               zoneValidatorShardRegion,
               remoteAddress,
@@ -200,7 +193,6 @@ object ClientConnectionActor {
               zoneId,
               zoneNotificationOut,
               mediator,
-              pingGenerator,
               expectedSequenceNumber = sequenceNumber + 1
             )
           }
@@ -320,7 +312,7 @@ object ClientConnectionActor {
       remoteAddress: InetAddress,
       webSocketOut: ActorRef[proto.ws.protocol.ClientMessage])
     : Behavior[ClientConnectionMessage] =
-    Behaviors.setup(context =>
+    Behaviors.setup { context =>
       Behaviors.withTimers { timers =>
         context.log.info(s"Starting for $remoteAddress")
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
@@ -330,12 +322,15 @@ object ClientConnectionActor {
         val pingGenerator =
           context.spawn(PingGeneratorActor.behavior(pingInterval, context.self),
                         "pingGenerator")
-        waitingForActorSinkInit(zoneValidatorShardRegion,
-                                remoteAddress,
-                                webSocketOut,
-                                mediator,
-                                pingGenerator)
-    })
+        waitingForActorSinkInit(
+          zoneValidatorShardRegion,
+          remoteAddress,
+          webSocketOut,
+          mediator,
+          pingGenerator
+        )
+      }
+    }
 
   private[this] case object PublishStatusTimerKey
 
@@ -382,12 +377,14 @@ object ClientConnectionActor {
             proto.ws.protocol.ClientMessage.Message
               .KeyOwnershipChallenge(keyOwnershipChallenge)
           )
-          waitingForKeyOwnershipProof(zoneValidatorShardRegion,
-                                      remoteAddress,
-                                      webSocketOut,
-                                      mediator,
-                                      pingGenerator,
-                                      keyOwnershipChallenge)
+          waitingForKeyOwnershipProof(
+            zoneValidatorShardRegion,
+            remoteAddress,
+            webSocketOut,
+            mediator,
+            pingGenerator,
+            keyOwnershipChallenge
+          )
 
         case PublishClientStatusTick | SendPingTick =>
           Behaviors.same
@@ -479,7 +476,8 @@ object ClientConnectionActor {
                   mediator,
                   pingGenerator,
                   publicKey,
-                  notificationSequenceNumbers = Map.empty)
+                  notificationSequenceNumbers = Map.empty
+                )
               }
           }
 
@@ -534,9 +532,11 @@ object ClientConnectionActor {
             ClientMonitorActor.ClientStatusTopic,
             UpsertActiveClientSummary(
               context.self,
-              ActiveClientSummary(remoteAddress,
-                                  publicKey,
-                                  resolver.toSerializationFormat(context.self))
+              ActiveClientSummary(
+                remoteAddress,
+                publicKey,
+                resolver.toSerializationFormat(context.self)
+              )
             )
           )
           Behaviors.same
@@ -655,7 +655,8 @@ object ClientConnectionActor {
                 mediator,
                 pingGenerator,
                 publicKey,
-                notificationSequenceNumbers + (zoneValidator -> 0))
+                notificationSequenceNumbers + (zoneValidator -> 0)
+              )
 
             case QuitZoneResponse(Valid(_)) =>
               context.unwatch(zoneValidator)
@@ -666,7 +667,8 @@ object ClientConnectionActor {
                 mediator,
                 pingGenerator,
                 publicKey,
-                notificationSequenceNumbers - zoneValidator)
+                notificationSequenceNumbers - zoneValidator
+              )
 
             case _ =>
               Behaviors.same
@@ -705,7 +707,8 @@ object ClientConnectionActor {
                                              proto.ws.protocol.ZoneNotification,
                                              Any]
                                   .asProto(zoneNotification)(()))
-                            ))
+                            )
+                        )
                     ))
                 )
                 val nextExpectedSequenceNumber = expectedSequenceNumber + 1

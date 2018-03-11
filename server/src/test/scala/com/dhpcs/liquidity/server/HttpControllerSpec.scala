@@ -31,10 +31,10 @@ import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
-import com.dhpcs.liquidity.server.HttpControllerSpec.{publicKey, _}
+import com.dhpcs.liquidity.server.HttpControllerSpec._
 import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
-import com.dhpcs.liquidity.ws.protocol._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
+import com.dhpcs.liquidity.ws.protocol._
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.scalatest.FreeSpec
 import pdi.jwt.{JwtAlgorithm, JwtJson}
@@ -42,6 +42,7 @@ import play.api.libs.json.{JsObject, JsString, JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 class HttpControllerSpec
     extends FreeSpec
@@ -1034,6 +1035,8 @@ class HttpControllerSpec
       zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
     if (zoneId != zone.id) Source.empty
     else Source(zoneNotifications)
+
+  override protected[this] val pingInterval: FiniteDuration = 3.seconds
 
   override protected[this] def webSocketFlow(
       remoteAddress: InetAddress): Flow[WsMessage, WsMessage, NotUsed] =

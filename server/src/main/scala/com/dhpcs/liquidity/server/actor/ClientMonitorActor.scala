@@ -16,7 +16,7 @@ object ClientMonitorActor {
   private[this] case object LogActiveClientsCountTimerKey
 
   def behavior: Behavior[ClientMonitorMessage] =
-    Behaviors.setup(context =>
+    Behaviors.setup { context =>
       Behaviors.withTimers { timers =>
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         mediator ! Subscribe(ClientStatusTopic, context.self.toUntyped)
@@ -24,7 +24,8 @@ object ClientMonitorActor {
                                   LogActiveClientsCount,
                                   5.minutes)
         withSummaries(Map.empty)
-    })
+      }
+    }
 
   private[this] def withSummaries(
       activeClientSummaries: Map[ActorRef[Nothing], ActiveClientSummary])

@@ -34,8 +34,10 @@ import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import doobie._
 import doobie.implicits._
 import org.scalactic.TripleEqualsSupport.Spread
+import org.scalactic.source.Position
 import org.scalatest.Inside._
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
+import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.{JsString, JsValue, Json}
@@ -54,6 +56,7 @@ class LiquidityServerSpec
 
   "The LiquidityServer" - {
     "forms a cluster" in {
+      val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
       eventually {
         val (_, akkaHttpPort) =
           externalDockerComposeServicePorts(projectName, "zone-host", 8080).head
@@ -87,9 +90,10 @@ class LiquidityServerSpec
           (asJsValue \ "selfNode")
             .as[String] === "akka://liquidity@zone-host:25520")
         assert((asJsValue \ "unreachable").as[Seq[JsValue]] === Seq.empty)
-      }
+      }(pc, Position.here)
     }
     "becomes healthy" in {
+      val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
       val (_, akkaHttpPort) =
         externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
       eventually {
@@ -103,7 +107,7 @@ class LiquidityServerSpec
         assert(response.status === StatusCodes.OK)
         assert(
           Unmarshal(response.entity).to[JsValue].futureValue === JsString("OK"))
-      }
+      }(pc, Position.here)
     }
     "accepts and projects create zone commands" in withWsTestProbes {
       (sub, pub) =>

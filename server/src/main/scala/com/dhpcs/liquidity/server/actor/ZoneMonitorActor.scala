@@ -16,7 +16,7 @@ object ZoneMonitorActor {
   private[this] case object LogActiveZonesCountTimerKey
 
   def behavior: Behavior[ZoneMonitorMessage] =
-    Behaviors.setup(context =>
+    Behaviors.setup { context =>
       Behaviors.withTimers { timers =>
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         mediator ! Subscribe(ZoneStatusTopic, context.self.toUntyped)
@@ -24,7 +24,8 @@ object ZoneMonitorActor {
                                   LogActiveZonesCount,
                                   5.minutes)
         withSummaries(Map.empty)
-    })
+      }
+    }
 
   private[this] def withSummaries(
       activeZoneSummaries: Map[ActorRef[Nothing], ActiveZoneSummary])

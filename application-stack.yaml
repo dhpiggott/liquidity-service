@@ -122,8 +122,8 @@ Resources:
       ServiceName: !Ref AWS::StackName
       DesiredCount: 1
       DeploymentConfiguration:
-        MinimumHealthyPercent: 0
-        MaximumPercent: 100
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
       TaskDefinition: !Ref TaskDefinition
       LoadBalancers:
         - ContainerName: liquidity

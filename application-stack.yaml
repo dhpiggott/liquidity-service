@@ -7,6 +7,11 @@ Parameters:
   Tag:
     Type: String
 Resources:
+  CloudWatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref AWS::StackName
+      RetentionInDays: 30
   ExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -63,8 +68,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group:
-                Fn::ImportValue: !Sub "${Stack}-CloudWatchLogGroup"
+              awslogs-group: !Ref CloudWatchLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: liquidity
           Environment:

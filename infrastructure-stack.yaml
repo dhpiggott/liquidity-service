@@ -135,11 +135,6 @@ Resources:
         - !Ref SNSTopic
       OKActions:
         - !Ref SNSTopic
-  CloudWatchLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Ref AWS::StackName
-      RetentionInDays: 30
 Outputs:
   RDSHostname:
     Value: !GetAtt RDS.Endpoint.Address
@@ -163,7 +158,3 @@ Outputs:
     Value: !Ref ALBTargetGroup
     Export:
       Name: !Sub "${AWS::StackName}-ALBTargetGroup"
-  CloudWatchLogGroup:
-    Value: !Ref CloudWatchLogGroup
-    Export:
-      Name: !Sub "${AWS::StackName}-CloudWatchLogGroup"

@@ -201,6 +201,7 @@ object ClientConnectionActor {
           Behaviors.stopped
 
         case zoneTerminated: ZoneTerminated =>
+          // TODO: Rejoin?
           context.log.warning(
             s"Stopping due to unexpected message; received $zoneTerminated")
           Behaviors.stopped

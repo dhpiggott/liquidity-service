@@ -74,8 +74,8 @@ Resources:
       SecurityGroups:
         - !GetAtt ALBSecurityGroup.GroupId
       LoadBalancerAttributes:
-      - Key: idle_timeout.timeout_seconds
-        Value: "60"
+        - Key: idle_timeout.timeout_seconds
+          Value: "60"
   ALBListenerCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:

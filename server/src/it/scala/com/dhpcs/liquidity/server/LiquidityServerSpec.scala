@@ -51,64 +51,10 @@ class LiquidityServerSpec
     extends FreeSpec
     with BeforeAndAfterAll
     with Eventually
-    with ScalaFutures
-    with IntegrationPatience {
+    with IntegrationPatience
+    with ScalaFutures {
 
-  "The LiquidityServer" - {
-    "forms a cluster" in {
-      val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
-      eventually {
-        val (_, akkaHttpPort) =
-          externalDockerComposeServicePorts(projectName, "zone-host", 8080).head
-        val response = Http()
-          .singleRequest(
-            HttpRequest(
-              uri = Uri(
-                s"http://localhost:$akkaHttpPort/akka-management/cluster/members")
-            ).withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-          )
-          .futureValue
-        assert(response.status === StatusCodes.OK)
-        val asJsValue = Unmarshal(response.entity).to[JsValue].futureValue
-        val nodeRolesAndStatuses = for {
-          member <- (asJsValue \ "members").as[Seq[JsValue]]
-          node = (member \ "node").as[String]
-          roles = (member \ "roles").as[Seq[String]]
-          status = (member \ "status").as[String]
-        } yield (node, (roles, status))
-        assert(
-          nodeRolesAndStatuses.toMap === Map(
-            ("akka://liquidity@zone-host:25520",
-             (Seq("zone-host", "dc-default"), "Up")),
-            ("akka://liquidity@client-relay:25520",
-             (Seq("client-relay", "dc-default"), "Up")),
-            ("akka://liquidity@analytics:25520",
-             (Seq("analytics", "dc-default"), "Up"))
-          )
-        )
-        assert(
-          (asJsValue \ "selfNode")
-            .as[String] === "akka://liquidity@zone-host:25520")
-        assert((asJsValue \ "unreachable").as[Seq[JsValue]] === Seq.empty)
-      }(pc, Position.here)
-    }
-    "becomes healthy" in {
-      val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
-      val (_, akkaHttpPort) =
-        externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
-      eventually {
-        val response = Http()
-          .singleRequest(
-            HttpRequest(
-              uri = Uri(s"http://localhost:$akkaHttpPort/status/terse")
-            )
-          )
-          .futureValue
-        assert(response.status === StatusCodes.OK)
-        assert(
-          Unmarshal(response.entity).to[JsValue].futureValue === JsString("OK"))
-      }(pc, Position.here)
-    }
+  "LiquidityServer" - {
     "accepts and projects create zone commands" in withWsTestProbes {
       (sub, pub) =>
         val (createdZone, createdBalances) = createZone(sub, pub)
@@ -210,7 +156,7 @@ class LiquidityServerSpec
         ()
     }
     "sends PingCommands when left idle" in withWsTestProbes { (sub, _) =>
-      sub.within(35.seconds)(
+      sub.within(10.seconds)(
         assert(
           expectCommand(sub) === proto.ws.protocol.ClientMessage.Command.Command
             .PingCommand(com.google.protobuf.ByteString.EMPTY))
@@ -257,6 +203,27 @@ class LiquidityServerSpec
     addAdministrator(PublicKey(rsaPublicKey.getEncoded))
       .transact(transactor)
       .unsafeRunSync()
+    val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
+    eventually {
+      def statusIsOk(serviceName: String): Unit = {
+        val (_, akkaHttpPort) =
+          externalDockerComposeServicePorts(projectName, serviceName, 8080).head
+        val response = Http()
+          .singleRequest(
+            HttpRequest(
+              uri = Uri(s"http://localhost:$akkaHttpPort/status/terse")
+            )
+          )
+          .futureValue
+        assert(response.status === StatusCodes.OK)
+        assert(
+          Unmarshal(response.entity).to[JsValue].futureValue === JsString("OK"))
+        ()
+      }
+      statusIsOk("zone-host")
+      statusIsOk("client-relay")
+      statusIsOk("analytics")
+    }(pc, Position.here)
   }
 
   private[this] val projectName = UUID.randomUUID().toString

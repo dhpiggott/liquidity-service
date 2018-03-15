@@ -49,7 +49,7 @@ class HttpControllerSpec
     with HttpController
     with ScalatestRouteTest {
 
-  "The HttpController" - {
+  "HttpController" - {
     "rejects access" - {
       "when no bearer token is presented" in {
         val getRequest = RequestBuilding
@@ -957,6 +957,9 @@ class HttpControllerSpec
       if (zoneId != zone.id) Map.empty
       else Map(clientSession.id -> clientSession)
     )
+
+  override protected[this] def checkCluster: Future[Unit] =
+    Future.successful(())
 
   override protected[this] def getActiveClientSummaries
     : Future[Set[ActiveClientSummary]] =

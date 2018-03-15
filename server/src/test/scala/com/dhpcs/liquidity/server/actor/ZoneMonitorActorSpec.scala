@@ -15,7 +15,7 @@ class ZoneMonitorActorSpec
     with ActorTestKit
     with BeforeAndAfterAll {
 
-  "A ZoneMonitorActor" - {
+  "ZoneMonitorActor" - {
     "provides a summary of the active zones" in {
       val zoneMonitor = spawn(ZoneMonitorActor.behavior, "zoneMonitor")
       val testProbe = TestProbe[Set[ActiveZoneSummary]]()

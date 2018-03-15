@@ -8,6 +8,7 @@ import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRefResolver, Props}
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
+import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
@@ -60,6 +61,8 @@ class LiquidityServer(
     httpInterface: String,
     httpPort: Int)(implicit system: ActorSystem, mat: Materializer)
     extends HttpController {
+
+  private[this] val cluster = Cluster(system.toTyped)
 
   private[this] val readJournal = PersistenceQuery(system)
     .readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
@@ -159,6 +162,16 @@ class LiquidityServer(
       zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]] =
     transactIoToFuture(analyticsTransactor)(
       ClientSessionsStore.retrieveAll(zoneId))
+
+  override protected[this] def checkCluster: Future[Unit] =
+    if (cluster.selfMember.status == MemberStatus.Up)
+      Future.successful(())
+    else
+      Future.failed(
+        new IllegalStateException(
+          "cluster.selfMember.status != MemberStatus.Up! " +
+            s"(cluster.selfMember.status = ${cluster.selfMember.status})"
+        ))
 
   override protected[this] def getActiveClientSummaries
     : Future[Set[ActiveClientSummary]] =

@@ -26,7 +26,7 @@ import scala.util.Random
 
 class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
 
-  "A ZoneValidatorActor" - {
+  "ZoneValidatorActor" - {
     "receiving create zone commands" - {
       "rejects it if a public key of invalid type is given" in { fixture =>
         createZone(fixture)

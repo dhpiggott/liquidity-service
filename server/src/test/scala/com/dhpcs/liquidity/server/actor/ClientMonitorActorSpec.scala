@@ -16,7 +16,7 @@ class ClientMonitorActorSpec
     with ActorTestKit
     with BeforeAndAfterAll {
 
-  "A ClientMonitorActor" - {
+  "ClientMonitorActor" - {
     "provides a summary of the active clients" in {
       val clientMonitor = spawn(ClientMonitorActor.behavior, "clientMonitor")
       val testProbe = TestProbe[Set[ActiveClientSummary]]()

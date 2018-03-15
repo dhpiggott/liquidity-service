@@ -161,7 +161,8 @@ trait HttpController {
     path("terse")(
       get(
         complete(
-          for (_ <- (getActiveClientSummaries,
+          for (_ <- (checkCluster,
+                     getActiveClientSummaries,
                      getActiveZoneSummaries,
                      getZoneCount,
                      getPublicKeyCount,
@@ -174,13 +175,15 @@ trait HttpController {
     ) ~ path("verbose")(
       get(
         complete(
-          for ((activeClientSummaries,
+          for ((_,
+                activeClientSummaries,
                 activeZoneSummaries,
                 zoneCount,
                 publicKeyCount,
                 memberCount,
                 accountCount,
-                transactionCount) <- (getActiveClientSummaries,
+                transactionCount) <- (checkCluster,
+                                      getActiveClientSummaries,
                                       getActiveZoneSummaries,
                                       getZoneCount,
                                       getPublicKeyCount,
@@ -410,6 +413,7 @@ trait HttpController {
   protected[this] def getClientSessions(
       zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]]
 
+  protected[this] def checkCluster: Future[Unit]
   protected[this] def getActiveClientSummaries: Future[Set[ActiveClientSummary]]
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
   protected[this] def getZoneCount: Future[Long]

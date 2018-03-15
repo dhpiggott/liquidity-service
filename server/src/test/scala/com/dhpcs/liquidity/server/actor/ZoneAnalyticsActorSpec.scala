@@ -40,10 +40,10 @@ class ZoneAnalyticsActorSpec
     extends fixture.FreeSpec
     with BeforeAndAfterAll
     with Eventually
-    with ScalaFutures
-    with IntegrationPatience {
+    with IntegrationPatience
+    with ScalaFutures {
 
-  "The ZoneAnalyticsActor" - {
+  "ZoneAnalyticsActor" - {
     "projects zone created events" in { fixture =>
       zoneCreated(fixture)
     }

@@ -33,7 +33,7 @@ class ClientConnectionActorSpec
     with BeforeAndAfterAll {
 
   // TODO: Test via zoneNotificationSource?
-  "A ZoneNotification ClientConnectionActor" - {
+  "ClientConnectionActor.zoneNotificationBehavior" - {
     "receiving a JoinZoneResponse" - {
       "relays it" in { _ =>
         val zoneValidatorShardRegionTestProbe =
@@ -130,7 +130,7 @@ class ClientConnectionActorSpec
     }
   }
 
-  "A WebSocket ClientConnectionActor" - {
+  "ClientConnectionActor.webSocketBehavior" - {
     "receiving a KeyOwnershipProof" - {
       "rejects it if the signature is invalid" in { fixture =>
         val (_, _, webSocketOutTestProbe, _) = fixture

@@ -304,7 +304,7 @@ object LiquidityServer {
            |  remote.artery {
            |    enabled = on
            |    transport = tcp
-           |    canonical.hostname = "${getPrivateAddressOrExit.getHostAddress}"
+           |    canonical.hostname = "${privateAddress.getHostAddress}"
            |  }
            |  cluster.jmx.enabled = off
            |  extensions += "akka.persistence.Persistence"

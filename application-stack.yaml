@@ -61,7 +61,7 @@ Resources:
       ContainerDefinitions:
         - Name: liquidity
           Image:
-            !Sub "837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:${Tag}"
+            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/liquidity:${Tag}"
           ReadonlyRootFilesystem: true
           PortMappings:
           - ContainerPort: 8080

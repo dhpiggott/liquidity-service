@@ -115,7 +115,7 @@ lazy val server = project
     )
   )
   .settings(libraryDependencies ++= Seq(
-    "com.h2database" % "h2" % "1.4.196" % Test,
+    "com.h2database" % "h2" % "1.4.197" % Test,
     "com.typesafe.akka" %% "akka-testkit-typed" % "2.5.11" % Test,
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.5" % Test,

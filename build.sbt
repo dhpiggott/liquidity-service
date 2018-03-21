@@ -48,7 +48,7 @@ lazy val `ws-protocol-scala-binding` = project
   .settings(protobufScalaSettings(`ws-protocol`))
   .settings(
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-core" % "1.0.1",
+      "org.typelevel" %% "cats-core" % "1.1.0",
       "com.squareup.okio" % "okio" % "1.14.0"
     ))
 
@@ -90,7 +90,7 @@ lazy val server = project
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.11",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.chuusai" %% "shapeless" % "2.3.3",
-      "org.typelevel" %% "cats-core" % "1.0.1",
+      "org.typelevel" %% "cats-core" % "1.1.0",
       "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.10.0",
       "software.amazon.awssdk" % "ecs" % "2.0.0-preview-8",
       "org.scala-lang.modules" %% "scala-java8-compat" % "0.8.0",

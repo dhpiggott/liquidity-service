@@ -130,17 +130,14 @@ lazy val server = project
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.0" % IntegrationTest,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.11" % IntegrationTest
   ))
-  .enablePlugins(BuildInfoPlugin,
-                 JavaAppPackaging,
-                 AshScriptPlugin,
-                 DockerPlugin)
+  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(
     buildInfoPackage := "com.dhpcs.liquidity.server",
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     Docker / packageName := "liquidity",
-    dockerBaseImage := "openjdk:8-jre-alpine",
+    dockerBaseImage := "openjdk:10-jre-slim",
     dockerRepository := Some("837036139524.dkr.ecr.us-east-1.amazonaws.com")
   )
 

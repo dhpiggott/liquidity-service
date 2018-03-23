@@ -49,7 +49,10 @@ jobs:
             --parameters \
               ParameterKey=Stack,ParameterValue=liquidity-infrastructure \
               ParameterKey=Subnets,ParameterValue=\"subnet-fd6f218a,subnet-2d73e606,subnet-9f2644c6,subnet-2c32b849,subnet-1eaa1512,subnet-a9e5dd93\" \
-              ParameterKey=Tag,ParameterValue=$TAG
+              ParameterKey=Tag,ParameterValue=$TAG &&
+          aws cloudformation wait stack-update-complete \
+            --region us-east-1 \
+            --stack-name liquidity-application
 cache:
   directories:
     - $HOME/.ivy2/cache

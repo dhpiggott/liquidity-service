@@ -8,6 +8,8 @@ Parameters:
     Type: String
   RDSPassword:
     Type: String
+  Subdomain:
+    Type: String
 Resources:
   RDSSubnetGroup:
       Type: AWS::RDS::DBSubnetGroup
@@ -79,9 +81,9 @@ Resources:
   ALBListenerCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: "api.liquidityapp.com"
+      DomainName: !Sub "${Subdomain}.liquidityapp.com"
       DomainValidationOptions:
-        - DomainName: "api.liquidityapp.com"
+        - DomainName: !Sub "${Subdomain}.liquidityapp.com"
           ValidationDomain: "liquidityapp.com"
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -135,6 +137,21 @@ Resources:
         - !Ref SNSTopic
       OKActions:
         - !Ref SNSTopic
+  RecordSetGroup:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneName: "liquidityapp.com."
+      RecordSets:
+        - AliasTarget:
+            HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
+            DNSName: !GetAtt ALB.DNSName
+          Name: !Sub "${Subdomain}.liquidityapp.com"
+          Type: A
+        - AliasTarget:
+            HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
+            DNSName: !GetAtt ALB.DNSName
+          Name: !Sub "${Subdomain}.liquidityapp.com"
+          Type: AAAA
 Outputs:
   RDSHostname:
     Value: !GetAtt RDS.Endpoint.Address
@@ -152,8 +169,6 @@ Outputs:
     Value: !GetAtt ALBSecurityGroup.GroupId
     Export:
       Name: !Sub "${AWS::StackName}-ALBSecurityGroup"
-  ALBDNSName:
-    Value: !GetAtt ALB.DNSName
   ALBTargetGroup:
     Value: !Ref ALBTargetGroup
     Export:

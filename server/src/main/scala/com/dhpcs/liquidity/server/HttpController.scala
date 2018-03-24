@@ -284,7 +284,7 @@ trait HttpController {
                 protoCreateZoneCommand
               )(())
             complete(
-              execCreateZoneCommand(remoteAddress, publicKey, createZoneCommand)
+              createZone(remoteAddress, publicKey, createZoneCommand)
                 .map(
                   zoneResponse =>
                     ProtoBinding[ZoneResponse,
@@ -418,7 +418,7 @@ trait HttpController {
   protected[this] def getAccountCount: Future[Long]
   protected[this] def getTransactionCount: Future[Long]
 
-  protected[this] def execCreateZoneCommand(
+  protected[this] def createZone(
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       createZoneCommand: CreateZoneCommand): Future[ZoneResponse]

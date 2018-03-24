@@ -22,7 +22,7 @@ docker run \
     --password=$3 \
     liquidity_analytics -e " \
       SELECT zones.zone_id, zones.created, zones.modified, zones.expires, \
-      zones.metadata->\"$.currency\" AS currency, \
+      zones.metadata->'$.currency' AS currency, \
       LEFT(zone_name_changes.name, 20) \
       FROM zones \
       JOIN zone_name_changes \
@@ -30,8 +30,10 @@ docker run \
       SELECT zone_name_changes.change_id \
         FROM zone_name_changes \
         WHERE zone_name_changes.zone_id = zones.zone_id \
+        AND zone_name_changes.name != 'Test' \
         ORDER BY change_id DESC LIMIT 1 \
       ) \
-      WHERE created >= \"$4\" \
+      WHERE zones.created >= '$4' \
+      AND NOT zones.metadata->'$.isTest' IS true \
       ORDER BY created; \
     "

@@ -216,7 +216,7 @@ class LiquidityServerSpec
 
   private[this] def createZone()(implicit ec: ExecutionContext)
     : Future[(Zone, Map[AccountId, BigDecimal])] =
-    for (zoneResponse <- sendCreateZoneCommand(
+    for (zoneResponse <- createZone(
            CreateZoneCommand(
              equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
              equityOwnerName = Some("Dave"),
@@ -369,7 +369,7 @@ class LiquidityServerSpec
   private[this] def changeZoneName(zoneId: ZoneId)(
       implicit ec: ExecutionContext): Future[Option[String]] = {
     val changedName = None
-    for (zoneResponse <- sendZoneCommand(
+    for (zoneResponse <- execZoneCommand(
            zoneId,
            ChangeZoneNameCommand(name = changedName)
          )) yield {
@@ -383,7 +383,7 @@ class LiquidityServerSpec
 
   private[this] def createMember(zoneId: ZoneId)(
       implicit ec: ExecutionContext): Future[Member] =
-    for (zoneResponse <- sendZoneCommand(
+    for (zoneResponse <- execZoneCommand(
            zoneId,
            CreateMemberCommand(
              ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)),
@@ -415,7 +415,7 @@ class LiquidityServerSpec
   private[this] def updateMember(zoneId: ZoneId, member: Member)(
       implicit ec: ExecutionContext): Future[Member] = {
     val updatedMember = member.copy(name = None)
-    for (zoneResponse <- sendZoneCommand(
+    for (zoneResponse <- execZoneCommand(
            zoneId,
            UpdateMemberCommand(
              updatedMember
@@ -435,7 +435,7 @@ class LiquidityServerSpec
 
   private[this] def createAccount(zoneId: ZoneId, owner: MemberId)(
       implicit ec: ExecutionContext): Future[(Account, BigDecimal)] =
-    for (zoneResponse <- sendZoneCommand(
+    for (zoneResponse <- execZoneCommand(
            zoneId,
            CreateAccountCommand(
              ownerMemberIds = Set(owner),
@@ -473,7 +473,7 @@ class LiquidityServerSpec
   private[this] def updateAccount(zoneId: ZoneId, account: Account)(
       implicit ec: ExecutionContext): Future[Account] = {
     val updatedAccount = account.copy(name = None)
-    for (zoneResponse <- sendZoneCommand(
+    for (zoneResponse <- execZoneCommand(
            zoneId,
            UpdateAccountCommand(
              actingAs = account.ownerMemberIds.head,
@@ -494,7 +494,7 @@ class LiquidityServerSpec
 
   private[this] def addTransaction(zoneId: ZoneId, zone: Zone, to: AccountId)(
       implicit ec: ExecutionContext): Future[Transaction] =
-    for (zoneResponse <- sendZoneCommand(
+    for (zoneResponse <- execZoneCommand(
            zoneId,
            AddTransactionCommand(
              actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
@@ -549,9 +549,9 @@ class LiquidityServerSpec
     )
   }
 
-  private[this] def sendCreateZoneCommand(createZoneCommand: CreateZoneCommand)(
+  private[this] def createZone(createZoneCommand: CreateZoneCommand)(
       implicit ec: ExecutionContext): Future[ZoneResponse] =
-    sendZoneCommand(
+    execZoneCommand(
       Uri.Path.Empty,
       ProtoBinding[CreateZoneCommand,
                    proto.ws.protocol.ZoneCommand.CreateZoneCommand,
@@ -560,16 +560,16 @@ class LiquidityServerSpec
         .toByteArray
     )
 
-  private[this] def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand)(
+  private[this] def execZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand)(
       implicit ec: ExecutionContext): Future[ZoneResponse] =
-    sendZoneCommand(
+    execZoneCommand(
       Uri.Path / zoneId.value,
       ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
         .asProto(zoneCommand)(())
         .toByteArray
     )
 
-  private[this] def sendZoneCommand(zoneSubPath: Uri.Path, entity: Array[Byte])(
+  private[this] def execZoneCommand(zoneSubPath: Uri.Path, entity: Array[Byte])(
       implicit ec: ExecutionContext): Future[ZoneResponse] = {
     val (_, akkaHttpPort) =
       externalDockerComposeServicePorts(projectName, "client-relay", 8080).head

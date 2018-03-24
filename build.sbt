@@ -69,10 +69,24 @@ lazy val `actor-protocol-scala-binding` = project
   .settings(evergreenVersionSettings)
   .settings(protobufScalaSettings(`actor-protocol`))
   .settings(
-    libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.5.11")
+    libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.5.11"
+  )
   .dependsOn(`ws-protocol-scala-binding`)
   .settings(
     Compile / PB.includePaths += file("ws-protocol/src/main/protobuf")
+  )
+
+lazy val `proto-bindings` = project
+  .in(file("proto-bindings"))
+  .settings(
+    name := "proto-bindings"
+  )
+  .dependsOn(`ws-protocol`)
+  .dependsOn(`ws-protocol-scala-binding`)
+  .dependsOn(`actor-protocol`)
+  .dependsOn(`actor-protocol-scala-binding`)
+  .settings(
+    libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.3"
   )
 
 lazy val server = project
@@ -81,16 +95,11 @@ lazy val server = project
     name := "server"
   )
   .settings(evergreenVersionSettings)
-  .dependsOn(`ws-protocol`)
-  .dependsOn(`ws-protocol-scala-binding`)
-  .dependsOn(`actor-protocol`)
-  .dependsOn(`actor-protocol-scala-binding`)
+  .dependsOn(`proto-bindings`)
   .settings(
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.11",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "com.chuusai" %% "shapeless" % "2.3.3",
-      "org.typelevel" %% "cats-core" % "1.1.0",
       "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.10.0",
       "software.amazon.awssdk" % "ecs" % "2.0.0-preview-9",
       "org.scala-lang.modules" %% "scala-java8-compat" % "0.8.0",
@@ -138,6 +147,21 @@ lazy val server = project
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     Docker / packageName := "liquidity",
     dockerBaseImage := "openjdk:10-jre-slim"
+  )
+
+lazy val `client-simulation` = project
+  .in(file("client-simulation"))
+  .settings(
+    name := "client-simulation"
+  )
+  .enablePlugins(GatlingPlugin)
+  .dependsOn(`proto-bindings`)
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.gatling" % "gatling-test-framework" % "2.3.0" % Test,
+      "io.gatling.highcharts" % "gatling-charts-highcharts" % "2.3.0" % Test,
+      "com.pauldijou" %% "jwt-play-json" % "0.16.0" % Test
+    )
   )
 
 lazy val evergreenVersionSettings = Seq(

@@ -981,7 +981,7 @@ class HttpControllerSpec
   override protected[this] def getTransactionCount: Future[Long] =
     Future.successful(1)
 
-  override protected[this] def execCreateZoneCommand(
+  override protected[this] def createZone(
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =

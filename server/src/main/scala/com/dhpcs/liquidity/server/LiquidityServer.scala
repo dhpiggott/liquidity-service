@@ -196,7 +196,7 @@ class LiquidityServer(
   override protected[this] def getTransactionCount: Future[Long] =
     transactIoToFuture(analyticsTransactor)(TransactionsStore.retrieveCount)
 
-  override protected[this] def execCreateZoneCommand(
+  override protected[this] def createZone(
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =

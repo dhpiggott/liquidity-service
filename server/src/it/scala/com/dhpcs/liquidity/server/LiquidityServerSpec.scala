@@ -1,8 +1,8 @@
 package com.dhpcs.liquidity.server
 
-import java.io.File
+import java.io.{ByteArrayInputStream, File}
+import java.security.KeyPairGenerator
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
-import java.security.{KeyPairGenerator, Signature}
 import java.time.Instant
 import java.util.UUID
 
@@ -10,12 +10,10 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
-import akka.http.scaladsl.model.ws.{Message => WsMessage}
+import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.stream.scaladsl.{Flow, Keep, Source}
-import akka.stream.testkit.scaladsl.{TestSink, TestSource}
-import akka.stream.testkit.{TestPublisher, TestSubscriber}
+import akka.stream.scaladsl.Source
+import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.TestKit
 import akka.util.ByteString
@@ -30,6 +28,7 @@ import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
+import com.google.protobuf.CodedInputStream
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import doobie._
 import doobie.implicits._
@@ -44,6 +43,7 @@ import play.api.libs.json.{JsString, JsValue, Json}
 import scalapb.json4s.JsonFormat
 
 import scala.collection.immutable.Seq
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.sys.process.{Process, ProcessBuilder}
 
@@ -55,113 +55,108 @@ class LiquidityServerSpec
     with ScalaFutures {
 
   "LiquidityServer" - {
-    "accepts and projects create zone commands" in withWsTestProbes {
-      (sub, pub) =>
-        val (createdZone, createdBalances) = createZone(sub, pub)
-        zoneCreated(createdZone, createdBalances)
-        ()
-    }
-    "accepts join zone commands" in withWsTestProbes { (sub, pub) =>
-      val (createdZone, createdBalances) = createZone(sub, pub)
+    "accepts and projects create zone commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
-      joinZone(sub, pub, createdZone.id, createdZone)
       ()
     }
-    "accepts quit zone commands" in withWsTestProbes { (sub, pub) =>
-      val (createdZone, createdBalances) = createZone(sub, pub)
+    "accepts join zone commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
-      joinZone(sub, pub, createdZone.id, createdZone)
-      quitZone(sub, pub, createdZone.id)
+      joinZone(createdZone.id, createdZone).futureValue
       ()
     }
-    "accepts and projects change zone name commands" in withWsTestProbes {
-      (sub, pub) =>
-        val (createdZone, createdBalances) = createZone(sub, pub)
-        zoneCreated(createdZone, createdBalances)
-        val changedName = changeZoneName(sub, pub, createdZone.id)
-        zoneNameChanged(createdZone, changedName)
-        ()
+    "accepts quit zone commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      joinZone(createdZone.id, createdZone).futureValue
+      quitZone(createdZone.id).futureValue
+      ()
     }
-    "accepts and projects create member commands" in withWsTestProbes {
-      (sub, pub) =>
-        val (createdZone, createdBalances) = createZone(sub, pub)
-        zoneCreated(createdZone, createdBalances)
-        val createdMember = createMember(sub, pub, createdZone.id)
-        memberCreated(createdZone, createdMember)
-        ()
+    "accepts and projects change zone name commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      val changedName = changeZoneName(createdZone.id).futureValue
+      zoneNameChanged(createdZone, changedName)
+      ()
     }
-    "accepts and projects update member commands" in withWsTestProbes {
-      (sub, pub) =>
-        val (createdZone, createdBalances) = createZone(sub, pub)
-        zoneCreated(createdZone, createdBalances)
-        val createdMember = createMember(sub, pub, createdZone.id)
-        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-        val updatedMember =
-          updateMember(sub, pub, zoneWithCreatedMember.id, createdMember)
-        memberUpdated(zoneWithCreatedMember, updatedMember)
-        ()
+    "accepts and projects create member commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      memberCreated(createdZone, createdMember)
+      ()
     }
-    "accepts and projects create account commands" in withWsTestProbes {
-      (sub, pub) =>
-        val (createdZone, createdBalances) = createZone(sub, pub)
-        zoneCreated(createdZone, createdBalances)
-        val createdMember = createMember(sub, pub, createdZone.id)
-        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-        val (createdAccount, _) =
-          createAccount(sub,
-                        pub,
-                        zoneWithCreatedMember.id,
-                        owner = createdMember.id)
+    "accepts and projects update member commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+      val updatedMember =
+        updateMember(zoneWithCreatedMember.id, createdMember).futureValue
+      memberUpdated(zoneWithCreatedMember, updatedMember)
+      ()
+    }
+    "accepts and projects create account commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+      val (createdAccount, _) =
+        createAccount(zoneWithCreatedMember.id, owner = createdMember.id).futureValue
+      accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
+      ()
+    }
+    "accepts and projects update account commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+      val (createdAccount, _) =
+        createAccount(zoneWithCreatedMember.id, owner = createdMember.id).futureValue
+      val (zoneWithCreatedAccount, _) =
         accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-        ()
-    }
-    "accepts and projects update account commands" in withWsTestProbes {
-      (sub, pub) =>
-        val (createdZone, createdBalances) = createZone(sub, pub)
-        zoneCreated(createdZone, createdBalances)
-        val createdMember = createMember(sub, pub, createdZone.id)
-        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-        val (createdAccount, _) =
-          createAccount(sub,
-                        pub,
-                        zoneWithCreatedMember.id,
-                        owner = createdMember.id)
-        val (zoneWithCreatedAccount, _) =
-          accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-        val updatedAccount =
-          updateAccount(sub, pub, zoneWithCreatedAccount.id, createdAccount)
-        accountUpdated(zoneWithCreatedAccount, updatedAccount)
-        ()
-    }
-    "accepts and projects add transaction commands" in withWsTestProbes {
-      (sub, pub) =>
-        val (createdZone, createdBalances) = createZone(sub, pub)
-        zoneCreated(createdZone, createdBalances)
-        val createdMember = createMember(sub, pub, createdZone.id)
-        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-        val (createdAccount, _) = createAccount(sub,
-                                                pub,
-                                                zoneWithCreatedMember.id,
-                                                owner = createdMember.id)
-        val (zoneWithCreatedAccount, updatedBalances) =
-          accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-        val addedTransaction = addTransaction(sub,
-                                              pub,
-                                              zoneWithCreatedAccount.id,
-                                              zoneWithCreatedAccount,
-                                              to = createdAccount.id)
-        transactionAdded(zoneWithCreatedAccount,
-                         updatedBalances,
-                         addedTransaction)
-        ()
-    }
-    "sends PingCommands when left idle" in withWsTestProbes { (sub, _) =>
-      sub.within(10.seconds)(
-        assert(
-          expectCommand(sub) === proto.ws.protocol.ClientMessage.Command.Command
-            .PingCommand(com.google.protobuf.ByteString.EMPTY))
-      )
+      val updatedAccount =
+        updateAccount(zoneWithCreatedAccount.id, createdAccount).futureValue
+      accountUpdated(zoneWithCreatedAccount, updatedAccount)
       ()
+    }
+    "accepts and projects add transaction commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+      val (createdAccount, _) = createAccount(
+        zoneWithCreatedMember.id,
+        owner = createdMember.id).futureValue
+      val (zoneWithCreatedAccount, updatedBalances) =
+        accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
+      val addedTransaction = addTransaction(zoneWithCreatedAccount.id,
+                                            zoneWithCreatedAccount,
+                                            to = createdAccount.id).futureValue
+      transactionAdded(zoneWithCreatedAccount,
+                       updatedBalances,
+                       addedTransaction)
+      ()
+    }
+    "sends PingCommands when left idle" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      val zoneNotificationTestProbe =
+        zoneNotificationSource(createdZone.id, selfSignedJwt)
+          .runWith(TestSink.probe)
+      inside(zoneNotificationTestProbe.requestNext()) {
+        case ZoneStateNotification(_, _) => ()
+      }
+      inside(zoneNotificationTestProbe.requestNext()) {
+        case ClientJoinedNotification(_, _) => ()
+      }
+      zoneNotificationTestProbe.within(10.seconds)(
+        inside(zoneNotificationTestProbe.requestNext()) {
+          case PingNotification(()) => ()
+        }
+      )
+      zoneNotificationTestProbe.cancel()
     }
   }
 
@@ -230,139 +225,67 @@ class LiquidityServerSpec
 
   private[this] implicit val system: ActorSystem = ActorSystem()
   private[this] implicit val mat: Materializer = ActorMaterializer()
+  private[this] implicit val ec: ExecutionContext = system.dispatcher
 
-  private[this] def withWsTestProbes(
-      test: (TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-             TestPublisher.Probe[proto.ws.protocol.ServerMessage]) => Unit)
-    : Unit = {
-    def createKeyOwnershipProof(
-        publicKey: RSAPublicKey,
-        privateKey: RSAPrivateKey,
-        keyOwnershipChallenge: proto.ws.protocol.ClientMessage.KeyOwnershipChallenge)
-      : proto.ws.protocol.ServerMessage.KeyOwnershipProof = {
-      def signMessage(privateKey: RSAPrivateKey)(
-          message: Array[Byte]): Array[Byte] = {
-        val s = Signature.getInstance("SHA256withRSA")
-        s.initSign(privateKey)
-        s.update(message)
-        s.sign
-      }
-      val nonce = keyOwnershipChallenge.nonce.toByteArray
-      proto.ws.protocol.ServerMessage.KeyOwnershipProof(
-        com.google.protobuf.ByteString.copyFrom(publicKey.getEncoded),
-        com.google.protobuf.ByteString.copyFrom(
-          signMessage(privateKey)(nonce)
-        )
-      )
-    }
-    val testProbeFlow = Flow.fromSinkAndSourceMat(
-      TestSink.probe[proto.ws.protocol.ClientMessage],
-      TestSource.probe[proto.ws.protocol.ServerMessage]
-    )(Keep.both)
-    val wsClientFlow =
-      InFlow
-        .viaMat(testProbeFlow)(Keep.right)
-        .via(OutFlow)
-    val (_, akkaHttpPort) =
-      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
-    val (_, (sub, pub)) = Http().singleWebSocketRequest(
-      ws.WebSocketRequest(s"ws://localhost:$akkaHttpPort/ws"),
-      wsClientFlow
-    )
-    val keyOwnershipChallenge = inside(expectMessage(sub)) {
-      case keyOwnershipChallenge: proto.ws.protocol.ClientMessage.Message.KeyOwnershipChallenge =>
-        keyOwnershipChallenge.value
-    }
-    sendMessage(pub)(
-      proto.ws.protocol.ServerMessage.Message
-        .KeyOwnershipProof(
-          createKeyOwnershipProof(
-            rsaPublicKey,
-            rsaPrivateKey,
-            keyOwnershipChallenge
-          )
-        )
-    )
-    try test(sub, pub)
-    finally { pub.sendComplete(); () }
-  }
+  private[this] def createZone()(implicit ec: ExecutionContext)
+    : Future[(Zone, Map[AccountId, BigDecimal])] =
+    for (zoneResponse <- sendCreateZoneCommand(
+           CreateZoneCommand(
+             equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
+             equityOwnerName = Some("Dave"),
+             equityOwnerMetadata = None,
+             equityAccountName = None,
+             equityAccountMetadata = None,
+             name = Some("Dave's Game"),
+             metadata = None
+           )
+         ))
+      yield
+        zoneResponse match {
+          case CreateZoneResponse(Validated.Valid(zone)) =>
+            assert(zone.accounts.size === 1)
+            assert(zone.members.size === 1)
+            val equityAccount = zone.accounts(zone.equityAccountId)
+            val equityAccountOwner =
+              zone.members(equityAccount.ownerMemberIds.head)
+            assert(
+              equityAccount === Account(
+                equityAccount.id,
+                ownerMemberIds = Set(equityAccountOwner.id),
+                name = None,
+                metadata = None
+              )
+            )
+            assert(
+              equityAccountOwner === Member(
+                equityAccountOwner.id,
+                ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)),
+                name = Some("Dave"),
+                metadata = None
+              )
+            )
+            assert(
+              zone.created === Spread(
+                pivot = Instant.now().toEpochMilli,
+                tolerance = 5000
+              )
+            )
+            assert(
+              zone.expires === zone.created + java.time.Duration
+                .ofDays(30)
+                .toMillis
+            )
+            assert(zone.transactions === Map.empty)
+            assert(zone.name === Some("Dave's Game"))
+            assert(zone.metadata === None)
+            (
+              zone,
+              Map(zone.equityAccountId -> BigDecimal(0))
+            )
 
-  private final val InFlow
-    : Flow[WsMessage, proto.ws.protocol.ClientMessage, NotUsed] =
-    Flow[WsMessage].flatMapConcat(
-      wsMessage =>
-        for (byteString <- wsMessage.asBinaryMessage match {
-               case ws.BinaryMessage.Streamed(dataStream) =>
-                 dataStream.fold(ByteString.empty)((acc, data) => acc ++ data)
-               case ws.BinaryMessage.Strict(data) => Source.single(data)
-             })
-          yield proto.ws.protocol.ClientMessage.parseFrom(byteString.toArray))
-
-  private final val OutFlow
-    : Flow[proto.ws.protocol.ServerMessage, WsMessage, NotUsed] =
-    Flow[proto.ws.protocol.ServerMessage].map(
-      serverMessage => ws.BinaryMessage(ByteString(serverMessage.toByteArray))
-    )
-
-  private[this] def createZone(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])
-    : (Zone, Map[AccountId, BigDecimal]) = {
-    sendCreateZoneCommand(pub)(
-      CreateZoneCommand(
-        equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
-        equityOwnerName = Some("Dave"),
-        equityOwnerMetadata = None,
-        equityAccountName = None,
-        equityAccountMetadata = None,
-        name = Some("Dave's Game"),
-        metadata = None
-      ),
-      correlationId = 0
-    )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
-      case CreateZoneResponse(Validated.Valid(zone)) =>
-        assert(zone.accounts.size === 1)
-        assert(zone.members.size === 1)
-        val equityAccount = zone.accounts(zone.equityAccountId)
-        val equityAccountOwner =
-          zone.members(equityAccount.ownerMemberIds.head)
-        assert(
-          equityAccount === Account(
-            equityAccount.id,
-            ownerMemberIds = Set(equityAccountOwner.id),
-            name = None,
-            metadata = None
-          )
-        )
-        assert(
-          equityAccountOwner === Member(
-            equityAccountOwner.id,
-            ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)),
-            name = Some("Dave"),
-            metadata = None
-          )
-        )
-        assert(
-          zone.created === Spread(
-            pivot = Instant.now().toEpochMilli,
-            tolerance = 5000
-          )
-        )
-        assert(
-          zone.expires === zone.created + java.time.Duration
-            .ofDays(30)
-            .toMillis
-        )
-        assert(zone.transactions === Map.empty)
-        assert(zone.name === Some("Dave's Game"))
-        assert(zone.metadata === None)
-        (
-          zone,
-          Map(zone.equityAccountId -> BigDecimal(0))
-        )
-    }
-  }
+          case _ =>
+            fail()
+        }
 
   private[this] def zoneCreated(zone: Zone,
                                 balances: Map[AccountId, BigDecimal])
@@ -372,88 +295,170 @@ class LiquidityServerSpec
       awaitZoneBalancesProjection(zone.id, balances)
     )
 
-  private[this] def joinZone(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage],
+  private[this] def zoneNotificationSource(
       zoneId: ZoneId,
-      zone: Zone): Unit = {
-    sendZoneCommand(pub)(
-      zoneId,
-      JoinZoneCommand,
-      correlationId = 0
-    )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
-      case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
-        val (_zone, _connectedClients) = zoneAndConnectedClients
-        assert(_zone === zone)
+      selfSignedJwt: String): Source[ZoneNotification, NotUsed] = {
+    val (_, akkaHttpPort) =
+      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
+    val byteSource = Source
+      .fromFuture(
+        Http()
+          .singleRequest(
+            HttpRequest(
+              uri = Uri(s"http://localhost:$akkaHttpPort").withPath(
+                Uri.Path("/zone") / zoneId.value
+              ),
+              headers = Seq(
+                Authorization(OAuth2BearerToken(selfSignedJwt)),
+                Accept(
+                  MediaRange(
+                    MediaType.customBinary(mainType = "application",
+                                           subType = "x-protobuf",
+                                           comp = MediaType.NotCompressible)
+                  )
+                )
+              )
+            )
+          )
+      )
+      .flatMapConcat { response =>
+        assert(response.status === StatusCodes.OK)
         assert(
-          _connectedClients.values.toSet ===
-            Set(PublicKey(rsaPublicKey.getEncoded))
+          response.entity.contentType === ContentType(
+            MediaType.customBinary(mainType = "application",
+                                   subType = "x-protobuf",
+                                   comp = MediaType.NotCompressible,
+                                   params = Map("delimited" -> "true"))
+          )
         )
+        response.entity.dataBytes
+      }
+      .flatMapConcat(Source(_))
+    val delimitedByteArraySource = byteSource.statefulMapConcat { () =>
+      // Messages are length-delimited by varints where the MSB is set for all
+      // but the last byte. (See
+      // https://developers.google.com/protocol-buffers/docs/encoding#varints).
+      sealed abstract class State
+      final case class ReadingSize(sizeBytes: Array[Byte]) extends State
+      final case class ReadingData(dataBytes: Array[Byte], position: Int)
+          extends State
+      var state: State = ReadingSize(Array.emptyByteArray)
+      byte =>
+        state match {
+          case ReadingSize(sizeBytes) =>
+            val updatedSizeBytes = sizeBytes :+ byte
+            if ((byte & 0x80) == 0) {
+              val size = CodedInputStream.readRawVarint32(
+                updatedSizeBytes.head.toInt,
+                new ByteArrayInputStream(updatedSizeBytes.tail)
+              )
+              state = ReadingData(Array.fill(size)(0), position = 0)
+            } else {
+              state = ReadingSize(updatedSizeBytes)
+            }
+            Seq.empty
+
+          case ReadingData(dataBytes, position) =>
+            dataBytes(position) = byte
+            if (position == dataBytes.length - 1) {
+              state = ReadingSize(Array.emptyByteArray)
+              Seq(dataBytes)
+            } else {
+              state = ReadingData(dataBytes, position + 1)
+              Seq.empty
+            }
+        }
     }
-    inside(expectZoneNotification(sub)) {
-      case ClientJoinedNotification(_, publicKey) =>
-        assert(publicKey === PublicKey(rsaPublicKey.getEncoded))
+    delimitedByteArraySource.map { delimitedByteArray =>
+      val protoZoneNotification =
+        proto.ws.protocol.ZoneNotification.parseFrom(delimitedByteArray)
+      val zoneNotification =
+        ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any]
+          .asScala(protoZoneNotification)(())
+      zoneNotification
     }
-    ()
   }
 
-  private[this] def quitZone(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage],
-      zoneId: ZoneId): Unit = {
-    sendZoneCommand(pub)(
-      zoneId,
-      QuitZoneCommand,
-      correlationId = 0
-    )
-    assert(
-      expectZoneResponse(sub, expectedCorrelationId = 0) === QuitZoneResponse(
-        Validated.valid(())))
-    ()
+  private[this] def joinZone(zoneId: ZoneId, zone: Zone)(
+      implicit ec: ExecutionContext): Future[Unit] = {
+    val zoneNotificationTestProbe =
+      zoneNotificationSource(zoneId, selfSignedJwt).runWith(TestSink.probe)
+    inside(zoneNotificationTestProbe.requestNext()) {
+      case ZoneStateNotification(_, _) => ()
+    }
+    for (zoneResponse <- sendZoneCommand(
+           zoneId,
+           JoinZoneCommand
+         ))
+      yield
+        zoneResponse match {
+          case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
+            val (_zone, _connectedClients) = zoneAndConnectedClients
+            assert(_zone === zone)
+            assert(
+              _connectedClients.values.toSet ===
+                Set(PublicKey(rsaPublicKey.getEncoded))
+            )
+            inside(zoneNotificationTestProbe.requestNext()) {
+              case ClientJoinedNotification(_, publicKey) =>
+                assert(publicKey === PublicKey(rsaPublicKey.getEncoded))
+            }
+            zoneNotificationTestProbe.cancel()
+            ()
+
+          case _ =>
+            fail()
+        }
   }
 
-  private[this] def changeZoneName(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage],
-      zoneId: ZoneId): Option[String] = {
+  private[this] def quitZone(zoneId: ZoneId)(
+      implicit ec: ExecutionContext): Future[Unit] =
+    for (zoneResponse <- sendZoneCommand(
+           zoneId,
+           QuitZoneCommand
+         )) yield {
+      assert(zoneResponse === QuitZoneResponse(Validated.valid(())))
+      ()
+    }
+
+  private[this] def changeZoneName(zoneId: ZoneId)(
+      implicit ec: ExecutionContext): Future[Option[String]] = {
     val changedName = None
-    sendZoneCommand(pub)(
-      zoneId,
-      ChangeZoneNameCommand(name = changedName),
-      correlationId = 0
-    )
-    assert(
-      expectZoneResponse(sub, expectedCorrelationId = 0) === ChangeZoneNameResponse(
-        Validated.valid(())))
-    changedName
+    for (zoneResponse <- sendZoneCommand(
+           zoneId,
+           ChangeZoneNameCommand(name = changedName)
+         )) yield {
+      assert(zoneResponse === ChangeZoneNameResponse(Validated.valid(())))
+      changedName
+    }
   }
 
   private[this] def zoneNameChanged(zone: Zone, name: Option[String]): Zone =
     awaitZoneProjection(zone.copy(name = name))
 
-  private[this] def createMember(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage],
-      zoneId: ZoneId): Member = {
-    sendZoneCommand(pub)(
-      zoneId,
-      CreateMemberCommand(
-        ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)),
-        name = Some("Jenny"),
-        metadata = None
-      ),
-      correlationId = 0
-    )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
-      case CreateMemberResponse(Validated.Valid(member)) =>
-        assert(
-          member.ownerPublicKeys === Set(PublicKey(rsaPublicKey.getEncoded)))
-        assert(member.name === Some("Jenny"))
-        assert(member.metadata === None)
-        member
-    }
-  }
+  private[this] def createMember(zoneId: ZoneId)(
+      implicit ec: ExecutionContext): Future[Member] =
+    for (zoneResponse <- sendZoneCommand(
+           zoneId,
+           CreateMemberCommand(
+             ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)),
+             name = Some("Jenny"),
+             metadata = None
+           )
+         ))
+      yield
+        zoneResponse match {
+          case CreateMemberResponse(Validated.Valid(member)) =>
+            assert(
+              member.ownerPublicKeys === Set(
+                PublicKey(rsaPublicKey.getEncoded)))
+            assert(member.name === Some("Jenny"))
+            assert(member.metadata === None)
+            member
+
+          case _ =>
+            fail()
+        }
 
   private[this] def memberCreated(zone: Zone, member: Member): Zone =
     awaitZoneProjection(
@@ -462,24 +467,18 @@ class LiquidityServerSpec
       )
     )
 
-  private[this] def updateMember(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage],
-      zoneId: ZoneId,
-      member: Member): Member = {
+  private[this] def updateMember(zoneId: ZoneId, member: Member)(
+      implicit ec: ExecutionContext): Future[Member] = {
     val updatedMember = member.copy(name = None)
-    sendZoneCommand(pub)(
-      zoneId,
-      UpdateMemberCommand(
-        updatedMember
-      ),
-      correlationId = 0
-    )
-    assert(
-      expectZoneResponse(sub, expectedCorrelationId = 0) === UpdateMemberResponse(
-        Validated.valid(()))
-    )
-    updatedMember
+    for (zoneResponse <- sendZoneCommand(
+           zoneId,
+           UpdateMemberCommand(
+             updatedMember
+           )
+         )) yield {
+      assert(zoneResponse === UpdateMemberResponse(Validated.valid(())))
+      updatedMember
+    }
   }
 
   private[this] def memberUpdated(zone: Zone, member: Member): Zone =
@@ -489,28 +488,26 @@ class LiquidityServerSpec
       )
     )
 
-  private[this] def createAccount(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage],
-      zoneId: ZoneId,
-      owner: MemberId
-  ): (Account, BigDecimal) = {
-    sendZoneCommand(pub)(
-      zoneId,
-      CreateAccountCommand(
-        ownerMemberIds = Set(owner),
-        name = Some("Jenny's Account"),
-        metadata = None
-      ),
-      correlationId = 0
-    )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
-      case CreateAccountResponse(Validated.Valid(account)) =>
-        assert(account.ownerMemberIds === Set(owner))
-        assert(account.name === Some("Jenny's Account"))
-        account -> BigDecimal(0)
-    }
-  }
+  private[this] def createAccount(zoneId: ZoneId, owner: MemberId)(
+      implicit ec: ExecutionContext): Future[(Account, BigDecimal)] =
+    for (zoneResponse <- sendZoneCommand(
+           zoneId,
+           CreateAccountCommand(
+             ownerMemberIds = Set(owner),
+             name = Some("Jenny's Account"),
+             metadata = None
+           )
+         ))
+      yield
+        zoneResponse match {
+          case CreateAccountResponse(Validated.Valid(account)) =>
+            assert(account.ownerMemberIds === Set(owner))
+            assert(account.name === Some("Jenny's Account"))
+            account -> BigDecimal(0)
+
+          case _ =>
+            fail()
+        }
 
   private[this] def accountCreated(
       zone: Zone,
@@ -528,24 +525,19 @@ class LiquidityServerSpec
       )
     )
 
-  private[this] def updateAccount(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage],
-      zoneId: ZoneId,
-      account: Account): Account = {
+  private[this] def updateAccount(zoneId: ZoneId, account: Account)(
+      implicit ec: ExecutionContext): Future[Account] = {
     val updatedAccount = account.copy(name = None)
-    sendZoneCommand(pub)(
-      zoneId,
-      UpdateAccountCommand(
-        actingAs = account.ownerMemberIds.head,
-        updatedAccount
-      ),
-      correlationId = 0
-    )
-    assert(
-      expectZoneResponse(sub, expectedCorrelationId = 0) === UpdateAccountResponse(
-        Validated.valid(())))
-    updatedAccount
+    for (zoneResponse <- sendZoneCommand(
+           zoneId,
+           UpdateAccountCommand(
+             actingAs = account.ownerMemberIds.head,
+             updatedAccount
+           )
+         )) yield {
+      assert(zoneResponse === UpdateAccountResponse(Validated.valid(())))
+      updatedAccount
+    }
   }
 
   private[this] def accountUpdated(zone: Zone, account: Account): Zone =
@@ -555,45 +547,43 @@ class LiquidityServerSpec
       )
     )
 
-  private[this] def addTransaction(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage],
-      zoneId: ZoneId,
-      zone: Zone,
-      to: AccountId): Transaction = {
-    sendZoneCommand(pub)(
-      zoneId,
-      AddTransactionCommand(
-        actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
-        from = zone.equityAccountId,
-        to = to,
-        value = BigDecimal(5000),
-        description = Some("Jenny's Lottery Win"),
-        metadata = None
-      ),
-      correlationId = 0
-    )
-    inside(expectZoneResponse(sub, expectedCorrelationId = 0)) {
-      case AddTransactionResponse(Validated.Valid(transaction)) =>
-        assert(transaction.from === zone.equityAccountId)
-        assert(transaction.to === to)
-        assert(transaction.value === BigDecimal(5000))
-        assert(
-          transaction.creator === zone
-            .accounts(zone.equityAccountId)
-            .ownerMemberIds
-            .head)
-        assert(
-          transaction.created === Spread(
-            pivot = Instant.now().toEpochMilli,
-            tolerance = 5000
-          )
-        )
-        assert(transaction.description === Some("Jenny's Lottery Win"))
-        assert(transaction.metadata === None)
-        transaction
-    }
-  }
+  private[this] def addTransaction(zoneId: ZoneId, zone: Zone, to: AccountId)(
+      implicit ec: ExecutionContext): Future[Transaction] =
+    for (zoneResponse <- sendZoneCommand(
+           zoneId,
+           AddTransactionCommand(
+             actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
+             from = zone.equityAccountId,
+             to = to,
+             value = BigDecimal(5000),
+             description = Some("Jenny's Lottery Win"),
+             metadata = None
+           )
+         ))
+      yield
+        zoneResponse match {
+          case AddTransactionResponse(Validated.Valid(transaction)) =>
+            assert(transaction.from === zone.equityAccountId)
+            assert(transaction.to === to)
+            assert(transaction.value === BigDecimal(5000))
+            assert(
+              transaction.creator === zone
+                .accounts(zone.equityAccountId)
+                .ownerMemberIds
+                .head)
+            assert(
+              transaction.created === Spread(
+                pivot = Instant.now().toEpochMilli,
+                tolerance = 5000
+              )
+            )
+            assert(transaction.description === Some("Jenny's Lottery Win"))
+            assert(transaction.metadata === None)
+            transaction
+
+          case _ =>
+            fail()
+        }
 
   private[this] def transactionAdded(
       zone: Zone,
@@ -612,6 +602,67 @@ class LiquidityServerSpec
           (transaction.to -> (balances(transaction.to) + transaction.value))
       )
     )
+  }
+
+  private[this] def sendCreateZoneCommand(createZoneCommand: CreateZoneCommand)(
+      implicit ec: ExecutionContext): Future[ZoneResponse] =
+    sendZoneCommand(
+      Uri.Path.Empty,
+      ProtoBinding[CreateZoneCommand,
+                   proto.ws.protocol.ZoneCommand.CreateZoneCommand,
+                   Any]
+        .asProto(createZoneCommand)(())
+        .toByteArray
+    )
+
+  private[this] def sendZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand)(
+      implicit ec: ExecutionContext): Future[ZoneResponse] =
+    sendZoneCommand(
+      Uri.Path / zoneId.value,
+      ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
+        .asProto(zoneCommand)(())
+        .toByteArray
+    )
+
+  private[this] def sendZoneCommand(zoneSubPath: Uri.Path, entity: Array[Byte])(
+      implicit ec: ExecutionContext): Future[ZoneResponse] = {
+    val (_, akkaHttpPort) =
+      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
+    for {
+      httpResponse <- Http().singleRequest(
+        HttpRequest(
+          method = HttpMethods.PUT,
+          uri = Uri(s"http://localhost:$akkaHttpPort")
+            .withPath(Uri.Path("/zone") ++ zoneSubPath),
+          headers = Seq(
+            Authorization(OAuth2BearerToken(selfSignedJwt)),
+            Accept(
+              MediaRange(
+                MediaType.customBinary(mainType = "application",
+                                       subType = "x-protobuf",
+                                       comp = MediaType.NotCompressible)
+              )
+            )
+          ),
+          entity = HttpEntity(
+            ContentType(
+              MediaType.customBinary(mainType = "application",
+                                     subType = "x-protobuf",
+                                     comp = MediaType.NotCompressible)
+            ),
+            entity
+          )
+        )
+      )
+      _ = assert(httpResponse.status === StatusCodes.OK)
+      byteString <- Unmarshal(httpResponse.entity).to[ByteString]
+      protoZoneResponse = proto.ws.protocol.ZoneResponse.parseFrom(
+        byteString.toArray
+      )
+    } yield
+      ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asScala(
+        protoZoneResponse
+      )(())
   }
 
   private[this] def awaitZoneProjection(zone: Zone): Zone = {
@@ -747,95 +798,4 @@ object LiquidityServerSpec {
            """.update.run)
       yield ()
   }
-
-  private def sendCreateZoneCommand(
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
-      createZoneCommand: CreateZoneCommand,
-      correlationId: Long): Unit =
-    sendMessage(pub)(
-      proto.ws.protocol.ServerMessage.Message.Command(
-        proto.ws.protocol.ServerMessage.Command(
-          correlationId,
-          proto.ws.protocol.ServerMessage.Command.Command.CreateZoneCommand(
-            ProtoBinding[CreateZoneCommand,
-                         proto.ws.protocol.ZoneCommand.CreateZoneCommand,
-                         Any]
-              .asProto(createZoneCommand)(())
-          )
-        )))
-
-  private def sendZoneCommand(
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
-      zoneId: ZoneId,
-      zoneCommand: ZoneCommand,
-      correlationId: Long): Unit =
-    sendMessage(pub)(
-      proto.ws.protocol.ServerMessage.Message.Command(
-        proto.ws.protocol.ServerMessage.Command(
-          correlationId,
-          proto.ws.protocol.ServerMessage.Command.Command.ZoneCommandEnvelope(
-            proto.ws.protocol.ServerMessage.Command.ZoneCommandEnvelope(
-              zoneId.value.toString,
-              Some(
-                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
-                  .asProto(zoneCommand)(())
-              )))
-        )))
-
-  private def sendMessage(
-      pub: TestPublisher.Probe[proto.ws.protocol.ServerMessage])(
-      message: proto.ws.protocol.ServerMessage.Message): Unit = {
-    pub.sendNext(
-      proto.ws.protocol.ServerMessage(message)
-    )
-    ()
-  }
-
-  private def expectZoneResponse(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage],
-      expectedCorrelationId: Long): ZoneResponse =
-    inside(expectMessage(sub)) {
-      case proto.ws.protocol.ClientMessage.Message.Response(protoResponse) =>
-        assert(protoResponse.correlationId == expectedCorrelationId)
-        inside(protoResponse.response) {
-          case proto.ws.protocol.ClientMessage.Response.Response
-                .ZoneResponse(protoZoneResponse) =>
-            ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
-              .asScala(protoZoneResponse)(())
-        }
-    }
-
-  private def expectZoneNotification(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
-    : ZoneNotification =
-    inside(expectMessage(sub)) {
-      case proto.ws.protocol.ClientMessage.Message
-            .Notification(protoNotification) =>
-        inside(protoNotification.notification) {
-          case proto.ws.protocol.ClientMessage.Notification.Notification
-                .ZoneNotificationEnvelope(
-                proto.ws.protocol.ClientMessage.Notification
-                  .ZoneNotificationEnvelope(_, Some(protoZoneNotification))) =>
-            ProtoBinding[ZoneNotification,
-                         proto.ws.protocol.ZoneNotification,
-                         Any]
-              .asScala(protoZoneNotification)(())
-        }
-    }
-
-  private def expectCommand(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
-    : proto.ws.protocol.ClientMessage.Command.Command =
-    inside(expectMessage(sub)) {
-      case proto.ws.protocol.ClientMessage.Message.Command(
-          proto.ws.protocol.ClientMessage.Command(_, protoCommand)
-          ) =>
-        protoCommand
-    }
-
-  private def expectMessage(
-      sub: TestSubscriber.Probe[proto.ws.protocol.ClientMessage])
-    : proto.ws.protocol.ClientMessage.Message =
-    sub.requestNext().message
-
 }

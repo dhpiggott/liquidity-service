@@ -14,11 +14,10 @@ import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.ws.{Message => WsMessage}
 import akka.http.scaladsl.server.StandardRoute
-import akka.http.scaladsl.testkit.{ScalatestRouteTest, WSProbe}
+import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
-import akka.stream.scaladsl.{Flow, Source}
+import akka.stream.scaladsl.Source
 import akka.testkit.TestProbe
 import akka.util.ByteString
 import cats.syntax.validated._
@@ -825,20 +824,6 @@ class HttpControllerSpec
         }
       }
     }
-    "accepts WebSocket connections" in {
-      val wsProbe = WSProbe()
-      WS("/ws", wsProbe.flow)
-        .addHeader(
-          `Remote-Address`(RemoteAddress(remoteAddress))
-        ) ~> httpRoutes(enableClientRelay = true) ~> check {
-        assert(isWebSocketUpgrade === true)
-        val message = "Hello"
-        wsProbe.sendMessage(message)
-        wsProbe.expectMessage(message)
-        wsProbe.sendCompletion()
-        wsProbe.expectCompletion()
-      }
-    }
   }
 
   private[this] val actorRef =
@@ -1041,10 +1026,6 @@ class HttpControllerSpec
 
   override protected[this] val pingInterval: FiniteDuration = 3.seconds
 
-  override protected[this] def webSocketFlow(
-      remoteAddress: InetAddress): Flow[WsMessage, WsMessage, NotUsed] =
-    Flow[WsMessage]
-
 }
 
 object HttpControllerSpec {
@@ -1102,7 +1083,7 @@ object HttpControllerSpec {
 
   private val zoneNotifications = Seq(
     ZoneStateNotification(
-      zone,
+      Some(zone),
       connectedClients = Map("HttpControllerSpec" -> publicKey)
     ),
     MemberCreatedNotification(

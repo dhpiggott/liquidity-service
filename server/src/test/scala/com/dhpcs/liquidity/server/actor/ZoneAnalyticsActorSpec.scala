@@ -396,13 +396,12 @@ object ZoneAnalyticsActorSpec {
   private type FixtureParam = (Transactor[IO], ZoneId, ActorRef)
 
   private val remoteAddress = InetAddress.getLoopbackAddress
-  private val rsaPublicKey = {
+  private val publicKey = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(2048)
     val keyPair = keyPairGenerator.generateKeyPair
-    keyPair.getPublic
+    PublicKey(keyPair.getPublic.getEncoded)
   }
-  private val publicKey = PublicKey(rsaPublicKey.getEncoded)
 
   private val initAnalytics: ConnectionIO[Unit] = for {
     _ <- sql"""

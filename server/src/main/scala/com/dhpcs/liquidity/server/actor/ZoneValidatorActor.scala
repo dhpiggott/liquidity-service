@@ -22,6 +22,7 @@ import cats.instances.set._
 import cats.syntax.apply._
 import cats.syntax.validated._
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
+import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
@@ -58,6 +59,9 @@ object ZoneValidatorActor {
         zoneId.value
 
       case ZoneCommandEnvelope(_, zoneId, _, _, _, _) =>
+        zoneId.value
+
+      case ZoneNotificationSubscription(_, zoneId, _, _) =>
         zoneId.value
     }
 
@@ -230,6 +234,73 @@ object ZoneValidatorActor {
                             state,
                             zoneCommandEnvelope)
 
+            case ZoneNotificationSubscription(subscriber,
+                                              _,
+                                              remoteAddress,
+                                              publicKey) =>
+              state.zone match {
+                case None =>
+                  subscriber.upcast ! ZoneNotificationEnvelope(
+                    context.self,
+                    id,
+                    sequenceNumber = 0,
+                    ZoneStateNotification(zone = None,
+                                          connectedClients = Map.empty)
+                  )
+                  Effect.none
+                case Some(zone) =>
+                  def connectedClients(state: ZoneState) =
+                    state.connectedClients.map {
+                      case (clientConnection, _publicKey) =>
+                        resolver
+                          .toSerializationFormat(clientConnection) -> _publicKey
+                    }
+                  if (state.connectedClients.contains(subscriber.upcast)) {
+                    // We already accepted the command; this was just a redelivery
+                    notificationSequenceNumbers += subscriber.upcast -> 0
+                    deliverNotification(
+                      context.self,
+                      id,
+                      Iterable(subscriber.upcast),
+                      notificationSequenceNumbers,
+                      ZoneStateNotification(Some(zone), connectedClients(state))
+                    )
+                    Effect.none
+                  } else
+                    Effect
+                      .persist(
+                        ZoneEventEnvelope(
+                          Some(remoteAddress),
+                          Some(publicKey),
+                          timestamp = Instant.now(),
+                          ClientJoinedEvent(
+                            Some(resolver.toSerializationFormat(subscriber)))
+                        )
+                      )
+                      .andThen {
+                        state =>
+                          deliverNotification(
+                            context.self,
+                            id,
+                            Iterable(subscriber.upcast),
+                            notificationSequenceNumbers,
+                            ZoneStateNotification(Some(zone),
+                                                  connectedClients(state))
+                          )
+                          deliverNotification(
+                            context.self,
+                            id,
+                            state.connectedClients.keys,
+                            notificationSequenceNumbers,
+                            ClientJoinedNotification(
+                              ActorRefResolver(context.system)
+                                .toSerializationFormat(subscriber),
+                              publicKey
+                            )
+                          )
+                      }
+              }
+
             case RemoveClient(clientConnection) =>
               state.connectedClients.get(clientConnection) match {
                 case None =>
@@ -271,8 +342,7 @@ object ZoneValidatorActor {
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       state: ZoneState,
-      zoneCommandEnvelope: ZoneCommandEnvelope)(
-      implicit resolver: ActorRefResolver)
+      zoneCommandEnvelope: ZoneCommandEnvelope)
     : Effect[ZoneEventEnvelope, ZoneState] =
     zoneCommandEnvelope.zoneCommand match {
       case EmptyZoneCommand =>
@@ -309,9 +379,7 @@ object ZoneValidatorActor {
         validatedParams match {
           case Invalid(errors) =>
             deliverResponse(
-              context.self,
               zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
               CreateZoneResponse(Validated.invalid(errors))
             )
             Effect.none
@@ -327,9 +395,7 @@ object ZoneValidatorActor {
               case Some(zone) =>
                 // We already accepted the command; this was just a redelivery
                 deliverResponse(
-                  context.self,
                   zoneCommandEnvelope.replyTo,
-                  zoneCommandEnvelope.correlationId,
                   CreateZoneResponse(zone.valid)
                 )
                 Effect.none
@@ -362,7 +428,6 @@ object ZoneValidatorActor {
                 acceptCommand(
                   context.self,
                   id,
-                  resolver,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
                   ZoneCreatedEvent(zone)
@@ -370,92 +435,11 @@ object ZoneValidatorActor {
             }
         }
 
-      case JoinZoneCommand =>
-        state.zone match {
-          case None =>
-            deliverResponse(
-              context.self,
-              zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
-              JoinZoneResponse(
-                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
-            )
-            Effect.none
-          case Some(zone) =>
-            if (state.connectedClients.contains(
-                  zoneCommandEnvelope.replyTo.upcast)) {
-              // We already accepted the command; this was just a redelivery
-              notificationSequenceNumbers += zoneCommandEnvelope.replyTo.upcast -> 0
-              deliverResponse(
-                context.self,
-                zoneCommandEnvelope.replyTo,
-                zoneCommandEnvelope.correlationId,
-                JoinZoneResponse((zone, state.connectedClients.map {
-                  case (clientConnection, _publicKey) =>
-                    resolver
-                      .toSerializationFormat(clientConnection) -> _publicKey
-                }).valid)
-              )
-              Effect.none
-            } else
-              acceptCommand(
-                context.self,
-                id,
-                resolver,
-                notificationSequenceNumbers,
-                zoneCommandEnvelope,
-                ClientJoinedEvent(
-                  Some(
-                    resolver.toSerializationFormat(zoneCommandEnvelope.replyTo)
-                  )
-                )
-              )
-        }
-
-      case QuitZoneCommand =>
-        state.zone match {
-          case None =>
-            deliverResponse(
-              context.self,
-              zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
-              QuitZoneResponse(
-                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
-            )
-            Effect.none
-          case Some(_) =>
-            if (!state.connectedClients.contains(
-                  zoneCommandEnvelope.replyTo.upcast)) {
-              // We already accepted the command; this was just a redelivery
-              deliverResponse(
-                context.self,
-                zoneCommandEnvelope.replyTo,
-                zoneCommandEnvelope.correlationId,
-                QuitZoneResponse(().valid)
-              )
-              Effect.none
-            } else
-              acceptCommand(
-                context.self,
-                id,
-                resolver,
-                notificationSequenceNumbers,
-                zoneCommandEnvelope,
-                ClientQuitEvent(
-                  Some(
-                    resolver.toSerializationFormat(zoneCommandEnvelope.replyTo)
-                  )
-                )
-              )
-        }
-
       case ChangeZoneNameCommand(name) =>
         state.zone match {
           case None =>
             deliverResponse(
-              context.self,
               zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
               ChangeZoneNameResponse(
                 Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
             )
@@ -465,9 +449,7 @@ object ZoneValidatorActor {
             validatedParams match {
               case Invalid(errors) =>
                 deliverResponse(
-                  context.self,
                   zoneCommandEnvelope.replyTo,
-                  zoneCommandEnvelope.correlationId,
                   ChangeZoneNameResponse(
                     Validated.invalid(errors)
                   )
@@ -479,9 +461,7 @@ object ZoneValidatorActor {
                   // a redelivery. In any case, we don't need to persist
                   // anything.
                   deliverResponse(
-                    context.self,
                     zoneCommandEnvelope.replyTo,
-                    zoneCommandEnvelope.correlationId,
                     ChangeZoneNameResponse(().valid)
                   )
                   Effect.none
@@ -489,7 +469,6 @@ object ZoneValidatorActor {
                   acceptCommand(
                     context.self,
                     id,
-                    resolver,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
                     ZoneNameChangedEvent(name)
@@ -501,9 +480,7 @@ object ZoneValidatorActor {
         state.zone match {
           case None =>
             deliverResponse(
-              context.self,
               zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
               CreateMemberResponse(
                 Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
             )
@@ -524,9 +501,7 @@ object ZoneValidatorActor {
             validatedParams match {
               case Invalid(errors) =>
                 deliverResponse(
-                  context.self,
                   zoneCommandEnvelope.replyTo,
-                  zoneCommandEnvelope.correlationId,
                   CreateMemberResponse(
                     Validated.invalid(errors)
                   )
@@ -536,7 +511,6 @@ object ZoneValidatorActor {
                 acceptCommand(
                   context.self,
                   id,
-                  resolver,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
                   MemberCreatedEvent(Member.tupled(params))
@@ -548,9 +522,7 @@ object ZoneValidatorActor {
         state.zone match {
           case None =>
             deliverResponse(
-              context.self,
               zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
               UpdateMemberResponse(
                 Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
             )
@@ -570,9 +542,7 @@ object ZoneValidatorActor {
             validatedParams match {
               case Invalid(errors) =>
                 deliverResponse(
-                  context.self,
                   zoneCommandEnvelope.replyTo,
-                  zoneCommandEnvelope.correlationId,
                   UpdateMemberResponse(
                     Validated.invalid(errors)
                   )
@@ -584,9 +554,7 @@ object ZoneValidatorActor {
                   // a redelivery. In any case, we don't need to persist
                   // anything.
                   deliverResponse(
-                    context.self,
                     zoneCommandEnvelope.replyTo,
-                    zoneCommandEnvelope.correlationId,
                     UpdateMemberResponse(().valid)
                   )
                   Effect.none
@@ -594,7 +562,6 @@ object ZoneValidatorActor {
                   acceptCommand(
                     context.self,
                     id,
-                    resolver,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
                     MemberUpdatedEvent(member)
@@ -606,9 +573,7 @@ object ZoneValidatorActor {
         state.zone match {
           case None =>
             deliverResponse(
-              context.self,
               zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
               CreateAccountResponse(
                 Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
             )
@@ -629,9 +594,7 @@ object ZoneValidatorActor {
             validatedParams match {
               case Invalid(errors) =>
                 deliverResponse(
-                  context.self,
                   zoneCommandEnvelope.replyTo,
-                  zoneCommandEnvelope.correlationId,
                   CreateAccountResponse(
                     Validated.invalid(errors)
                   )
@@ -641,7 +604,6 @@ object ZoneValidatorActor {
                 acceptCommand(
                   context.self,
                   id,
-                  resolver,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
                   AccountCreatedEvent(Account.tupled(params))
@@ -653,9 +615,7 @@ object ZoneValidatorActor {
         state.zone match {
           case None =>
             deliverResponse(
-              context.self,
               zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
               UpdateAccountResponse(
                 Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
             )
@@ -675,9 +635,7 @@ object ZoneValidatorActor {
             validatedParams match {
               case Invalid(errors) =>
                 deliverResponse(
-                  context.self,
                   zoneCommandEnvelope.replyTo,
-                  zoneCommandEnvelope.correlationId,
                   UpdateAccountResponse(
                     Validated.invalid(errors)
                   )
@@ -689,9 +647,7 @@ object ZoneValidatorActor {
                   // a redelivery. In any case, we don't need to persist
                   // anything.
                   deliverResponse(
-                    context.self,
                     zoneCommandEnvelope.replyTo,
-                    zoneCommandEnvelope.correlationId,
                     UpdateAccountResponse(().valid)
                   )
                   Effect.none
@@ -699,7 +655,6 @@ object ZoneValidatorActor {
                   acceptCommand(
                     context.self,
                     id,
-                    resolver,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
                     AccountUpdatedEvent(Some(actingAs), account)
@@ -716,9 +671,7 @@ object ZoneValidatorActor {
         state.zone match {
           case None =>
             deliverResponse(
-              context.self,
               zoneCommandEnvelope.replyTo,
-              zoneCommandEnvelope.correlationId,
               AddTransactionResponse(
                 Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
             )
@@ -764,9 +717,7 @@ object ZoneValidatorActor {
             validatedParams match {
               case Invalid(errors) =>
                 deliverResponse(
-                  context.self,
                   zoneCommandEnvelope.replyTo,
-                  zoneCommandEnvelope.correlationId,
                   AddTransactionResponse(Validated.invalid(errors))
                 )
                 Effect.none
@@ -774,7 +725,6 @@ object ZoneValidatorActor {
                 acceptCommand(
                   context.self,
                   id,
-                  resolver,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
                   TransactionAddedEvent(Transaction.tupled(params))
@@ -941,7 +891,6 @@ object ZoneValidatorActor {
   private[this] def acceptCommand(
       self: ActorRef[ZoneValidatorMessage],
       id: ZoneId,
-      resolver: ActorRefResolver,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       zoneCommandEnvelope: ZoneCommandEnvelope,
       event: ZoneEvent): Effect[ZoneEventEnvelope, ZoneState] =
@@ -953,113 +902,97 @@ object ZoneValidatorActor {
           timestamp = Instant.now(),
           event
         ))
-      .andThen(state =>
-        deliverResponse(
-          self,
-          zoneCommandEnvelope.replyTo,
-          zoneCommandEnvelope.correlationId,
-          event match {
-            case EmptyZoneEvent =>
-              EmptyZoneResponse
+      .andThen { state =>
+        (event match {
+          case EmptyZoneEvent =>
+            None
 
-            case ZoneCreatedEvent(zone) =>
-              CreateZoneResponse(Validated.valid(zone))
+          case ZoneCreatedEvent(zone) =>
+            Some(CreateZoneResponse(Validated.valid(zone)))
 
-            case ClientJoinedEvent(_) =>
-              JoinZoneResponse(
-                Validated.valid((
-                  state.zone.get,
-                  state.connectedClients.map {
-                    case (clientConnection, _publicKey) =>
-                      resolver
-                        .toSerializationFormat(clientConnection) -> _publicKey
-                  }
-                )))
+          case ClientJoinedEvent(_) =>
+            None
 
-            case ClientQuitEvent(_) =>
-              QuitZoneResponse(Validated.valid(()))
+          case ClientQuitEvent(_) =>
+            None
 
-            case ZoneNameChangedEvent(_) =>
-              ChangeZoneNameResponse(Validated.valid(()))
+          case ZoneNameChangedEvent(_) =>
+            Some(ChangeZoneNameResponse(Validated.valid(())))
 
-            case MemberCreatedEvent(member) =>
-              CreateMemberResponse(Validated.valid(member))
+          case MemberCreatedEvent(member) =>
+            Some(CreateMemberResponse(Validated.valid(member)))
 
-            case MemberUpdatedEvent(_) =>
-              UpdateMemberResponse(Validated.valid(()))
+          case MemberUpdatedEvent(_) =>
+            Some(UpdateMemberResponse(Validated.valid(())))
 
-            case AccountCreatedEvent(account) =>
-              CreateAccountResponse(Validated.valid(account))
+          case AccountCreatedEvent(account) =>
+            Some(CreateAccountResponse(Validated.valid(account)))
 
-            case AccountUpdatedEvent(_, _) =>
-              UpdateAccountResponse(Validated.valid(()))
+          case AccountUpdatedEvent(_, _) =>
+            Some(UpdateAccountResponse(Validated.valid(())))
 
-            case TransactionAddedEvent(transaction) =>
-              AddTransactionResponse(Validated.valid(transaction))
-          }
-      ))
-      .andThen(
-        self ! PublishZoneStatusTick
-      )
-      .andThen(
-        state =>
-          (event match {
-            case EmptyZoneEvent =>
-              None
+          case TransactionAddedEvent(transaction) =>
+            Some(AddTransactionResponse(Validated.valid(transaction)))
+        }).foreach(
+          deliverResponse(
+            zoneCommandEnvelope.replyTo,
+            _
+          )
+        )
+        (event match {
+          case EmptyZoneEvent =>
+            None
 
-            case ZoneCreatedEvent(_) =>
-              None
+          case ZoneCreatedEvent(_) =>
+            None
 
-            case ClientJoinedEvent(maybeActorRefString) =>
-              maybeActorRefString.map(actorRefString =>
-                ClientJoinedNotification(connectionId = actorRefString,
-                                         zoneCommandEnvelope.publicKey))
-
-            case ClientQuitEvent(maybeActorRefString) =>
-              maybeActorRefString.map(actorRefString =>
-                ClientQuitNotification(connectionId = actorRefString,
+          case ClientJoinedEvent(maybeActorRefString) =>
+            maybeActorRefString.map(actorRefString =>
+              ClientJoinedNotification(connectionId = actorRefString,
                                        zoneCommandEnvelope.publicKey))
 
-            case ZoneNameChangedEvent(name) =>
-              Some(ZoneNameChangedNotification(name))
+          case ClientQuitEvent(maybeActorRefString) =>
+            maybeActorRefString.map(actorRefString =>
+              ClientQuitNotification(connectionId = actorRefString,
+                                     zoneCommandEnvelope.publicKey))
 
-            case MemberCreatedEvent(member) =>
-              Some(MemberCreatedNotification(member))
+          case ZoneNameChangedEvent(name) =>
+            Some(ZoneNameChangedNotification(name))
 
-            case MemberUpdatedEvent(member) =>
-              Some(MemberUpdatedNotification(member))
+          case MemberCreatedEvent(member) =>
+            Some(MemberCreatedNotification(member))
 
-            case AccountCreatedEvent(account) =>
-              Some(AccountCreatedNotification(account))
+          case MemberUpdatedEvent(member) =>
+            Some(MemberUpdatedNotification(member))
 
-            case AccountUpdatedEvent(None, account) =>
-              Some(
-                AccountUpdatedNotification(account.ownerMemberIds.head,
-                                           account))
+          case AccountCreatedEvent(account) =>
+            Some(AccountCreatedNotification(account))
 
-            case AccountUpdatedEvent(Some(actingAs), account) =>
-              Some(AccountUpdatedNotification(actingAs, account))
+          case AccountUpdatedEvent(None, account) =>
+            Some(
+              AccountUpdatedNotification(account.ownerMemberIds.head, account))
 
-            case TransactionAddedEvent(transaction) =>
-              Some(TransactionAddedNotification(transaction))
-          }).foreach(
-            deliverNotification(self,
-                                id,
-                                state.connectedClients.keys,
-                                notificationSequenceNumbers,
-                                _)
-        ))
+          case AccountUpdatedEvent(Some(actingAs), account) =>
+            Some(AccountUpdatedNotification(actingAs, account))
+
+          case TransactionAddedEvent(transaction) =>
+            Some(TransactionAddedNotification(transaction))
+        }).foreach(
+          deliverNotification(
+            self,
+            id,
+            state.connectedClients.keys,
+            notificationSequenceNumbers,
+            _
+          )
+        )
+        self ! PublishZoneStatusTick
+      }
 
   private[this] def deliverResponse(
-      self: ActorRef[ZoneValidatorMessage],
       clientConnection: ActorRef[ZoneResponseEnvelope],
-      correlationId: Long,
       response: ZoneResponse): Unit =
-    clientConnection ! ZoneResponseEnvelope(
-      self,
-      correlationId,
-      response
-    )
+    clientConnection ! ZoneResponseEnvelope(response)
 
   private[this] def deliverNotification(
       self: ActorRef[ZoneValidatorMessage],

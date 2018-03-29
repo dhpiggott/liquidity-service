@@ -19,3 +19,10 @@ message ZoneCommandEnvelope {
     int64 correlation_id = 5;
     dhpcs.liquidity.ws.protocol.ZoneCommand command = 6;
 }
+
+message ZoneNotificationSubscription {
+    string subscriber = 1;
+    string zone_id = 2;
+    bytes remote_address = 3;
+    bytes public_key = 4;
+}

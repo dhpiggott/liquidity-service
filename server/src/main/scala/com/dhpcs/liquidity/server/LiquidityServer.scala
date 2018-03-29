@@ -14,21 +14,20 @@ import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
 import akka.event.Logging
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.ws.{Message => WsMessage}
 import akka.http.scaladsl.server.Directives.logRequestResult
 import akka.http.scaladsl.server.StandardRoute
 import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query.{EventEnvelope, PersistenceQuery}
-import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
 import akka.{Done, NotUsed}
 import cats.effect.IO
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
+import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
@@ -232,14 +231,6 @@ class LiquidityServer(
       zoneId
     )
 
-  override protected[this] def webSocketFlow(
-      remoteAddress: InetAddress): Flow[WsMessage, WsMessage, NotUsed] =
-    ClientConnectionActor.webSocketFlow(
-      pingInterval,
-      zoneValidatorShardRegion,
-      remoteAddress
-    )
-
 }
 
 object LiquidityServer {
@@ -273,6 +264,7 @@ object LiquidityServer {
            |    provider = "cluster"
            |    serializers {
            |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
+           |      liquidity-server-message = "com.dhpcs.liquidity.server.serialization.LiquidityServerMessageSerializer"
            |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
            |      zone-monitor-message = "com.dhpcs.liquidity.server.serialization.ZoneMonitorMessageSerializer"
            |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
@@ -280,6 +272,7 @@ object LiquidityServer {
            |    }
            |    serialization-bindings {
            |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
+           |      "com.dhpcs.liquidity.actor.protocol.liquidityserver.LiquidityServerMessage" = liquidity-server-message
            |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.SerializableZoneValidatorMessage" = zone-validator-message
            |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.SerializableZoneMonitorMessage" = zone-monitor-message
            |      "com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage" = client-connection-message

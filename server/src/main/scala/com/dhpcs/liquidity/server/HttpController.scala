@@ -10,12 +10,11 @@ import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.ws.{Message => WsMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.unmarshalling._
 import akka.http.scaladsl.util.FastFuture
-import akka.stream.scaladsl.{Flow, Source}
+import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.instances.future._
 import cats.syntax.apply._
@@ -68,10 +67,7 @@ trait HttpController {
                    zoneCommand(remoteAddress, publicKey) ~
                      zoneNotifications(remoteAddress, publicKey)
                )
-             ) ~
-               path("ws")(
-                 handleWebSocketMessages(webSocketFlow(remoteAddress))
-               )
+             )
          })
        else reject)
 
@@ -436,8 +432,6 @@ trait HttpController {
       publicKey: PublicKey,
       zoneId: ZoneId): Source[ZoneNotification, NotUsed]
   protected[this] def pingInterval: FiniteDuration
-  protected[this] def webSocketFlow(
-      remoteAddress: InetAddress): Flow[WsMessage, WsMessage, NotUsed]
 
 }
 

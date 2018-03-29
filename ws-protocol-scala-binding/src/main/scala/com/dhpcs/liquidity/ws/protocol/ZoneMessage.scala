@@ -22,8 +22,6 @@ final case class CreateZoneCommand(
     name: Option[String],
     metadata: Option[com.google.protobuf.struct.Struct])
     extends ZoneCommand
-case object JoinZoneCommand extends ZoneCommand
-case object QuitZoneCommand extends ZoneCommand
 final case class ChangeZoneNameCommand(name: Option[String]) extends ZoneCommand
 final case class CreateMemberCommand(
     ownerPublicKeys: Set[PublicKey],
@@ -125,12 +123,6 @@ case object EmptyZoneResponse extends ZoneResponse
 final case class CreateZoneResponse(
     result: ValidatedNel[ZoneResponse.Error, Zone])
     extends ZoneResponse
-final case class JoinZoneResponse(
-    result: ValidatedNel[ZoneResponse.Error, (Zone, Map[String, PublicKey])])
-    extends ZoneResponse
-final case class QuitZoneResponse(
-    result: ValidatedNel[ZoneResponse.Error, Unit])
-    extends ZoneResponse
 final case class ChangeZoneNameResponse(
     result: ValidatedNel[ZoneResponse.Error, Unit])
     extends ZoneResponse
@@ -171,7 +163,7 @@ final case class AccountUpdatedNotification(actingAs: MemberId,
     extends ZoneNotification
 final case class TransactionAddedNotification(transaction: Transaction)
     extends ZoneNotification
-final case class ZoneStateNotification(zone: Zone,
+final case class ZoneStateNotification(zone: Option[Zone],
                                        connectedClients: Map[String, PublicKey])
     extends ZoneNotification
 final case class PingNotification(unit: Unit) extends ZoneNotification

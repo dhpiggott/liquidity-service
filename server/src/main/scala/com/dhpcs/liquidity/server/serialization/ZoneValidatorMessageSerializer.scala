@@ -18,7 +18,10 @@ class ZoneValidatorMessageSerializer(system: ExtendedActorSystem)
           proto.actor.protocol.zonevalidator.GetZoneStateCommand],
         AnyRefProtoBinding[
           ZoneCommandEnvelope,
-          proto.actor.protocol.zonevalidator.ZoneCommandEnvelope]
+          proto.actor.protocol.zonevalidator.ZoneCommandEnvelope],
+        AnyRefProtoBinding[
+          ZoneNotificationSubscription,
+          proto.actor.protocol.zonevalidator.ZoneNotificationSubscription]
       ),
       identifier = 1668336332
     )

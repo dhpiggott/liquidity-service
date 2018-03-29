@@ -9,68 +9,6 @@ import "google/protobuf/struct.proto";
 
 import "dhpcs/liquidity/model.proto";
 
-message ClientMessage {
-    message KeyOwnershipChallenge {
-        bytes nonce = 1;
-    }
-    message Command {
-        int64 correlation_id = 1;
-        oneof command {
-            bytes ping_command = 2;
-        }
-    }
-    message Response {
-        int64 correlation_id = 1;
-        oneof response {
-            ZoneResponse zone_response = 2;
-        }
-    }
-    message Notification {
-        message ZoneNotificationEnvelope {
-            string zone_id = 1;
-            ZoneNotification zone_notification = 2;
-        }
-        oneof notification {
-            ZoneNotificationEnvelope zone_notification_envelope = 1;
-        }
-    }
-    oneof message {
-        KeyOwnershipChallenge key_ownership_challenge = 1;
-        Command command = 2;
-        Response response = 3;
-        Notification notification = 4;
-    }
-}
-
-message ServerMessage {
-    message KeyOwnershipProof {
-        bytes public_key = 1;
-        bytes signature = 2;
-    }
-    message Command {
-        message ZoneCommandEnvelope {
-            string zone_id = 1;
-            ZoneCommand zone_command = 2;
-        }
-        int64 correlation_id = 1;
-        oneof command {
-            ZoneCommandEnvelope zone_command_envelope = 2;
-            ZoneCommand.CreateZoneCommand create_zone_command = 3;
-        }
-    }
-    message Response {
-        int64 correlation_id = 1;
-        oneof response {
-            bytes ping_response = 2;
-        }
-    }
-    oneof message {
-        KeyOwnershipProof key_ownership_proof = 1;
-        Command command = 2;
-        Response response = 3;
-    }
-}
-
 message ZoneCommand {
     message CreateZoneCommand {
         bytes equity_owner_public_key = 1;
@@ -111,8 +49,6 @@ message ZoneCommand {
     }
     oneof zone_command {
         CreateZoneCommand create_zone_command = 1;
-        bytes join_zone_command = 2;
-        bytes quit_zone_command = 3;
         ChangeZoneNameCommand change_zone_name_command = 4;
         CreateMemberCommand create_member_command = 5;
         UpdateMemberCommand update_member_command = 6;
@@ -137,22 +73,6 @@ message ZoneResponse {
         oneof result {
             Errors errors = 1;
             Success success = 2;
-        }
-    }
-    message JoinZoneResponse {
-        message Success {
-            dhpcs.liquidity.model.Zone zone = 1;
-            map<string, bytes> connected_clients = 2;
-        }
-        oneof result {
-            Errors errors = 1;
-            Success success = 2;
-        }
-    }
-    message QuitZoneResponse {
-        oneof result {
-            Errors errors = 1;
-            bytes success = 2;
         }
     }
     message ChangeZoneNameResponse {
@@ -202,8 +122,6 @@ message ZoneResponse {
     }
     oneof zone_response {
         CreateZoneResponse create_zone_response = 1;
-        JoinZoneResponse join_zone_response = 2;
-        QuitZoneResponse quit_zone_response = 3;
         ChangeZoneNameResponse change_zone_name_response = 4;
         CreateMemberResponse create_member_response = 5;
         UpdateMemberResponse update_member_response = 6;

@@ -6,6 +6,7 @@ import java.time.Instant
 import akka.actor.typed.{ActorRef, ActorRefResolver}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.clientmonitor._
+import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
@@ -24,12 +25,6 @@ object ProtoBindings {
       (actorRef, resolver) => resolver.toSerializationFormat(actorRef),
       (actorRefString, resolver) => resolver.resolveActorRef(actorRefString))
 
-  implicit final val ZoneResponseEnvelopeProtoBinding
-    : ProtoBinding[ZoneResponseEnvelope,
-                   proto.actor.protocol.clientconnection.ZoneResponseEnvelope,
-                   ActorRefResolver] =
-    cachedImplicit
-
   implicit final val GetZoneStateCommandProtoBinding
     : ProtoBinding[GetZoneStateCommand,
                    proto.actor.protocol.zonevalidator.GetZoneStateCommand,
@@ -40,6 +35,18 @@ object ProtoBindings {
     : ProtoBinding[ZoneCommandEnvelope,
                    proto.actor.protocol.zonevalidator.ZoneCommandEnvelope,
                    ActorRefResolver] =
+    cachedImplicit
+
+  implicit final val ZoneResponseEnvelopeProtoBinding
+    : ProtoBinding[ZoneResponseEnvelope,
+                   proto.actor.protocol.liquidityserver.ZoneResponseEnvelope,
+                   ActorRefResolver] =
+    cachedImplicit
+
+  implicit final val ZoneNotificationSubscriptionProtoBinding: ProtoBinding[
+    ZoneNotificationSubscription,
+    proto.actor.protocol.zonevalidator.ZoneNotificationSubscription,
+    ActorRefResolver] =
     cachedImplicit
 
   implicit final val ZoneNotificationEnvelopeProtoBinding: ProtoBinding[

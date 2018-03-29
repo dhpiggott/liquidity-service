@@ -6,12 +6,6 @@ option java_package = "com.dhpcs.liquidity.proto.actor.protocol.clientconnection
 
 import "dhpcs/liquidity/ws-protocol.proto";
 
-message ZoneResponseEnvelope {
-    string zone_validator = 1;
-    int64 correlation_id = 2;
-    dhpcs.liquidity.ws.protocol.ZoneResponse response = 3;
-}
-
 message ZoneNotificationEnvelope {
     string zone_validator = 1;
     string zone_id = 2;

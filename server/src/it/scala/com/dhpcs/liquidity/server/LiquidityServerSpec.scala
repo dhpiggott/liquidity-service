@@ -60,19 +60,6 @@ class LiquidityServerSpec
       zoneCreated(createdZone, createdBalances)
       ()
     }
-    "accepts join zone commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      joinZone(createdZone.id, createdZone).futureValue
-      ()
-    }
-    "accepts quit zone commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      joinZone(createdZone.id, createdZone).futureValue
-      quitZone(createdZone.id).futureValue
-      ()
-    }
     "accepts and projects change zone name commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
@@ -139,7 +126,7 @@ class LiquidityServerSpec
                        addedTransaction)
       ()
     }
-    "sends PingCommands when left idle" in {
+    "notifies subscribers of events and sends PingCommands when left idle" in {
       val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
       val zoneNotificationTestProbe =
@@ -378,48 +365,6 @@ class LiquidityServerSpec
       zoneNotification
     }
   }
-
-  private[this] def joinZone(zoneId: ZoneId, zone: Zone)(
-      implicit ec: ExecutionContext): Future[Unit] = {
-    val zoneNotificationTestProbe =
-      zoneNotificationSource(zoneId, selfSignedJwt).runWith(TestSink.probe)
-    inside(zoneNotificationTestProbe.requestNext()) {
-      case ZoneStateNotification(_, _) => ()
-    }
-    for (zoneResponse <- sendZoneCommand(
-           zoneId,
-           JoinZoneCommand
-         ))
-      yield
-        zoneResponse match {
-          case JoinZoneResponse(Validated.Valid(zoneAndConnectedClients)) =>
-            val (_zone, _connectedClients) = zoneAndConnectedClients
-            assert(_zone === zone)
-            assert(
-              _connectedClients.values.toSet ===
-                Set(PublicKey(rsaPublicKey.getEncoded))
-            )
-            inside(zoneNotificationTestProbe.requestNext()) {
-              case ClientJoinedNotification(_, publicKey) =>
-                assert(publicKey === PublicKey(rsaPublicKey.getEncoded))
-            }
-            zoneNotificationTestProbe.cancel()
-            ()
-
-          case _ =>
-            fail()
-        }
-  }
-
-  private[this] def quitZone(zoneId: ZoneId)(
-      implicit ec: ExecutionContext): Future[Unit] =
-    for (zoneResponse <- sendZoneCommand(
-           zoneId,
-           QuitZoneCommand
-         )) yield {
-      assert(zoneResponse === QuitZoneResponse(Validated.valid(())))
-      ()
-    }
 
   private[this] def changeZoneName(zoneId: ZoneId)(
       implicit ec: ExecutionContext): Future[Option[String]] = {

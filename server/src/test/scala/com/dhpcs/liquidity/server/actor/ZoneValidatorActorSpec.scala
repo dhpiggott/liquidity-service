@@ -12,13 +12,13 @@ import akka.actor.typed.{ActorRef, ActorRefResolver}
 import akka.testkit.{TestKit, TestProbe}
 import cats.data.Validated
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
+import com.dhpcs.liquidity.actor.protocol.liquidityserver._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.actor.ZoneValidatorActorSpec._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.scalactic.TripleEqualsSupport.Spread
-import org.scalatest.Assertions._
 import org.scalatest.Inside._
 import org.scalatest._
 
@@ -94,46 +94,6 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "accepts redeliveries" in { fixture =>
         createZone(fixture)
         createZone(fixture)
-      }
-    }
-    "receiving join zone commands" - {
-      "rejects it if the zone has not been created" in { fixture =>
-        sendCommand(fixture)(
-          JoinZoneCommand
-        )
-        assert(
-          expectResponse(fixture) === JoinZoneResponse(
-            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
-      }
-      "accepts it if valid" in { fixture =>
-        createZone(fixture)
-        joinZone(fixture)
-      }
-      "accepts redeliveries" in { fixture =>
-        createZone(fixture)
-        joinZone(fixture)
-        joinZone(fixture, redelivery = true)
-      }
-    }
-    "receiving quit zone commands" - {
-      "rejects it if the zone has not been created" in { fixture =>
-        sendCommand(fixture)(
-          QuitZoneCommand
-        )
-        assert(
-          expectResponse(fixture) === QuitZoneResponse(
-            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
-      }
-      "accepts it if valid" in { fixture =>
-        createZone(fixture)
-        joinZone(fixture)
-        quitZone(fixture)
-      }
-      "accepts redeliveries" in { fixture =>
-        createZone(fixture)
-        joinZone(fixture)
-        quitZone(fixture)
-        quitZone(fixture)
       }
     }
     "receiving change zone name commands" - {
@@ -653,6 +613,34 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         addTransaction(fixture, zone, to = account.id)
       }
     }
+    "receiving zone notification subscriptions" - {
+      "rejects it if the zone has not been created" in { fixture =>
+        val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
+        clientConnectionTestProbe.send(
+          zoneValidator.toUntyped,
+          ZoneNotificationSubscription(
+            clientConnectionTestProbe.ref,
+            zoneId,
+            remoteAddress,
+            publicKey
+          )
+        )
+        assert(
+          expectNotification(fixture) === ZoneStateNotification(
+            zone = None,
+            connectedClients = Map.empty)
+        )
+      }
+      "accepts it if valid" in { fixture =>
+        createZone(fixture)
+        subscribe(fixture)
+      }
+      "accepts redeliveries" in { fixture =>
+        createZone(fixture)
+        subscribe(fixture)
+        subscribe(fixture, redelivery = true)
+      }
+    }
   }
 
   override protected type FixtureParam = ZoneValidatorActorSpec.FixtureParam
@@ -758,71 +746,6 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     }
   }
 
-  private[this] def joinZone(fixture: FixtureParam,
-                             redelivery: Boolean = false): Unit = {
-    val (clientConnectionTestProbe, _, _) = fixture
-    sendCommand(fixture)(
-      JoinZoneCommand
-    )
-    inside(expectResponse(fixture)) {
-      case JoinZoneResponse(Validated.Valid((zone, connectedClients))) =>
-        assert(zone.accounts.size === 1)
-        assert(zone.members.size === 1)
-        val equityAccount = zone.accounts(zone.equityAccountId)
-        val equityAccountOwner = zone.members(equityAccount.ownerMemberIds.head)
-        assert(
-          equityAccount === Account(
-            equityAccount.id,
-            ownerMemberIds = Set(equityAccountOwner.id),
-            name = None,
-            metadata = None
-          )
-        )
-        assert(
-          equityAccountOwner === Member(
-            equityAccountOwner.id,
-            Set(publicKey),
-            name = Some("Dave"),
-            metadata = None
-          )
-        )
-        assert(
-          zone.created === Spread(
-            pivot = Instant.now().toEpochMilli,
-            tolerance = 5000
-          )
-        )
-        assert(
-          zone.expires === zone.created + java.time.Duration
-            .ofDays(30)
-            .toMillis
-        )
-        assert(zone.transactions === Map.empty)
-        assert(zone.name === Some("Dave's Game"))
-        assert(zone.metadata === None)
-        assert(
-          connectedClients === Map(ActorRefResolver(system.toTyped)
-            .toSerializationFormat(clientConnectionTestProbe.ref) -> publicKey))
-    }
-    if (!redelivery)
-      assert(
-        expectNotification(fixture) === ClientJoinedNotification(
-          connectionId = ActorRefResolver(system.toTyped)
-            .toSerializationFormat(clientConnectionTestProbe.ref),
-          publicKey
-        )
-      )
-    ()
-  }
-
-  private[this] def quitZone(fixture: FixtureParam): Unit = {
-    sendCommand(fixture)(
-      QuitZoneCommand
-    )
-    assert(expectResponse(fixture) === QuitZoneResponse(Validated.Valid(())))
-    ()
-  }
-
   private[this] def changeZoneName(fixture: FixtureParam): Unit = {
     sendCommand(fixture)(
       ChangeZoneNameCommand(None)
@@ -923,6 +846,69 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     ()
   }
 
+  private[this] def subscribe(fixture: FixtureParam,
+                              redelivery: Boolean = false): Unit = {
+    val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
+    clientConnectionTestProbe.send(
+      zoneValidator.toUntyped,
+      ZoneNotificationSubscription(
+        clientConnectionTestProbe.ref,
+        zoneId,
+        remoteAddress,
+        publicKey
+      )
+    )
+    inside(expectNotification(fixture)) {
+      case ZoneStateNotification(Some(zone), connectedClients) =>
+        assert(zone.accounts.size === 1)
+        assert(zone.members.size === 1)
+        val equityAccount = zone.accounts(zone.equityAccountId)
+        val equityAccountOwner = zone.members(equityAccount.ownerMemberIds.head)
+        assert(
+          equityAccount === Account(
+            equityAccount.id,
+            ownerMemberIds = Set(equityAccountOwner.id),
+            name = None,
+            metadata = None
+          )
+        )
+        assert(
+          equityAccountOwner === Member(
+            equityAccountOwner.id,
+            Set(publicKey),
+            name = Some("Dave"),
+            metadata = None
+          )
+        )
+        assert(
+          zone.created === Spread(
+            pivot = Instant.now().toEpochMilli,
+            tolerance = 5000
+          )
+        )
+        assert(
+          zone.expires === zone.created + java.time.Duration
+            .ofDays(30)
+            .toMillis
+        )
+        assert(zone.transactions === Map.empty)
+        assert(zone.name === Some("Dave's Game"))
+        assert(zone.metadata === None)
+        assert(
+          connectedClients === Map(ActorRefResolver(system.toTyped)
+            .toSerializationFormat(clientConnectionTestProbe.ref) -> publicKey))
+    }
+    if (!redelivery)
+      assert(
+        expectNotification(fixture) === ClientJoinedNotification(
+          connectionId = ActorRefResolver(system.toTyped)
+            .toSerializationFormat(clientConnectionTestProbe.ref),
+          publicKey
+        )
+      )
+    ()
+  }
+
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     super.afterAll()
@@ -935,13 +921,12 @@ object ZoneValidatorActorSpec {
     (TestProbe, ZoneId, ActorRef[SerializableZoneValidatorMessage])
 
   private val remoteAddress = InetAddress.getLoopbackAddress
-  private val rsaPublicKey = {
+  private val publicKey = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(2048)
     val keyPair = keyPairGenerator.generateKeyPair
-    keyPair.getPublic
+    PublicKey(keyPair.getPublic.getEncoded)
   }
-  private val publicKey = PublicKey(rsaPublicKey.getEncoded)
 
   private def sendCommand(fixture: FixtureParam)(
       zoneCommand: ZoneCommand): Unit = {
@@ -961,16 +946,13 @@ object ZoneValidatorActorSpec {
 
   private def expectResponse(fixture: FixtureParam): ZoneResponse = {
     val (clientConnectionTestProbe, _, _) = fixture
-    val responseWithIds =
-      clientConnectionTestProbe.expectMsgType[ZoneResponseEnvelope]
-    assert(responseWithIds.correlationId === 0)
-    responseWithIds.zoneResponse
+    clientConnectionTestProbe.expectMsgType[ZoneResponseEnvelope].zoneResponse
   }
 
   private def expectNotification(fixture: FixtureParam): ZoneNotification = {
     val (clientConnectionTestProbe, _, _) = fixture
-    val notificationWithIds =
-      clientConnectionTestProbe.expectMsgType[ZoneNotificationEnvelope]
-    notificationWithIds.zoneNotification
+    clientConnectionTestProbe
+      .expectMsgType[ZoneNotificationEnvelope]
+      .zoneNotification
   }
 }

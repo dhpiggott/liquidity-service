@@ -9,6 +9,6 @@ if [ $# -ne 1 ]
 fi
 
 openssl genpkey \
-    -algorithm RSA \
-    -pkeyopt rsa_keygen_bits:2048 \
-    -out $1 2> /dev/null
+  -algorithm RSA \
+  -pkeyopt rsa_keygen_bits:2048 \
+  -out $1 2> /dev/null

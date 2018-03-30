@@ -11,50 +11,29 @@ env:
     - secure: BCU14UKhyeUCWCVcF6SuidH3SeZzU1jkfAtyrx8roWpTwaMD5zrBF1zlWJHtYcDBq/b1MpdXGYY+Mq30KtBaobXKDkU/B+MHJCvN1eHHBO7NxNw+/U5IICs/2IV/jC9ANMevMO4pGQbx15DiZcGGk0uIyZiWtX7u8cGcM+i6ldLAdPoVl/8Wj2KUH9y5ZvCGn5BJBA+UJbum/watf7t6bYvlnFcesJ5ahL4TvwLMksTqp20vc7YUmO5FnnoXt4HZFhMjbr5i35MLTXoM4Z1TYbdfod0tnIs3pf2A5up+X/wOxTnmW8+p7iLeu1GsQLAtsPPXiIYqdA8TBJ7jwHPsdIbfFYyJT4lzeaXqOs5gf7LhbzU1ehMuLo7K8p9yfXiXoYW62bBJy0KCeEvBYeCrylI7Y/x9uauuowCIie/iknLC5xI0dO5Off7ModOvpXRuj0pWS8hEEXH0eTqaNPnl7LSIp5C6kTQ2HNHUaCNWAYXx9Wf1kWJOu6k4eQVEBdg5NnMDuB2fRWCqFVSLd1MEHFnbd/Ll4SnIDo7DMk6NLPZ+aIDtYyMtvtRrg6b1P8wOGwkzxMTMtPFFdYFWEuni4IBF0wmTye781v0DQzTAmvT2WNIxwjb6kljHjlBHouVdmcKUeVSN9VQ4+D0G00Ti0SFqSp+K1wlgLNm7YuN8tvU=
     - secure: O+QOjGKLJgCPfeQ+LGBc5JvdqsfbSRig2d6Hx5RRU9yutcYqtj+QwKqS7f4d14m5Ob9nppV7GDWTlJdgCMYyRDkpo+kSk//05t2JdwnbXcL44Wozq9O3g5ETS9mC9aPDt1BpoPXJr6P6woInBH09ysWzsk4Jt275w1CJOytZrSlnY1biTtpRexQmWp/2Zr/JEV5MdeYiX0U++/UeOwdct7IxIzz8Up3Q9NzCQaB1zxMY5RgoJebQHAjZmqCissBjGR8z26St5sgyfa4tHHBB4MaKJgdDyGg/MtnJMCmhWwEIOLU5v73r3Jnil2cvDKJAbvM1u6zAozO2i1U1UNRPX9UaWjh8ooTV3vZo+kREfUB37fWHSWcbObNKBWn7rZfhDvFR7o2zch0hqoFdJOgpuTJlJCVPr+X+YwBa+qInG/8QWyU5AIKJL/qMlNifOqTsXNqUBLe+tMNEa49u/VfR/Ybp9l3spSTdXNV56aPBWZOQjODeK6OnWCW9sYp1F387ALB1rCmcNfvDjH8wGcwZhxuFt5vdygeBIEAWDRj0XhDNa0s+rY/FFUDqf+GjAvyH6mP5o78pzGzh+YYlH8dWA/+y3+M26kq/4JpebPXC8vKqnfcrcrs+im9ALcXUm7aJG+UfpV+YS5rcJ1RRA+NrCUL0FINMd4asSpzsfbwwSvQ=
 stages:
-  - test
-  - name: publish
-    if: branch = master
+  - name: test
   - name: deploy
+    if: branch = master
+  - name: release
     if: branch = master
 jobs:
   include:
     - stage: test
-      script: sbt ";reload plugins; sbt:scalafmt::test; scalafmt::test;
-        reload return; sbt:scalafmt::test; scalafmt::test;
-        server/test:scalafmt::test; coverage; server/test; coverageReport" &&
+      script: |
+        ./cd-scripts/test-units.sh &&
         bash <(curl -s https://codecov.io/bash)
     - stage: test
-      script: sbt ";server/it:scalafmt::test; server/docker:publishLocal;
-        server/it:test; server/docker:clean"
-    - stage: publish
       script: |
-        pip install --user awscli &&
-          export PATH=$PATH:$HOME/.local/bin &&
-          eval $(aws ecr get-login --region us-east-1 --no-include-email) &&
-          sbt ";server/docker:publish"
-    - stage: publish
-      script: |
-        git fetch --unshallow && # So sbt-dynver derives the version correctly
-          sbt ";ws-protocol/releaseEarly"
+        ./cd-scripts/test-component.sh
     - stage: deploy
       script: |
-        pip install --user awscli &&
-          export PATH=$PATH:$HOME/.local/bin &&
-          TAG=evergreen-$(git describe --always --dirty) &&
-          aws cloudformation update-stack \
-            --region us-east-1 \
-            --stack-name liquidity-application \
-            --use-previous-template \
-            --capabilities CAPABILITY_IAM \
-            --parameters \
-              ParameterKey=Stack,ParameterValue=liquidity-infrastructure \
-              ParameterKey=Subnets,ParameterValue=\"subnet-fd6f218a,subnet-2d73e606,subnet-9f2644c6,subnet-2c32b849,subnet-1eaa1512,subnet-a9e5dd93\" \
-              ParameterKey=Tag,ParameterValue=$TAG &&
-          aws cloudformation wait stack-update-complete \
-            --region us-east-1 \
-            --stack-name liquidity-application
+        pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
+        ./cd-scripts/deploy.sh
+    - stage: release
+      script: |
+        ./cd-scripts/release.sh
 cache:
   directories:
-    - $HOME/.ivy2/cache
     - $HOME/.sbt
+    - $HOME/.ivy2/cache
     - $HOME/.coursier

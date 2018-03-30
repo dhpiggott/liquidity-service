@@ -9,11 +9,11 @@ object ProjectPlugin extends AutoPlugin {
   override def globalSettings: Seq[Setting[_]] =
     addCommandAlias(
       "validate",
-      ";reload plugins; sbt:scalafmt::test; scalafmt::test; reload return; " +
-        "sbt:scalafmt::test; scalafmt::test; " +
-        "server/test:scalafmt::test; server/test; " +
-        "server/it:scalafmt::test; server/docker:publishLocal; " +
-        "server/it:test; server/docker:clean"
+      ";reload plugins ;sbt:scalafmt::test ;scalafmt::test " +
+        ";reload return ;sbt:scalafmt::test ;scalafmt::test " +
+        ";server/test:scalafmt::test ;server/test " +
+        ";server/it:scalafmt::test ;server/docker:publishLocal " +
+        ";server/it:test ;server/docker:clean"
     )
 
   override def projectSettings: Seq[Setting[_]] =

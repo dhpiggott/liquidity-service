@@ -327,6 +327,7 @@ object LiquidityServer {
            |    user = "${getEnvVarOrExit("MYSQL_USERNAME")}"
            |    password = "${getEnvVarOrExit("MYSQL_PASSWORD")}"
            |    maxConnections = 2
+           |    numThreads = 2
            |  }
            |}
          """.stripMargin)

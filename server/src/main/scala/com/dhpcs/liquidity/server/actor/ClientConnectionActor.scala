@@ -3,7 +3,6 @@ package com.dhpcs.liquidity.server.actor
 import java.net.InetAddress
 
 import akka.NotUsed
-import akka.actor.ActorSystem
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
@@ -31,8 +30,10 @@ object ClientConnectionActor {
       zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       publicKey: PublicKey,
-      zoneId: ZoneId)(implicit system: ActorSystem,
-                      mat: Materializer): Source[ZoneNotification, NotUsed] = {
+      zoneId: ZoneId,
+      actorRefFactory: Behavior[ClientConnectionMessage] => ActorRef[
+        ClientConnectionMessage]
+  )(implicit mat: Materializer): Source[ZoneNotification, NotUsed] = {
     val (outActor, publisher) = ActorSource
       .actorRef[ActorSourceMessage](
         completionMatcher = {
@@ -44,7 +45,7 @@ object ClientConnectionActor {
       )
       .toMat(Sink.asPublisher(false))(Keep.both)
       .run()
-    system.spawnAnonymous(
+    actorRefFactory(
       ClientConnectionActor.zoneNotificationBehavior(
         zoneValidatorShardRegion,
         remoteAddress,
@@ -60,7 +61,7 @@ object ClientConnectionActor {
 
   private[this] case object PublishStatusTimerKey
 
-  def zoneNotificationBehavior(
+  private def zoneNotificationBehavior(
       zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
       publicKey: PublicKey,

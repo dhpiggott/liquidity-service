@@ -7,11 +7,13 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.actor.typed.ActorRefResolver
+import akka.actor.typed.scaladsl.adapter._
+import akka.stream.{ActorMaterializer, Materializer}
+import akka.stream.testkit.scaladsl.TestSink
 import akka.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.server.actor.ClientConnectionActor._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActorSpec._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.{Config, ConfigFactory}
@@ -22,21 +24,21 @@ class ClientConnectionActorSpec
     with ActorTestKit
     with BeforeAndAfterAll {
 
-  // TODO: Test via zoneNotificationSource?
   "ClientConnectionActor" in {
     val zoneValidatorShardRegionTestProbe =
       TestProbe[ZoneValidatorMessage]()
     val zoneId = ZoneId(UUID.randomUUID().toString)
-    val zoneNotificationOutTestProbe = TestProbe[ActorSourceMessage]()
-    val clientConnection = spawn(
-      ClientConnectionActor.zoneNotificationBehavior(
-        zoneValidatorShardRegionTestProbe.ref,
-        InetAddress.getLoopbackAddress,
-        publicKey,
-        zoneId,
-        zoneNotificationOutTestProbe.ref
-      )
-    )
+    implicit val mat: Materializer = ActorMaterializer()(system.toUntyped)
+    val zoneNotificationOutTestSink =
+      ClientConnectionActor
+        .zoneNotificationSource(
+          zoneValidatorShardRegionTestProbe.ref,
+          remoteAddress,
+          publicKey,
+          zoneId,
+          spawn(_)
+        )
+        .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
     val created = Instant.now().toEpochMilli
     val equityAccountId = AccountId(0.toString)
     val equityAccountOwnerId = MemberId(0.toString)
@@ -65,21 +67,21 @@ class ClientConnectionActorSpec
       name = Some("Dave's Game"),
       metadata = None
     )
+    val zoneNotificationSubscription = zoneValidatorShardRegionTestProbe
+      .expectMessageType[ZoneNotificationSubscription]
     val connectedClients = Map(
       ActorRefResolver(system)
-        .toSerializationFormat(clientConnection) ->
+        .toSerializationFormat(zoneNotificationSubscription.subscriber) ->
         publicKey
     )
-    clientConnection ! ZoneNotificationEnvelope(
+    zoneNotificationSubscription.subscriber ! ZoneNotificationEnvelope(
       zoneValidatorShardRegionTestProbe.ref,
       zoneId,
       sequenceNumber = 0,
       ZoneStateNotification(Some(zone), connectedClients)
     )
-    zoneNotificationOutTestProbe.expectMessage(
-      ForwardZoneNotification(
-        ZoneStateNotification(Some(zone), connectedClients)
-      )
+    zoneNotificationOutTestSink.requestNext(
+      ZoneStateNotification(Some(zone), connectedClients)
     )
   }
 
@@ -114,6 +116,7 @@ class ClientConnectionActorSpec
 
 object ClientConnectionActorSpec {
 
+  private val remoteAddress = InetAddress.getLoopbackAddress
   private val publicKey = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(2048)

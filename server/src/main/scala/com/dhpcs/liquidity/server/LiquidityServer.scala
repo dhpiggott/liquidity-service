@@ -228,7 +228,8 @@ class LiquidityServer(
       zoneValidatorShardRegion,
       remoteAddress,
       publicKey,
-      zoneId
+      zoneId,
+      system.spawnAnonymous(_)
     )
 
 }

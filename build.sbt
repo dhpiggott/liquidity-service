@@ -106,7 +106,7 @@ lazy val server = project
       "org.tpolecat" %% "doobie-core" % "0.5.1",
       "org.tpolecat" %% "doobie-hikari" % "0.5.1",
       "mysql" % "mysql-connector-java" % "5.1.46",
-      "com.typesafe.akka" %% "akka-http" % "10.1.0",
+      "com.typesafe.akka" %% "akka-http" % "10.1.1",
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.11",
       "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.0",
       "com.typesafe.play" %% "play-json" % "2.6.9",
@@ -119,7 +119,7 @@ lazy val server = project
     "com.typesafe.akka" %% "akka-testkit-typed" % "2.5.11" % Test,
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.5" % Test,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.0" % Test,
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.1" % Test,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.11" % Test
   ))
   .configs(IntegrationTest)
@@ -127,7 +127,7 @@ lazy val server = project
   .settings(inConfig(IntegrationTest)(scalafmtSettings))
   .settings(libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.0.5" % IntegrationTest,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.0" % IntegrationTest,
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.1" % IntegrationTest,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.11" % IntegrationTest
   ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)

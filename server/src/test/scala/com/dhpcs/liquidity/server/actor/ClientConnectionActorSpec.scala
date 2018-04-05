@@ -26,7 +26,7 @@ class ClientConnectionActorSpec
 
   "ClientConnectionActor" in {
     val zoneValidatorShardRegionTestProbe =
-      TestProbe[ZoneValidatorMessage]()
+      TestProbe[ZoneValidatorMessage]("zoneValidatorShardRegion")
     val zoneId = ZoneId(UUID.randomUUID().toString)
     implicit val mat: Materializer = ActorMaterializer()(system.toUntyped)
     val zoneNotificationOutTestSink =

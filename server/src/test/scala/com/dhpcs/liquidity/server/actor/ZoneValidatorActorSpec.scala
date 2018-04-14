@@ -224,11 +224,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
-        val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
-        clientConnectionTestProbe.send(
+        val (liquidityServerTestProbe, _, zoneId, zoneValidator) = fixture
+        liquidityServerTestProbe.send(
           zoneValidator.toUntyped,
           ZoneCommandEnvelope(
-            clientConnectionTestProbe.ref,
+            liquidityServerTestProbe.ref,
             zoneId,
             remoteAddress,
             publicKey = PublicKey(Array.emptyByteArray),
@@ -392,11 +392,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           createZone(fixture)
           val member = createMember(fixture)
           val account = createAccount(fixture, owner = member.id)
-          val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
-          clientConnectionTestProbe.send(
+          val (liquidityServerTestProbe, _, zoneId, zoneValidator) = fixture
+          liquidityServerTestProbe.send(
             zoneValidator.toUntyped,
             ZoneCommandEnvelope(
-              clientConnectionTestProbe.ref,
+              liquidityServerTestProbe.ref,
               zoneId,
               remoteAddress,
               publicKey = PublicKey(Array.emptyByteArray),
@@ -512,11 +512,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           val zone = createZone(fixture)
           val member = createMember(fixture)
           val account = createAccount(fixture, owner = member.id)
-          val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
-          clientConnectionTestProbe.send(
+          val (liquidityServerTestProbe, _, zoneId, zoneValidator) = fixture
+          liquidityServerTestProbe.send(
             zoneValidator.toUntyped,
             ZoneCommandEnvelope(
-              clientConnectionTestProbe.ref,
+              liquidityServerTestProbe.ref,
               zoneId,
               remoteAddress,
               publicKey = PublicKey(Array.emptyByteArray),
@@ -615,7 +615,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     }
     "receiving zone notification subscriptions" - {
       "rejects it if the zone has not been created" in { fixture =>
-        val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
+        val (_, clientConnectionTestProbe, zoneId, zoneValidator) = fixture
         clientConnectionTestProbe.send(
           zoneValidator.toUntyped,
           ZoneNotificationSubscription(
@@ -646,12 +646,17 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
   override protected type FixtureParam = ZoneValidatorActorSpec.FixtureParam
 
   override protected def withFixture(test: OneArgTest): Outcome = {
+    val liquidityServerTestProbe = TestProbe()
     val clientConnectionTestProbe = TestProbe()
     val zoneId = ZoneId(UUID.randomUUID().toString)
     val zoneValidator = system.spawnAnonymous(
       ZoneValidatorActor.shardingBehavior(entityId = zoneId.persistenceId))
     try withFixture(
-      test.toNoArgTest((clientConnectionTestProbe, zoneId, zoneValidator))
+      test.toNoArgTest(
+        (liquidityServerTestProbe,
+         clientConnectionTestProbe,
+         zoneId,
+         zoneValidator))
     )
     finally system.stop(zoneValidator.toUntyped)
   }
@@ -848,7 +853,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
 
   private[this] def subscribe(fixture: FixtureParam,
                               redelivery: Boolean = false): Unit = {
-    val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
+    val (_, clientConnectionTestProbe, zoneId, zoneValidator) = fixture
     clientConnectionTestProbe.send(
       zoneValidator.toUntyped,
       ZoneNotificationSubscription(
@@ -918,7 +923,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
 object ZoneValidatorActorSpec {
 
   private type FixtureParam =
-    (TestProbe, ZoneId, ActorRef[SerializableZoneValidatorMessage])
+    (TestProbe, TestProbe, ZoneId, ActorRef[SerializableZoneValidatorMessage])
 
   private val remoteAddress = InetAddress.getLoopbackAddress
   private val publicKey = {
@@ -930,11 +935,11 @@ object ZoneValidatorActorSpec {
 
   private def sendCommand(fixture: FixtureParam)(
       zoneCommand: ZoneCommand): Unit = {
-    val (clientConnectionTestProbe, zoneId, zoneValidator) = fixture
-    clientConnectionTestProbe.send(
+    val (liquidityServerTestProbe, _, zoneId, zoneValidator) = fixture
+    liquidityServerTestProbe.send(
       zoneValidator.toUntyped,
       ZoneCommandEnvelope(
-        clientConnectionTestProbe.ref,
+        liquidityServerTestProbe.ref,
         zoneId,
         remoteAddress,
         publicKey,
@@ -945,12 +950,12 @@ object ZoneValidatorActorSpec {
   }
 
   private def expectResponse(fixture: FixtureParam): ZoneResponse = {
-    val (clientConnectionTestProbe, _, _) = fixture
-    clientConnectionTestProbe.expectMsgType[ZoneResponseEnvelope].zoneResponse
+    val (liquidityServerTestProbe, _, _, _) = fixture
+    liquidityServerTestProbe.expectMsgType[ZoneResponseEnvelope].zoneResponse
   }
 
   private def expectNotification(fixture: FixtureParam): ZoneNotification = {
-    val (clientConnectionTestProbe, _, _) = fixture
+    val (_, clientConnectionTestProbe, _, _) = fixture
     clientConnectionTestProbe
       .expectMsgType[ZoneNotificationEnvelope]
       .zoneNotification

@@ -12,8 +12,7 @@ import akka.cluster.pubsub.DistributedPubSub
 import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.typed.ShardingMessageExtractor
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
-import akka.persistence.typed.scaladsl.PersistentBehaviors
-import akka.persistence.typed.scaladsl.PersistentBehaviors._
+import akka.persistence.typed.scaladsl._
 import cats.Semigroupal
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
@@ -69,47 +68,26 @@ object ZoneValidatorActor {
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
     Behaviors
       .setup[ZoneValidatorMessage] { context =>
-        context.log.info("Starting")
-        val notificationSequenceNumbers =
-          mutable.Map.empty[ActorRef[Nothing], Long]
-        val mediator =
-          DistributedPubSub(context.system.toUntyped).mediator
-        // Workarounds for the limitation described in
-        // https://github.com/akka/akka/pull/23674
-        // TODO: Remove these once that limitation is resolved, then convert
-        // ZoneValidatorActorSpec to use ActorTestKit
-        val passivationCountdown =
-          context.spawn(PassivationCountdownActor.behavior(context.self),
-                        "passivationCountdown")
-        val clientConnectionWatcher =
-          context.spawn(ClientConnectionWatcherActor.behavior(context.self),
-                        "clientConnectionWatcher")
-        implicit val resolver: ActorRefResolver =
-          ActorRefResolver(context.system)
-        val zoneValidator = context.spawnAnonymous(
+        Behaviors.withTimers { timers =>
+          val mediator = DistributedPubSub(context.system.toUntyped).mediator
+          timers.startPeriodicTimer(PublishStatusTimerKey,
+                                    PublishZoneStatusTick,
+                                    30.seconds)
+          val notificationSequenceNumbers =
+            mutable.Map.empty[ActorRef[Nothing], Long]
+          val passivationCountdown =
+            context.spawn(PassivationCountdownActor.behavior(context.self),
+                          "passivationCountdown")
+          val clientConnectionWatcher =
+            context.spawn(ClientConnectionWatcherActor.behavior(context.self),
+                          "clientConnectionWatcher")
+          implicit val resolver: ActorRefResolver =
+            ActorRefResolver(context.system)
           persistentBehavior(ZoneId.fromPersistenceId(entityId),
                              notificationSequenceNumbers,
                              mediator,
                              passivationCountdown,
                              clientConnectionWatcher)
-        )
-        context.watch(zoneValidator)
-        Behaviors.withTimers { timers =>
-          timers.startPeriodicTimer(PublishStatusTimerKey,
-                                    PublishZoneStatusTick,
-                                    30.seconds)
-          Behaviors.immutable[ZoneValidatorMessage] {
-            (_, zoneValidatorMessage) =>
-              zoneValidator ! zoneValidatorMessage
-              Behaviors.same
-          } onSignal {
-            case (_, Terminated(_)) =>
-              Behaviors.stopped
-
-            case (_, PostStop) =>
-              context.log.info("Stopped")
-              Behaviors.same
-          }
         }
       }
       .narrow[SerializableZoneValidatorMessage]
@@ -128,23 +106,22 @@ object ZoneValidatorActor {
       : Behavior[PassivationCountdownMessage] =
       Behaviors.setup { context =>
         context.self ! Start
-        Behaviors.immutable[PassivationCountdownMessage]((_, message) =>
-          message match {
-            case Start =>
-              context.setReceiveTimeout(PassivationTimeout, ReceiveTimeout)
-              Behaviors.same
+        Behaviors.receiveMessage[PassivationCountdownMessage] {
+          case Start =>
+            context.setReceiveTimeout(PassivationTimeout, ReceiveTimeout)
+            Behaviors.same
 
-            case Stop =>
-              context.cancelReceiveTimeout()
-              Behaviors.same
+          case Stop =>
+            context.cancelReceiveTimeout()
+            Behaviors.same
 
-            case CommandReceivedEvent =>
-              Behaviors.same
+          case CommandReceivedEvent =>
+            Behaviors.same
 
-            case ReceiveTimeout =>
-              zoneValidator ! StopZone
-              Behaviors.same
-        })
+          case ReceiveTimeout =>
+            zoneValidator ! StopZone
+            Behaviors.same
+        }
       }
 
     private[this] final val PassivationTimeout = 2.minutes
@@ -166,7 +143,7 @@ object ZoneValidatorActor {
 
     def behavior(zoneValidator: ActorRef[RemoveClient])
       : Behavior[ClientConnectionWatcherMessage] =
-      Behaviors.immutable[ClientConnectionWatcherMessage]((context, message) =>
+      Behaviors.receive[ClientConnectionWatcherMessage]((context, message) =>
         message match {
           case Watch(clientConnection) =>
             context.watchWith(clientConnection, ReportDeath(clientConnection))
@@ -193,7 +170,7 @@ object ZoneValidatorActor {
         ClientConnectionWatcherActor.ClientConnectionWatcherMessage])(
       implicit resolver: ActorRefResolver): Behavior[ZoneValidatorMessage] =
     PersistentBehaviors
-      .immutable[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
+      .receive[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
         persistenceId = id.persistenceId,
         initialState = ZoneState(zone = None,
                                  balances = Map.empty,

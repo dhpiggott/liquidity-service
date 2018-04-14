@@ -22,7 +22,7 @@ abstract class ProtoBindingBackedSerializer(
     override val identifier: Int)
     extends SerializerWithStringManifest {
 
-  private[this] lazy val resolver = ActorRefResolver(system.toTyped)
+  private[this] val resolver = ActorRefResolver(system.toTyped)
 
   private[this] val scalaClassToProtoBinding
     : Map[Class[_], AnyRefProtoBinding[_, _]] = {

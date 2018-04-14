@@ -30,7 +30,7 @@ object ClientMonitorActor {
   private[this] def withSummaries(
       activeClientSummaries: Map[ActorRef[Nothing], ActiveClientSummary])
     : Behavior[ClientMonitorMessage] =
-    Behaviors.immutable[ClientMonitorMessage]((context, message) =>
+    Behaviors.receive[ClientMonitorMessage]((context, message) =>
       message match {
         case LogActiveClientsCount =>
           context.log.info(s"${activeClientSummaries.size} clients are active")

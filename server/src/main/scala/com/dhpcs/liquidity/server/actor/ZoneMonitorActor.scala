@@ -30,7 +30,7 @@ object ZoneMonitorActor {
   private[this] def withSummaries(
       activeZoneSummaries: Map[ActorRef[Nothing], ActiveZoneSummary])
     : Behavior[ZoneMonitorMessage] =
-    Behaviors.immutable[ZoneMonitorMessage]((context, message) =>
+    Behaviors.receive[ZoneMonitorMessage]((context, message) =>
       message match {
         case LogActiveZonesCount =>
           context.log.info(s"${activeZoneSummaries.size} zones are active")

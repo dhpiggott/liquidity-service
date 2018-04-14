@@ -68,11 +68,10 @@ object ZoneAnalyticsActor {
         .viaMat(KillSwitches.single)(Keep.right)
         .to(Sink.ignore)
         .run()
-      Behaviors.immutable[ZoneAnalyticsMessage]((_, message) =>
-        message match {
-          case StopZoneAnalytics =>
-            Behaviors.stopped
-      }) onSignal {
+      Behaviors.receiveMessage[ZoneAnalyticsMessage] {
+        case StopZoneAnalytics =>
+          Behaviors.stopped
+      } receiveSignal {
         case (_, PostStop) =>
           killSwitch.shutdown()
           Behaviors.same

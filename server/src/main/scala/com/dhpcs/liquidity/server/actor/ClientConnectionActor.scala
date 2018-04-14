@@ -107,7 +107,7 @@ object ClientConnectionActor {
       mediator: ActorRef[Publish],
       expectedSequenceNumber: Long)(
       implicit resolver: ActorRefResolver): Behavior[ClientConnectionMessage] =
-    Behaviors.immutable[ClientConnectionMessage]((context, message) =>
+    Behaviors.receive[ClientConnectionMessage]((context, message) =>
       message match {
         case PublishClientStatusTick =>
           mediator ! Publish(
@@ -178,7 +178,7 @@ object ClientConnectionActor {
         case ZoneTerminated =>
           context.log.warning("Stopping due to zone termination")
           Behaviors.stopped
-    }) onSignal {
+    }) receiveSignal {
       case (context, PostStop) =>
         zoneNotificationOut ! StopActorSource
         context.log.info(s"Stopped for ${publicKey.fingerprint}@$remoteAddress")

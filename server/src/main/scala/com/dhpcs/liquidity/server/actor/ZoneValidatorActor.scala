@@ -64,6 +64,8 @@ object ZoneValidatorActor {
         zoneId.value
     }
 
+  private[this] case object PublishStatusTimerKey
+
   def shardingBehavior(
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
     Behaviors
@@ -78,21 +80,16 @@ object ZoneValidatorActor {
           val passivationCountdown =
             context.spawn(PassivationCountdownActor.behavior(context.self),
                           "passivationCountdown")
-          val clientConnectionWatcher =
-            context.spawn(ClientConnectionWatcherActor.behavior(context.self),
-                          "clientConnectionWatcher")
           implicit val resolver: ActorRefResolver =
             ActorRefResolver(context.system)
           persistentBehavior(ZoneId.fromPersistenceId(entityId),
                              notificationSequenceNumbers,
                              mediator,
                              passivationCountdown,
-                             clientConnectionWatcher)
+                             context)
         }
       }
       .narrow[SerializableZoneValidatorMessage]
-
-  private[this] case object PublishStatusTimerKey
 
   private[this] object PassivationCountdownActor {
 
@@ -128,46 +125,13 @@ object ZoneValidatorActor {
 
   }
 
-  private[this] object ClientConnectionWatcherActor {
-
-    sealed abstract class ClientConnectionWatcherMessage
-    final case class Watch(
-        clientConnection: ActorRef[SerializableClientConnectionMessage])
-        extends ClientConnectionWatcherMessage
-    final case class Unwatch(
-        clientConnection: ActorRef[SerializableClientConnectionMessage])
-        extends ClientConnectionWatcherMessage
-    final case class ReportDeath(
-        clientConnection: ActorRef[SerializableClientConnectionMessage])
-        extends ClientConnectionWatcherMessage
-
-    def behavior(zoneValidator: ActorRef[RemoveClient])
-      : Behavior[ClientConnectionWatcherMessage] =
-      Behaviors.receive[ClientConnectionWatcherMessage]((context, message) =>
-        message match {
-          case Watch(clientConnection) =>
-            context.watchWith(clientConnection, ReportDeath(clientConnection))
-            Behaviors.same
-
-          case Unwatch(clientConnection) =>
-            context.unwatch(clientConnection)
-            Behaviors.same
-
-          case ReportDeath(clientConnection) =>
-            zoneValidator ! RemoveClient(clientConnection)
-            Behaviors.same
-      })
-
-  }
-
   private[this] def persistentBehavior(
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       mediator: ActorRef[Publish],
       passivationCountdown: ActorRef[
         PassivationCountdownActor.PassivationCountdownMessage],
-      clientConnectionWatcher: ActorRef[
-        ClientConnectionWatcherActor.ClientConnectionWatcherMessage])(
+      context: ActorContext[ZoneValidatorMessage])(
       implicit resolver: ActorRefResolver): Behavior[ZoneValidatorMessage] =
     PersistentBehaviors
       .receive[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
@@ -307,9 +271,7 @@ object ZoneValidatorActor {
                     ))
               }
         },
-        eventHandler(notificationSequenceNumbers,
-                     passivationCountdown,
-                     clientConnectionWatcher)
+        eventHandler(notificationSequenceNumbers, passivationCountdown, context)
       )
       .snapshotEvery(SnapShotInterval)
       .withTagger(_ => Set(EventTags.ZoneEventTag))
@@ -992,10 +954,8 @@ object ZoneValidatorActor {
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       passivationCountdown: ActorRef[
         PassivationCountdownActor.PassivationCountdownMessage],
-      clientConnectionWatcher: ActorRef[
-        ClientConnectionWatcherActor.ClientConnectionWatcherMessage])(
-      state: ZoneState,
-      event: ZoneEventEnvelope)(
+      context: ActorContext[ZoneValidatorMessage])(state: ZoneState,
+                                                   event: ZoneEventEnvelope)(
       implicit resolver: ActorRefResolver): ZoneState =
     event.zoneEvent match {
       case EmptyZoneEvent =>
@@ -1017,8 +977,7 @@ object ZoneValidatorActor {
 
           case Some((publicKey, actorRefString)) =>
             val actorRef = resolver.resolveActorRef(actorRefString)
-            clientConnectionWatcher ! ClientConnectionWatcherActor.Watch(
-              actorRef)
+            context.watchWith(actorRef, RemoveClient(actorRef))
             notificationSequenceNumbers += actorRef -> 0
             if (state.connectedClients.isEmpty)
               passivationCountdown ! PassivationCountdownActor.Stop
@@ -1036,8 +995,7 @@ object ZoneValidatorActor {
 
           case Some(actorRefString) =>
             val actorRef = resolver.resolveActorRef(actorRefString)
-            clientConnectionWatcher ! ClientConnectionWatcherActor.Unwatch(
-              actorRef)
+            context.unwatch(actorRef)
             notificationSequenceNumbers -= actorRef
             val updatedClientConnections = state.connectedClients - actorRef
             if (updatedClientConnections.isEmpty)

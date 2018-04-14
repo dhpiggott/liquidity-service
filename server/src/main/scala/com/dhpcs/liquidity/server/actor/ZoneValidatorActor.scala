@@ -5,6 +5,7 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
 
+import akka.actor.NotInfluenceReceiveTimeout
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
@@ -65,6 +66,9 @@ object ZoneValidatorActor {
     }
 
   private[this] case object PublishStatusTimerKey
+      extends NotInfluenceReceiveTimeout
+
+  private[this] final val PassivationTimeout = 2.minutes
 
   def shardingBehavior(
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
@@ -77,60 +81,22 @@ object ZoneValidatorActor {
                                     30.seconds)
           val notificationSequenceNumbers =
             mutable.Map.empty[ActorRef[Nothing], Long]
-          val passivationCountdown =
-            context.spawn(PassivationCountdownActor.behavior(context.self),
-                          "passivationCountdown")
           implicit val resolver: ActorRefResolver =
             ActorRefResolver(context.system)
           persistentBehavior(ZoneId.fromPersistenceId(entityId),
                              notificationSequenceNumbers,
                              mediator,
-                             passivationCountdown,
                              context)
         }
       }
       .narrow[SerializableZoneValidatorMessage]
 
-  private[this] object PassivationCountdownActor {
-
-    sealed abstract class PassivationCountdownMessage
-    case object Start extends PassivationCountdownMessage
-    case object Stop extends PassivationCountdownMessage
-    case object CommandReceivedEvent extends PassivationCountdownMessage
-    case object ReceiveTimeout extends PassivationCountdownMessage
-
-    def behavior(zoneValidator: ActorRef[StopZone.type])
-      : Behavior[PassivationCountdownMessage] =
-      Behaviors.setup { context =>
-        context.self ! Start
-        Behaviors.receiveMessage[PassivationCountdownMessage] {
-          case Start =>
-            context.setReceiveTimeout(PassivationTimeout, ReceiveTimeout)
-            Behaviors.same
-
-          case Stop =>
-            context.cancelReceiveTimeout()
-            Behaviors.same
-
-          case CommandReceivedEvent =>
-            Behaviors.same
-
-          case ReceiveTimeout =>
-            zoneValidator ! StopZone
-            Behaviors.same
-        }
-      }
-
-    private[this] final val PassivationTimeout = 2.minutes
-
-  }
+  private[this] final val SnapShotInterval = 100
 
   private[this] def persistentBehavior(
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       mediator: ActorRef[Publish],
-      passivationCountdown: ActorRef[
-        PassivationCountdownActor.PassivationCountdownMessage],
       context: ActorContext[ZoneValidatorMessage])(
       implicit resolver: ActorRefResolver): Behavior[ZoneValidatorMessage] =
     PersistentBehaviors
@@ -167,8 +133,6 @@ object ZoneValidatorActor {
               Effect.none
 
             case zoneCommandEnvelope: ZoneCommandEnvelope =>
-              passivationCountdown !
-                PassivationCountdownActor.CommandReceivedEvent
               handleCommand(context,
                             id,
                             notificationSequenceNumbers,
@@ -271,7 +235,7 @@ object ZoneValidatorActor {
                     ))
               }
         },
-        eventHandler(notificationSequenceNumbers, passivationCountdown, context)
+        eventHandler(notificationSequenceNumbers, context)
       )
       .snapshotEvery(SnapShotInterval)
       .withTagger(_ => Set(EventTags.ZoneEventTag))
@@ -952,8 +916,6 @@ object ZoneValidatorActor {
 
   private[this] def eventHandler(
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
-      passivationCountdown: ActorRef[
-        PassivationCountdownActor.PassivationCountdownMessage],
       context: ActorContext[ZoneValidatorMessage])(state: ZoneState,
                                                    event: ZoneEventEnvelope)(
       implicit resolver: ActorRefResolver): ZoneState =
@@ -980,7 +942,7 @@ object ZoneValidatorActor {
             context.watchWith(actorRef, RemoveClient(actorRef))
             notificationSequenceNumbers += actorRef -> 0
             if (state.connectedClients.isEmpty)
-              passivationCountdown ! PassivationCountdownActor.Stop
+              context.cancelReceiveTimeout()
             val updatedClientConnections = state.connectedClients +
               (actorRef -> publicKey)
             state.copy(
@@ -999,7 +961,7 @@ object ZoneValidatorActor {
             notificationSequenceNumbers -= actorRef
             val updatedClientConnections = state.connectedClients - actorRef
             if (updatedClientConnections.isEmpty)
-              passivationCountdown ! PassivationCountdownActor.Start
+              context.setReceiveTimeout(PassivationTimeout, StopZone)
             state.copy(
               connectedClients = updatedClientConnections
             )
@@ -1069,7 +1031,5 @@ object ZoneValidatorActor {
             ))
         )
     }
-
-  private[this] final val SnapShotInterval = 100
 
 }

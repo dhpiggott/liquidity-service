@@ -75,6 +75,7 @@ object ZoneValidatorActor {
     Behaviors
       .setup[ZoneValidatorMessage] { context =>
         Behaviors.withTimers { timers =>
+          context.log.info("Starting")
           val mediator = DistributedPubSub(context.system.toUntyped).mediator
           timers.startPeriodicTimer(PublishStatusTimerKey,
                                     PublishZoneStatusTick,
@@ -126,6 +127,7 @@ object ZoneValidatorActor {
               Effect.none
 
             case StopZone =>
+              context.log.info("Stopping")
               Effect.stop
 
             case GetZoneStateCommand(replyTo, _) =>

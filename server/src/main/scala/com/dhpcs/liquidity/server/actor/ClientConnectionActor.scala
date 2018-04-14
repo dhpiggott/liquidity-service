@@ -127,7 +127,8 @@ object ClientConnectionActor {
                                       zoneNotification) =>
           if (sequenceNumber != expectedSequenceNumber) {
             context.log.warning(
-              "Rejoining due to unexpected sequence number " +
+              s"Rejoining for ${publicKey.fingerprint}@$remoteAddress due " +
+                "to unexpected sequence number " +
                 s"($sequenceNumber != $expectedSequenceNumber)"
             )
             zoneValidatorShardRegion ! ZoneNotificationSubscription(
@@ -148,7 +149,9 @@ object ClientConnectionActor {
           } else {
             zoneNotification match {
               case ZoneStateNotification(None, _) =>
-                context.log.warning("Stopping because zone does not exist")
+                context.log.warning(
+                  s"Stopping for ${publicKey.fingerprint}@$remoteAddress " +
+                    "because zone does not exist")
                 Behaviors.stopped
 
               case _ =>
@@ -173,15 +176,18 @@ object ClientConnectionActor {
           }
 
         case ConnectionClosed =>
+          context.log.info(
+            s"Stopping for ${publicKey.fingerprint}@$remoteAddress")
           Behaviors.stopped
 
         case ZoneTerminated =>
-          context.log.warning("Stopping due to zone termination")
+          context.log.warning(
+            s"Stopping for ${publicKey.fingerprint}@$remoteAddress due to " +
+              "zone termination")
           Behaviors.stopped
     }) receiveSignal {
-      case (context, PostStop) =>
+      case (_, PostStop) =>
         zoneNotificationOut ! StopActorSource
-        context.log.info(s"Stopped for ${publicKey.fingerprint}@$remoteAddress")
         Behaviors.same
     }
 

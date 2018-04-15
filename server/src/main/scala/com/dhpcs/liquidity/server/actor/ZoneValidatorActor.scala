@@ -5,7 +5,6 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
 
-import akka.actor.NotInfluenceReceiveTimeout
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
@@ -66,7 +65,6 @@ object ZoneValidatorActor {
     }
 
   private[this] case object PublishStatusTimerKey
-      extends NotInfluenceReceiveTimeout
 
   private[this] final val PassivationTimeout = 2.minutes
 

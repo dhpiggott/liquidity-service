@@ -100,4 +100,4 @@ aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \
   --stack-name liquidity$STACK_SUFFIX
 
-$(export DOMAIN_PREFIX && sbt ";client-simulation/gatling:test")
+(export DOMAIN_PREFIX && sbt ";client-simulation/gatling:test")

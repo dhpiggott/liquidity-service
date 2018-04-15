@@ -8,6 +8,8 @@ if [ $# -ne 1 ]
     exit 1
 fi
 
+PRIVATE_KEY_PATH=$1
+
 SUB=$(
   openssl rsa \
   -in $1 \
@@ -23,6 +25,6 @@ EXP=$(expr $IAT + 3600)
 jwt \
   --encode \
   --algorithm RS256 \
-  --private-key-file $1 \
+  --private-key-file $PRIVATE_KEY_PATH \
   --timestamp \
   "{\"sub\":\"$SUB\",\"exp\":$EXP}"

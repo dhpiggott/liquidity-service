@@ -11,6 +11,12 @@ Parameters:
   Subdomain:
     Type: String
 Resources:
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AWS::StackName
+      LifecyclePolicy:
+        LifecyclePolicyText: "{\"rules\":[{\"rulePriority\":10,\"description\":\"Keep latest two evergreen- images, expire all others\",\"selection\":{\"tagStatus\":\"tagged\",\"tagPrefixList\":[\"evergreen-\"],\"countType\":\"imageCountMoreThan\",\"countNumber\":2},\"action\":{\"type\":\"expire\"}},{\"rulePriority\":20,\"description\":\"Expire all untagged images\",\"selection\":{\"tagStatus\":\"untagged\",\"countType\":\"sinceImagePushed\",\"countUnit\":\"days\",\"countNumber\":1},\"action\":{\"type\":\"expire\"}}]}"
   RDSSubnetGroup:
       Type: AWS::RDS::DBSubnetGroup
       Properties:

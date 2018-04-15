@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
-  Stack:
+  InfrastructureStack:
     Type: String
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
@@ -61,7 +61,7 @@ Resources:
       ContainerDefinitions:
         - Name: liquidity
           Image:
-            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/liquidity:${Tag}"
+            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${InfrastructureStack}:${Tag}"
           ReadonlyRootFilesystem: true
           PortMappings:
           - ContainerPort: 8080
@@ -80,13 +80,13 @@ Resources:
                 -Dakka.cluster.roles.2=analytics"
             - Name: MYSQL_HOSTNAME
               Value:
-                Fn::ImportValue: !Sub "${Stack}-RDSHostname"
+                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSHostname"
             - Name: MYSQL_USERNAME
               Value:
-                Fn::ImportValue: !Sub "${Stack}-RDSUsername"
+                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSUsername"
             - Name: MYSQL_PASSWORD
               Value:
-                Fn::ImportValue: !Sub "${Stack}-RDSPassword"
+                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSPassword"
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -96,7 +96,7 @@ Resources:
           FromPort: 8080
           ToPort: 8080
           SourceSecurityGroupId:
-            Fn::ImportValue: !Sub "${Stack}-ALBSecurityGroup"
+            Fn::ImportValue: !Sub "${InfrastructureStack}-ALBSecurityGroup"
   ServiceSecurityGroupAkkaManagementSelfIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -133,4 +133,4 @@ Resources:
         - ContainerName: liquidity
           ContainerPort: 8080
           TargetGroupArn:
-            Fn::ImportValue: !Sub "${Stack}-ALBTargetGroup"
+            Fn::ImportValue: !Sub "${InfrastructureStack}-ALBTargetGroup"

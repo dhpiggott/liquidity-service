@@ -28,7 +28,7 @@ jobs:
     - stage: deploy
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/deploy.sh
+        ./cd-scripts/deploy.sh update us-east-1 prod
     - stage: release
       script: |
         ./cd-scripts/release.sh

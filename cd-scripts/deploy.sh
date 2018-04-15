@@ -2,34 +2,98 @@
 
 set -euo pipefail
 
-TAG=evergreen-$(git describe --always --dirty)
+if [ $# -ne 3 ]
+  then
+    echo "Usage: $0 action region environment"
+    exit 1
+fi
 
-eval $(aws ecr get-login --region us-east-1 --no-include-email)
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+case $1 in
+  create | update)
+    ACTION=$1
+    ;;
+  *)
+    echo "Usage: $0 action region environment"
+    exit 1
+    ;;
+esac
+
+REGION=$2
+ENVIRONMENT=$3
+
+case $ENVIRONMENT in
+  prod)
+    STACK_SUFFIX=
+    ;;
+  *)
+    STACK_SUFFIX=-$ENVIRONMENT
+    ;;
+esac
+
+AWS_ACCOUNT_ID=$(
+  aws sts get-caller-identity \
+    --output text \
+    --query 'Account'
+)
+VPC_ID=$(
+  aws ec2 describe-vpcs \
+    --region $REGION \
+    --filters \
+      Name=isDefault,Values=true \
+    --output text \
+    --query \
+      "Vpcs[0].VpcId"
+)
+SUBNETS=$(
+  aws ec2 describe-subnets \
+    --region $REGION \
+    --filter \
+      Name=vpcId,Values=$VPC_ID \
+      Name=defaultForAz,Values=true \
+    --output text \
+    --query \
+      "Subnets[].SubnetId | join(',', @)"
+)
+TAG=evergreen-$(
+  git describe \
+    --always \
+    --dirty
+)
+
+eval $(
+  aws ecr get-login \
+    --region $REGION \
+    --no-include-email
+)
 
 sbt ";server/docker:publishLocal"
 
+INFRASTRUCTURE_STACK=liquidity-infrastructure$STACK_SUFFIX
+
 docker tag \
   liquidity:$TAG \
-  837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:$TAG
+  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
 
 docker push \
-  837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:$TAG
+  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
 
 sbt ";server/docker:clean"
 
 docker rmi \
-  837036139524.dkr.ecr.us-east-1.amazonaws.com/liquidity:$TAG
+  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
 
-aws cloudformation update-stack \
-  --region us-east-1 \
-  --stack-name liquidity-application \
-  --use-previous-template \
+aws cloudformation $ACTION-stack \
+  --region $REGION \
+  --stack-name liquidity$STACK_SUFFIX \
+  --template-body file://$DIR/../cfn-templates/liquidity.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters \
-    ParameterKey=Stack,ParameterValue=liquidity-infrastructure \
-    ParameterKey=Subnets,ParameterValue=\"subnet-fd6f218a,subnet-2d73e606,subnet-9f2644c6,subnet-2c32b849,subnet-1eaa1512,subnet-a9e5dd93\" \
+    ParameterKey=InfrastructureStack,ParameterValue=$INFRASTRUCTURE_STACK \
+    ParameterKey=Subnets,ParameterValue=\"$SUBNETS\" \
     ParameterKey=Tag,ParameterValue=$TAG
 
-aws cloudformation wait stack-update-complete \
-  --region us-east-1 \
-  --stack-name liquidity-application
+aws cloudformation wait stack-$ACTION-complete \
+  --region $REGION \
+  --stack-name liquidity$STACK_SUFFIX

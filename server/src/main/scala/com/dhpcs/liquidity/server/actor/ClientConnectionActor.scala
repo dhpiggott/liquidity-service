@@ -17,8 +17,6 @@ import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol._
 
-import scala.concurrent.duration._
-
 object ClientConnectionActor {
 
   sealed abstract class ActorSourceMessage
@@ -59,8 +57,6 @@ object ClientConnectionActor {
     }
   }
 
-  private[this] case object PublishStatusTimerKey
-
   private def zoneNotificationBehavior(
       zoneValidatorShardRegion: ActorRef[SerializableZoneValidatorMessage],
       remoteAddress: InetAddress,
@@ -69,33 +65,32 @@ object ClientConnectionActor {
       zoneNotificationOut: ActorRef[ActorSourceMessage])
     : Behavior[ClientConnectionMessage] =
     Behaviors.setup { context =>
-      Behaviors.withTimers { timers =>
-        context.watchWith(zoneNotificationOut, ConnectionClosed)
-        context.log.info(
-          s"Starting for ${publicKey.fingerprint}@$remoteAddress")
-        val mediator = DistributedPubSub(context.system.toUntyped).mediator
-        context.self ! PublishClientStatusTick
-        timers.startPeriodicTimer(PublishStatusTimerKey,
-                                  PublishClientStatusTick,
-                                  30.seconds)
-        zoneValidatorShardRegion ! ZoneNotificationSubscription(
+      context.watchWith(zoneNotificationOut, ConnectionClosed)
+      context.log.info(s"Starting for ${publicKey.fingerprint}@$remoteAddress")
+      DistributedPubSub(context.system.toUntyped).mediator ! Publish(
+        ClientMonitorActor.ClientStatusTopic,
+        UpsertActiveClientSummary(
           context.self,
-          zoneId,
-          remoteAddress,
-          publicKey
+          ActiveClientSummary(remoteAddress,
+                              publicKey,
+                              ActorRefResolver(context.system)
+                                .toSerializationFormat(context.self))
         )
-        implicit val resolver: ActorRefResolver =
-          ActorRefResolver(context.system)
-        forwardingZoneNotifications(
-          zoneValidatorShardRegion,
-          remoteAddress,
-          publicKey,
-          zoneId,
-          zoneNotificationOut,
-          mediator,
-          expectedSequenceNumber = 0
-        )
-      }
+      )
+      zoneValidatorShardRegion ! ZoneNotificationSubscription(
+        context.self,
+        zoneId,
+        remoteAddress,
+        publicKey
+      )
+      forwardingZoneNotifications(
+        zoneValidatorShardRegion,
+        remoteAddress,
+        publicKey,
+        zoneId,
+        zoneNotificationOut,
+        expectedSequenceNumber = 0
+      )
     }
 
   private[this] def forwardingZoneNotifications(
@@ -104,23 +99,9 @@ object ClientConnectionActor {
       publicKey: PublicKey,
       zoneId: ZoneId,
       zoneNotificationOut: ActorRef[ActorSourceMessage],
-      mediator: ActorRef[Publish],
-      expectedSequenceNumber: Long)(
-      implicit resolver: ActorRefResolver): Behavior[ClientConnectionMessage] =
+      expectedSequenceNumber: Long): Behavior[ClientConnectionMessage] =
     Behaviors.receive[ClientConnectionMessage]((context, message) =>
       message match {
-        case PublishClientStatusTick =>
-          mediator ! Publish(
-            ClientMonitorActor.ClientStatusTopic,
-            UpsertActiveClientSummary(
-              context.self,
-              ActiveClientSummary(remoteAddress,
-                                  publicKey,
-                                  resolver.toSerializationFormat(context.self))
-            )
-          )
-          Behaviors.same
-
         case ZoneNotificationEnvelope(zoneValidator,
                                       _,
                                       sequenceNumber,
@@ -143,7 +124,6 @@ object ClientConnectionActor {
               publicKey,
               zoneId,
               zoneNotificationOut,
-              mediator,
               expectedSequenceNumber = 0
             )
           } else {
@@ -169,7 +149,6 @@ object ClientConnectionActor {
                   publicKey,
                   zoneId,
                   zoneNotificationOut,
-                  mediator,
                   expectedSequenceNumber = sequenceNumber + 1
                 )
             }

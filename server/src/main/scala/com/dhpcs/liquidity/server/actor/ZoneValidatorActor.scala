@@ -64,29 +64,24 @@ object ZoneValidatorActor {
         zoneId.value
     }
 
-  private[this] case object PublishStatusTimerKey
-
   private[this] final val PassivationTimeout = 2.minutes
 
   def shardingBehavior(
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
     Behaviors
       .setup[ZoneValidatorMessage] { context =>
-        Behaviors.withTimers { timers =>
-          context.log.info("Starting")
-          val mediator = DistributedPubSub(context.system.toUntyped).mediator
-          timers.startPeriodicTimer(PublishStatusTimerKey,
-                                    PublishZoneStatusTick,
-                                    30.seconds)
-          val notificationSequenceNumbers =
-            mutable.Map.empty[ActorRef[Nothing], Long]
-          implicit val resolver: ActorRefResolver =
-            ActorRefResolver(context.system)
-          persistentBehavior(ZoneId.fromPersistenceId(entityId),
-                             notificationSequenceNumbers,
-                             mediator,
-                             context)
-        }
+        context.log.info("Starting")
+        val mediator = DistributedPubSub(context.system.toUntyped).mediator
+        val notificationSequenceNumbers =
+          mutable.Map.empty[ActorRef[Nothing], Long]
+        implicit val resolver: ActorRefResolver =
+          ActorRefResolver(context.system)
+        persistentBehavior(
+          ZoneId.fromPersistenceId(entityId),
+          notificationSequenceNumbers,
+          mediator,
+          context
+        )
       }
       .narrow[SerializableZoneValidatorMessage]
 
@@ -96,8 +91,8 @@ object ZoneValidatorActor {
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       mediator: ActorRef[Publish],
-      context: ActorContext[ZoneValidatorMessage])(
-      implicit resolver: ActorRefResolver): Behavior[ZoneValidatorMessage] =
+      context: ActorContext[ZoneValidatorMessage]
+  )(implicit resolver: ActorRefResolver): Behavior[ZoneValidatorMessage] =
     PersistentBehaviors
       .receive[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
         persistenceId = id.persistenceId,
@@ -106,24 +101,6 @@ object ZoneValidatorActor {
                                  connectedClients = Map.empty),
         commandHandler = (context, state, command) =>
           command match {
-            case PublishZoneStatusTick =>
-              state.zone.foreach(zone =>
-                mediator ! Publish(
-                  ZoneMonitorActor.ZoneStatusTopic,
-                  UpsertActiveZoneSummary(
-                    context.self,
-                    ActiveZoneSummary(
-                      id,
-                      zone.members.size,
-                      zone.accounts.size,
-                      zone.transactions.size,
-                      zone.metadata,
-                      state.connectedClients.values.toSet
-                    )
-                  )
-              ))
-              Effect.none
-
             case StopZone =>
               context.log.info("Stopping")
               Effect.stop
@@ -133,7 +110,8 @@ object ZoneValidatorActor {
               Effect.none
 
             case zoneCommandEnvelope: ZoneCommandEnvelope =>
-              handleCommand(context,
+              handleCommand(mediator,
+                            context,
                             id,
                             notificationSequenceNumbers,
                             state,
@@ -241,6 +219,7 @@ object ZoneValidatorActor {
       .withTagger(_ => Set(EventTags.ZoneEventTag))
 
   private[this] def handleCommand(
+      mediator: ActorRef[Publish],
       context: ActorContext[ZoneValidatorMessage],
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
@@ -330,6 +309,7 @@ object ZoneValidatorActor {
                 )
                 acceptCommand(
                   context.self,
+                  mediator,
                   id,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
@@ -371,6 +351,7 @@ object ZoneValidatorActor {
                 } else
                   acceptCommand(
                     context.self,
+                    mediator,
                     id,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
@@ -413,6 +394,7 @@ object ZoneValidatorActor {
               case Valid(params) =>
                 acceptCommand(
                   context.self,
+                  mediator,
                   id,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
@@ -464,6 +446,7 @@ object ZoneValidatorActor {
                 } else
                   acceptCommand(
                     context.self,
+                    mediator,
                     id,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
@@ -506,6 +489,7 @@ object ZoneValidatorActor {
               case Valid(params) =>
                 acceptCommand(
                   context.self,
+                  mediator,
                   id,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
@@ -557,6 +541,7 @@ object ZoneValidatorActor {
                 } else
                   acceptCommand(
                     context.self,
+                    mediator,
                     id,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
@@ -627,6 +612,7 @@ object ZoneValidatorActor {
               case Valid(params) =>
                 acceptCommand(
                   context.self,
+                  mediator,
                   id,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
@@ -793,6 +779,7 @@ object ZoneValidatorActor {
 
   private[this] def acceptCommand(
       self: ActorRef[ZoneValidatorMessage],
+      mediator: ActorRef[Publish],
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       zoneCommandEnvelope: ZoneCommandEnvelope,
@@ -889,7 +876,22 @@ object ZoneValidatorActor {
             _
           )
         )
-        self ! PublishZoneStatusTick
+        state.zone.foreach(
+          zone =>
+            mediator ! Publish(
+              ZoneMonitorActor.ZoneStatusTopic,
+              UpsertActiveZoneSummary(
+                self,
+                ActiveZoneSummary(
+                  id,
+                  zone.members.size,
+                  zone.accounts.size,
+                  zone.transactions.size,
+                  zone.metadata,
+                  state.connectedClients.values.toSet
+                )
+              )
+          ))
       }
 
   private[this] def deliverResponse(

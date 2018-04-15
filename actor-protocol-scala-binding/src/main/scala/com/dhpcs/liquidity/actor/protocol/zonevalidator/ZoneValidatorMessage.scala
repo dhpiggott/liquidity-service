@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.actor.protocol.zonevalidator
 
 import java.net.InetAddress
 
-import akka.actor.NotInfluenceReceiveTimeout
 import akka.actor.typed.ActorRef
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
@@ -12,13 +11,9 @@ import com.dhpcs.liquidity.ws.protocol.ZoneCommand
 
 sealed abstract class ZoneValidatorMessage
 
-case object PublishZoneStatusTick
-    extends ZoneValidatorMessage
-    with NotInfluenceReceiveTimeout
 final case class RemoveClient(
     clientConnection: ActorRef[SerializableClientConnectionMessage])
     extends ZoneValidatorMessage
-    with NotInfluenceReceiveTimeout
 
 sealed abstract class SerializableZoneValidatorMessage
     extends ZoneValidatorMessage

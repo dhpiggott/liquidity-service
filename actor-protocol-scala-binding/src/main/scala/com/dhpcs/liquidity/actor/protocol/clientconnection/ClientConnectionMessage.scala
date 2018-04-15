@@ -6,7 +6,6 @@ import com.dhpcs.liquidity.model.ZoneId
 import com.dhpcs.liquidity.ws.protocol.ZoneNotification
 
 sealed abstract class ClientConnectionMessage
-case object PublishClientStatusTick extends ClientConnectionMessage
 case object ConnectionClosed extends ClientConnectionMessage
 case object ZoneTerminated extends ClientConnectionMessage
 

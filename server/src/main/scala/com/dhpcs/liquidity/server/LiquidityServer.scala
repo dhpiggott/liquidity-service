@@ -12,9 +12,7 @@ import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
-import akka.event.Logging
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.server.Directives.logRequestResult
 import akka.http.scaladsl.server.StandardRoute
 import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
@@ -98,9 +96,10 @@ class LiquidityServer(
   )
 
   private def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
-    logRequestResult(("HTTP API", Logging.InfoLevel))(
-      httpRoutes(enableClientRelay =
-        Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole))),
+    httpRoutes(
+      enableClientRelay =
+        Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole)
+    ),
     httpInterface,
     httpPort
   )

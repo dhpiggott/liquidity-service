@@ -5,6 +5,7 @@ import java.security.KeyFactory
 import java.security.spec.X509EncodedKeySpec
 
 import akka.NotUsed
+import akka.event.Logging
 import akka.http.scaladsl.common._
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.StatusCodes._
@@ -46,30 +47,34 @@ trait HttpController {
 
   protected[this] def httpRoutes(enableClientRelay: Boolean)(
       implicit ec: ExecutionContext): Route =
-    pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
-      pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
-      pathPrefix("analytics")(administratorRealm(analytics)) ~
+    logRequestResult(("HttpController", Logging.DebugLevel))(
       path("version")(version) ~
-      pathPrefix("status")(status) ~
-      (if (enableClientRelay)
-         extractClientIP(_.toOption match {
-           case None =>
-             complete(
-               (InternalServerError,
-                "Could not extract remote address. Check " +
-                  "akka.http.server.remote-address-header = on.")
-             )
+        pathPrefix("status")(status)
+    ) ~
+      logRequestResult(("HttpController", Logging.InfoLevel))(
+        pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
+          pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
+          pathPrefix("analytics")(administratorRealm(analytics)) ~
+          (if (enableClientRelay)
+             extractClientIP(_.toOption match {
+               case None =>
+                 complete(
+                   (InternalServerError,
+                    "Could not extract remote address. Check " +
+                      "akka.http.server.remote-address-header = on.")
+                 )
 
-           case Some(remoteAddress) =>
-             pathPrefix("zone")(
-               authenticateSelfSignedJwt(
-                 publicKey =>
-                   zoneCommand(remoteAddress, publicKey) ~
-                     zoneNotifications(remoteAddress, publicKey)
-               )
-             )
-         })
-       else reject)
+               case Some(remoteAddress) =>
+                 pathPrefix("zone")(
+                   authenticateSelfSignedJwt(
+                     publicKey =>
+                       zoneCommand(remoteAddress, publicKey) ~
+                         zoneNotifications(remoteAddress, publicKey)
+                   )
+                 )
+             })
+           else reject)
+      )
 
   private[this] def administratorRealm: Directive0 =
     for {

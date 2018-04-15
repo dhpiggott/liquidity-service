@@ -25,11 +25,11 @@ ENVIRONMENT=$3
 
 case $ENVIRONMENT in
   prod)
-    SUBDOMAIN=api
+    DOMAIN_PREFIX=
     STACK_SUFFIX=
     ;;
   *)
-    SUBDOMAIN=$ENVIRONMENT-api
+    DOMAIN_PREFIX=$ENVIRONMENT-
     STACK_SUFFIX=-$ENVIRONMENT
     ;;
 esac
@@ -90,7 +90,7 @@ aws cloudformation $ACTION-stack \
     ParameterKey=Subnets,ParameterValue=\"$SUBNETS\" \
     ParameterKey=RDSUsername,ParameterValue=$RDS_USERNAME \
     ParameterKey=RDSPassword,ParameterValue=$RDS_PASSWORD \
-    ParameterKey=Subdomain,ParameterValue=$SUBDOMAIN
+    ParameterKey=DomainPrefix,ParameterValue=$DOMAIN_PREFIX
 
 aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \

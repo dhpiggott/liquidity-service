@@ -25,7 +25,7 @@ import scala.concurrent.duration._
 class LiquidityClientSimulation extends Simulation {
 
   private[this] val httpConf = http
-    .baseURL("https://api.liquidityapp.com")
+    .baseURL(s"https://${sys.env.getOrElse("DOMAIN_PREFIX", "")}api.liquidityapp.com")
     .acceptEncodingHeader("gzip")
     .userAgentHeader("client-simulation")
 

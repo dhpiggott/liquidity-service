@@ -8,7 +8,7 @@ Parameters:
     Type: String
   RDSPassword:
     Type: String
-  Subdomain:
+  DomainPrefix:
     Type: String
 Resources:
   ECRRepository:
@@ -87,9 +87,9 @@ Resources:
   ALBListenerCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Sub "${Subdomain}.liquidityapp.com"
+      DomainName: !Sub "${DomainPrefix}api.liquidityapp.com"
       DomainValidationOptions:
-        - DomainName: !Sub "${Subdomain}.liquidityapp.com"
+        - DomainName: !Sub "${DomainPrefix}api.liquidityapp.com"
           ValidationDomain: "liquidityapp.com"
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -153,12 +153,12 @@ Resources:
         - AliasTarget:
             HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
             DNSName: !GetAtt ALB.DNSName
-          Name: !Sub "${Subdomain}.liquidityapp.com"
+          Name: !Sub "${DomainPrefix}api.liquidityapp.com"
           Type: A
         - AliasTarget:
             HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
             DNSName: !GetAtt ALB.DNSName
-          Name: !Sub "${Subdomain}.liquidityapp.com"
+          Name: !Sub "${DomainPrefix}api.liquidityapp.com"
           Type: AAAA
 Outputs:
   RDSHostname:

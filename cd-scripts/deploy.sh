@@ -25,9 +25,11 @@ ENVIRONMENT=$3
 
 case $ENVIRONMENT in
   prod)
+    DOMAIN_PREFIX=
     STACK_SUFFIX=
     ;;
   *)
+    DOMAIN_PREFIX=$ENVIRONMENT-
     STACK_SUFFIX=-$ENVIRONMENT
     ;;
 esac
@@ -97,3 +99,5 @@ aws cloudformation $ACTION-stack \
 aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \
   --stack-name liquidity$STACK_SUFFIX
+
+$(export DOMAIN_PREFIX && sbt ";client-simulation/gatling:test")

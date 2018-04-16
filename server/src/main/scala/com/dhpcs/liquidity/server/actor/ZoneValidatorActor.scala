@@ -71,6 +71,7 @@ object ZoneValidatorActor {
     Behaviors
       .setup[ZoneValidatorMessage] { context =>
         context.log.info("Starting")
+        context.setReceiveTimeout(PassivationTimeout, StopZone)
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         val notificationSequenceNumbers =
           mutable.Map.empty[ActorRef[Nothing], Long]

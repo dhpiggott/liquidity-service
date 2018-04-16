@@ -4,15 +4,19 @@ import java.net.InetAddress
 import java.time.Instant
 
 import akka.actor.typed.ActorRef
-import com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage
+import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.model._
+
+final case class ConnectedClient(
+    connectionId: ActorRef[ZoneNotificationEnvelope],
+    remoteAddress: InetAddress,
+    publicKey: PublicKey)
 
 sealed abstract class ZoneRecord extends Serializable
 final case class ZoneState(
     zone: Option[Zone],
     balances: Map[AccountId, BigDecimal],
-    connectedClients: Map[ActorRef[SerializableClientConnectionMessage],
-                          PublicKey])
+    connectedClients: Map[ActorRef[ZoneNotificationEnvelope], ConnectedClient])
     extends ZoneRecord
 final case class ZoneEventEnvelope(remoteAddress: Option[InetAddress],
                                    publicKey: Option[PublicKey],

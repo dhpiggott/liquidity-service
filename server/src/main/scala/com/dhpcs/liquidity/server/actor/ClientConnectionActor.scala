@@ -5,14 +5,10 @@ import java.net.InetAddress
 import akka.NotUsed
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.scaladsl.adapter._
-import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.typed.scaladsl.ActorSource
 import akka.stream.{Materializer, OverflowStrategy}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
-import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol._
@@ -67,16 +63,6 @@ object ClientConnectionActor {
     Behaviors.setup { context =>
       context.watchWith(zoneNotificationOut, ConnectionClosed)
       context.log.info(s"Starting for ${publicKey.fingerprint}@$remoteAddress")
-      DistributedPubSub(context.system.toUntyped).mediator ! Publish(
-        ClientMonitorActor.ClientStatusTopic,
-        UpsertActiveClientSummary(
-          context.self,
-          ActiveClientSummary(remoteAddress,
-                              publicKey,
-                              ActorRefResolver(context.system)
-                                .toSerializationFormat(context.self))
-        )
-      )
       zoneValidatorShardRegion ! ZoneNotificationSubscription(
         context.self,
         zoneId,

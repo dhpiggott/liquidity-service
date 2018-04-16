@@ -18,11 +18,11 @@ import akka.http.scaladsl.server.StandardRoute
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
 import akka.stream.scaladsl.Source
-import akka.testkit.TestProbe
+import akka.testkit.typed.scaladsl.TestProbe
 import akka.util.ByteString
 import cats.syntax.validated._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.actor.protocol.clientmonitor._
+import com.dhpcs.liquidity.actor.protocol.clientconnection.ZoneNotificationEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
@@ -469,7 +469,8 @@ class HttpControllerSpec
                |  "1" : {
                |    "id" : "1",
                |    "remoteAddress":"192.0.2.0",
-               |    "actorRef" : "$actorRef",
+               |    "actorRef" : "${resolver.toSerializationFormat(
+                                                       clientConnection)}",
                |    "publicKeyFingerprint" : "${publicKey.fingerprint}",
                |    "joined" : "$joined",
                |    "quit" : null
@@ -503,23 +504,6 @@ class HttpControllerSpec
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""
              |{
-             |  "activeClients" : {
-             |    "count" : 1,
-             |    "clients" : [ {
-             |      "hostAddressFingerprint" : "14853799b55e545f862f2fc26bca37ab6adbb7a3696db3ee733c8c78714de3c4",
-             |      "count" : 1,
-             |      "clientsAtHostAddress" : [ {
-             |        "publicKeyFingerprint" : "${publicKey.fingerprint}",
-             |        "count" : 1,
-             |        "clientsWithPublicKey" : {
-             |          "count" : 1,
-             |          "connectionIds" : [
-             |            "test-connection-id"
-             |          ]
-             |        }
-             |      } ]
-             |    } ]
-             |  },
              |  "activeZones" : {
              |    "count" : 1,
              |    "zones" : [ {
@@ -528,14 +512,25 @@ class HttpControllerSpec
              |      "members" : 2,
              |      "accounts" : 2,
              |      "transactions" : 1,
-             |      "clientConnections" : {
+             |      "clientConnections" : [ {
+             |        "hostAddressFingerprint" : "14853799b55e545f862f2fc26bca37ab6adbb7a3696db3ee733c8c78714de3c4",
              |        "count" : 1,
-             |        "publicKeyFingerprints" : [ "${publicKey.fingerprint}" ]
-             |      }
+             |        "clientsAtHostAddress" : [ {
+             |          "publicKeyFingerprint" : "${publicKey.fingerprint}",
+             |          "count" : 1,
+             |          "clientsWithPublicKey" : {
+             |            "count" : 1,
+             |            "connectionIds" : [
+             |              "${resolver.toSerializationFormat(
+                                                         clientConnection)}"
+             |            ]
+             |          }
+             |        } ]
+             |      } ]
              |    } ]
              |  },
-             |  "totals" : {
-             |    "zones" : 1,
+             |  "allZones" : {
+             |    "count" : 1,
              |    "publicKeys" : 1,
              |    "members" : 2,
              |    "accounts" : 2,
@@ -826,13 +821,14 @@ class HttpControllerSpec
     }
   }
 
-  private[this] val actorRef =
-    ActorRefResolver(system.toTyped).toSerializationFormat(TestProbe().ref)
+  private[this] val clientConnection =
+    TestProbe[ZoneNotificationEnvelope]()(system.toTyped).ref
   private[this] val joined = Instant.now()
   private[this] val clientSession = ClientSession(
     id = ClientSessionId(1),
     remoteAddress = Some(remoteAddress),
-    actorRef = actorRef,
+    actorRef =
+      ActorRefResolver(system.toTyped).toSerializationFormat(clientConnection),
     publicKey = publicKey,
     joined = joined,
     quit = None
@@ -919,7 +915,7 @@ class HttpControllerSpec
                   zone
                 )(())),
           balances = Map.empty,
-          connectedClients = Map.empty
+          connectedClients = Seq.empty
         )
     )
 
@@ -946,10 +942,8 @@ class HttpControllerSpec
   override protected[this] def checkCluster: Future[Unit] =
     Future.successful(())
 
-  override protected[this] def getActiveClientSummaries
-    : Future[Set[ActiveClientSummary]] =
-    Future.successful(
-      Set(ActiveClientSummary(remoteAddress, publicKey, "test-connection-id")))
+  override protected[this] val resolver: ActorRefResolver = ActorRefResolver(
+    system.toTyped)
 
   override protected[this] def getActiveZoneSummaries
     : Future[Set[ActiveZoneSummary]] =
@@ -961,7 +955,13 @@ class HttpControllerSpec
           accounts = 2,
           transactions = 1,
           metadata = None,
-          connectedClients = Set(publicKey)
+          connectedClients = Map(
+            clientConnection -> ConnectedClient(
+              clientConnection,
+              remoteAddress,
+              publicKey
+            )
+          )
         )
       )
     )

@@ -13,7 +13,6 @@ import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.typed.ShardingMessageExtractor
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
 import akka.persistence.typed.scaladsl._
-import cats.Semigroupal
 import cats.data.Validated.{Invalid, Valid}
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.instances.option._
@@ -124,7 +123,7 @@ object ZoneValidatorActor {
                                               publicKey) =>
               state.zone match {
                 case None =>
-                  subscriber.upcast ! ZoneNotificationEnvelope(
+                  subscriber ! ZoneNotificationEnvelope(
                     context.self,
                     id,
                     sequenceNumber = 0,
@@ -132,20 +131,22 @@ object ZoneValidatorActor {
                                           connectedClients = Map.empty)
                   )
                   Effect.none
+
                 case Some(zone) =>
-                  def connectedClients(state: ZoneState) =
+                  def connectedClients(
+                      state: ZoneState): Map[String, PublicKey] =
                     state.connectedClients.map {
-                      case (clientConnection, _publicKey) =>
+                      case (connectionId, connectedClient) =>
                         resolver
-                          .toSerializationFormat(clientConnection) -> _publicKey
+                          .toSerializationFormat(connectionId) -> connectedClient.publicKey
                     }
-                  if (state.connectedClients.contains(subscriber.upcast)) {
+                  if (state.connectedClients.contains(subscriber)) {
                     // We already accepted the command; this was just a redelivery
-                    notificationSequenceNumbers += subscriber.upcast -> 0
+                    notificationSequenceNumbers += subscriber -> 0
                     deliverNotification(
                       context.self,
                       id,
-                      Iterable(subscriber.upcast),
+                      Iterable(subscriber),
                       notificationSequenceNumbers,
                       ZoneStateNotification(Some(zone), connectedClients(state))
                     )
@@ -158,7 +159,8 @@ object ZoneValidatorActor {
                           Some(publicKey),
                           timestamp = Instant.now(),
                           ClientJoinedEvent(
-                            Some(resolver.toSerializationFormat(subscriber)))
+                            Some(resolver.toSerializationFormat(subscriber))
+                          )
                         )
                       )
                       .andThen {
@@ -166,7 +168,7 @@ object ZoneValidatorActor {
                           deliverNotification(
                             context.self,
                             id,
-                            Iterable(subscriber.upcast),
+                            Iterable(subscriber),
                             notificationSequenceNumbers,
                             ZoneStateNotification(Some(zone),
                                                   connectedClients(state))
@@ -182,36 +184,68 @@ object ZoneValidatorActor {
                               publicKey
                             )
                           )
+                          mediator ! Publish(
+                            ZoneMonitorActor.ZoneStatusTopic,
+                            UpsertActiveZoneSummary(
+                              context.self,
+                              ActiveZoneSummary(
+                                id,
+                                zone.members.size,
+                                zone.accounts.size,
+                                zone.transactions.size,
+                                zone.metadata,
+                                state.connectedClients
+                              )
+                            )
+                          )
                       }
               }
 
             case RemoveClient(clientConnection) =>
-              state.connectedClients.get(clientConnection) match {
+              (state.zone, state.connectedClients.get(clientConnection)).tupled match {
                 case None =>
                   Effect.none
-                case Some(publicKey) =>
+
+                case Some((zone, connectedClient)) =>
                   Effect
                     .persist(
                       ZoneEventEnvelope(
-                        remoteAddress = None,
-                        Some(publicKey),
+                        Some(connectedClient.remoteAddress),
+                        Some(connectedClient.publicKey),
                         timestamp = Instant.now(),
-                        ClientQuitEvent(Some(
-                          resolver.toSerializationFormat(clientConnection)))
+                        ClientQuitEvent(
+                          Some(resolver.toSerializationFormat(clientConnection))
+                        )
                       )
                     )
-                    .andThen(state =>
-                      deliverNotification(
-                        context.self,
-                        id,
-                        state.connectedClients.keys,
-                        notificationSequenceNumbers,
-                        ClientQuitNotification(
-                          ActorRefResolver(context.system)
-                            .toSerializationFormat(clientConnection),
-                          publicKey
+                    .andThen {
+                      state =>
+                        deliverNotification(
+                          context.self,
+                          id,
+                          state.connectedClients.keys,
+                          notificationSequenceNumbers,
+                          ClientQuitNotification(
+                            ActorRefResolver(context.system)
+                              .toSerializationFormat(clientConnection),
+                            connectedClient.publicKey
+                          )
                         )
-                    ))
+                        mediator ! Publish(
+                          ZoneMonitorActor.ZoneStatusTopic,
+                          UpsertActiveZoneSummary(
+                            context.self,
+                            ActiveZoneSummary(
+                              id,
+                              zone.members.size,
+                              zone.accounts.size,
+                              zone.transactions.size,
+                              zone.metadata,
+                              state.connectedClients
+                            )
+                          )
+                        )
+                    }
               }
         },
         eventHandler(notificationSequenceNumbers, context)
@@ -889,10 +923,11 @@ object ZoneValidatorActor {
                   zone.accounts.size,
                   zone.transactions.size,
                   zone.metadata,
-                  state.connectedClients.values.toSet
+                  state.connectedClients
                 )
               )
-          ))
+          )
+        )
       }
 
   private[this] def deliverResponse(
@@ -903,8 +938,7 @@ object ZoneValidatorActor {
   private[this] def deliverNotification(
       self: ActorRef[ZoneValidatorMessage],
       id: ZoneId,
-      clientConnections: Iterable[
-        ActorRef[SerializableClientConnectionMessage]],
+      clientConnections: Iterable[ActorRef[ZoneNotificationEnvelope]],
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       notification: ZoneNotification): Unit =
     clientConnections.foreach { clientConnection =>
@@ -935,19 +969,18 @@ object ZoneValidatorActor {
         )
 
       case ClientJoinedEvent(maybeActorRefString) =>
-        Semigroupal[Option]
-          .product(event.publicKey, maybeActorRefString) match {
+        (event.remoteAddress, event.publicKey, maybeActorRefString).tupled match {
           case None =>
             state
 
-          case Some((publicKey, actorRefString)) =>
+          case Some((remoteAddress, publicKey, actorRefString)) =>
             val actorRef = resolver.resolveActorRef(actorRefString)
             context.watchWith(actorRef, RemoveClient(actorRef))
             notificationSequenceNumbers += actorRef -> 0
             if (state.connectedClients.isEmpty)
               context.cancelReceiveTimeout()
             val updatedClientConnections = state.connectedClients +
-              (actorRef -> publicKey)
+              (actorRef -> ConnectedClient(actorRef, remoteAddress, publicKey))
             state.copy(
               connectedClients = updatedClientConnections
             )

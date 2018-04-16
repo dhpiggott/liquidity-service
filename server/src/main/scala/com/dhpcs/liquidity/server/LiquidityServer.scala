@@ -24,7 +24,6 @@ import akka.util.Timeout
 import akka.{Done, NotUsed}
 import cats.effect.IO
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
@@ -70,8 +69,6 @@ class LiquidityServer(
   private[this] val transactIoToFuture = new TransactIoToFuture(
     ExecutionContext.fromExecutorService(Executors.newCachedThreadPool()))
 
-  private[this] val clientMonitor =
-    system.spawn(ClientMonitorActor.behavior, "clientMonitor")
   private[this] val zoneMonitor =
     system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
 
@@ -171,9 +168,8 @@ class LiquidityServer(
             s"(cluster.selfMember.status = ${cluster.selfMember.status})"
         ))
 
-  override protected[this] def getActiveClientSummaries
-    : Future[Set[ActiveClientSummary]] =
-    clientMonitor ? GetActiveClientSummaries
+  override protected[this] val resolver: ActorRefResolver = ActorRefResolver(
+    system.toTyped)
 
   override protected[this] def getActiveZoneSummaries
     : Future[Set[ActiveZoneSummary]] =
@@ -268,7 +264,6 @@ object LiquidityServer {
            |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
            |      zone-monitor-message = "com.dhpcs.liquidity.server.serialization.ZoneMonitorMessageSerializer"
            |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
-           |      client-monitor-message = "com.dhpcs.liquidity.server.serialization.ClientMonitorMessageSerializer"
            |    }
            |    serialization-bindings {
            |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
@@ -276,7 +271,6 @@ object LiquidityServer {
            |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.SerializableZoneValidatorMessage" = zone-validator-message
            |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.SerializableZoneMonitorMessage" = zone-monitor-message
            |      "com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage" = client-connection-message
-           |      "com.dhpcs.liquidity.actor.protocol.clientmonitor.SerializableClientMonitorMessage" = client-monitor-message
            |    }
            |    allow-java-serialization = off
            |  }

@@ -5,7 +5,6 @@ import java.time.Instant
 
 import akka.actor.typed.{ActorRef, ActorRefResolver}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
-import com.dhpcs.liquidity.actor.protocol.clientmonitor._
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
@@ -54,11 +53,6 @@ object ProtoBindings {
     proto.actor.protocol.clientconnection.ZoneNotificationEnvelope,
     ActorRefResolver] = cachedImplicit
 
-  implicit final val UpsertActiveClientSummaryProtoBinding
-    : ProtoBinding[UpsertActiveClientSummary,
-                   proto.actor.protocol.clientmonitor.UpsertActiveClientSummary,
-                   ActorRefResolver] = cachedImplicit
-
   implicit final val UpsertActiveZoneSummaryProtoBinding
     : ProtoBinding[UpsertActiveZoneSummary,
                    proto.actor.protocol.zonemonitor.UpsertActiveZoneSummary,
@@ -81,6 +75,12 @@ object ProtoBindings {
     : ProtoBinding[ZoneEventEnvelope,
                    proto.persistence.zone.ZoneEventEnvelope,
                    ActorRefResolver] = cachedImplicit
+
+  implicit final val ConnectionIdExtractor
+    : EntityIdExtractor[ConnectedClient, ActorRef[ZoneNotificationEnvelope]] =
+    EntityIdExtractor
+      .instance[ConnectedClient, ActorRef[ZoneNotificationEnvelope]](
+        _.connectionId)
 
   implicit final val ZoneStateProtoBinding
     : ProtoBinding[ZoneState,

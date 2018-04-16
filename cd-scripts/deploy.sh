@@ -66,22 +66,29 @@ TAG=evergreen-$(
 
 eval $(
   aws ecr get-login \
+    --region us-east-1 \
+    --no-include-email
+)
+eval $(
+  aws ecr get-login \
     --region $REGION \
     --no-include-email
 )
 
-sbt ";server/docker:publishLocal"
-
 INFRASTRUCTURE_STACK=liquidity-infrastructure$STACK_SUFFIX
 
+docker pull \
+  $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/liquidity-ci:$TAG
+
 docker tag \
-  liquidity:$TAG \
+  $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/liquidity-ci:$TAG \
   $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
 
 docker push \
   $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
 
-sbt ";server/docker:clean"
+docker rmi \
+  $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/liquidity-ci:$TAG
 
 docker rmi \
   $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG

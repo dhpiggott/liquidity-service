@@ -24,14 +24,16 @@ jobs:
         bash <(curl -s https://codecov.io/bash)
     - stage: test
       script: |
-        ./cd-scripts/test-component.sh
+        pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
+        ./cd-scripts/test-component-and-publish.sh
     - stage: deploy
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
         ./cd-scripts/deploy.sh update us-east-1 prod
     - stage: release
       script: |
-        ./cd-scripts/release.sh
+        # So sbt-dynver derives the version correctly
+        git fetch --unshallow &&  ./cd-scripts/release.sh
 cache:
   directories:
     - $HOME/.sbt

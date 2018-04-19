@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.server
 
-import java.net.{InetAddress, NetworkInterface}
+import java.net.InetAddress
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -12,6 +12,7 @@ import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
+import akka.discovery.awsapi.ecs.AsyncEcsSimpleServiceDiscovery
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.StandardRoute
 import akka.management.AkkaManagement
@@ -45,8 +46,6 @@ import doobie.hikari.implicits._
 import doobie.implicits._
 import org.slf4j.LoggerFactory
 
-import scala.collection.JavaConverters._
-import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -260,17 +259,17 @@ object LiquidityServer {
            |    provider = "cluster"
            |    serializers {
            |      zone-record = "com.dhpcs.liquidity.server.serialization.ZoneRecordSerializer"
+           |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
            |      liquidity-server-message = "com.dhpcs.liquidity.server.serialization.LiquidityServerMessageSerializer"
            |      zone-validator-message = "com.dhpcs.liquidity.server.serialization.ZoneValidatorMessageSerializer"
            |      zone-monitor-message = "com.dhpcs.liquidity.server.serialization.ZoneMonitorMessageSerializer"
-           |      client-connection-message = "com.dhpcs.liquidity.server.serialization.ClientConnectionMessageSerializer"
            |    }
            |    serialization-bindings {
            |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
+           |      "com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage" = client-connection-message
            |      "com.dhpcs.liquidity.actor.protocol.liquidityserver.LiquidityServerMessage" = liquidity-server-message
            |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.SerializableZoneValidatorMessage" = zone-validator-message
            |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.SerializableZoneMonitorMessage" = zone-monitor-message
-           |      "com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage" = client-connection-message
            |    }
            |    allow-java-serialization = off
            |  }
@@ -284,10 +283,7 @@ object LiquidityServer {
            |      base-path = "akka-management"
            |    }
            |  }
-           |  discovery {
-           |    method = aws-api-ecs
-           |    aws-api-ecs.class = com.dhpcs.liquidity.server.EcsSimpleServiceDiscovery
-           |  }
+           |  discovery.method = aws-api-ecs-async
            |  remote.artery {
            |    enabled = on
            |    transport = tcp
@@ -374,19 +370,13 @@ object LiquidityServer {
   }
 
   private[this] def getPrivateAddressOrExit: InetAddress =
-    NetworkInterface.getNetworkInterfaces.asScala
-      .flatMap(_.getInetAddresses.asScala)
-      .filterNot(_.isLoopbackAddress)
-      .filter(_.isSiteLocalAddress)
-      .to[Seq] match {
-      case Seq(value) =>
-        value
-
-      case other =>
-        log.error(
-          s"Exactly one private address must be configured (found: $other). " +
-            "Halting.")
+    AsyncEcsSimpleServiceDiscovery.getContainerAddress match {
+      case Left(error) =>
+        log.error(s"$error Halting.")
         sys.exit(1)
+
+      case Right(value) =>
+        value
     }
 
   private[this] def urlForDatabase(database: String): String =

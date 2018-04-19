@@ -681,12 +681,16 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
        |    }
        |    allow-java-serialization = off
        |  }
-       |  remote.netty.tcp {
-       |    hostname = "localhost"
-       |    port = $akkaRemotingPort
+       |  remote.artery {
+       |    enabled = on
+       |    transport = tcp
+       |    canonical {
+       |      hostname = "localhost"
+       |      port = $akkaRemotingPort
+       |    }
        |  }
        |  cluster {
-       |    seed-nodes = ["akka.tcp://zoneValidatorActorSpec@localhost:$akkaRemotingPort"]
+       |    seed-nodes = ["akka://zoneValidatorActorSpec@localhost:$akkaRemotingPort"]
        |    jmx.enabled = off
        |  }
        |  persistence {

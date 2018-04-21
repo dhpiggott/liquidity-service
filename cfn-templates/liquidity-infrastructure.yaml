@@ -81,9 +81,6 @@ Resources:
       IpAddressType: dualstack
       SecurityGroups:
         - !GetAtt ALBSecurityGroup.GroupId
-      LoadBalancerAttributes:
-        - Key: idle_timeout.timeout_seconds
-          Value: "60"
   ALBListenerCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:

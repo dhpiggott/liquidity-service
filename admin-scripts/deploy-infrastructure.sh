@@ -4,7 +4,7 @@ set -euo pipefail
 
 if [ $# -ne 3 ]
   then
-    echo "Usage: $0 action region environment"
+    echo "Usage: $0 <create|update> region environment"
     exit 1
 fi
 
@@ -15,7 +15,7 @@ case $1 in
     ACTION=$1
     ;;
   *)
-    echo "Usage: $0 action region environment"
+    echo "Usage: $0 <create|update> region environment"
     exit 1
     ;;
 esac

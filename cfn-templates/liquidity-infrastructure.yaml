@@ -11,7 +11,7 @@ Parameters:
   DomainPrefix:
     Type: String
 Resources:
-  ECRRepository:
+  Repository:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: !Ref AWS::StackName

@@ -37,7 +37,8 @@ esac
 AWS_ACCOUNT_ID=$(
   aws sts get-caller-identity \
     --output text \
-    --query 'Account'
+    --query \
+      "Account"
 )
 VPC_ID=$(
   aws ec2 describe-vpcs \

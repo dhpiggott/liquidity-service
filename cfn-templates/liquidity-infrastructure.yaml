@@ -46,7 +46,6 @@ Resources:
         collation_server: utf8mb4_unicode_ci
   RDS:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: Retain
     Properties:
       Engine: MySQL
       EngineVersion: "5.7.19"

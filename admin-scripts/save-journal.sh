@@ -23,8 +23,8 @@ case $ENVIRONMENT in
     ;;
 esac
 
-mkdir --parents $1
-touch $1/journal_dump.sql
+mkdir --parents $OUTPUT_DIRECTORY
+touch $OUTPUT_DIRECTORY/journal_dump.sql
 
 RDS_HOSTNAME=$(
   aws cloudformation describe-stacks \

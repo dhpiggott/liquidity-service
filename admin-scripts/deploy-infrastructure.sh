@@ -98,7 +98,7 @@ aws cloudformation wait stack-$ACTION-complete \
 
 if [ "$ACTION" = "create" ]
   then
-    ./$DIR/init-database.sh $REGION $ENVIRONMENT administrators
-    ./$DIR/init-database.sh $REGION $ENVIRONMENT journal
-    ./$DIR/init-database.sh $REGION $ENVIRONMENT analytics
+    $DIR/init-database.sh $REGION $ENVIRONMENT administrators
+    $DIR/init-database.sh $REGION $ENVIRONMENT journal
+    $DIR/init-database.sh $REGION $ENVIRONMENT analytics
 fi

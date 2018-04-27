@@ -21,10 +21,10 @@ case $1 in
 esac
 
 aws cloudformation $ACTION-stack \
-  --region us-east-1 \
+  --region eu-west-1 \
   --stack-name liquidity-ci \
   --template-body file://$DIR/../cfn-templates/liquidity-ci.yaml
 
 aws cloudformation wait stack-$ACTION-complete \
-  --region us-east-1 \
+  --region eu-west-1 \
   --stack-name liquidity-ci

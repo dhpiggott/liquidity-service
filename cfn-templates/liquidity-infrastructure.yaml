@@ -142,21 +142,6 @@ Resources:
         - !Ref SNSTopic
       OKActions:
         - !Ref SNSTopic
-  RecordSetGroup:
-    Type: AWS::Route53::RecordSetGroup
-    Properties:
-      HostedZoneName: "liquidityapp.com."
-      RecordSets:
-        - AliasTarget:
-            HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
-            DNSName: !GetAtt ALB.DNSName
-          Name: !Sub "${DomainPrefix}api.liquidityapp.com"
-          Type: A
-        - AliasTarget:
-            HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
-            DNSName: !GetAtt ALB.DNSName
-          Name: !Sub "${DomainPrefix}api.liquidityapp.com"
-          Type: AAAA
 Outputs:
   RDSHostname:
     Value: !GetAtt RDS.Endpoint.Address
@@ -178,3 +163,15 @@ Outputs:
     Value: !Ref ALBTargetGroup
     Export:
       Name: !Sub "${AWS::StackName}-ALBTargetGroup"
+  ALBCanonicalHostedZoneID:
+    Value: !GetAtt ALB.CanonicalHostedZoneID
+    Export:
+      Name: !Sub "${AWS::StackName}-ALBCanonicalHostedZoneID"
+  ALBDNSName:
+    Value: !GetAtt ALB.DNSName
+    Export:
+      Name: !Sub "${AWS::StackName}-ALBDNSName"
+  Domain:
+    Value: !Sub "${DomainPrefix}api.liquidityapp.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-Domain"

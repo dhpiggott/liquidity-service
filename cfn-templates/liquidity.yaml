@@ -134,3 +134,24 @@ Resources:
           ContainerPort: 8080
           TargetGroupArn:
             Fn::ImportValue: !Sub "${InfrastructureStack}-ALBTargetGroup"
+  RecordSetGroup:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneName: "liquidityapp.com."
+      RecordSets:
+        - AliasTarget:
+            HostedZoneId:
+              Fn::ImportValue: !Sub "${InfrastructureStack}-ALBCanonicalHostedZoneID"
+            DNSName:
+              Fn::ImportValue: !Sub "${InfrastructureStack}-ALBDNSName"
+          Name:
+            Fn::ImportValue: !Sub "${InfrastructureStack}-Domain"
+          Type: A
+        - AliasTarget:
+            HostedZoneId:
+              Fn::ImportValue: !Sub "${InfrastructureStack}-ALBCanonicalHostedZoneID"
+            DNSName:
+              Fn::ImportValue: !Sub "${InfrastructureStack}-ALBDNSName"
+          Name:
+            Fn::ImportValue: !Sub "${InfrastructureStack}-Domain"
+          Type: AAAA

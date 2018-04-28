@@ -7,7 +7,7 @@ Parameters:
   Tag:
     Type: String
 Resources:
-  CloudWatchLogGroup:
+  LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref AWS::StackName
@@ -68,7 +68,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref CloudWatchLogGroup
+              awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: liquidity
           Environment:
@@ -134,24 +134,3 @@ Resources:
           ContainerPort: 8080
           TargetGroupArn:
             Fn::ImportValue: !Sub "${InfrastructureStack}-ALBTargetGroup"
-  RecordSetGroup:
-    Type: AWS::Route53::RecordSetGroup
-    Properties:
-      HostedZoneName: "liquidityapp.com."
-      RecordSets:
-        - AliasTarget:
-            HostedZoneId:
-              Fn::ImportValue: !Sub "${InfrastructureStack}-ALBCanonicalHostedZoneID"
-            DNSName:
-              Fn::ImportValue: !Sub "${InfrastructureStack}-ALBDNSName"
-          Name:
-            Fn::ImportValue: !Sub "${InfrastructureStack}-Domain"
-          Type: A
-        - AliasTarget:
-            HostedZoneId:
-              Fn::ImportValue: !Sub "${InfrastructureStack}-ALBCanonicalHostedZoneID"
-            DNSName:
-              Fn::ImportValue: !Sub "${InfrastructureStack}-ALBDNSName"
-          Name:
-            Fn::ImportValue: !Sub "${InfrastructureStack}-Domain"
-          Type: AAAA

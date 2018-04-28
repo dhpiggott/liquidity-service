@@ -96,8 +96,8 @@ docker rmi \
 
 aws cloudformation $ACTION-stack \
   --region $REGION \
-  --stack-name liquidity$STACK_SUFFIX \
-  --template-body file://$DIR/../cfn-templates/liquidity.yaml \
+  --stack-name liquidity-service$STACK_SUFFIX \
+  --template-body file://$DIR/../cfn-templates/liquidity-service.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters \
     ParameterKey=InfrastructureStack,ParameterValue=$INFRASTRUCTURE_STACK \
@@ -106,6 +106,6 @@ aws cloudformation $ACTION-stack \
 
 aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \
-  --stack-name liquidity$STACK_SUFFIX
+  --stack-name liquidity-service$STACK_SUFFIX
 
 (export DOMAIN_PREFIX && sbt ";client-simulation/gatling:test")

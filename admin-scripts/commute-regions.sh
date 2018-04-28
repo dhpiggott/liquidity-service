@@ -27,11 +27,21 @@ $DIR/deploy-infrastructure.sh create $NEW_REGION $ENVIRONMENT
 
 aws cloudformation delete-stack \
   --region $OLD_REGION \
-  --stack-name liquidity$STACK_SUFFIX
+  --stack-name liquidity-dns$STACK_SUFFIX
+
+aws cloudformation delete-stack \
+  --region $OLD_REGION \
+  --stack-name liquidity-service$STACK_SUFFIX
 
 aws cloudformation wait stack-delete-complete \
   --region $OLD_REGION \
-  --stack-name liquidity$STACK_SUFFIX
+  --stack-name liquidity-dns$STACK_SUFFIX
+
+aws cloudformation wait stack-delete-complete \
+  --region $OLD_REGION \
+  --stack-name liquidity-service$STACK_SUFFIX
+
+$DIR/deploy-dns.sh create $NEW_REGION $ENVIRONMENT
 
 JOURNAL_DIR=$(mktemp --directory)
 
@@ -44,7 +54,7 @@ rm \
   --force \
   $JOURNAL_DIR
 
-$DIR/../cd-scripts/deploy.sh create $NEW_REGION $ENVIRONMENT
+$DIR/../cd-scripts/deploy-service.sh create $NEW_REGION $ENVIRONMENT
 
 aws cloudformation delete-stack \
   --region $OLD_REGION \

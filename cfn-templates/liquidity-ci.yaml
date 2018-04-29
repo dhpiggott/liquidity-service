@@ -1,8 +1,0 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Resources:
-  Repository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: "liquidity-ci"
-      LifecyclePolicy:
-        LifecyclePolicyText: "{\"rules\":[{\"rulePriority\":10,\"description\":\"Keep latest evergreen- image, expire all others\",\"selection\":{\"tagStatus\":\"tagged\",\"tagPrefixList\":[\"evergreen-\"],\"countType\":\"imageCountMoreThan\",\"countNumber\":1},\"action\":{\"type\":\"expire\"}},{\"rulePriority\":20,\"description\":\"Expire all untagged images\",\"selection\":{\"tagStatus\":\"untagged\",\"countType\":\"sinceImagePushed\",\"countUnit\":\"days\",\"countNumber\":1},\"action\":{\"type\":\"expire\"}}]}"

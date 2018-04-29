@@ -65,34 +65,7 @@ TAG=evergreen-$(
     --dirty
 )
 
-eval $(
-  aws ecr get-login \
-    --region eu-west-1 \
-    --no-include-email
-)
-eval $(
-  aws ecr get-login \
-    --region $REGION \
-    --no-include-email
-)
-
 INFRASTRUCTURE_STACK=liquidity-infrastructure$STACK_SUFFIX
-
-docker pull \
-  $AWS_ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/liquidity-ci:$TAG
-
-docker tag \
-  $AWS_ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/liquidity-ci:$TAG \
-  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
-
-docker push \
-  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
-
-docker rmi \
-  $AWS_ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com/liquidity-ci:$TAG
-
-docker rmi \
-  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
 
 aws cloudformation $ACTION-stack \
   --region $REGION \

@@ -25,6 +25,8 @@ esac
 
 $DIR/deploy-infrastructure.sh create $NEW_REGION $ENVIRONMENT
 
+$DIR/../cd-scripts/test-component-and-publish.sh $NEW_REGION $ENVIRONMENT
+
 aws cloudformation delete-stack \
   --region $OLD_REGION \
   --stack-name liquidity-dns$STACK_SUFFIX

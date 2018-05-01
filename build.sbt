@@ -155,8 +155,8 @@ lazy val `client-simulation` = project
   .dependsOn(`proto-bindings`)
   .settings(
     libraryDependencies ++= Seq(
-      "io.gatling" % "gatling-test-framework" % "2.3.0" % Test,
-      "io.gatling.highcharts" % "gatling-charts-highcharts" % "2.3.0" % Test,
+      "io.gatling" % "gatling-test-framework" % "2.3.1" % Test,
+      "io.gatling.highcharts" % "gatling-charts-highcharts" % "2.3.1" % Test,
       "com.pauldijou" %% "jwt-play-json" % "0.16.0" % Test
     )
   )

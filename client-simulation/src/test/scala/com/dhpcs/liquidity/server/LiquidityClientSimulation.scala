@@ -16,19 +16,21 @@ import com.google.protobuf.struct.{Struct, Value}
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 import io.gatling.http.check.HttpCheck
+import io.gatling.http.funspec.GatlingHttpFunSpec
+import io.gatling.http.protocol.HttpProtocolBuilder
 import io.gatling.http.request.builder.HttpRequestBuilder
 import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.Json
 
-import scala.concurrent.duration._
+class LiquidityClientSimulation extends GatlingHttpFunSpec {
 
-class LiquidityClientSimulation extends Simulation {
+  override val baseURL: String =
+    s"https://${sys.env.getOrElse("DOMAIN_PREFIX", "")}api.liquidityapp.com"
 
-  private[this] val httpConf = http
-    .baseURL(
-      s"https://${sys.env.getOrElse("DOMAIN_PREFIX", "")}api.liquidityapp.com")
-    .acceptEncodingHeader("gzip")
-    .userAgentHeader("client-simulation")
+  override def httpConf: HttpProtocolBuilder =
+    super.httpConf
+      .acceptEncodingHeader("gzip")
+      .userAgentHeader("client-simulation")
 
   private[this] val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
@@ -51,39 +53,32 @@ class LiquidityClientSimulation extends Simulation {
   // and seed money being sent by the equity owner user in response to each
   // creating their first account.
 
-  private[this] val users = scenario("LiquidityClientSimulation")
-    .exec(
-      createZone(resultKey = "zone")
-    )
-    .repeat(5)(
-      exec(
-        createMember(
-          zoneId = _("zone").as[Zone].id
-        )(resultKey = "member")
-      ).exec(
-          createAccount(
-            zoneId = _("zone").as[Zone].id,
-            ownerMemberIds = session => Set(session("member").as[Member].id)
-          )(resultKey = "account")
-        )
-        .exec(
-          addTransaction(
-            zoneId = _("zone").as[Zone].id,
-            actingAs = session => {
-              val zone = session("zone").as[Zone]
-              zone.accounts(zone.equityAccountId).ownerMemberIds.head
-            },
-            from = _("zone").as[Zone].equityAccountId,
-            to = _("account").as[Account].id,
-            value = BigDecimal(5000)
-          )(resultKey = "transaction")
-        )
-        .pause(5.seconds)
-    )
-
-  setUp(
-    users.inject(atOnceUsers(1))
-  ).protocols(httpConf)
+  spec {
+    createZone(resultKey = "zone")
+  }
+  spec {
+    createMember(
+      zoneId = _("zone").as[Zone].id
+    )(resultKey = "member")
+  }
+  spec {
+    createAccount(
+      zoneId = _("zone").as[Zone].id,
+      ownerMemberIds = session => Set(session("member").as[Member].id)
+    )(resultKey = "account")
+  }
+  spec {
+    addTransaction(
+      zoneId = _("zone").as[Zone].id,
+      actingAs = session => {
+        val zone = session("zone").as[Zone]
+        zone.accounts(zone.equityAccountId).ownerMemberIds.head
+      },
+      from = _("zone").as[Zone].equityAccountId,
+      to = _("account").as[Account].id,
+      value = BigDecimal(5000)
+    )(resultKey = "transaction")
+  }
 
   private[this] def createZone(resultKey: String): HttpRequestBuilder =
     execZoneCommand(

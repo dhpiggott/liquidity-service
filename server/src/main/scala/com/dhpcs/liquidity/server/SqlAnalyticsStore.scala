@@ -79,7 +79,8 @@ object SqlAnalyticsStore {
 
     def retrieveCount: ConnectionIO[Long] =
       sql"""
-           SELECT COUNT(*) FROM zones
+           SELECT COUNT(*)
+             FROM zones
          """
         .query[Long]
         .unique
@@ -166,7 +167,8 @@ object SqlAnalyticsStore {
 
     def retrieveCount: ConnectionIO[Long] =
       sql"""
-           SELECT COUNT(*) FROM members
+           SELECT COUNT(*)
+             FROM members
          """
         .query[Long]
         .unique
@@ -289,7 +291,8 @@ object SqlAnalyticsStore {
 
     def retrieveCount: ConnectionIO[Long] =
       sql"""
-           SELECT COUNT(*) FROM accounts
+           SELECT COUNT(*)
+             FROM accounts
          """
         .query[Long]
         .unique

@@ -39,7 +39,7 @@ eval $(
 
 INFRASTRUCTURE_STACK=liquidity-infrastructure$STACK_SUFFIX
 
-sbt ";server/it:scalafmt::test ;server/docker:publishLocal ;server/it:test"
+sbt ";server/it:scalafmt::test ;server/docker:publishLocal ;server/it:testOnly *LiquidityServerComponentSpec"
 
 docker tag \
   liquidity:$TAG \

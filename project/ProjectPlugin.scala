@@ -13,7 +13,7 @@ object ProjectPlugin extends AutoPlugin {
         ";reload return ;sbt:scalafmt::test ;scalafmt::test " +
         ";server/test:scalafmt::test ;server/test " +
         ";server/it:scalafmt::test ;server/docker:publishLocal " +
-        ";server/it:test ;server/docker:clean"
+        ";server/it:testOnly *LiquidityServerComponentSpec ;server/docker:clean"
     )
 
   override def projectSettings: Seq[Setting[_]] =

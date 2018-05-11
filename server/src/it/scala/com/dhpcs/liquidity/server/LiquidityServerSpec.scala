@@ -26,9 +26,11 @@ import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
+import com.dhpcs.liquidity.server.LiquidityServerComponentSpec._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.google.protobuf.CodedInputStream
+import com.google.protobuf.struct.{Struct, Value}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import doobie._
 import doobie.implicits._
@@ -47,105 +49,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.sys.process.{Process, ProcessBuilder}
 
-class LiquidityServerSpec
-    extends FreeSpec
-    with BeforeAndAfterAll
-    with Eventually
-    with IntegrationPatience
-    with ScalaFutures {
-
-  "LiquidityServer" - {
-    "accepts and projects create zone commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      ()
-    }
-    "accepts and projects change zone name commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val changedName = changeZoneName(createdZone.id).futureValue
-      zoneNameChanged(createdZone, changedName)
-      ()
-    }
-    "accepts and projects create member commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val createdMember = createMember(createdZone.id).futureValue
-      memberCreated(createdZone, createdMember)
-      ()
-    }
-    "accepts and projects update member commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val createdMember = createMember(createdZone.id).futureValue
-      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-      val updatedMember =
-        updateMember(zoneWithCreatedMember.id, createdMember).futureValue
-      memberUpdated(zoneWithCreatedMember, updatedMember)
-      ()
-    }
-    "accepts and projects create account commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val createdMember = createMember(createdZone.id).futureValue
-      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-      val (createdAccount, _) =
-        createAccount(zoneWithCreatedMember.id, owner = createdMember.id).futureValue
-      accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-      ()
-    }
-    "accepts and projects update account commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val createdMember = createMember(createdZone.id).futureValue
-      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-      val (createdAccount, _) =
-        createAccount(zoneWithCreatedMember.id, owner = createdMember.id).futureValue
-      val (zoneWithCreatedAccount, _) =
-        accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-      val updatedAccount =
-        updateAccount(zoneWithCreatedAccount.id, createdAccount).futureValue
-      accountUpdated(zoneWithCreatedAccount, updatedAccount)
-      ()
-    }
-    "accepts and projects add transaction commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val createdMember = createMember(createdZone.id).futureValue
-      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-      val (createdAccount, _) = createAccount(
-        zoneWithCreatedMember.id,
-        owner = createdMember.id).futureValue
-      val (zoneWithCreatedAccount, updatedBalances) =
-        accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-      val addedTransaction = addTransaction(zoneWithCreatedAccount.id,
-                                            zoneWithCreatedAccount,
-                                            to = createdAccount.id).futureValue
-      transactionAdded(zoneWithCreatedAccount,
-                       updatedBalances,
-                       addedTransaction)
-      ()
-    }
-    "notifies subscribers of events and sends PingCommands when left idle" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val zoneNotificationTestProbe =
-        zoneNotificationSource(createdZone.id, selfSignedJwt)
-          .runWith(TestSink.probe)
-      inside(zoneNotificationTestProbe.requestNext()) {
-        case ZoneStateNotification(_, _) => ()
-      }
-      inside(zoneNotificationTestProbe.requestNext()) {
-        case ClientJoinedNotification(_, _) => ()
-      }
-      zoneNotificationTestProbe.within(10.seconds)(
-        inside(zoneNotificationTestProbe.requestNext()) {
-          case PingNotification(()) => ()
-        }
-      )
-      zoneNotificationTestProbe.cancel()
-    }
-  }
+class LiquidityServerComponentSpec extends LiquidityServerSpec {
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
@@ -210,8 +114,228 @@ class LiquidityServerSpec
 
   private[this] val projectName = UUID.randomUUID().toString
 
-  private[this] implicit val system: ActorSystem = ActorSystem()
-  private[this] implicit val mat: Materializer = ActorMaterializer()
+  protected[this] def checkProjections: Boolean = true
+  protected[this] override lazy val baseUri: Uri = {
+    val (_, akkaHttpPort) =
+      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
+    Uri(s"http://localhost:$akkaHttpPort")
+  }
+
+  override protected def afterAll(): Unit = {
+    assert(dockerCompose(projectName, "logs", "mysql").! === 0)
+    assert(dockerCompose(projectName, "logs", "zone-host").! === 0)
+    assert(dockerCompose(projectName, "logs", "client-relay").! === 0)
+    assert(dockerCompose(projectName, "logs", "analytics").! === 0)
+    assert(dockerCompose(projectName, "down", "--volumes").! === 0)
+    super.afterAll()
+  }
+}
+
+object LiquidityServerComponentSpec {
+
+  private def externalDockerComposeServicePorts(
+      projectName: String,
+      serviceName: String,
+      internalPort: Int
+  ): Map[String, Int] = {
+    val serviceInstances =
+      dockerCompose(projectName, "ps", "-q", serviceName).!!.split('\n')
+    val ExternalIpAndPortRegex = "^(.+):(\\d+)$".r
+    serviceInstances.zipWithIndex.map {
+      case (instanceId, index) =>
+        val ExternalIpAndPortRegex(_, externalPort) =
+          dockerCompose(projectName,
+                        "port",
+                        "--index",
+                        (index + 1).toString,
+                        serviceName,
+                        internalPort.toString).!!.trim
+        instanceId -> externalPort.toInt
+    }.toMap
+  }
+
+  private def dockerCompose(projectName: String,
+                            commandArgs: String*): ProcessBuilder =
+    Process(
+      command = Seq(
+        "docker-compose",
+        "--project-name",
+        projectName,
+        "--file",
+        new File("server/src/it/docker-compose.yml").getCanonicalPath) ++
+        commandArgs,
+      cwd = None,
+      extraEnv = "TAG" -> BuildInfo.version
+    )
+
+  private def execSqlFile(path: String): ConnectionIO[Unit] =
+    scala.io.Source
+      .fromFile(path)
+      .mkString("")
+      .split(';')
+      .filter(!_.trim.isEmpty)
+      .map(Fragment.const0(_).update.run)
+      .toList
+      .sequence
+      .map(_ => ())
+
+  private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] = {
+    import SqlAdministratorStore.PublicKeyMeta
+    for (_ <- sql"""
+             INSERT INTO liquidity_administrators.administrators (public_key)
+               VALUES ($publicKey)
+           """.update.run)
+      yield ()
+  }
+}
+
+class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
+
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    eventually {
+      val response = Http()
+        .singleRequest(
+          HttpRequest(
+            uri = baseUri.withPath(Uri.Path("/status/terse"))
+          )
+        )
+        .futureValue
+      assert(response.status === StatusCodes.OK)
+      assert(
+        Unmarshal(response.entity).to[JsValue].futureValue === JsString("OK"))
+      ()
+    }
+  }
+
+  protected[this] def checkProjections: Boolean = false
+  protected[this] override val baseUri: Uri =
+    Uri(
+      s"https://${sys.env.getOrElse("DOMAIN_PREFIX", "")}api.liquidityapp.com")
+
+}
+
+abstract class LiquidityServerSpec
+    extends FreeSpec
+    with BeforeAndAfterAll
+    with Eventually
+    with IntegrationPatience
+    with ScalaFutures {
+
+  "LiquidityServer" - {
+    "accepts and projects create zone commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      ()
+    }
+    "accepts and projects change zone name commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      val changedName = changeZoneName(createdZone.id).futureValue
+      if (checkProjections) zoneNameChanged(createdZone, changedName)
+      ()
+    }
+    "accepts and projects create member commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      if (checkProjections) memberCreated(createdZone, createdMember)
+      ()
+    }
+    "accepts and projects update member commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      if (checkProjections) {
+        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+        val updatedMember =
+          updateMember(createdZone.id, createdMember).futureValue
+        memberUpdated(zoneWithCreatedMember, updatedMember)
+      } else {
+        updateMember(createdZone.id, createdMember).futureValue
+      }
+      ()
+    }
+    "accepts and projects create account commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      if (checkProjections) {
+        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+        val (createdAccount, _) =
+          createAccount(createdZone.id, owner = createdMember.id).futureValue
+        accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
+      } else {
+        createAccount(createdZone.id, owner = createdMember.id).futureValue
+      }
+      ()
+    }
+    "accepts and projects update account commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      if (checkProjections) {
+        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+        val (createdAccount, _) =
+          createAccount(createdZone.id, owner = createdMember.id).futureValue
+        val (zoneWithCreatedAccount, _) =
+          accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
+        val updatedAccount =
+          updateAccount(createdZone.id, createdAccount).futureValue
+        accountUpdated(zoneWithCreatedAccount, updatedAccount)
+      } else {
+        val (createdAccount, _) =
+          createAccount(createdZone.id, owner = createdMember.id).futureValue
+        updateAccount(createdZone.id, createdAccount).futureValue
+      }
+      ()
+    }
+    "accepts and projects add transaction commands" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      val createdMember = createMember(createdZone.id).futureValue
+      if (checkProjections) {
+        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+        val (createdAccount, _) =
+          createAccount(createdZone.id, owner = createdMember.id).futureValue
+        val (zoneWithCreatedAccount, updatedBalances) =
+          accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
+        val addedTransaction =
+          addTransaction(createdZone.id, createdZone, to = createdAccount.id).futureValue
+        transactionAdded(zoneWithCreatedAccount,
+                         updatedBalances,
+                         addedTransaction)
+      } else {
+        val (createdAccount, _) =
+          createAccount(createdZone.id, owner = createdMember.id).futureValue
+        addTransaction(createdZone.id, createdZone, to = createdAccount.id).futureValue
+      }
+      ()
+    }
+    "notifies subscribers of events and sends PingCommands when left idle" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      val zoneNotificationTestProbe =
+        zoneNotificationSource(createdZone.id, selfSignedJwt)
+          .runWith(TestSink.probe[ZoneNotification])
+      inside(zoneNotificationTestProbe.requestNext()) {
+        case ZoneStateNotification(_, _) => ()
+      }
+      inside(zoneNotificationTestProbe.requestNext()) {
+        case ClientJoinedNotification(_, _) => ()
+      }
+      zoneNotificationTestProbe.within(10.seconds)(
+        inside(zoneNotificationTestProbe.requestNext()) {
+          case PingNotification(()) => ()
+        }
+      )
+      zoneNotificationTestProbe.cancel()
+    }
+  }
+
+  protected[this] implicit val system: ActorSystem = ActorSystem()
+  protected[this] implicit val mat: Materializer = ActorMaterializer()
+
   private[this] implicit val ec: ExecutionContext = system.dispatcher
 
   private[this] def createZone()(implicit ec: ExecutionContext)
@@ -224,7 +348,13 @@ class LiquidityServerSpec
              equityAccountName = None,
              equityAccountMetadata = None,
              name = Some("Dave's Game"),
-             metadata = None
+             metadata = Some(
+               Struct(
+                 Map(
+                   "isTest" -> Value.defaultInstance.withBoolValue(true)
+                 )
+               )
+             )
            )
          ))
       yield
@@ -264,7 +394,15 @@ class LiquidityServerSpec
             )
             assert(zone.transactions === Map.empty)
             assert(zone.name === Some("Dave's Game"))
-            assert(zone.metadata === None)
+            assert(
+              zone.metadata === Some(
+                Struct(
+                  Map(
+                    "isTest" -> Value.defaultInstance.withBoolValue(true)
+                  )
+                )
+              )
+            )
             (
               zone,
               Map(zone.equityAccountId -> BigDecimal(0))
@@ -285,14 +423,12 @@ class LiquidityServerSpec
   private[this] def zoneNotificationSource(
       zoneId: ZoneId,
       selfSignedJwt: String): Source[ZoneNotification, NotUsed] = {
-    val (_, akkaHttpPort) =
-      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
     val byteSource = Source
       .fromFuture(
         Http()
           .singleRequest(
             HttpRequest(
-              uri = Uri(s"http://localhost:$akkaHttpPort").withPath(
+              uri = baseUri.withPath(
                 Uri.Path("/zone") / zoneId.value
               ),
               headers = Seq(
@@ -448,6 +584,7 @@ class LiquidityServerSpec
           case CreateAccountResponse(Validated.Valid(account)) =>
             assert(account.ownerMemberIds === Set(owner))
             assert(account.name === Some("Jenny's Account"))
+            assert(account.metadata === None)
             account -> BigDecimal(0)
 
           case _ =>
@@ -571,14 +708,11 @@ class LiquidityServerSpec
 
   private[this] def execZoneCommand(zoneSubPath: Uri.Path, entity: Array[Byte])(
       implicit ec: ExecutionContext): Future[ZoneResponse] = {
-    val (_, akkaHttpPort) =
-      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
     for {
       httpResponse <- Http().singleRequest(
         HttpRequest(
           method = HttpMethods.PUT,
-          uri = Uri(s"http://localhost:$akkaHttpPort")
-            .withPath(Uri.Path("/zone") ++ zoneSubPath),
+          uri = baseUri.withPath(Uri.Path("/zone") ++ zoneSubPath),
           headers = Seq(
             Authorization(OAuth2BearerToken(selfSignedJwt)),
             Accept(
@@ -611,14 +745,11 @@ class LiquidityServerSpec
   }
 
   private[this] def awaitZoneProjection(zone: Zone): Zone = {
-    val (_, akkaHttpPort) =
-      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
     eventually {
       val response = Http()
         .singleRequest(
           HttpRequest(
-            uri = Uri(s"http://localhost:$akkaHttpPort")
-              .withPath(Uri.Path("/analytics/zone") / zone.id.value)
+            uri = baseUri.withPath(Uri.Path("/analytics/zone") / zone.id.value)
           ).withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
         )
         .futureValue
@@ -638,14 +769,12 @@ class LiquidityServerSpec
   private[this] def awaitZoneBalancesProjection(
       zoneId: ZoneId,
       balances: Map[AccountId, BigDecimal]): Map[AccountId, BigDecimal] = {
-    val (_, akkaHttpPort) =
-      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
     eventually {
       val response = Http()
         .singleRequest(
           HttpRequest(
-            uri = Uri(s"http://localhost:$akkaHttpPort")
-              .withPath(Uri.Path("/analytics/zone") / zoneId.value / "balances")
+            uri = baseUri.withPath(
+              Uri.Path("/analytics/zone") / zoneId.value / "balances")
           ).withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
         )
         .futureValue
@@ -661,25 +790,24 @@ class LiquidityServerSpec
     balances
   }
 
+  protected[this] def checkProjections: Boolean
+  protected[this] def baseUri: Uri
+
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
-    assert(dockerCompose(projectName, "logs", "mysql").! === 0)
-    assert(dockerCompose(projectName, "logs", "zone-host").! === 0)
-    assert(dockerCompose(projectName, "logs", "client-relay").! === 0)
-    assert(dockerCompose(projectName, "logs", "analytics").! === 0)
-    assert(dockerCompose(projectName, "down", "--volumes").! === 0)
     super.afterAll()
   }
 }
 
 object LiquidityServerSpec {
 
-  private val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
+  val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
     keyPairGenerator.initialize(2048)
     val keyPair = keyPairGenerator.generateKeyPair
     (keyPair.getPrivate, keyPair.getPublic)
   }
+
   private val selfSignedJwt =
     JwtJson.encode(
       Json.obj(
@@ -689,58 +817,4 @@ object LiquidityServerSpec {
       JwtAlgorithm.RS256
     )
 
-  private def externalDockerComposeServicePorts(
-      projectName: String,
-      serviceName: String,
-      internalPort: Int
-  ): Map[String, Int] = {
-    val serviceInstances =
-      dockerCompose(projectName, "ps", "-q", serviceName).!!.split('\n')
-    val ExternalIpAndPortRegex = "^(.+):(\\d+)$".r
-    serviceInstances.zipWithIndex.map {
-      case (instanceId, index) =>
-        val ExternalIpAndPortRegex(_, externalPort) =
-          dockerCompose(projectName,
-                        "port",
-                        "--index",
-                        (index + 1).toString,
-                        serviceName,
-                        internalPort.toString).!!.trim
-        instanceId -> externalPort.toInt
-    }.toMap
-  }
-
-  private def dockerCompose(projectName: String,
-                            commandArgs: String*): ProcessBuilder =
-    Process(
-      command = Seq(
-        "docker-compose",
-        "--project-name",
-        projectName,
-        "--file",
-        new File("server/src/it/docker-compose.yml").getCanonicalPath) ++
-        commandArgs,
-      cwd = None,
-      extraEnv = "TAG" -> BuildInfo.version
-    )
-
-  private def execSqlFile(path: String): ConnectionIO[Unit] =
-    scala.io.Source
-      .fromFile(path)
-      .mkString("")
-      .split(';')
-      .filter(!_.trim.isEmpty)
-      .map(Fragment.const0(_).update.run)
-      .toList
-      .sequence
-      .map(_ => ())
-
-  private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] = {
-    import SqlAdministratorStore.PublicKeyMeta
-    for (_ <- sql"""
-             INSERT INTO liquidity_administrators.administrators (public_key)
-               VALUES ($publicKey)
-           """.update.run)
-      yield ()
-  }
 }

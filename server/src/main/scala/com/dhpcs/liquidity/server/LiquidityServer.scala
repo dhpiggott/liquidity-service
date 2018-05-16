@@ -274,16 +274,12 @@ object LiquidityServer {
            |    allow-java-serialization = off
            |  }
            |  management {
-           |    cluster.bootstrap {
-           |      contact-point-discovery.required-contact-point-nr = 1
-           |      contact-point.fallback-port = 19999
-           |    }
+           |    cluster.bootstrap.contact-point.fallback-port = 19999
            |    http {
            |      hostname = "${privateAddress.getHostAddress}"
            |      base-path = "akka-management"
            |    }
            |  }
-           |  discovery.method = aws-api-ecs-async
            |  remote.artery {
            |    enabled = on
            |    transport = tcp

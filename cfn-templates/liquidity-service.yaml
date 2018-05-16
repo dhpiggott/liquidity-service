@@ -7,6 +7,10 @@ Parameters:
   Tag:
     Type: String
 Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AWS::StackName
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -73,8 +77,12 @@ Resources:
               awslogs-stream-prefix: liquidity
           Environment:
             - Name: JAVA_OPTS
-              Value: !Sub "-Dakka.management.cluster.bootstrap.\
-                contact-point-discovery.service-name=${AWS::StackName}
+              Value: !Sub "-Dakka.discovery.method=aws-api-ecs-async
+                -Dakka.discovery.aws-api-ecs-async.cluster=${AWS::StackName}
+                -Dakka.management.cluster.bootstrap.contact-point-discovery.\
+                 service-name=${AWS::StackName}
+                -Dakka.management.cluster.bootstrap.contact-point-discovery.\
+                 required-contact-point-nr=1
                 -Dakka.cluster.roles.0=zone-host
                 -Dakka.cluster.roles.1=client-relay
                 -Dakka.cluster.roles.2=analytics"
@@ -116,6 +124,7 @@ Resources:
   Service:
     Type: AWS::ECS::Service
     Properties:
+      Cluster: !Ref Cluster
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets: !Ref Subnets

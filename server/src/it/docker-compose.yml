@@ -23,6 +23,8 @@ services:
         -Dakka.discovery.hardcoded.hostnames.0=zone-host
         -Dakka.discovery.hardcoded.hostnames.1=client-relay
         -Dakka.discovery.hardcoded.hostnames.2=analytics
+        -Dakka.management.cluster.bootstrap.contact-point-discovery.\
+         required-contact-point-nr=3
         -Dakka.cluster.roles.0=zone-host"
       MYSQL_HOSTNAME: "mysql"
       MYSQL_USERNAME: "root"
@@ -38,6 +40,8 @@ services:
         -Dakka.discovery.hardcoded.hostnames.0=zone-host
         -Dakka.discovery.hardcoded.hostnames.1=client-relay
         -Dakka.discovery.hardcoded.hostnames.2=analytics
+        -Dakka.management.cluster.bootstrap.contact-point-discovery.\
+         required-contact-point-nr=3
         -Dakka.cluster.roles.0=client-relay"
       MYSQL_HOSTNAME: "mysql"
       MYSQL_USERNAME: "root"
@@ -53,6 +57,8 @@ services:
         -Dakka.discovery.hardcoded.hostnames.0=zone-host
         -Dakka.discovery.hardcoded.hostnames.1=client-relay
         -Dakka.discovery.hardcoded.hostnames.2=analytics
+        -Dakka.management.cluster.bootstrap.contact-point-discovery.\
+         required-contact-point-nr=3
         -Dakka.cluster.roles.0=analytics"
       MYSQL_HOSTNAME: "mysql"
       MYSQL_USERNAME: "root"

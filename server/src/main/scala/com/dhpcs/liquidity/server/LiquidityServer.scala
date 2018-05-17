@@ -109,7 +109,7 @@ class LiquidityServer(
     requestContext =>
       Source
         .single(requestContext.request)
-        .via(Http().outgoingConnection(httpInterface, 19999))
+        .via(Http().outgoingConnection(httpInterface, 8558))
         .runWith(Sink.head)
         .flatMap(requestContext.complete(_))
 
@@ -273,12 +273,9 @@ object LiquidityServer {
            |    }
            |    allow-java-serialization = off
            |  }
-           |  management {
-           |    cluster.bootstrap.contact-point.fallback-port = 19999
-           |    http {
-           |      hostname = "${privateAddress.getHostAddress}"
-           |      base-path = "akka-management"
-           |    }
+           |  management.http {
+           |    hostname = "${privateAddress.getHostAddress}"
+           |    base-path = "akka-management"
            |  }
            |  remote.artery {
            |    enabled = on

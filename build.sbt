@@ -100,9 +100,9 @@ lazy val server = project
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.12",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.13.0",
-      "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.13.0",
-      "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "0.13.0",
+      "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.13.1",
+      "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.13.1",
+      "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "0.13.1",
       "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.12",
       "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.12",
       "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.12",

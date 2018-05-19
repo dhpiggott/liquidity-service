@@ -26,14 +26,14 @@ SUBDOMAIN=$4
 
 INFRASTRUCTURE_STACK=liquidity-infrastructure-$ENVIRONMENT
 
-aws cloudformation $ACTION-stack \
-  --region $REGION \
-  --stack-name liquidity-dns-$SUBDOMAIN \
-  --template-body file://$DIR/../cfn-templates/liquidity-dns.yaml \
+aws cloudformation "$ACTION"-stack \
+  --region "$REGION" \
+  --stack-name liquidity-dns-"$SUBDOMAIN" \
+  --template-body file://"$DIR"/../cfn-templates/liquidity-dns.yaml \
   --parameters \
-    ParameterKey=InfrastructureStack,ParameterValue=$INFRASTRUCTURE_STACK \
-    ParameterKey=Subdomain,ParameterValue=$SUBDOMAIN
+    ParameterKey=InfrastructureStack,ParameterValue="$INFRASTRUCTURE_STACK" \
+    ParameterKey=Subdomain,ParameterValue="$SUBDOMAIN"
 
-aws cloudformation wait stack-$ACTION-complete \
-  --region $REGION \
-  --stack-name liquidity-dns-$SUBDOMAIN
+aws cloudformation wait stack-"$ACTION"-complete \
+  --region "$REGION" \
+  --stack-name liquidity-dns-"$SUBDOMAIN"

@@ -15,8 +15,8 @@ ENVIRONMENT=$2
 
 RDS_HOSTNAME=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -24,8 +24,8 @@ RDS_HOSTNAME=$(
 )
 RDS_USERNAME=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -33,8 +33,8 @@ RDS_USERNAME=$(
 )
 RDS_PASSWORD=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -45,11 +45,11 @@ docker run \
   --interactive \
   --tty \
   --rm \
-  --volume $DIR/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
+  --volume "$DIR"/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
   mysql:5 \
   mysql \
     --ssl-ca=/rds-combined-ca-bundle.pem \
     --ssl-mode=VERIFY_IDENTITY \
-    --host=$RDS_HOSTNAME \
-    --user=$RDS_USERNAME \
-    --password=$RDS_PASSWORD
+    --host="$RDS_HOSTNAME" \
+    --user="$RDS_USERNAME" \
+    --password="$RDS_PASSWORD"

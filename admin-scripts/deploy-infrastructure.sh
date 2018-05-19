@@ -31,8 +31,8 @@ case $ACTION in
   update)
     RDS_USERNAME=$(
       aws cloudformation describe-stacks \
-        --region $REGION \
-        --stack-name liquidity-infrastructure-$ENVIRONMENT \
+        --region "$REGION" \
+        --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
         --output text \
         --query \
           "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -40,8 +40,8 @@ case $ACTION in
     )
     RDS_PASSWORD=$(
       aws cloudformation describe-stacks \
-        --region $REGION \
-        --stack-name liquidity-infrastructure-$ENVIRONMENT \
+        --region "$REGION" \
+        --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
         --output text \
         --query \
           "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -52,7 +52,7 @@ esac
 
 VPC_ID=$(
   aws ec2 describe-vpcs \
-    --region $REGION \
+    --region "$REGION" \
     --filters \
       Name=isDefault,Values=true \
     --output text \
@@ -61,9 +61,9 @@ VPC_ID=$(
 )
 SUBNETS=$(
   aws ec2 describe-subnets \
-    --region $REGION \
+    --region "$REGION" \
     --filter \
-      Name=vpcId,Values=$VPC_ID \
+      Name=vpcId,Values="$VPC_ID" \
       Name=defaultForAz,Values=true \
     --output text \
     --query \
@@ -71,30 +71,30 @@ SUBNETS=$(
 )
 ALB_LISTENER_CERTIFICATE=$(
   aws acm list-certificates \
-    --region $REGION \
+    --region "$REGION" \
     --output text \
     --query \
       "CertificateSummaryList[?DomainName=='*.liquidityapp.com'].CertificateArn"
 )
 
-aws cloudformation $ACTION-stack \
-  --region $REGION \
-  --stack-name liquidity-infrastructure-$ENVIRONMENT \
-  --template-body file://$DIR/../cfn-templates/liquidity-infrastructure.yaml \
+aws cloudformation "$ACTION"-stack \
+  --region "$REGION" \
+  --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
+  --template-body file://"$DIR"/../cfn-templates/liquidity-infrastructure.yaml \
   --parameters \
-    ParameterKey=VPCId,ParameterValue=$VPC_ID \
-    ParameterKey=Subnets,ParameterValue=\"$SUBNETS\" \
-    ParameterKey=RDSUsername,ParameterValue=$RDS_USERNAME \
-    ParameterKey=RDSPassword,ParameterValue=$RDS_PASSWORD \
-    ParameterKey=ALBListenerCertificate,ParameterValue=$ALB_LISTENER_CERTIFICATE
+    ParameterKey=VPCId,ParameterValue="$VPC_ID" \
+    ParameterKey=Subnets,ParameterValue=\""$SUBNETS"\" \
+    ParameterKey=RDSUsername,ParameterValue="$RDS_USERNAME" \
+    ParameterKey=RDSPassword,ParameterValue="$RDS_PASSWORD" \
+    ParameterKey=ALBListenerCertificate,ParameterValue="$ALB_LISTENER_CERTIFICATE"
 
-aws cloudformation wait stack-$ACTION-complete \
-  --region $REGION \
-  --stack-name liquidity-infrastructure-$ENVIRONMENT
+aws cloudformation wait stack-"$ACTION"-complete \
+  --region "$REGION" \
+  --stack-name liquidity-infrastructure-"$ENVIRONMENT"
 
 if [ "$ACTION" = "create" ]
   then
-    $DIR/init-database.sh $REGION $ENVIRONMENT administrators
-    $DIR/init-database.sh $REGION $ENVIRONMENT journal
-    $DIR/init-database.sh $REGION $ENVIRONMENT analytics
+    "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" administrators
+    "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" journal
+    "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" analytics
 fi

@@ -26,7 +26,7 @@ SUBDOMAIN=$4
 
 VPC_ID=$(
   aws ec2 describe-vpcs \
-    --region $REGION \
+    --region "$REGION" \
     --filters \
       Name=isDefault,Values=true \
     --output text \
@@ -35,9 +35,9 @@ VPC_ID=$(
 )
 SUBNETS=$(
   aws ec2 describe-subnets \
-    --region $REGION \
+    --region "$REGION" \
     --filter \
-      Name=vpcId,Values=$VPC_ID \
+      Name=vpcId,Values="$VPC_ID" \
       Name=defaultForAz,Values=true \
     --output text \
     --query \
@@ -51,18 +51,18 @@ TAG=evergreen-$(
 
 INFRASTRUCTURE_STACK=liquidity-infrastructure-$ENVIRONMENT
 
-aws cloudformation $ACTION-stack \
-  --region $REGION \
-  --stack-name liquidity-service-$ENVIRONMENT \
-  --template-body file://$DIR/../cfn-templates/liquidity-service.yaml \
+aws cloudformation "$ACTION"-stack \
+  --region "$REGION" \
+  --stack-name liquidity-service-"$ENVIRONMENT" \
+  --template-body file://"$DIR"/../cfn-templates/liquidity-service.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters \
-    ParameterKey=InfrastructureStack,ParameterValue=$INFRASTRUCTURE_STACK \
-    ParameterKey=Subnets,ParameterValue=\"$SUBNETS\" \
-    ParameterKey=Tag,ParameterValue=$TAG
+    ParameterKey=InfrastructureStack,ParameterValue="$INFRASTRUCTURE_STACK" \
+    ParameterKey=Subnets,ParameterValue=\""$SUBNETS"\" \
+    ParameterKey=Tag,ParameterValue="$TAG"
 
-aws cloudformation wait stack-$ACTION-complete \
-  --region $REGION \
-  --stack-name liquidity-service-$ENVIRONMENT
+aws cloudformation wait stack-"$ACTION"-complete \
+  --region "$REGION" \
+  --stack-name liquidity-service-"$ENVIRONMENT"
 
 (export SUBDOMAIN && sbt ";server/it:testOnly *LiquidityServerIntegrationSpec")

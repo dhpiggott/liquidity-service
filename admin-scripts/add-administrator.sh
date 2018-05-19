@@ -16,7 +16,7 @@ PRIVATE_KEY_PATH=$3
 
 PUBLIC_KEY=$(
   openssl rsa \
-  -in $PRIVATE_KEY_PATH \
+  -in "$PRIVATE_KEY_PATH" \
   -pubout \
   -outform DER 2> /dev/null |
   xxd -plain |
@@ -25,8 +25,8 @@ PUBLIC_KEY=$(
 
 RDS_HOSTNAME=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name "liquidity-infrastructure-$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -34,8 +34,8 @@ RDS_HOSTNAME=$(
 )
 RDS_USERNAME=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name "liquidity-infrastructure-$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -43,8 +43,8 @@ RDS_USERNAME=$(
 )
 RDS_PASSWORD=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name "liquidity-infrastructure-$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -53,14 +53,14 @@ RDS_PASSWORD=$(
 
 docker run \
   --rm \
-  --volume $DIR/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
+  --volume "$DIR/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem" \
   mysql:5 \
   mysql \
     --ssl-ca=/rds-combined-ca-bundle.pem \
     --ssl-mode=VERIFY_IDENTITY \
-    --host=$RDS_HOSTNAME \
-    --user=$RDS_USERNAME \
-    --password=$RDS_PASSWORD \
+    --host="$RDS_HOSTNAME" \
+    --user="$RDS_USERNAME" \
+    --password="$RDS_PASSWORD" \
     liquidity_administrators -e " \
       INSERT INTO administrators (public_key) \
         VALUES (x'$PUBLIC_KEY') \

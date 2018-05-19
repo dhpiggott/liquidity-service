@@ -14,13 +14,13 @@ REGION=$1
 ENVIRONMENT=$2
 OUTPUT_DIRECTORY=$3
 
-mkdir --parents $OUTPUT_DIRECTORY
-touch $OUTPUT_DIRECTORY/journal_dump.sql
+mkdir --parents "$OUTPUT_DIRECTORY"
+touch "$OUTPUT_DIRECTORY"/journal_dump.sql
 
 RDS_HOSTNAME=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -28,8 +28,8 @@ RDS_HOSTNAME=$(
 )
 RDS_USERNAME=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -37,8 +37,8 @@ RDS_USERNAME=$(
 )
 RDS_PASSWORD=$(
   aws cloudformation describe-stacks \
-    --region $REGION \
-    --stack-name liquidity-infrastructure-$ENVIRONMENT \
+    --region "$REGION" \
+    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
     --output text \
     --query \
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
@@ -47,8 +47,8 @@ RDS_PASSWORD=$(
 
 docker run \
   --rm \
-  --volume $DIR/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
-  --volume $OUTPUT_DIRECTORY/journal_dump.sql:/dump.sql \
+  --volume "$DIR"/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
+  --volume "$OUTPUT_DIRECTORY"/journal_dump.sql:/dump.sql \
   mysql:5 \
   sh -c " \
     mysqldump \

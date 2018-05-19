@@ -22,25 +22,26 @@ TAG=evergreen-$(
     --dirty
 )
 
-eval $(
+ECR_LOGIN_COMMAND=$(
   aws ecr get-login \
-    --region $REGION \
+    --region "$REGION" \
     --no-include-email
 )
+$ECR_LOGIN_COMMAND
 
 INFRASTRUCTURE_STACK=liquidity-infrastructure-$ENVIRONMENT
 
 sbt ";server/it:scalafmt::test ;server/docker:publishLocal ;server/it:testOnly *LiquidityServerComponentSpec"
 
 docker tag \
-  liquidity:$TAG \
-  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
+  liquidity:"$TAG" \
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$INFRASTRUCTURE_STACK":"$TAG"
 
 docker push \
-  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$INFRASTRUCTURE_STACK":"$TAG"
 
 docker rmi \
-  liquidity:$TAG
+  liquidity:"$TAG"
 
 docker rmi \
-  $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$INFRASTRUCTURE_STACK:$TAG
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$INFRASTRUCTURE_STACK":"$TAG"

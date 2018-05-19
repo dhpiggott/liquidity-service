@@ -11,15 +11,6 @@ fi
 REGION=$1
 ENVIRONMENT=$2
 
-case $ENVIRONMENT in
-  prod)
-    STACK_SUFFIX=
-    ;;
-  *)
-    STACK_SUFFIX=-$ENVIRONMENT
-    ;;
-esac
-
 AWS_ACCOUNT_ID=$(
   aws sts get-caller-identity \
     --output text \
@@ -37,7 +28,7 @@ eval $(
     --no-include-email
 )
 
-INFRASTRUCTURE_STACK=liquidity-infrastructure$STACK_SUFFIX
+INFRASTRUCTURE_STACK=liquidity-infrastructure-$ENVIRONMENT
 
 sbt ";server/it:scalafmt::test ;server/docker:publishLocal ;server/it:testOnly *LiquidityServerComponentSpec"
 

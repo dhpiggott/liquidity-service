@@ -14,40 +14,31 @@ REGION=$1
 ENVIRONMENT=$2
 SCHEMA=$3
 
-case $ENVIRONMENT in
-  prod)
-    STACK_SUFFIX=
-    ;;
-  *)
-    STACK_SUFFIX=-$ENVIRONMENT
-    ;;
-esac
-
 RDS_HOSTNAME=$(
   aws cloudformation describe-stacks \
     --region $REGION \
-    --stack-name liquidity-infrastructure$STACK_SUFFIX \
+    --stack-name liquidity-infrastructure-$ENVIRONMENT \
     --output text \
     --query \
-      "Stacks[?StackName=='liquidity-infrastructure$STACK_SUFFIX'] \
+      "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
       | [0].Outputs[?OutputKey=='RDSHostname'].OutputValue"
 )
 RDS_USERNAME=$(
   aws cloudformation describe-stacks \
     --region $REGION \
-    --stack-name liquidity-infrastructure$STACK_SUFFIX \
+    --stack-name liquidity-infrastructure-$ENVIRONMENT \
     --output text \
     --query \
-      "Stacks[?StackName=='liquidity-infrastructure$STACK_SUFFIX'] \
+      "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
       | [0].Outputs[?OutputKey=='RDSUsername'].OutputValue"
 )
 RDS_PASSWORD=$(
   aws cloudformation describe-stacks \
     --region $REGION \
-    --stack-name liquidity-infrastructure$STACK_SUFFIX \
+    --stack-name liquidity-infrastructure-$ENVIRONMENT \
     --output text \
     --query \
-      "Stacks[?StackName=='liquidity-infrastructure$STACK_SUFFIX'] \
+      "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
       | [0].Outputs[?OutputKey=='RDSPassword'].OutputValue"
 )
 

@@ -23,24 +23,15 @@ esac
 REGION=$2
 ENVIRONMENT=$3
 
-case $ENVIRONMENT in
-  prod)
-    STACK_SUFFIX=
-    ;;
-  *)
-    STACK_SUFFIX=-$ENVIRONMENT
-    ;;
-esac
-
-INFRASTRUCTURE_STACK=liquidity-infrastructure$STACK_SUFFIX
+INFRASTRUCTURE_STACK=liquidity-infrastructure-$ENVIRONMENT
 
 aws cloudformation $ACTION-stack \
   --region $REGION \
-  --stack-name liquidity-dns$STACK_SUFFIX \
+  --stack-name liquidity-dns-$ENVIRONMENT \
   --template-body file://$DIR/../cfn-templates/liquidity-dns.yaml \
   --parameters \
     ParameterKey=InfrastructureStack,ParameterValue=$INFRASTRUCTURE_STACK
 
 aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \
-  --stack-name liquidity-dns$STACK_SUFFIX
+  --stack-name liquidity-dns-$ENVIRONMENT

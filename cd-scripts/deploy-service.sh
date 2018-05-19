@@ -26,20 +26,12 @@ ENVIRONMENT=$3
 case $ENVIRONMENT in
   prod)
     DOMAIN_PREFIX=
-    STACK_SUFFIX=
     ;;
   *)
     DOMAIN_PREFIX=$ENVIRONMENT-
-    STACK_SUFFIX=-$ENVIRONMENT
     ;;
 esac
 
-AWS_ACCOUNT_ID=$(
-  aws sts get-caller-identity \
-    --output text \
-    --query \
-      "Account"
-)
 VPC_ID=$(
   aws ec2 describe-vpcs \
     --region $REGION \
@@ -65,11 +57,11 @@ TAG=evergreen-$(
     --dirty
 )
 
-INFRASTRUCTURE_STACK=liquidity-infrastructure$STACK_SUFFIX
+INFRASTRUCTURE_STACK=liquidity-infrastructure-$ENVIRONMENT
 
 aws cloudformation $ACTION-stack \
   --region $REGION \
-  --stack-name liquidity-service$STACK_SUFFIX \
+  --stack-name liquidity-service-$ENVIRONMENT \
   --template-body file://$DIR/../cfn-templates/liquidity-service.yaml \
   --capabilities CAPABILITY_IAM \
   --parameters \
@@ -79,6 +71,6 @@ aws cloudformation $ACTION-stack \
 
 aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \
-  --stack-name liquidity-service$STACK_SUFFIX
+  --stack-name liquidity-service-$ENVIRONMENT
 
 (export DOMAIN_PREFIX && sbt ";server/it:testOnly *LiquidityServerIntegrationSpec")

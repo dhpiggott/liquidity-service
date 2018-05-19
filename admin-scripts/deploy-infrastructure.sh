@@ -26,11 +26,9 @@ ENVIRONMENT=$3
 case $ENVIRONMENT in
   prod)
     DOMAIN_PREFIX=
-    STACK_SUFFIX=
     ;;
   *)
     DOMAIN_PREFIX=$ENVIRONMENT-
-    STACK_SUFFIX=-$ENVIRONMENT
     ;;
 esac
 
@@ -43,19 +41,19 @@ case $ACTION in
     RDS_USERNAME=$(
       aws cloudformation describe-stacks \
         --region $REGION \
-        --stack-name liquidity-infrastructure$STACK_SUFFIX \
+        --stack-name liquidity-infrastructure-$ENVIRONMENT \
         --output text \
         --query \
-          "Stacks[?StackName=='liquidity-infrastructure$STACK_SUFFIX'] \
+          "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
           | [0].Outputs[?OutputKey=='RDSUsername'].OutputValue"
     )
     RDS_PASSWORD=$(
       aws cloudformation describe-stacks \
         --region $REGION \
-        --stack-name liquidity-infrastructure$STACK_SUFFIX \
+        --stack-name liquidity-infrastructure-$ENVIRONMENT \
         --output text \
         --query \
-          "Stacks[?StackName=='liquidity-infrastructure$STACK_SUFFIX'] \
+          "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
           | [0].Outputs[?OutputKey=='RDSPassword'].OutputValue"
     )
     ;;
@@ -83,7 +81,7 @@ SUBNETS=$(
 
 aws cloudformation $ACTION-stack \
   --region $REGION \
-  --stack-name liquidity-infrastructure$STACK_SUFFIX \
+  --stack-name liquidity-infrastructure-$ENVIRONMENT \
   --template-body file://$DIR/../cfn-templates/liquidity-infrastructure.yaml \
   --parameters \
     ParameterKey=VPCId,ParameterValue=$VPC_ID \
@@ -94,7 +92,7 @@ aws cloudformation $ACTION-stack \
 
 aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \
-  --stack-name liquidity-infrastructure$STACK_SUFFIX
+  --stack-name liquidity-infrastructure-$ENVIRONMENT
 
 if [ "$ACTION" = "create" ]
   then

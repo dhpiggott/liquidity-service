@@ -210,8 +210,7 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
 
   protected[this] def checkProjections: Boolean = false
   protected[this] override val baseUri: Uri =
-    Uri(
-      s"https://${sys.env.getOrElse("DOMAIN_PREFIX", "")}api.liquidityapp.com")
+    Uri(s"https://${sys.env("SUBDOMAIN")}.liquidityapp.com")
 
 }
 

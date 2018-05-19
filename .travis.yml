@@ -25,11 +25,11 @@ jobs:
     - stage: test
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/test-component-and-publish.sh eu-west-1 prod
+        ./cd-scripts/test-component-and-publish.sh eu-west-1 prod-blue
     - stage: deploy
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/deploy-service.sh update eu-west-1 prod
+        ./cd-scripts/deploy-service.sh update eu-west-1 prod-blue api
     - stage: release
       script: |
         # So sbt-dynver derives the version correctly

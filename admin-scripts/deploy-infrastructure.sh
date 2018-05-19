@@ -23,15 +23,6 @@ esac
 REGION=$2
 ENVIRONMENT=$3
 
-case $ENVIRONMENT in
-  prod)
-    DOMAIN_PREFIX=
-    ;;
-  *)
-    DOMAIN_PREFIX=$ENVIRONMENT-
-    ;;
-esac
-
 case $ACTION in
   create)
     RDS_USERNAME=liquidity
@@ -78,6 +69,13 @@ SUBNETS=$(
     --query \
       "Subnets[].SubnetId | join(',', @)"
 )
+ALB_LISTENER_CERTIFICATE=$(
+  aws acm list-certificates \
+    --region $REGION \
+    --output text \
+    --query \
+      "CertificateSummaryList[?DomainName=='*.liquidityapp.com'].CertificateArn"
+)
 
 aws cloudformation $ACTION-stack \
   --region $REGION \
@@ -88,7 +86,7 @@ aws cloudformation $ACTION-stack \
     ParameterKey=Subnets,ParameterValue=\"$SUBNETS\" \
     ParameterKey=RDSUsername,ParameterValue=$RDS_USERNAME \
     ParameterKey=RDSPassword,ParameterValue=$RDS_PASSWORD \
-    ParameterKey=DomainPrefix,ParameterValue=$DOMAIN_PREFIX
+    ParameterKey=ALBListenerCertificate,ParameterValue=$ALB_LISTENER_CERTIFICATE
 
 aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \

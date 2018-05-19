@@ -8,7 +8,7 @@ Parameters:
     Type: String
   RDSPassword:
     Type: String
-  DomainPrefix:
+  ALBListenerCertificate:
     Type: String
 Resources:
   Repository:
@@ -80,13 +80,6 @@ Resources:
       IpAddressType: dualstack
       SecurityGroups:
         - !GetAtt ALBSecurityGroup.GroupId
-  ALBListenerCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !Sub "${DomainPrefix}api.liquidityapp.com"
-      DomainValidationOptions:
-        - DomainName: !Sub "${DomainPrefix}api.liquidityapp.com"
-          ValidationDomain: "liquidityapp.com"
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -170,7 +163,3 @@ Outputs:
     Value: !GetAtt ALB.DNSName
     Export:
       Name: !Sub "${AWS::StackName}-ALBDNSName"
-  Domain:
-    Value: !Sub "${DomainPrefix}api.liquidityapp.com"
-    Export:
-      Name: !Sub "${AWS::StackName}-Domain"

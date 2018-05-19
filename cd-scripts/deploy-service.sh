@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-if [ $# -ne 3 ]
+if [ $# -ne 4 ]
   then
-    echo "Usage: $0 <create|update> region environment"
+    echo "Usage: $0 <create|update> region environment subdomain"
     exit 1
 fi
 
@@ -15,22 +15,14 @@ case $1 in
     ACTION=$1
     ;;
   *)
-    echo "Usage: $0 <create|update> region environment"
+    echo "Usage: $0 <create|update> region environment subdomain"
     exit 1
     ;;
 esac
 
 REGION=$2
 ENVIRONMENT=$3
-
-case $ENVIRONMENT in
-  prod)
-    DOMAIN_PREFIX=
-    ;;
-  *)
-    DOMAIN_PREFIX=$ENVIRONMENT-
-    ;;
-esac
+SUBDOMAIN=$4
 
 VPC_ID=$(
   aws ec2 describe-vpcs \
@@ -73,4 +65,4 @@ aws cloudformation wait stack-$ACTION-complete \
   --region $REGION \
   --stack-name liquidity-service-$ENVIRONMENT
 
-(export DOMAIN_PREFIX && sbt ";server/it:testOnly *LiquidityServerIntegrationSpec")
+(export SUBDOMAIN && sbt ";server/it:testOnly *LiquidityServerIntegrationSpec")

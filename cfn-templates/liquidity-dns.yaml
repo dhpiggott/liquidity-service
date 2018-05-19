@@ -2,6 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
   InfrastructureStack:
     Type: String
+  Subdomain:
+    Type: String
 Resources:
   RecordSetGroup:
     Type: AWS::Route53::RecordSetGroup
@@ -13,14 +15,12 @@ Resources:
               Fn::ImportValue: !Sub "${InfrastructureStack}-ALBCanonicalHostedZoneID"
             DNSName:
               Fn::ImportValue: !Sub "${InfrastructureStack}-ALBDNSName"
-          Name:
-            Fn::ImportValue: !Sub "${InfrastructureStack}-Domain"
+          Name: !Sub "${Subdomain}.liquidityapp.com"
           Type: A
         - AliasTarget:
             HostedZoneId:
               Fn::ImportValue: !Sub "${InfrastructureStack}-ALBCanonicalHostedZoneID"
             DNSName:
               Fn::ImportValue: !Sub "${InfrastructureStack}-ALBDNSName"
-          Name:
-            Fn::ImportValue: !Sub "${InfrastructureStack}-Domain"
+          Name: !Sub "${Subdomain}.liquidityapp.com"
           Type: AAAA

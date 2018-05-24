@@ -664,6 +664,7 @@ class HttpControllerSpec
           assert(entityAs[JsValue] === Json.parse(s"""
              |{
              |  "changeZoneNameResponse": {
+             |    "success": ""
              |  }
              |}
            """.stripMargin))

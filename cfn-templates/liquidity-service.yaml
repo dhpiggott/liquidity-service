@@ -143,3 +143,4 @@ Resources:
           ContainerPort: 8080
           TargetGroupArn:
             Fn::ImportValue: !Sub "${InfrastructureStack}-ALBTargetGroup"
+      HealthCheckGracePeriodSeconds: 300

@@ -106,12 +106,9 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       DisplayName: !Ref AWS::StackName
-  SNSSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      TopicArn: !Ref SNSTopic
-      Protocol: email
-      Endpoint: "admin@liquidityapp.com"
+      Subscription:
+        - Protocol: email
+          Endpoint: "admin@liquidityapp.com"
   CloudWatchTargetGroupAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:

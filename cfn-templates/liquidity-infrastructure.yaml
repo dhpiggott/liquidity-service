@@ -109,7 +109,7 @@ Resources:
       Subscription:
         - Protocol: email
           Endpoint: "admin@liquidityapp.com"
-  CloudWatchTargetGroupAlarm:
+  UnHealthyHostCountAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       Namespace: AWS/ApplicationELB
@@ -120,6 +120,46 @@ Resources:
           Value: !Ref ALBTargetGroup
       MetricName: UnHealthyHostCount
       Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      InsufficientDataActions:
+        - !Ref SNSTopic
+      AlarmActions:
+        - !Ref SNSTopic
+      OKActions:
+        - !Ref SNSTopic
+  HTTPCodeELB5XXCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/ApplicationELB
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ALB.LoadBalancerFullName
+      MetricName: HTTPCode_ELB_5XX_Count
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      InsufficientDataActions:
+        - !Ref SNSTopic
+      AlarmActions:
+        - !Ref SNSTopic
+      OKActions:
+        - !Ref SNSTopic
+  HTTPCodeTarget5XXCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/ApplicationELB
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ALB.LoadBalancerFullName
+      MetricName: HTTPCode_Target_5XX_Count
+      Statistic: Sum
       Period: 60
       EvaluationPeriods: 1
       Threshold: 0

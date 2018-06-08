@@ -18,7 +18,7 @@ import akka.http.scaladsl.server.StandardRoute
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
 import akka.stream.scaladsl.Source
-import akka.testkit.typed.scaladsl.TestProbe
+import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.util.ByteString
 import cats.syntax.validated._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._

@@ -96,9 +96,9 @@ object ZoneValidatorActor {
     PersistentBehaviors
       .receive[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
         persistenceId = id.persistenceId,
-        initialState = ZoneState(zone = None,
-                                 balances = Map.empty,
-                                 connectedClients = Map.empty),
+        emptyState = ZoneState(zone = None,
+                               balances = Map.empty,
+                               connectedClients = Map.empty),
         commandHandler = (context, state, command) =>
           command match {
             case StopZone =>

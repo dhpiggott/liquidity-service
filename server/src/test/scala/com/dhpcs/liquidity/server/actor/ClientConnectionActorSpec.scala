@@ -10,7 +10,7 @@ import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.testkit.scaladsl.TestSink
-import akka.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
+import akka.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._

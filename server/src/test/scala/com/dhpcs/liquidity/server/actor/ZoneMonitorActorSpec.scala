@@ -4,7 +4,7 @@ import java.net.InetSocketAddress
 import java.nio.channels.ServerSocketChannel
 import java.util.UUID
 
-import akka.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
+import akka.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.ZoneId
 import com.typesafe.config.{Config, ConfigFactory}

@@ -359,7 +359,7 @@ object LiquidityServer {
     val httpBinding = server.bindHttp()
     CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
                                         "liquidityServerUnbind")(() =>
-      httpBinding.flatMap(_.unbind()))
+      httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
   }
 
   private[this] def getPrivateAddressOrExit: InetAddress =

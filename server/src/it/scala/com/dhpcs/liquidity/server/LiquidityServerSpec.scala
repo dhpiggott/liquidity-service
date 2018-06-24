@@ -72,6 +72,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
       pass = ""
     )
     val connectionTest = for (_ <- sql"SELECT 1".query[Int].unique) yield ()
+    val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
     eventually(
       connectionTest
         .transact(transactor)
@@ -89,7 +90,6 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     addAdministrator(PublicKey(rsaPublicKey.getEncoded))
       .transact(transactor)
       .unsafeRunSync()
-    val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
     eventually {
       def statusIsOk(serviceName: String): Unit = {
         val (_, akkaHttpPort) =

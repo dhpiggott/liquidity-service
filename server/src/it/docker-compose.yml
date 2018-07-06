@@ -19,10 +19,10 @@ services:
     environment:
       JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=zone-host
         -Dakka.management.http.hostname=zone-host
-        -Dakka.discovery.method=hardcoded
-        -Dakka.discovery.hardcoded.hostnames.0=zone-host
-        -Dakka.discovery.hardcoded.hostnames.1=client-relay
-        -Dakka.discovery.hardcoded.hostnames.2=analytics
+        -Dakka.discovery.method=config
+        -Dakka.discovery.config.services.liquidity.endpoints.0.host=zone-host
+        -Dakka.discovery.config.services.liquidity.endpoints.1.host=client-relay
+        -Dakka.discovery.config.services.liquidity.endpoints.2.host=analytics
         -Dakka.management.cluster.bootstrap.contact-point-discovery.\
          required-contact-point-nr=3
         -Dakka.cluster.roles.0=zone-host"
@@ -36,10 +36,10 @@ services:
     environment:
       JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=client-relay
         -Dakka.management.http.hostname=client-relay
-        -Dakka.discovery.method=hardcoded
-        -Dakka.discovery.hardcoded.hostnames.0=zone-host
-        -Dakka.discovery.hardcoded.hostnames.1=client-relay
-        -Dakka.discovery.hardcoded.hostnames.2=analytics
+        -Dakka.discovery.method=config
+        -Dakka.discovery.config.services.liquidity.endpoints.0.host=zone-host
+        -Dakka.discovery.config.services.liquidity.endpoints.1.host=client-relay
+        -Dakka.discovery.config.services.liquidity.endpoints.2.host=analytics
         -Dakka.management.cluster.bootstrap.contact-point-discovery.\
          required-contact-point-nr=3
         -Dakka.cluster.roles.0=client-relay
@@ -54,10 +54,10 @@ services:
     environment:
       JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=analytics
         -Dakka.management.http.hostname=analytics
-        -Dakka.discovery.method=hardcoded
-        -Dakka.discovery.hardcoded.hostnames.0=zone-host
-        -Dakka.discovery.hardcoded.hostnames.1=client-relay
-        -Dakka.discovery.hardcoded.hostnames.2=analytics
+        -Dakka.discovery.method=config
+        -Dakka.discovery.config.services.liquidity.endpoints.0.host=zone-host
+        -Dakka.discovery.config.services.liquidity.endpoints.1.host=client-relay
+        -Dakka.discovery.config.services.liquidity.endpoints.2.host=analytics
         -Dakka.management.cluster.bootstrap.contact-point-discovery.\
          required-contact-point-nr=3
         -Dakka.cluster.roles.0=analytics"

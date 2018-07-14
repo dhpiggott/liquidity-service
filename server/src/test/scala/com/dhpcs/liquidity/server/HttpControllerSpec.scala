@@ -490,19 +490,11 @@ class HttpControllerSpec
         assert(keys.contains("builtAtMillis"))
       }
     }
-    "provides status information" - {
-      "tersely" in {
-        val getRequest = RequestBuilding.Get("/status/terse")
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-          assert(status === StatusCodes.OK)
-          assert(entityAs[JsValue] === JsString("OK"))
-        }
-      }
-      "verbosely" in {
-        val getRequest = RequestBuilding.Get("/status/verbose")
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-          assert(status === StatusCodes.OK)
-          assert(entityAs[JsValue] === Json.parse(s"""
+    "provides status information" in {
+      val getRequest = RequestBuilding.Get("/status")
+      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        assert(entityAs[JsValue] === Json.parse(s"""
              |{
              |  "activeZones" : {
              |    "count" : 1,
@@ -522,7 +514,7 @@ class HttpControllerSpec
              |            "count" : 1,
              |            "connectionIds" : [
              |              "${resolver.toSerializationFormat(
-                                                         clientConnection)}"
+                                                       clientConnection)}"
              |            ]
              |          }
              |        } ]
@@ -538,7 +530,6 @@ class HttpControllerSpec
              |  }
              |}
            """.stripMargin))
-        }
       }
     }
     "accepts CreateZoneCommands" - {
@@ -940,8 +931,8 @@ class HttpControllerSpec
       else Map(clientSession.id -> clientSession)
     )
 
-  override protected[this] def checkCluster: Future[Unit] =
-    Future.successful(())
+  override protected[this] def isClusterHealthy: Boolean =
+    true
 
   override protected[this] val resolver: ActorRefResolver = ActorRefResolver(
     system.toTyped)

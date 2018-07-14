@@ -41,7 +41,7 @@ import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 import pdi.jwt.{JwtAlgorithm, JwtJson}
-import play.api.libs.json.{JsString, JsValue, Json}
+import play.api.libs.json.{JsValue, Json}
 import scalapb.json4s.JsonFormat
 
 import scala.collection.immutable.Seq
@@ -97,13 +97,11 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
         val response = Http()
           .singleRequest(
             HttpRequest(
-              uri = Uri(s"http://localhost:$akkaHttpPort/status/terse")
+              uri = Uri(s"http://localhost:$akkaHttpPort/status")
             )
           )
           .futureValue
         assert(response.status === StatusCodes.OK)
-        assert(
-          Unmarshal(response.entity).to[JsValue].futureValue === JsString("OK"))
         ()
       }
       statusIsOk("zone-host")
@@ -197,13 +195,11 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
       val response = Http()
         .singleRequest(
           HttpRequest(
-            uri = baseUri.withPath(Uri.Path("/status/terse"))
+            uri = baseUri.withPath(Uri.Path("/status"))
           )
         )
         .futureValue
       assert(response.status === StatusCodes.OK)
-      assert(
-        Unmarshal(response.entity).to[JsValue].futureValue === JsString("OK"))
       ()
     }
   }

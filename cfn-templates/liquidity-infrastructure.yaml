@@ -87,7 +87,7 @@ Resources:
       TargetType: ip
       Protocol: "HTTP"
       Port: 80
-      HealthCheckPath: "/status/terse"
+      HealthCheckPath: "/status"
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
           Value: "0"

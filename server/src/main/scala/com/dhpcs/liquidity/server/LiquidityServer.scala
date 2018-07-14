@@ -157,15 +157,8 @@ class LiquidityServer(
     transactIoToFuture(analyticsTransactor)(
       ClientSessionsStore.retrieveAll(zoneId))
 
-  override protected[this] def checkCluster: Future[Unit] =
-    if (cluster.selfMember.status == MemberStatus.Up)
-      Future.successful(())
-    else
-      Future.failed(
-        new IllegalStateException(
-          "cluster.selfMember.status != MemberStatus.Up! " +
-            s"(cluster.selfMember.status = ${cluster.selfMember.status})"
-        ))
+  override protected[this] def isClusterHealthy: Boolean =
+    cluster.selfMember.status == MemberStatus.Up
 
   override protected[this] val resolver: ActorRefResolver = ActorRefResolver(
     system.toTyped)

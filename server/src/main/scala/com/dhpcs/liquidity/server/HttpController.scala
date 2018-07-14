@@ -47,11 +47,9 @@ trait HttpController {
 
   protected[this] def httpRoutes(enableClientRelay: Boolean)(
       implicit ec: ExecutionContext): Route =
-    logRequestResult(("HttpController", Logging.DebugLevel))(
-      path("version")(version) ~
-        pathPrefix("status")(status)
-    ) ~
-      logRequestResult(("HttpController", Logging.InfoLevel))(
+    path("version")(version) ~
+      pathPrefix("status")(status) ~
+      logRequestResult(("access-log", Logging.InfoLevel))(
         pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
           pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
           pathPrefix("analytics")(administratorRealm(analytics)) ~
@@ -159,30 +157,17 @@ trait HttpController {
     )
 
   private[this] def status(implicit ec: ExecutionContext): Route =
-    path("terse")(
-      get(
-        complete(
-          for (_ <- (checkCluster,
-                     getActiveZoneSummaries,
-                     getZoneCount,
-                     getPublicKeyCount,
-                     getMemberCount,
-                     getAccountCount,
-                     getTransactionCount).tupled)
-            yield "OK"
-        )
-      )
-    ) ~ path("verbose")(
-      get(
-        complete(
-          for ((_,
-                activeZoneSummaries,
+    get(
+      complete(
+        if (!isClusterHealthy)
+          ServiceUnavailable
+        else
+          for ((activeZoneSummaries,
                 zoneCount,
                 publicKeyCount,
                 memberCount,
                 accountCount,
-                transactionCount) <- (checkCluster,
-                                      getActiveZoneSummaries,
+                transactionCount) <- (getActiveZoneSummaries,
                                       getZoneCount,
                                       getPublicKeyCount,
                                       getMemberCount,
@@ -264,8 +249,8 @@ trait HttpController {
                   "transactions" -> transactionCount
                 )
               )
-        )
-      ))
+      )
+    )
 
   private[this] def zoneCommand(
       remoteAddress: InetAddress,
@@ -406,7 +391,7 @@ trait HttpController {
   protected[this] def getClientSessions(
       zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]]
 
-  protected[this] def checkCluster: Future[Unit]
+  protected[this] def isClusterHealthy: Boolean
   protected[this] def resolver: ActorRefResolver
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
   protected[this] def getZoneCount: Future[Long]

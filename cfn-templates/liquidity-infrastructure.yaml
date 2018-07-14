@@ -88,9 +88,6 @@ Resources:
       Protocol: "HTTP"
       Port: 80
       HealthCheckPath: "/status"
-      TargetGroupAttributes:
-        - Key: deregistration_delay.timeout_seconds
-          Value: "0"
   ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:

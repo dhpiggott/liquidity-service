@@ -69,7 +69,7 @@ lazy val `actor-protocol-scala-binding` = project
   .settings(evergreenVersionSettings)
   .settings(protobufScalaSettings(`actor-protocol`))
   .settings(
-    libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.5.13"
+    libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.5.14"
   )
   .dependsOn(`ws-protocol-scala-binding`)
   .settings(
@@ -98,22 +98,22 @@ lazy val server = project
   .dependsOn(`proto-bindings`)
   .settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-slf4j" % "2.5.13",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.14",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.15.0",
       "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.15.0",
       "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "0.15.0",
-      "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.13",
-      "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.13",
-      "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.13",
-      "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.13",
-      "com.typesafe.akka" %% "akka-persistence-query" % "2.5.13",
+      "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.14",
+      "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.14",
+      "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.14",
+      "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.14",
+      "com.typesafe.akka" %% "akka-persistence-query" % "2.5.14",
       "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
       "org.tpolecat" %% "doobie-core" % "0.5.2",
       "org.tpolecat" %% "doobie-hikari" % "0.5.2",
       "mysql" % "mysql-connector-java" % "5.1.46",
       "com.typesafe.akka" %% "akka-http" % "10.1.3",
-      "com.typesafe.akka" %% "akka-stream-typed" % "2.5.13",
+      "com.typesafe.akka" %% "akka-stream-typed" % "2.5.14",
       "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",
       "com.typesafe.play" %% "play-json" % "2.6.9",
       "de.heikoseeberger" %% "akka-http-play-json" % "1.21.0",
@@ -122,11 +122,11 @@ lazy val server = project
   )
   .settings(libraryDependencies ++= Seq(
     "com.h2database" % "h2" % "1.4.197" % Test,
-    "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.13" % Test,
+    "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.14" % Test,
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.5" % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.3" % Test,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.13" % Test
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.14" % Test
   ))
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
@@ -134,7 +134,7 @@ lazy val server = project
   .settings(libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.0.5" % IntegrationTest,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.3" % IntegrationTest,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.13" % IntegrationTest
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.14" % IntegrationTest
   ))
   .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
   .settings(

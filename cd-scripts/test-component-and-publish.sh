@@ -16,7 +16,7 @@ AWS_ACCOUNT_ID=$(
     --output text \
     --query 'Account'
 )
-TAG=evergreen-$(
+TAG=$(
   git describe \
     --always \
     --dirty

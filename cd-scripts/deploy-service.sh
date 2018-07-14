@@ -43,7 +43,7 @@ SUBNETS=$(
     --query \
       "Subnets[].SubnetId | join(',', @)"
 )
-TAG=evergreen-$(
+TAG=$(
   git describe \
     --always \
     --dirty

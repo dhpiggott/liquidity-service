@@ -57,9 +57,7 @@ trait HttpController {
              extractClientIP(_.toOption match {
                case None =>
                  complete(
-                   (InternalServerError,
-                    "Could not extract remote address. Check " +
-                      "akka.http.server.remote-address-header = on.")
+                   (InternalServerError, "Couldn't extract client IP.")
                  )
 
                case Some(remoteAddress) =>

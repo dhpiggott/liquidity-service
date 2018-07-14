@@ -42,7 +42,8 @@ services:
         -Dakka.discovery.hardcoded.hostnames.2=analytics
         -Dakka.management.cluster.bootstrap.contact-point-discovery.\
          required-contact-point-nr=3
-        -Dakka.cluster.roles.0=client-relay"
+        -Dakka.cluster.roles.0=client-relay
+        -Dakka.http.server.remote-address-header=on"
       MYSQL_HOSTNAME: "mysql"
       MYSQL_USERNAME: "root"
       MYSQL_PASSWORD: ""

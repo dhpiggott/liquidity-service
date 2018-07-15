@@ -1,5 +1,7 @@
 package com.dhpcs.liquidity.model
 
+import java.time.Instant
+
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.proto.binding.ProtoBindings._
@@ -22,6 +24,10 @@ object ProtoBindings {
       (publicKeyBytes, _) =>
         PublicKey(okio.ByteString.of(publicKeyBytes.asReadOnlyByteBuffer()))
     )
+
+  implicit final val InstantProtoBinding: ProtoBinding[Instant, Long, Any] =
+    ProtoBinding.instance((instant, _) => instant.toEpochMilli,
+                          (epochMillis, _) => Instant.ofEpochMilli(epochMillis))
 
   implicit final val MemberIdProtoBinding: ProtoBinding[MemberId, String, Any] =
     ProtoBinding.instance((memberId, _) => memberId.value,

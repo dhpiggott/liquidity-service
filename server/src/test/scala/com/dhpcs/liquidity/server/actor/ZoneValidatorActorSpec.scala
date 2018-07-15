@@ -738,15 +738,13 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           )
         )
         assert(
-          zone.created === Spread(
+          zone.created.toEpochMilli === Spread(
             pivot = Instant.now().toEpochMilli,
             tolerance = 5000
           )
         )
         assert(
-          zone.expires === zone.created + java.time.Duration
-            .ofDays(30)
-            .toMillis
+          zone.expires === zone.created.plus(java.time.Duration.ofDays(30))
         )
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))
@@ -844,7 +842,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
             .ownerMemberIds
             .head)
         assert(
-          transaction.created === Spread(
+          transaction.created.toEpochMilli === Spread(
             pivot = Instant.now().toEpochMilli,
             tolerance = 5000
           )
@@ -890,15 +888,13 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           )
         )
         assert(
-          zone.created === Spread(
+          zone.created.toEpochMilli === Spread(
             pivot = Instant.now().toEpochMilli,
             tolerance = 5000
           )
         )
         assert(
-          zone.expires === zone.created + java.time.Duration
-            .ofDays(30)
-            .toMillis
+          zone.expires === zone.created.plus(java.time.Duration.ofDays(30))
         )
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))

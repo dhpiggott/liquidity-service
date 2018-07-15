@@ -1,5 +1,8 @@
 package com.dhpcs.liquidity.server.actor
 
+import java.net.InetAddress
+import java.time.Instant
+
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{Behavior, PostStop}
 import akka.persistence.query.Sequence
@@ -7,15 +10,17 @@ import akka.persistence.query.scaladsl.{EventsByTagQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import cats.effect.IO
+import cats.instances.list._
 import cats.syntax.applicative._
-import com.dhpcs.liquidity.model.ZoneId
+import cats.syntax.traverse._
+import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.EventTags
 import com.dhpcs.liquidity.persistence.zone._
-import com.dhpcs.liquidity.server.LiquidityServer.TransactIoToFuture
-import com.dhpcs.liquidity.server.SqlAnalyticsStore._
+import com.dhpcs.liquidity.server.SqlBindings._
 import doobie._
 import doobie.implicits._
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 object ZoneAnalyticsActor {
@@ -25,10 +30,10 @@ object ZoneAnalyticsActor {
 
   def singletonBehavior(readJournal: ReadJournal with EventsByTagQuery,
                         analyticsTransactor: Transactor[IO],
-                        transactIoToFuture: TransactIoToFuture)(
+                        blockingIoEc: ExecutionContext)(
       implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Behaviors.setup { context =>
-      val offset = transactIoToFuture(analyticsTransactor)(for {
+      val offsetIo = (for {
         maybePreviousOffset <- TagOffsetsStore.retrieve(EventTags.ZoneEventTag)
         offset <- maybePreviousOffset match {
           case None =>
@@ -38,7 +43,12 @@ object ZoneAnalyticsActor {
           case Some(previousOffset) =>
             previousOffset.pure[ConnectionIO]
         }
-      } yield offset)
+      } yield offset).transact(analyticsTransactor)
+      val offset = (for {
+        _ <- IO.shift(blockingIoEc)
+        offset <- offsetIo
+        _ <- IO.shift(ExecutionContext.global)
+      } yield offset).unsafeToFuture()
       val killSwitch = RestartSource
         .onFailuresWithBackoff(minBackoff = 3.seconds,
                                maxBackoff = 30.seconds,
@@ -52,11 +62,17 @@ object ZoneAnalyticsActor {
                   ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
                 val zoneEventEnvelope =
                   eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
-                val offset = eventEnvelope.offset.asInstanceOf[Sequence]
-                transactIoToFuture(analyticsTransactor)(for {
+                val nextOffset = eventEnvelope.offset.asInstanceOf[Sequence]
+                val offsetIo = (for {
                   _ <- projectEvent(zoneId, zoneEventEnvelope)
-                  _ <- TagOffsetsStore.update(EventTags.ZoneEventTag, offset)
-                } yield offset)
+                  _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
+                                              nextOffset)
+                } yield offset).transact(analyticsTransactor)
+                (for {
+                  _ <- IO.shift(blockingIoEc)
+                  offset <- offsetIo
+                  _ <- IO.shift(ExecutionContext.global)
+                } yield offset).unsafeToFuture()
               }
               .zipWithIndex
               .groupedWithin(n = 1000, d = 30.seconds)
@@ -148,17 +164,240 @@ object ZoneAnalyticsActor {
             _ <- TransactionsStore.insert(zoneId, transaction)
             sourceBalance <- AccountsStore.retrieveBalance(zoneId,
                                                            transaction.from)
-            _ <- AccountsStore.update(zoneId,
-                                      transaction.from,
-                                      sourceBalance - transaction.value)
+            _ <- AccountsStore.updateBalance(zoneId,
+                                             transaction.from,
+                                             sourceBalance - transaction.value)
             destinationBalance <- AccountsStore.retrieveBalance(zoneId,
                                                                 transaction.to)
-            _ <- AccountsStore.update(zoneId,
-                                      transaction.to,
-                                      destinationBalance + transaction.value)
+            _ <- AccountsStore.updateBalance(
+              zoneId,
+              transaction.to,
+              destinationBalance + transaction.value)
           } yield ()
       }
       _ <- ZoneStore.update(zoneId, modified = zoneEventEnvelope.timestamp)
     } yield ()
 
+  object ZoneStore {
+
+    def insert(zone: Zone): ConnectionIO[Unit] =
+      for {
+        _ <- sql"""
+               INSERT INTO zones (zone_id, equity_account_id, created, expires, metadata)
+                 VALUES (${zone.id}, ${zone.equityAccountId}, ${zone.created}, ${zone.expires}, ${zone.metadata})
+             """.update.run
+        _ <- ZoneNameChangeStore.insert(zone.id, zone.name, zone.created)
+        _ <- zone.members.values.toList
+          .map(MembersStore.insert(zone.id, _, zone.created))
+          .sequence
+        _ <- zone.accounts.values.toList
+          .map(AccountsStore.insert(zone.id, _, zone.created, BigDecimal(0)))
+          .sequence
+        _ <- zone.transactions.values.toList
+          .map(TransactionsStore.insert(zone.id, _))
+          .sequence
+      } yield ()
+
+    def update(zoneId: ZoneId, modified: Instant): ConnectionIO[Unit] =
+      for (_ <- sql"""
+             UPDATE zones
+               SET modified = $modified
+               WHERE zone_id = $zoneId
+           """.update.run)
+        yield ()
+
+  }
+
+  object ZoneNameChangeStore {
+
+    def insert(zoneId: ZoneId,
+               name: Option[String],
+               changed: Instant): ConnectionIO[Unit] =
+      for (_ <- sql"""
+             INSERT INTO zone_name_changes (zone_id, name, changed)
+               VALUES ($zoneId, $name, $changed)
+           """.update.run)
+        yield ()
+
+  }
+
+  object MembersStore {
+
+    def insert(zoneId: ZoneId,
+               member: Member,
+               created: Instant): ConnectionIO[Unit] =
+      for {
+        _ <- sql"""
+               INSERT INTO members (zone_id, member_id, created)
+                 VALUES ($zoneId, ${member.id}, $created)
+             """.update.run
+        _ <- MemberUpdatesStore.insert(zoneId, member, created)
+      } yield ()
+
+  }
+
+  object MemberUpdatesStore {
+
+    def insert(zoneId: ZoneId,
+               member: Member,
+               updated: Instant): ConnectionIO[Unit] =
+      for {
+        updateId <- sql"""
+               INSERT INTO member_updates (zone_id, member_id, updated, name, metadata)
+                 VALUES ($zoneId, ${member.id}, $updated, ${member.name}, ${member.metadata})
+             """.update
+          .withUniqueGeneratedKeys[Long]("update_id")
+        _ <- member.ownerPublicKeys
+          .map(MemberOwnersStore.insert(updateId, _))
+          .toList
+          .sequence
+      } yield ()
+
+    object MemberOwnersStore {
+
+      def insert(updateId: Long, publicKey: PublicKey): ConnectionIO[Unit] =
+        for (_ <- sql"""
+               INSERT INTO member_owners (update_id, public_key, fingerprint)
+                 VALUES ($updateId, $publicKey, ${publicKey.fingerprint})
+             """.update.run)
+          yield ()
+
+    }
+  }
+
+  object AccountsStore {
+
+    def insert(zoneId: ZoneId,
+               account: Account,
+               created: Instant,
+               balance: BigDecimal): ConnectionIO[Unit] =
+      for {
+        _ <- sql"""
+               INSERT INTO accounts (zone_id, account_id, created, balance)
+                 VALUES ($zoneId, ${account.id}, $created, $balance)
+             """.update.run
+        _ <- AccountUpdatesStore.insert(zoneId, account, created)
+      } yield ()
+
+    def retrieveBalance(zoneId: ZoneId,
+                        accountId: AccountId): ConnectionIO[BigDecimal] =
+      sql"""
+           SELECT balance FROM accounts
+             WHERE zone_id = $zoneId AND account_id = $accountId
+         """
+        .query[BigDecimal]
+        .unique
+
+    def updateBalance(zoneId: ZoneId,
+                      accountId: AccountId,
+                      balance: BigDecimal): ConnectionIO[Unit] =
+      for (_ <- sql"""
+             UPDATE accounts
+               SET balance = $balance
+               WHERE zone_id = $zoneId AND account_id = $accountId
+           """.update.run)
+        yield ()
+
+  }
+
+  object AccountUpdatesStore {
+
+    def insert(zoneId: ZoneId,
+               account: Account,
+               updated: Instant): ConnectionIO[Unit] =
+      for {
+        updateId <- sql"""
+               INSERT INTO account_updates (zone_id, account_id, updated, name, metadata)
+                 VALUES ($zoneId, ${account.id}, $updated, ${account.name}, ${account.metadata})
+             """.update
+          .withUniqueGeneratedKeys[Long]("update_id")
+        _ <- account.ownerMemberIds
+          .map(AccountOwnersStore.insert(updateId, _))
+          .toList
+          .sequence
+      } yield ()
+
+    object AccountOwnersStore {
+
+      def insert(updateId: Long, memberId: MemberId): ConnectionIO[Unit] =
+        for (_ <- sql"""
+               INSERT INTO account_owners (update_id, member_id)
+                 VALUES ($updateId, $memberId)
+             """.update.run)
+          yield ()
+
+    }
+  }
+
+  object TransactionsStore {
+
+    def insert(zoneId: ZoneId, transaction: Transaction): ConnectionIO[Unit] =
+      for (_ <- sql"""
+             INSERT INTO transactions (zone_id, transaction_id, `from`, `to`, `value`, creator, created, description, metadata)
+               VALUES ($zoneId, ${transaction.id}, ${transaction.from}, ${transaction.to}, ${transaction.value}, ${transaction.creator}, ${transaction.created}, ${transaction.description}, ${transaction.metadata})
+           """.update.run)
+        yield ()
+
+  }
+
+  object ClientSessionsStore {
+
+    def insert(zoneId: ZoneId,
+               remoteAddress: Option[InetAddress],
+               actorRef: String,
+               publicKey: Option[PublicKey],
+               joined: Instant): ConnectionIO[Unit] =
+      for (_ <- sql"""
+             INSERT INTO client_sessions (zone_id, remote_address, actor_ref, public_key, fingerprint, joined)
+               VALUES ($zoneId, $remoteAddress, $actorRef, $publicKey, ${publicKey
+             .map(_.fingerprint)}, $joined)
+           """.update.run) yield ()
+
+    def retrieve(zoneId: ZoneId, actorRef: String): ConnectionIO[Long] =
+      sql"""
+           SELECT session_id FROM client_sessions
+             WHERE zone_id = $zoneId AND actor_ref = $actorRef AND quit IS NULL
+             ORDER BY session_id
+             LIMIT 1
+         """
+        .query[Long]
+        .unique
+
+    def update(sessionId: Long, quit: Instant): ConnectionIO[Unit] =
+      for (_ <- sql"""
+             UPDATE client_sessions
+               SET quit = $quit
+               WHERE session_id = $sessionId
+           """.update.run)
+        yield ()
+
+  }
+
+  object TagOffsetsStore {
+
+    def insert(tag: String, offset: Sequence): ConnectionIO[Unit] =
+      for (_ <- sql"""
+             INSERT INTO tag_offsets (tag, `offset`)
+               VALUES ($tag, $offset)
+           """.update.run)
+        yield ()
+
+    def retrieve(tag: String): ConnectionIO[Option[Sequence]] =
+      sql"""
+           SELECT `offset`
+             FROM tag_offsets
+             WHERE tag = $tag
+         """
+        .query[Sequence]
+        .option
+
+    def update(tag: String, offset: Sequence): ConnectionIO[Unit] =
+      for (_ <- sql"""
+             UPDATE tag_offsets
+               SET `offset` = $offset
+               WHERE tag = $tag
+           """.update.run)
+        yield ()
+
+  }
 }

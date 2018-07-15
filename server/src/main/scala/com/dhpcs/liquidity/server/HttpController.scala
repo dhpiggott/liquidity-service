@@ -18,15 +18,11 @@ import akka.http.scaladsl.unmarshalling._
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import cats.instances.future._
-import cats.syntax.apply._
 import com.dhpcs.liquidity.actor.protocol.zonemonitor.ActiveZoneSummary
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController._
-import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.google.protobuf.CodedOutputStream
@@ -48,11 +44,10 @@ trait HttpController {
   protected[this] def httpRoutes(enableClientRelay: Boolean)(
       implicit ec: ExecutionContext): Route =
     path("version")(version) ~
-      pathPrefix("status")(status) ~
+      path("status")(status) ~
       logRequestResult(("access-log", Logging.InfoLevel))(
         pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
           pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
-          pathPrefix("analytics")(administratorRealm(analytics)) ~
           (if (enableClientRelay)
              extractClientIP(_.toOption match {
                case None =>
@@ -136,13 +131,6 @@ trait HttpController {
       }) ~
       path("zone" / zoneIdMatcher)(zoneId => get(complete(zoneState(zoneId))))
 
-  private[this] def analytics(implicit ec: ExecutionContext): Route =
-    pathPrefix("zone" / zoneIdMatcher) { zoneId =>
-      pathEnd(zone(zoneId)) ~
-        path("balances")(balances(zoneId)) ~
-        path("client-sessions")(clientSessions(zoneId))
-    }
-
   private[this] def version: Route =
     get(
       complete(
@@ -160,17 +148,7 @@ trait HttpController {
         if (!isClusterHealthy)
           ServiceUnavailable
         else
-          for ((activeZoneSummaries,
-                zoneCount,
-                publicKeyCount,
-                memberCount,
-                accountCount,
-                transactionCount) <- (getActiveZoneSummaries,
-                                      getZoneCount,
-                                      getPublicKeyCount,
-                                      getMemberCount,
-                                      getAccountCount,
-                                      getTransactionCount).tupled)
+          for (activeZoneSummaries <- getActiveZoneSummaries)
             yield
               Json.obj(
                 "activeZones" -> Json.obj(
@@ -238,13 +216,6 @@ trait HttpController {
                             }
                         )
                     }
-                ),
-                "allZones" -> Json.obj(
-                  "count" -> zoneCount,
-                  "publicKeys" -> publicKeyCount,
-                  "members" -> memberCount,
-                  "accounts" -> accountCount,
-                  "transactions" -> transactionCount
                 )
               )
       )
@@ -333,46 +304,6 @@ trait HttpController {
       )
     )
 
-  private[this] def zone(zoneId: ZoneId)(implicit ec: ExecutionContext): Route =
-    get(
-      complete(
-        getZone(zoneId).map(_.map(zone =>
-          Json.parse(JsonFormat.toJsonString(
-            ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(())))))
-      ))
-
-  private[this] def balances(zoneId: ZoneId)(
-      implicit ec: ExecutionContext): Route =
-    get(
-      complete(
-        getBalances(zoneId).map(balances =>
-          Json.obj(balances.map {
-            case (accountId, balance) =>
-              accountId.value.toString -> toJsFieldJsValueWrapper(balance)
-          }.toSeq: _*))
-      ))
-
-  private[this] def clientSessions(zoneId: ZoneId)(
-      implicit ec: ExecutionContext): Route =
-    get(complete(
-      getClientSessions(zoneId).map(
-        clientSessions =>
-          Json.obj(clientSessions.map {
-            case (clientSessionId, clientSession) =>
-              clientSessionId.value.toString -> toJsFieldJsValueWrapper(
-                Json.obj(
-                  "id" -> clientSession.id.value.toString,
-                  "remoteAddress" -> clientSession.remoteAddress.map(
-                    _.getHostAddress),
-                  "actorRef" -> clientSession.actorRef,
-                  "publicKeyFingerprint" -> clientSession.publicKey.fingerprint,
-                  "joined" -> clientSession.joined,
-                  "quit" -> clientSession.quit
-                ))
-          }.toSeq: _*)
-      )
-    ))
-
   protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean]
 
   protected[this] def akkaManagement: StandardRoute
@@ -383,20 +314,9 @@ trait HttpController {
   protected[this] def zoneState(
       zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
 
-  protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]]
-  protected[this] def getBalances(
-      zoneId: ZoneId): Future[Map[AccountId, BigDecimal]]
-  protected[this] def getClientSessions(
-      zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]]
-
   protected[this] def isClusterHealthy: Boolean
   protected[this] def resolver: ActorRefResolver
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
-  protected[this] def getZoneCount: Future[Long]
-  protected[this] def getPublicKeyCount: Future[Long]
-  protected[this] def getMemberCount: Future[Long]
-  protected[this] def getAccountCount: Future[Long]
-  protected[this] def getTransactionCount: Future[Long]
 
   protected[this] def createZone(
       remoteAddress: InetAddress,

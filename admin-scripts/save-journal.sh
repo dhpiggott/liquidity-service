@@ -17,7 +17,7 @@ OUTPUT_DIRECTORY=$3
 mkdir --parents "$OUTPUT_DIRECTORY"
 touch "$OUTPUT_DIRECTORY"/journal_dump.sql
 
-RDS_HOSTNAME=$(
+MYSQL_HOSTNAME=$(
   aws cloudformation describe-stacks \
     --region "$REGION" \
     --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
@@ -26,7 +26,7 @@ RDS_HOSTNAME=$(
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
       | [0].Outputs[?OutputKey=='RDSHostname'].OutputValue"
 )
-RDS_USERNAME=$(
+MYSQL_USERNAME=$(
   aws cloudformation describe-stacks \
     --region "$REGION" \
     --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
@@ -35,7 +35,7 @@ RDS_USERNAME=$(
       "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
       | [0].Outputs[?OutputKey=='RDSUsername'].OutputValue"
 )
-RDS_PASSWORD=$(
+MYSQL_PASSWORD=$(
   aws cloudformation describe-stacks \
     --region "$REGION" \
     --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
@@ -54,9 +54,9 @@ docker run \
     mysqldump \
     --ssl-ca=/rds-combined-ca-bundle.pem \
     --ssl-mode=VERIFY_IDENTITY \
-    --host=$RDS_HOSTNAME \
-    --user=$RDS_USERNAME \
-    --password=$RDS_PASSWORD \
+    --host=$MYSQL_HOSTNAME \
+    --user=$MYSQL_USERNAME \
+    --password=$MYSQL_PASSWORD \
     --skip-opt \
     --no-create-info \
     --add-locks \

@@ -39,7 +39,7 @@ class ClientConnectionActorSpec
           spawn(_)
         )
         .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
-    val created = Instant.now().toEpochMilli
+    val created = Instant.now()
     val equityAccountId = AccountId(0.toString)
     val equityAccountOwnerId = MemberId(0.toString)
     val zone = Zone(
@@ -63,7 +63,7 @@ class ClientConnectionActorSpec
       ),
       transactions = Map.empty,
       created = created,
-      expires = created + java.time.Duration.ofDays(30).toMillis,
+      expires = created.plus(java.time.Duration.ofDays(30)),
       name = Some("Dave's Game"),
       metadata = None
     )

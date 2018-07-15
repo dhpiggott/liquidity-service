@@ -1,7 +1,6 @@
 package com.dhpcs.liquidity.actor.protocol
 
 import java.net.InetAddress
-import java.time.Instant
 
 import akka.actor.typed.{ActorRef, ActorRefResolver}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
@@ -66,10 +65,6 @@ object ProtoBindings {
       (inetAddressBytes, _) =>
         InetAddress.getByAddress(inetAddressBytes.toByteArray)
     )
-
-  implicit final val InstantProtoBinding: ProtoBinding[Instant, Long, Any] =
-    ProtoBinding.instance((instant, _) => instant.toEpochMilli,
-                          (epochMillis, _) => Instant.ofEpochMilli(epochMillis))
 
   implicit final val ZoneEventEnvelopeProtoBinding
     : ProtoBinding[ZoneEventEnvelope,

@@ -25,11 +25,11 @@ ENVIRONMENT=$3
 
 case $ACTION in
   create)
-    RDS_USERNAME=liquidity
-    RDS_PASSWORD=$(uuidgen)
+    MYSQL_USERNAME=liquidity
+    MYSQL_PASSWORD=$(uuidgen)
     ;;
   update)
-    RDS_USERNAME=$(
+    MYSQL_USERNAME=$(
       aws cloudformation describe-stacks \
         --region "$REGION" \
         --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
@@ -38,7 +38,7 @@ case $ACTION in
           "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
           | [0].Outputs[?OutputKey=='RDSUsername'].OutputValue"
     )
-    RDS_PASSWORD=$(
+    MYSQL_PASSWORD=$(
       aws cloudformation describe-stacks \
         --region "$REGION" \
         --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
@@ -84,8 +84,8 @@ aws cloudformation "$ACTION"-stack \
   --parameters \
     ParameterKey=VPCId,ParameterValue="$VPC_ID" \
     ParameterKey=Subnets,ParameterValue=\""$SUBNETS"\" \
-    ParameterKey=RDSUsername,ParameterValue="$RDS_USERNAME" \
-    ParameterKey=RDSPassword,ParameterValue="$RDS_PASSWORD" \
+    ParameterKey=RDSUsername,ParameterValue="$MYSQL_USERNAME" \
+    ParameterKey=RDSPassword,ParameterValue="$MYSQL_PASSWORD" \
     ParameterKey=ALBListenerCertificate,ParameterValue="$ALB_LISTENER_CERTIFICATE"
 
 aws cloudformation wait stack-"$ACTION"-complete \

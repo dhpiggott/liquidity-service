@@ -33,9 +33,7 @@ import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
-import com.dhpcs.liquidity.server.SqlAdministratorStore.AdministratorsStore
-import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
-import com.dhpcs.liquidity.server.SqlAnalyticsStore._
+import com.dhpcs.liquidity.server.SqlBindings._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
 import com.dhpcs.liquidity.server.actor._
 import com.dhpcs.liquidity.ws.protocol._
@@ -65,8 +63,6 @@ class LiquidityServer(
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
   private[this] implicit val askTimeout: Timeout = Timeout(5.seconds)
-  private[this] val transactIoToFuture = new TransactIoToFuture(
-    ExecutionContext.fromExecutorService(Executors.newCachedThreadPool()))
 
   private[this] val zoneMonitor =
     system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
@@ -81,10 +77,13 @@ class LiquidityServer(
       allocationStrategy = None
     )
 
+  private[this] val blockingIoEc =
+    ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
+
   ClusterSingleton(system.toTyped).spawn(
     behavior = ZoneAnalyticsActor.singletonBehavior(readJournal,
                                                     analyticsTransactor,
-                                                    transactIoToFuture),
+                                                    blockingIoEc),
     singletonName = "zoneAnalyticsSingleton",
     props = Props.empty,
     settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
@@ -101,9 +100,22 @@ class LiquidityServer(
   )
 
   override protected[this] def isAdministrator(
-      publicKey: PublicKey): Future[Boolean] =
-    transactIoToFuture(administratorsTransactor)(
-      AdministratorsStore.exists(publicKey))
+      publicKey: PublicKey): Future[Boolean] = {
+    val isAdministratorIo = sql"""
+       SELECT 1
+         FROM administrators
+         WHERE public_key = $publicKey
+      """
+      .query[Int]
+      .option
+      .map(_.isDefined)
+      .transact(administratorsTransactor)
+    (for {
+      _ <- IO.shift(blockingIoEc)
+      isAdministrator <- isAdministratorIo
+      _ <- IO.shift(ExecutionContext.global)
+    } yield isAdministrator).unsafeToFuture()
+  }
 
   override protected[this] def akkaManagement: StandardRoute =
     requestContext =>
@@ -144,19 +156,6 @@ class LiquidityServer(
         .asProto(_)(ActorRefResolver(system.toTyped)))
   }
 
-  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
-    transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveOption(zoneId))
-
-  override protected[this] def getBalances(
-      zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
-    transactIoToFuture(analyticsTransactor)(
-      AccountsStore.retrieveAllBalances(zoneId))
-
-  override protected[this] def getClientSessions(
-      zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]] =
-    transactIoToFuture(analyticsTransactor)(
-      ClientSessionsStore.retrieveAll(zoneId))
-
   override protected[this] def isClusterHealthy: Boolean =
     cluster.selfMember.status == MemberStatus.Up
 
@@ -166,22 +165,6 @@ class LiquidityServer(
   override protected[this] def getActiveZoneSummaries
     : Future[Set[ActiveZoneSummary]] =
     zoneMonitor ? GetActiveZoneSummaries
-
-  override protected[this] def getZoneCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(ZoneStore.retrieveCount)
-
-  override protected[this] def getPublicKeyCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(
-      MemberUpdatesStore.MemberOwnersStore.retrieveCount)
-
-  override protected[this] def getMemberCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(MembersStore.retrieveCount)
-
-  override protected[this] def getAccountCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(AccountsStore.retrieveCount)
-
-  override protected[this] def getTransactionCount: Future[Long] =
-    transactIoToFuture(analyticsTransactor)(TransactionsStore.retrieveCount)
 
   override protected[this] def createZone(
       remoteAddress: InetAddress,
@@ -227,18 +210,18 @@ object LiquidityServer {
   private final val ClientRelayRole = "client-relay"
   private final val AnalyticsRole = "analytics"
 
-  class TransactIoToFuture(ec: ExecutionContext) {
-    def apply[A](transactor: Transactor[IO])(io: ConnectionIO[A]): Future[A] =
-      (for {
-        a <- io.transact(transactor)
-        _ <- IO.shift(ec)
-      } yield a).unsafeToFuture()
-  }
-
   private[this] val log = LoggerFactory.getLogger(getClass)
 
   def main(args: Array[String]): Unit = {
-    val privateAddress = getPrivateAddressOrExit
+    val privateAddress =
+      AsyncEcsSimpleServiceDiscovery.getContainerAddress match {
+        case Left(error) =>
+          log.error(s"$error Halting.")
+          sys.exit(1)
+
+        case Right(value) =>
+          value
+      }
     val config = ConfigFactory
       .systemProperties()
       .withFallback(
@@ -297,8 +280,8 @@ object LiquidityServer {
            |  db {
            |    driver = "com.mysql.jdbc.Driver"
            |    url = "${urlForDatabase("liquidity_journal")}"
-           |    user = "${getEnvVarOrExit("MYSQL_USERNAME")}"
-           |    password = "${getEnvVarOrExit("MYSQL_PASSWORD")}"
+           |    user = "${sys.env("MYSQL_USERNAME")}"
+           |    password = "${sys.env("MYSQL_PASSWORD")}"
            |    maxConnections = 2
            |    numThreads = 2
            |  }
@@ -319,8 +302,8 @@ object LiquidityServer {
       administratorsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
         url = urlForDatabase("liquidity_administrators"),
-        user = getEnvVarOrExit("MYSQL_USERNAME"),
-        pass = getEnvVarOrExit("MYSQL_PASSWORD")
+        user = sys.env("MYSQL_USERNAME"),
+        pass = sys.env("MYSQL_PASSWORD")
       )
       _ <- administratorsTransactor.configure(hikariDataSource =>
         IO(hikariDataSource.setMaximumPoolSize(2)))
@@ -329,8 +312,8 @@ object LiquidityServer {
       analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
         url = urlForDatabase("liquidity_analytics"),
-        user = getEnvVarOrExit("MYSQL_USERNAME"),
-        pass = getEnvVarOrExit("MYSQL_PASSWORD")
+        user = sys.env("MYSQL_USERNAME"),
+        pass = sys.env("MYSQL_PASSWORD")
       )
       _ <- analyticsTransactor.configure(hikariDataSource =>
         IO(hikariDataSource.setMaximumPoolSize(2)))
@@ -352,18 +335,8 @@ object LiquidityServer {
       httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
   }
 
-  private[this] def getPrivateAddressOrExit: InetAddress =
-    AsyncEcsSimpleServiceDiscovery.getContainerAddress match {
-      case Left(error) =>
-        log.error(s"$error Halting.")
-        sys.exit(1)
-
-      case Right(value) =>
-        value
-    }
-
   private[this] def urlForDatabase(database: String): String =
-    s"jdbc:mysql://${getEnvVarOrExit("MYSQL_HOSTNAME")}/$database?" +
+    s"jdbc:mysql://${sys.env("MYSQL_HOSTNAME")}/$database?" +
       "useSSL=false&" +
       "cacheCallableStmts=true&" +
       "cachePrepStmts=true&" +
@@ -371,12 +344,7 @@ object LiquidityServer {
       "cacheServerConfiguration=true&" +
       "useLocalSessionState=true&" +
       "useLocalSessionState=true&" +
-      "useServerPrepStmts=true"
-
-  private[this] def getEnvVarOrExit(name: String): String =
-    sys.env.getOrElse(name, {
-      log.error(s"Required environment variable <$name> is not set. Halting.")
-      sys.exit(1)
-    })
+      "useServerPrepStmts=true&" +
+      "useLegacyDatetimeCode=false"
 
 }

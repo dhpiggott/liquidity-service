@@ -329,8 +329,8 @@ object ZoneValidatorActor {
                   validEquityAccountName,
                   vaildEquityAccountMetadata
                 )
-                val created = Instant.now().toEpochMilli
-                val expires = created + ZoneLifetime.toMillis
+                val created = Instant.now()
+                val expires = created.plus(ZoneLifetime)
                 val zone = Zone(
                   id,
                   equityAccount.id,
@@ -615,8 +615,8 @@ object ZoneValidatorActor {
                   (validatedValue, validatedActingAs).tupled
                 }
               val validatedTo = validateToAccount(zone, from, to)
-              val validatedCreated = System
-                .currentTimeMillis()
+              val validatedCreated = Instant
+                .now()
                 .valid[NonEmptyList[ZoneResponse.Error]]
               val validatedDescription = validateTag(description)
               val validatedMetadata = validateMetadata(metadata)

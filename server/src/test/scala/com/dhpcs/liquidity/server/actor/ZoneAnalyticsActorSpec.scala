@@ -4,7 +4,6 @@ import java.net.InetAddress
 import java.security.KeyPairGenerator
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.Executors
 
 import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
@@ -19,12 +18,14 @@ import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.{TestKit, TestProbe}
 import akka.util.Timeout
 import cats.effect.IO
+import cats.instances.list._
+import cats.syntax.applicative._
+import cats.syntax.apply._
+import cats.syntax.traverse._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.EventTags
 import com.dhpcs.liquidity.persistence.zone._
-import com.dhpcs.liquidity.server.LiquidityServer.TransactIoToFuture
-import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore.ClientSession
-import com.dhpcs.liquidity.server._
+import com.dhpcs.liquidity.server.SqlBindings._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActorSpec._
 import com.typesafe.config.ConfigFactory
 import doobie._
@@ -117,8 +118,6 @@ class ZoneAnalyticsActorSpec
     .readJournalFor[InMemoryReadJournal](InMemoryReadJournal.Identifier)
 
   private[this] val h2Server = Server.createTcpServer()
-  private[this] val transactIoToFuture = new TransactIoToFuture(
-    ExecutionContext.fromExecutorService(Executors.newCachedThreadPool()))
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -140,11 +139,10 @@ class ZoneAnalyticsActorSpec
     )
     initAnalytics.transact(transactor).unsafeRunSync()
     val analytics = system.spawn(
-      ZoneAnalyticsActor.singletonBehavior(
-        readJournal,
-        transactor,
-        transactIoToFuture
-      ),
+      ZoneAnalyticsActor.singletonBehavior(readJournal,
+                                           transactor,
+                                           blockingIoEc =
+                                             ExecutionContext.global),
       name = "zoneAnalytics"
     )
     val zoneId = ZoneId(UUID.randomUUID().toString)
@@ -167,7 +165,7 @@ class ZoneAnalyticsActorSpec
 
   private[this] def zoneCreated(fixture: FixtureParam): Zone = {
     val (transactor, zoneId, _) = fixture
-    val created = Instant.now().toEpochMilli
+    val created = Instant.now()
     val equityAccountId = AccountId(0.toString)
     val equityAccountOwnerId = MemberId(0.toString)
     val zone = Zone(
@@ -191,19 +189,26 @@ class ZoneAnalyticsActorSpec
       ),
       transactions = Map.empty,
       created = created,
-      expires = created + java.time.Duration.ofDays(30).toMillis,
+      expires = created.plus(java.time.Duration.ofDays(30)),
       name = Some("Dave's Game"),
       metadata = None
     )
     writeEvent(fixture, ZoneCreatedEvent(zone))
     eventually {
-      val zoneCount = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.ZoneStore.retrieveCount
-      ).futureValue
+      val zoneCount =
+        sql"""
+           SELECT COUNT(*)
+             FROM zones
+         """
+          .query[Long]
+          .unique
+          .transact(transactor)
+          .unsafeRunSync()
       assert(zoneCount === 1)
-      val maybeZone = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId)
-      ).futureValue
+      val maybeZone =
+        retrieveZoneOption(zoneId)
+          .transact(transactor)
+          .unsafeRunSync()
       assert(maybeZone === Some(zone))
     }
     zone
@@ -217,9 +222,11 @@ class ZoneAnalyticsActorSpec
     val timestamp = Instant.now()
     writeEvent(fixture, ClientJoinedEvent(Some(actorRef)), timestamp)
     eventually {
-      val (_, clientSession) = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.ClientSessionsStore.retrieveAll(zoneId)
-      ).futureValue.head
+      val (_, clientSession) =
+        retrieveAllClientSessions(zoneId)
+          .transact(transactor)
+          .unsafeRunSync()
+          .head
       assert(
         clientSession === ClientSession(
           id = clientSession.id,
@@ -242,9 +249,11 @@ class ZoneAnalyticsActorSpec
     val timestamp = Instant.now()
     writeEvent(fixture, ClientQuitEvent(Some(actorRef)), timestamp)
     eventually {
-      val (_, clientSession) = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.ClientSessionsStore.retrieveAll(zoneId)
-      ).futureValue.head
+      val (_, clientSession) =
+        retrieveAllClientSessions(zoneId)
+          .transact(transactor)
+          .unsafeRunSync()
+          .head
       assert(
         clientSession === ClientSession(
           id = clientSession.id,
@@ -262,9 +271,8 @@ class ZoneAnalyticsActorSpec
     val (transactor, zoneId, _) = fixture
     writeEvent(fixture, ZoneNameChangedEvent(name = None))
     eventually {
-      val maybeZone = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.ZoneStore.retrieveOption(zoneId)
-      ).futureValue
+      val maybeZone =
+        retrieveZoneOption(zoneId).transact(transactor).unsafeRunSync()
       assert(maybeZone.exists(_.name.isEmpty))
     }
     ()
@@ -280,17 +288,31 @@ class ZoneAnalyticsActorSpec
     )
     writeEvent(fixture, MemberCreatedEvent(member))
     eventually {
-      val membersCount = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.MembersStore.retrieveCount
-      ).futureValue
+      val membersCount =
+        sql"""
+           SELECT COUNT(*)
+             FROM members
+         """
+          .query[Long]
+          .unique
+          .transact(transactor)
+          .unsafeRunSync()
       assert(membersCount === 2)
-      val memberOwnersCount = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.MemberUpdatesStore.MemberOwnersStore.retrieveCount
-      ).futureValue
+      val memberOwnersCount =
+        sql"""
+             SELECT COUNT(DISTINCT public_key)
+               FROM member_owners
+           """
+          .query[Long]
+          .unique
+          .transact(transactor)
+          .unsafeRunSync()
       assert(memberOwnersCount === 1)
-      val members = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.MembersStore.retrieveAll(zoneId)
-      ).futureValue
+      val members =
+        retrieveAllMembers(zoneId)
+          .map(_.toMap)
+          .transact(transactor)
+          .unsafeRunSync()
       assert(members(member.id) === member)
     }
     member
@@ -301,9 +323,11 @@ class ZoneAnalyticsActorSpec
     val (transactor, zoneId, _) = fixture
     writeEvent(fixture, MemberUpdatedEvent(member.copy(name = None)))
     eventually {
-      val members = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.MembersStore.retrieveAll(zoneId)
-      ).futureValue
+      val members =
+        retrieveAllMembers(zoneId)
+          .map(_.toMap)
+          .transact(transactor)
+          .unsafeRunSync()
       assert(members(member.id) === member.copy(name = None))
     }
     ()
@@ -320,13 +344,21 @@ class ZoneAnalyticsActorSpec
     )
     writeEvent(fixture, AccountCreatedEvent(account))
     eventually {
-      val accountsCount = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.AccountsStore.retrieveCount
-      ).futureValue
+      val accountsCount =
+        sql"""
+           SELECT COUNT(*)
+             FROM accounts
+         """
+          .query[Long]
+          .unique
+          .transact(transactor)
+          .unsafeRunSync()
       assert(accountsCount === 2)
-      val accounts = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.AccountsStore.retrieveAll(zoneId)
-      ).futureValue
+      val accounts =
+        retrieveAllAccounts(zoneId)
+          .map(_.toMap)
+          .transact(transactor)
+          .unsafeRunSync()
       assert(accounts(account.id) === account)
     }
     account
@@ -339,9 +371,11 @@ class ZoneAnalyticsActorSpec
                AccountUpdatedEvent(actingAs = Some(account.ownerMemberIds.head),
                                    account.copy(name = None)))
     eventually {
-      val accounts = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.AccountsStore.retrieveAll(zoneId)
-      ).futureValue
+      val accounts =
+        retrieveAllAccounts(zoneId)
+          .map(_.toMap)
+          .transact(transactor)
+          .unsafeRunSync()
       assert(accounts(account.id) === account.copy(name = None))
     }
     ()
@@ -357,28 +391,45 @@ class ZoneAnalyticsActorSpec
       to = to,
       value = BigDecimal(5000),
       creator = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
-      created = Instant.now().toEpochMilli,
+      created = Instant.now(),
       description = Some("Jenny's Lottery Win"),
       metadata = None
     )
     writeEvent(fixture, TransactionAddedEvent(transaction))
     eventually {
-      val transactionCount = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.TransactionsStore.retrieveCount
-      ).futureValue
+      val transactionCount =
+        sql"""
+           SELECT COUNT(*)
+             FROM transactions
+         """
+          .query[Long]
+          .unique
+          .transact(transactor)
+          .unsafeRunSync()
       assert(transactionCount === 1)
-      val transactions = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.TransactionsStore.retrieveAll(zoneId)
-      ).futureValue
+      val transactions =
+        retrieveAllTransactions(zoneId)
+          .map(_.toMap)
+          .transact(transactor)
+          .unsafeRunSync()
       assert(transactions(transaction.id) === transaction)
-      val sourceBalance = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.AccountsStore.retrieveBalance(zoneId,
-                                                        zone.equityAccountId)
-      ).futureValue
+      val sourceBalance = sql"""
+         SELECT balance FROM accounts
+           WHERE zone_id = $zoneId AND account_id = ${zone.equityAccountId}
+        """
+        .query[BigDecimal]
+        .unique
+        .transact(transactor)
+        .unsafeRunSync()
       assert(sourceBalance === BigDecimal(-5000))
-      val destinationBalance = transactIoToFuture(transactor)(
-        SqlAnalyticsStore.AccountsStore.retrieveBalance(zoneId, to)
-      ).futureValue
+      val destinationBalance = sql"""
+         SELECT balance FROM accounts
+           WHERE zone_id = $zoneId AND account_id = $to
+        """
+        .query[BigDecimal]
+        .unique
+        .transact(transactor)
+        .unsafeRunSync()
       assert(destinationBalance === BigDecimal(5000))
     }
     ()
@@ -531,6 +582,7 @@ object ZoneAnalyticsActorSpec {
   private class WriterActor(override val persistenceId: String)
       extends PersistentActor {
     override def receiveRecover: Receive = Actor.emptyBehavior
+
     override def receiveCommand: Receive = {
       case zoneEventEnvelope: ZoneEventEnvelope =>
         persist(Tagged(zoneEventEnvelope, Set(EventTags.ZoneEventTag)))(_ => ())
@@ -548,4 +600,207 @@ object ZoneAnalyticsActorSpec {
       zoneEvent = event
     )
   }
+
+  private def retrieveZoneOption(zoneId: ZoneId): ConnectionIO[Option[Zone]] =
+    for {
+      maybeZoneMetadata <- sql"""
+         SELECT zone_name_changes.name, zones.equity_account_id, zones.created, zones.expires, zones.metadata
+           FROM zones
+           JOIN zone_name_changes
+           ON zone_name_changes.change_id = (
+             SELECT zone_name_changes.change_id
+               FROM zone_name_changes
+               WHERE zone_name_changes.zone_id = zones.zone_id
+               ORDER BY change_id
+               DESC
+               LIMIT 1
+           )
+           WHERE zones.zone_id = $zoneId
+        """
+        .query[(Option[String],
+                AccountId,
+                Instant,
+                Instant,
+                Option[com.google.protobuf.struct.Struct])]
+        .option
+      maybeZone <- maybeZoneMetadata match {
+        case None =>
+          None.pure[ConnectionIO]
+
+        case Some((name, equityAccountId, created, expires, metadata)) =>
+          for {
+            membersAccountsTransactions <- (retrieveAllMembers(zoneId).map(
+                                              _.toMap),
+                                            retrieveAllAccounts(zoneId).map(
+                                              _.toMap),
+                                            retrieveAllTransactions(zoneId).map(
+                                              _.toMap))
+              .tupled
+            (members, accounts, transactions) = membersAccountsTransactions
+          } yield
+            Some(
+              Zone(zoneId,
+                   equityAccountId,
+                   members,
+                   accounts,
+                   transactions,
+                   created,
+                   expires,
+                   name,
+                   metadata)
+            )
+      }
+    } yield maybeZone
+
+  private def retrieveAllMembers(
+      zoneId: ZoneId): ConnectionIO[Seq[(MemberId, Member)]] = {
+    def retrieve(memberId: MemberId): ConnectionIO[(MemberId, Member)] = {
+      val ownerPublicKeys = sql"""
+           SELECT public_key
+             FROM member_owners
+             WHERE update_id = (
+               SELECT update_id
+                 FROM member_updates
+                 WHERE zone_id = $zoneId
+                 AND member_id = $memberId
+                 ORDER BY update_id
+                 DESC
+                 LIMIT 1
+             )
+          """
+        .query[PublicKey]
+        .to[Set]
+      val nameAndMetadata = sql"""
+           SELECT name, metadata
+             FROM member_updates
+             WHERE zone_id = $zoneId
+             AND member_id = $memberId
+             ORDER BY update_id
+             DESC
+             LIMIT 1
+          """
+        .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
+        .unique
+      for {
+        ownerPublicKeysNameAndMetadata <- (ownerPublicKeys, nameAndMetadata)
+          .tupled
+        (ownerPublicKeys, (name, metadata)) = ownerPublicKeysNameAndMetadata
+      } yield memberId -> Member(memberId, ownerPublicKeys, name, metadata)
+    }
+    for {
+      memberIds <- sql"""
+         SELECT member_id
+           FROM members
+           WHERE zone_id = $zoneId
+        """
+        .query[MemberId]
+        .to[Vector]
+      members <- memberIds
+        .map(retrieve)
+        .toList
+        .sequence
+    } yield members
+  }
+
+  private def retrieveAllAccounts(
+      zoneId: ZoneId): ConnectionIO[Seq[(AccountId, Account)]] = {
+    def retrieve(accountId: AccountId): ConnectionIO[(AccountId, Account)] = {
+      val ownerMemberIds = sql"""
+           SELECT member_id
+             FROM account_owners
+             WHERE update_id = (
+               SELECT update_id
+                 FROM account_updates
+                 WHERE zone_id = $zoneId
+                 AND account_id = $accountId
+                 ORDER BY update_id
+                 DESC
+                 LIMIT 1
+             )
+          """
+        .query[MemberId]
+        .to[Set]
+      val nameAndMetadata = sql"""
+           SELECT name, metadata
+             FROM account_updates
+             WHERE zone_id = $zoneId
+             AND account_id = $accountId
+             ORDER BY update_id
+             DESC
+             LIMIT 1
+          """
+        .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
+        .unique
+      for {
+        ownerMemberIdsNameAndMetadata <- (ownerMemberIds, nameAndMetadata)
+          .tupled
+        (ownerMemberIds, (name, metadata)) = ownerMemberIdsNameAndMetadata
+      } yield accountId -> Account(accountId, ownerMemberIds, name, metadata)
+    }
+    for {
+      accountIds <- sql"""
+         SELECT account_id
+           FROM accounts
+           WHERE zone_id = $zoneId
+        """
+        .query[AccountId]
+        .to[Vector]
+      accounts <- accountIds
+        .map(retrieve)
+        .toList
+        .sequence
+    } yield accounts
+  }
+
+  private def retrieveAllTransactions(
+      zoneId: ZoneId): ConnectionIO[Seq[(TransactionId, Transaction)]] =
+    sql"""
+       SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata
+         FROM transactions
+         WHERE zone_id = $zoneId
+      """
+      .query[(TransactionId,
+              AccountId,
+              AccountId,
+              BigDecimal,
+              MemberId,
+              Instant,
+              Option[String],
+              Option[com.google.protobuf.struct.Struct])]
+      .to[Vector]
+      .map(_.map {
+        case values @ (id, _, _, _, _, _, _, _) =>
+          id -> Transaction.tupled(values)
+      })
+
+  private final case class ClientSessionId(value: Long) extends AnyVal
+
+  private final case class ClientSession(
+      id: ClientSessionId,
+      remoteAddress: Option[InetAddress],
+      actorRef: String,
+      publicKey: PublicKey,
+      joined: Instant,
+      quit: Option[Instant]
+  )
+
+  private def retrieveAllClientSessions(
+      zoneId: ZoneId): ConnectionIO[Seq[(ClientSessionId, ClientSession)]] =
+    sql"""
+       SELECT session_id, remote_address, actor_ref, public_key, joined, quit
+         FROM client_sessions
+         WHERE zone_id = $zoneId
+      """
+      .query[(ClientSessionId,
+              Option[InetAddress],
+              String,
+              PublicKey,
+              Instant,
+              Option[Instant])]
+      .to[Vector]
+      .map(_.map {
+        case values @ (id, _, _, _, _, _) =>
+          id -> ClientSession.tupled(values)
+      })
+
 }

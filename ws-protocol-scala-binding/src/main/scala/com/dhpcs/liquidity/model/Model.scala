@@ -1,5 +1,7 @@
 package com.dhpcs.liquidity.model
 
+import java.time.Instant
+
 import okio.ByteString
 
 final case class PublicKey(value: ByteString) extends AnyVal {
@@ -32,7 +34,7 @@ final case class Transaction(
     to: AccountId,
     value: BigDecimal,
     creator: MemberId,
-    created: Long,
+    created: Instant,
     description: Option[String],
     metadata: Option[com.google.protobuf.struct.Struct])
 
@@ -54,7 +56,7 @@ final case class Zone(id: ZoneId,
                       members: Map[MemberId, Member],
                       accounts: Map[AccountId, Account],
                       transactions: Map[TransactionId, Transaction],
-                      created: Long,
-                      expires: Long,
+                      created: Instant,
+                      expires: Instant,
                       name: Option[String],
                       metadata: Option[com.google.protobuf.struct.Struct])

@@ -20,18 +20,19 @@ import akka.util.ByteString
 import cats.data.Validated
 import cats.effect.IO
 import cats.instances.list._
+import cats.syntax.applicative._
+import cats.syntax.apply._
 import cats.syntax.traverse._
-import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServerSpec._
 import com.dhpcs.liquidity.server.LiquidityServerComponentSpec._
+import com.dhpcs.liquidity.server.SqlBindings._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.google.protobuf.CodedInputStream
 import com.google.protobuf.struct.{Struct, Value}
-import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import doobie._
 import doobie.implicits._
 import org.scalactic.TripleEqualsSupport.Spread
@@ -41,8 +42,7 @@ import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 import pdi.jwt.{JwtAlgorithm, JwtJson}
-import play.api.libs.json.{JsValue, Json}
-import scalapb.json4s.JsonFormat
+import play.api.libs.json.Json
 
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
@@ -51,28 +51,38 @@ import scala.sys.process.{Process, ProcessBuilder}
 
 class LiquidityServerComponentSpec extends LiquidityServerSpec {
 
+  private[this] val projectName = UUID.randomUUID().toString
+
+  protected[this] override lazy val baseUri: Uri = {
+    val (_, akkaHttpPort) =
+      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
+    Uri(s"http://localhost:$akkaHttpPort")
+  }
+
+  protected[this] override lazy val analyticsTransactor: Transactor[IO] = {
+    val (_, mysqlPort) =
+      externalDockerComposeServicePorts(projectName, "mysql", 3306).head
+    Transactor.fromDriverManager[IO](
+      driver = "com.mysql.jdbc.Driver",
+      url = urlFor(s"localhost:$mysqlPort", Some("liquidity_analytics")),
+      user = "root",
+      pass = ""
+    )
+  }
+
   override protected def beforeAll(): Unit = {
     super.beforeAll()
     assert(dockerCompose(projectName, "up", "-d", "--remove-orphans").! === 0)
+    val connectionTest = for (_ <- sql"SELECT 1".query[Int].unique) yield ()
+    val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
     val (_, mysqlPort) =
       externalDockerComposeServicePorts(projectName, "mysql", 3306).head
     val transactor = Transactor.fromDriverManager[IO](
       driver = "com.mysql.jdbc.Driver",
-      url =
-        s"jdbc:mysql://localhost:$mysqlPort/?" +
-          "useSSL=false&" +
-          "cacheCallableStmts=true&" +
-          "cachePrepStmts=true&" +
-          "cacheResultSetMetadata=true&" +
-          "cacheServerConfiguration=true&" +
-          "useLocalSessionState=true&" +
-          "useLocalSessionState=true&" +
-          "useServerPrepStmts=true",
+      url = urlFor(s"localhost:$mysqlPort"),
       user = "root",
       pass = ""
     )
-    val connectionTest = for (_ <- sql"SELECT 1".query[Int].unique) yield ()
-    val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
     eventually(
       connectionTest
         .transact(transactor)
@@ -108,15 +118,6 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
       statusIsOk("client-relay")
       statusIsOk("analytics")
     }(pc, Position.here)
-  }
-
-  private[this] val projectName = UUID.randomUUID().toString
-
-  protected[this] def checkProjections: Boolean = true
-  protected[this] override lazy val baseUri: Uri = {
-    val (_, akkaHttpPort) =
-      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
-    Uri(s"http://localhost:$akkaHttpPort")
   }
 
   override protected def afterAll(): Unit = {
@@ -177,14 +178,13 @@ object LiquidityServerComponentSpec {
       .sequence
       .map(_ => ())
 
-  private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] = {
-    import SqlAdministratorStore.PublicKeyMeta
+  private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] =
     for (_ <- sql"""
              INSERT INTO liquidity_administrators.administrators (public_key)
                VALUES ($publicKey)
            """.update.run)
       yield ()
-  }
+
 }
 
 class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
@@ -204,9 +204,16 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
     }
   }
 
-  protected[this] def checkProjections: Boolean = false
   protected[this] override val baseUri: Uri =
     Uri(s"https://${sys.env("SUBDOMAIN")}.liquidityapp.com")
+
+  protected[this] override val analyticsTransactor: Transactor[IO] =
+    Transactor.fromDriverManager[IO](
+      driver = "com.mysql.jdbc.Driver",
+      url = urlFor(sys.env("MYSQL_HOSTNAME"), Some("liquidity_analytics")),
+      user = sys.env("MYSQL_USERNAME"),
+      pass = sys.env("MYSQL_PASSWORD")
+    )
 
 }
 
@@ -220,96 +227,76 @@ abstract class LiquidityServerSpec
   "LiquidityServer" - {
     "accepts and projects create zone commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
-      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      zoneCreated(createdZone, createdBalances)
       ()
     }
     "accepts and projects change zone name commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
-      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      zoneCreated(createdZone, createdBalances)
       val changedName = changeZoneName(createdZone.id).futureValue
-      if (checkProjections) zoneNameChanged(createdZone, changedName)
+      zoneNameChanged(createdZone, changedName)
       ()
     }
     "accepts and projects create member commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
-      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      zoneCreated(createdZone, createdBalances)
       val createdMember = createMember(createdZone.id).futureValue
-      if (checkProjections) memberCreated(createdZone, createdMember)
+      memberCreated(createdZone, createdMember)
       ()
     }
     "accepts and projects update member commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
-      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      zoneCreated(createdZone, createdBalances)
       val createdMember = createMember(createdZone.id).futureValue
-      if (checkProjections) {
-        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-        val updatedMember =
-          updateMember(createdZone.id, createdMember).futureValue
-        memberUpdated(zoneWithCreatedMember, updatedMember)
-      } else {
+      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+      val updatedMember =
         updateMember(createdZone.id, createdMember).futureValue
-      }
+      memberUpdated(zoneWithCreatedMember, updatedMember)
       ()
     }
     "accepts and projects create account commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
-      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      zoneCreated(createdZone, createdBalances)
       val createdMember = createMember(createdZone.id).futureValue
-      if (checkProjections) {
-        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-        val (createdAccount, _) =
-          createAccount(createdZone.id, owner = createdMember.id).futureValue
-        accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-      } else {
+      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+      val (createdAccount, _) =
         createAccount(createdZone.id, owner = createdMember.id).futureValue
-      }
+      accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
       ()
     }
     "accepts and projects update account commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
-      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      zoneCreated(createdZone, createdBalances)
       val createdMember = createMember(createdZone.id).futureValue
-      if (checkProjections) {
-        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-        val (createdAccount, _) =
-          createAccount(createdZone.id, owner = createdMember.id).futureValue
-        val (zoneWithCreatedAccount, _) =
-          accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-        val updatedAccount =
-          updateAccount(createdZone.id, createdAccount).futureValue
-        accountUpdated(zoneWithCreatedAccount, updatedAccount)
-      } else {
-        val (createdAccount, _) =
-          createAccount(createdZone.id, owner = createdMember.id).futureValue
+      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+      val (createdAccount, _) =
+        createAccount(createdZone.id, owner = createdMember.id).futureValue
+      val (zoneWithCreatedAccount, _) =
+        accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
+      val updatedAccount =
         updateAccount(createdZone.id, createdAccount).futureValue
-      }
+      accountUpdated(zoneWithCreatedAccount, updatedAccount)
       ()
     }
     "accepts and projects add transaction commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
-      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      zoneCreated(createdZone, createdBalances)
       val createdMember = createMember(createdZone.id).futureValue
-      if (checkProjections) {
-        val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
-        val (createdAccount, _) =
-          createAccount(createdZone.id, owner = createdMember.id).futureValue
-        val (zoneWithCreatedAccount, updatedBalances) =
-          accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
-        val addedTransaction =
-          addTransaction(createdZone.id, createdZone, to = createdAccount.id).futureValue
-        transactionAdded(zoneWithCreatedAccount,
-                         updatedBalances,
-                         addedTransaction)
-      } else {
-        val (createdAccount, _) =
-          createAccount(createdZone.id, owner = createdMember.id).futureValue
+      val zoneWithCreatedMember = memberCreated(createdZone, createdMember)
+      val (createdAccount, _) =
+        createAccount(createdZone.id, owner = createdMember.id).futureValue
+      val (zoneWithCreatedAccount, updatedBalances) =
+        accountCreated(zoneWithCreatedMember, createdBalances, createdAccount)
+      val addedTransaction =
         addTransaction(createdZone.id, createdZone, to = createdAccount.id).futureValue
-      }
+      transactionAdded(zoneWithCreatedAccount,
+                       updatedBalances,
+                       addedTransaction)
       ()
     }
     "notifies subscribers of events and sends PingCommands when left idle" in {
       val (createdZone, createdBalances) = createZone().futureValue
-      if (checkProjections) zoneCreated(createdZone, createdBalances)
+      zoneCreated(createdZone, createdBalances)
       val zoneNotificationTestProbe =
         zoneNotificationSource(createdZone.id, selfSignedJwt)
           .runWith(TestSink.probe[ZoneNotification])
@@ -377,15 +364,13 @@ abstract class LiquidityServerSpec
               )
             )
             assert(
-              zone.created === Spread(
+              zone.created.toEpochMilli === Spread(
                 pivot = Instant.now().toEpochMilli,
                 tolerance = 5000
               )
             )
             assert(
-              zone.expires === zone.created + java.time.Duration
-                .ofDays(30)
-                .toMillis
+              zone.expires === zone.created.plus(java.time.Duration.ofDays(30))
             )
             assert(zone.transactions === Map.empty)
             assert(zone.name === Some("Dave's Game"))
@@ -649,7 +634,7 @@ abstract class LiquidityServerSpec
                 .ownerMemberIds
                 .head)
             assert(
-              transaction.created === Spread(
+              transaction.created.toEpochMilli === Spread(
                 pivot = Instant.now().toEpochMilli,
                 tolerance = 5000
               )
@@ -740,22 +725,175 @@ abstract class LiquidityServerSpec
   }
 
   private[this] def awaitZoneProjection(zone: Zone): Zone = {
+    val retrieveAllMembers: ConnectionIO[Seq[(MemberId, Member)]] = {
+      def retrieve(memberId: MemberId): ConnectionIO[(MemberId, Member)] = {
+        val ownerPublicKeys = sql"""
+           SELECT public_key
+             FROM member_owners
+             WHERE update_id = (
+               SELECT update_id
+                 FROM member_updates
+                 WHERE zone_id = ${zone.id}
+                 AND member_id = $memberId
+                 ORDER BY update_id
+                 DESC
+                 LIMIT 1
+             )
+          """
+          .query[PublicKey]
+          .to[Set]
+        val nameAndMetadata = sql"""
+           SELECT name, metadata
+             FROM member_updates
+             WHERE zone_id = ${zone.id}
+             AND member_id = $memberId
+             ORDER BY update_id
+             DESC
+             LIMIT 1
+          """
+          .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
+          .unique
+        for {
+          ownerPublicKeysNameAndMetadata <- (ownerPublicKeys, nameAndMetadata)
+            .tupled
+          (ownerPublicKeys, (name, metadata)) = ownerPublicKeysNameAndMetadata
+        } yield memberId -> Member(memberId, ownerPublicKeys, name, metadata)
+      }
+      for {
+        memberIds <- sql"""
+         SELECT member_id
+           FROM members
+           WHERE zone_id = ${zone.id}
+        """
+          .query[MemberId]
+          .to[Vector]
+        members <- memberIds
+          .map(retrieve)
+          .toList
+          .sequence
+      } yield members
+    }
+    val retrieveAllAccounts: ConnectionIO[Seq[(AccountId, Account)]] = {
+      def retrieve(accountId: AccountId): ConnectionIO[(AccountId, Account)] = {
+        val ownerMemberIds = sql"""
+           SELECT member_id
+             FROM account_owners
+             WHERE update_id = (
+               SELECT update_id
+                 FROM account_updates
+                 WHERE zone_id = ${zone.id}
+                 AND account_id = $accountId
+                 ORDER BY update_id
+                 DESC
+                 LIMIT 1
+             )
+          """
+          .query[MemberId]
+          .to[Set]
+        val nameAndMetadata = sql"""
+           SELECT name, metadata
+             FROM account_updates
+             WHERE zone_id = ${zone.id}
+             AND account_id = $accountId
+             ORDER BY update_id
+             DESC
+             LIMIT 1
+          """
+          .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
+          .unique
+        for {
+          ownerMemberIdsNameAndMetadata <- (ownerMemberIds, nameAndMetadata)
+            .tupled
+          (ownerMemberIds, (name, metadata)) = ownerMemberIdsNameAndMetadata
+        } yield accountId -> Account(accountId, ownerMemberIds, name, metadata)
+      }
+      for {
+        accountIds <- sql"""
+         SELECT account_id
+           FROM accounts
+           WHERE zone_id = ${zone.id}
+        """
+          .query[AccountId]
+          .to[Vector]
+        accounts <- accountIds
+          .map(retrieve)
+          .toList
+          .sequence
+      } yield accounts
+    }
+    val retrieveAllTransactions
+      : ConnectionIO[Seq[(TransactionId, Transaction)]] =
+      sql"""
+       SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata
+         FROM transactions
+         WHERE zone_id = ${zone.id}
+      """
+        .query[(TransactionId,
+                AccountId,
+                AccountId,
+                BigDecimal,
+                MemberId,
+                Instant,
+                Option[String],
+                Option[com.google.protobuf.struct.Struct])]
+        .to[Vector]
+        .map(_.map {
+          case values @ (id, _, _, _, _, _, _, _) =>
+            id -> Transaction.tupled(values)
+        })
+    val retrieveOption: ConnectionIO[Option[Zone]] =
+      for {
+        maybeZoneMetadata <- sql"""
+         SELECT zone_name_changes.name, zones.equity_account_id, zones.created, zones.expires, zones.metadata
+           FROM zones
+           JOIN zone_name_changes
+           ON zone_name_changes.change_id = (
+             SELECT zone_name_changes.change_id
+               FROM zone_name_changes
+               WHERE zone_name_changes.zone_id = zones.zone_id
+               ORDER BY change_id
+               DESC
+               LIMIT 1
+           )
+           WHERE zones.zone_id = ${zone.id}
+        """
+          .query[(Option[String],
+                  AccountId,
+                  Instant,
+                  Instant,
+                  Option[com.google.protobuf.struct.Struct])]
+          .option
+        maybeZone <- maybeZoneMetadata match {
+          case None =>
+            None.pure[ConnectionIO]
+
+          case Some((name, equityAccountId, created, expires, metadata)) =>
+            for {
+              membersAccountsTransactions <- (retrieveAllMembers.map(_.toMap),
+                                              retrieveAllAccounts.map(_.toMap),
+                                              retrieveAllTransactions.map(
+                                                _.toMap))
+                .tupled
+              (members, accounts, transactions) = membersAccountsTransactions
+            } yield
+              Some(
+                Zone(zone.id,
+                     equityAccountId,
+                     members,
+                     accounts,
+                     transactions,
+                     created,
+                     expires,
+                     name,
+                     metadata)
+              )
+        }
+      } yield maybeZone
     eventually {
-      val response = Http()
-        .singleRequest(
-          HttpRequest(
-            uri = baseUri.withPath(Uri.Path("/analytics/zone") / zone.id.value)
-          ).withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-        )
-        .futureValue
-      assert(response.status === StatusCodes.OK)
       assert(
-        Unmarshal(response.entity).to[JsValue].futureValue ===
-          Json.parse(
-            JsonFormat.toJsonString(
-              ProtoBinding[Zone, proto.model.Zone, Any].asProto(zone)(())
-            )
-          )
+        retrieveOption
+          .transact(analyticsTransactor)
+          .unsafeRunSync() === Some(zone)
       )
     }
     zone
@@ -764,29 +902,41 @@ abstract class LiquidityServerSpec
   private[this] def awaitZoneBalancesProjection(
       zoneId: ZoneId,
       balances: Map[AccountId, BigDecimal]): Map[AccountId, BigDecimal] = {
+    val retrieveAll =
+      sql"""
+        SELECT account_id, balance
+          FROM accounts
+          WHERE zone_id = $zoneId
+      """
+        .query[(AccountId, BigDecimal)]
+        .to[Vector]
     eventually {
-      val response = Http()
-        .singleRequest(
-          HttpRequest(
-            uri = baseUri.withPath(
-              Uri.Path("/analytics/zone") / zoneId.value / "balances")
-          ).withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-        )
-        .futureValue
-      assert(response.status === StatusCodes.OK)
       assert(
-        Unmarshal(response.entity)
-          .to[JsValue]
-          .futureValue
-          .as[Map[String, BigDecimal]] === balances.map {
-          case (accountId, balance) => accountId.value -> balance
-        })
+        retrieveAll
+          .transact(analyticsTransactor)
+          .unsafeRunSync()
+          .toMap === balances
+      )
     }
     balances
   }
 
-  protected[this] def checkProjections: Boolean
   protected[this] def baseUri: Uri
+
+  protected[this] def analyticsTransactor: Transactor[IO]
+
+  protected[this] def urlFor(authority: String,
+                             database: Option[String] = None): String =
+    s"jdbc:mysql://$authority${database.fold("")(database => s"/$database")}?" +
+      "useSSL=false&" +
+      "cacheCallableStmts=true&" +
+      "cachePrepStmts=true&" +
+      "cacheResultSetMetadata=true&" +
+      "cacheServerConfiguration=true&" +
+      "useLocalSessionState=true&" +
+      "useLocalSessionState=true&" +
+      "useServerPrepStmts=true&" +
+      "useLegacyDatetimeCode=false"
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

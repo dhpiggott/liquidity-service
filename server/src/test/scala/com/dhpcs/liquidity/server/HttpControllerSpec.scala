@@ -5,7 +5,6 @@ import java.net.InetAddress
 import java.security.KeyPairGenerator
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.time.Instant
-import java.util.UUID
 
 import akka.NotUsed
 import akka.actor.typed.ActorRefResolver
@@ -31,13 +30,12 @@ import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server.HttpControllerSpec._
-import com.dhpcs.liquidity.server.SqlAnalyticsStore.ClientSessionsStore._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.scalatest.FreeSpec
 import pdi.jwt.{JwtAlgorithm, JwtJson}
-import play.api.libs.json.{JsObject, JsString, JsValue, Json}
+import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
@@ -382,112 +380,17 @@ class HttpControllerSpec
         }
       }
     }
-    "provides analytics information" - {
-      "for zones" - {
-        "with status 404 when the zone does not exist" in {
-          val getRequest = RequestBuilding
-            .Get(
-              Uri.Empty.withPath(
-                Uri.Path("/analytics/zone") / UUID.randomUUID().toString
-              )
-            )
-            .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-          getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-            assert(status === StatusCodes.NotFound)
-          }
-        }
-        "with status 200 when the zone exists" in {
-          val getRequest =
-            RequestBuilding
-              .Get(
-                Uri.Empty.withPath(
-                  Uri.Path("/analytics/zone") / zone.id.value
-                )
-              )
-              .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-          getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-            assert(status === StatusCodes.OK)
-            assert(
-              entityAs[JsValue] === Json.parse(
-                s"""
-                 |{
-                 |  "id" : "32824da3-094f-45f0-9b35-23b7827547c6",
-                 |  "equityAccountId" : "0",
-                 |  "members" : [ {
-                 |    "id" : "0",
-                 |    "ownerPublicKeys": [ "${publicKey.value.base64()}" ],
-                 |    "name":"Dave"
-                 |  } ],
-                 |  "accounts" : [ {
-                 |    "id" :"0",
-                 |    "ownerMemberIds" : [ "0" ]
-                 |  } ],
-                 |  "created" : "1514156286183",
-                 |  "expires" : "1516748286183",
-                 |  "name" : "Dave's Game"
-                 |}
-               """.stripMargin
-              ))
-          }
-        }
-      }
-      "for balances" in {
-        val getRequest =
-          RequestBuilding
-            .Get(
-              Uri.Empty.withPath(
-                Uri.Path("/analytics/zone") / zone.id.value / "balances"
-              )
-            )
-            .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-          assert(status === StatusCodes.OK)
-          assert(
-            entityAs[JsValue] === Json.parse(
-              """
-                  |{
-                  |  "0" : -5000,
-                  |  "1" : 5000
-                  |}
-                """.stripMargin
-            ))
-        }
-      }
-      "for client-sessions" in {
-        val getRequest =
-          RequestBuilding
-            .Get(
-              Uri.Empty.withPath(
-                Uri.Path("/analytics/zone") / zone.id.value / "client-sessions"
-              )
-            )
-            .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
-          assert(status === StatusCodes.OK)
-          assert(entityAs[JsValue] === Json.parse(s"""
-               |{
-               |  "1" : {
-               |    "id" : "1",
-               |    "remoteAddress":"192.0.2.0",
-               |    "actorRef" : "${resolver.toSerializationFormat(
-                                                       clientConnection)}",
-               |    "publicKeyFingerprint" : "${publicKey.fingerprint}",
-               |    "joined" : "$joined",
-               |    "quit" : null
-               |  }
-               |}
-             """.stripMargin))
-        }
-      }
-    }
     "provides version information" in {
       val getRequest = RequestBuilding.Get("/version")
       getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
-        val keys = entityAs[JsObject].value.keySet
-        assert(keys.contains("version"))
-        assert(keys.contains("builtAtString"))
-        assert(keys.contains("builtAtMillis"))
+        val buildInfo = entityAs[JsObject]
+        assert((buildInfo \ "version").as[String] == BuildInfo.version)
+        assert(
+          (buildInfo \ "builtAtString").as[String] == BuildInfo.builtAtString)
+        assert(
+          (buildInfo \ "builtAtMillis")
+            .as[String] == BuildInfo.builtAtMillis.toString)
       }
     }
     "provides status information" in {
@@ -520,13 +423,6 @@ class HttpControllerSpec
              |        } ]
              |      } ]
              |    } ]
-             |  },
-             |  "allZones" : {
-             |    "count" : 1,
-             |    "publicKeys" : 1,
-             |    "members" : 2,
-             |    "accounts" : 2,
-             |    "transactions" : 1
              |  }
              |}
            """.stripMargin))
@@ -815,16 +711,6 @@ class HttpControllerSpec
 
   private[this] val clientConnection =
     TestProbe[ZoneNotificationEnvelope]()(system.toTyped).ref
-  private[this] val joined = Instant.now()
-  private[this] val clientSession = ClientSession(
-    id = ClientSessionId(1),
-    remoteAddress = Some(remoteAddress),
-    actorRef =
-      ActorRefResolver(system.toTyped).toSerializationFormat(clientConnection),
-    publicKey = publicKey,
-    joined = joined,
-    quit = None
-  )
 
   protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean] =
     Future.successful(
@@ -871,7 +757,7 @@ class HttpControllerSpec
               to = AccountId("1"),
               value = BigDecimal(5000),
               creator = MemberId("0"),
-              created = zone.created + 3000,
+              created = zone.created.plusMillis(3000),
               description = Some("Jenny's Lottery Win"),
               metadata = None
             )
@@ -881,7 +767,7 @@ class HttpControllerSpec
             val zoneEventEnvelope = ZoneEventEnvelope(
               remoteAddress = Some(remoteAddress),
               publicKey = Some(publicKey),
-              timestamp = Instant.ofEpochMilli(zone.created + (index * 1000)),
+              timestamp = zone.created.plusMillis(index * 1000L),
               zoneEvent = event
             )
             EventEnvelope(
@@ -911,31 +797,11 @@ class HttpControllerSpec
         )
     )
 
-  override protected[this] def getZone(zoneId: ZoneId): Future[Option[Zone]] =
-    Future.successful(
-      if (zoneId != zone.id) None
-      else Some(zone)
-    )
-
-  override protected[this] def getBalances(
-      zoneId: ZoneId): Future[Map[AccountId, BigDecimal]] =
-    Future.successful(
-      if (zoneId != zone.id) Map.empty
-      else balances
-    )
-
-  override protected[this] def getClientSessions(
-      zoneId: ZoneId): Future[Map[ClientSessionId, ClientSession]] =
-    Future.successful(
-      if (zoneId != zone.id) Map.empty
-      else Map(clientSession.id -> clientSession)
-    )
-
   override protected[this] def isClusterHealthy: Boolean =
     true
 
-  override protected[this] val resolver: ActorRefResolver = ActorRefResolver(
-    system.toTyped)
+  override protected[this] val resolver: ActorRefResolver =
+    ActorRefResolver(system.toTyped)
 
   override protected[this] def getActiveZoneSummaries
     : Future[Set[ActiveZoneSummary]] =
@@ -957,21 +823,6 @@ class HttpControllerSpec
         )
       )
     )
-
-  override protected[this] def getZoneCount: Future[Long] =
-    Future.successful(1)
-
-  override protected[this] def getPublicKeyCount: Future[Long] =
-    Future.successful(1)
-
-  override protected[this] def getMemberCount: Future[Long] =
-    Future.successful(2)
-
-  override protected[this] def getAccountCount: Future[Long] =
-    Future.successful(2)
-
-  override protected[this] def getTransactionCount: Future[Long] =
-    Future.successful(1)
 
   override protected[this] def createZone(
       remoteAddress: InetAddress,
@@ -1039,7 +890,7 @@ object HttpControllerSpec {
     )
   private val publicKey = PublicKey(rsaPublicKey.getEncoded)
   private val zone = {
-    val created = 1514156286183L
+    val created = Instant.ofEpochMilli(1514156286183L)
     val equityAccountId = AccountId(0.toString)
     val equityAccountOwnerId = MemberId(0.toString)
     Zone(
@@ -1063,15 +914,11 @@ object HttpControllerSpec {
       ),
       transactions = Map.empty,
       created = created,
-      expires = created + java.time.Duration.ofDays(30).toMillis,
+      expires = created.plus(java.time.Duration.ofDays(30)),
       name = Some("Dave's Game"),
       metadata = None
     )
   }
-  private val balances = Map(
-    zone.equityAccountId -> BigDecimal(-5000),
-    AccountId("1") -> BigDecimal(5000)
-  )
 
   private val zoneNotifications = Seq(
     ZoneStateNotification(
@@ -1101,7 +948,7 @@ object HttpControllerSpec {
         to = AccountId("1"),
         value = BigDecimal(5000),
         creator = MemberId("0"),
-        created = zone.created + 3000,
+        created = zone.created.plusMillis(3000),
         description = Some("Jenny's Lottery Win"),
         metadata = None
       )

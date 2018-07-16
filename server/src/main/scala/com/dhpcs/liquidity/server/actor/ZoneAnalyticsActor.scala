@@ -20,7 +20,7 @@ import com.dhpcs.liquidity.server.SqlBindings._
 import doobie._
 import doobie.implicits._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 
 object ZoneAnalyticsActor {
@@ -33,9 +33,9 @@ object ZoneAnalyticsActor {
                         blockingIoEc: ExecutionContext)(
       implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Behaviors.setup { context =>
-      val offsetIo = (for {
+      val previousOffsetIo = (for {
         maybePreviousOffset <- TagOffsetsStore.retrieve(EventTags.ZoneEventTag)
-        offset <- maybePreviousOffset match {
+        previousOffset <- maybePreviousOffset match {
           case None =>
             val firstOffset = Sequence(0)
             for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag,
@@ -43,36 +43,37 @@ object ZoneAnalyticsActor {
           case Some(previousOffset) =>
             previousOffset.pure[ConnectionIO]
         }
-      } yield offset).transact(analyticsTransactor)
-      val offset = (for {
-        _ <- IO.shift(blockingIoEc)
-        offset <- offsetIo
-        _ <- IO.shift(ExecutionContext.global)
-      } yield offset).unsafeToFuture()
+      } yield previousOffset).transact(analyticsTransactor)
+      def previousOffset(): Future[Sequence] =
+        (for {
+          _ <- IO.shift(blockingIoEc)
+          previousOffset <- previousOffsetIo
+          _ <- IO.shift(ExecutionContext.global)
+        } yield previousOffset).unsafeToFuture()
       val killSwitch = RestartSource
         .onFailuresWithBackoff(minBackoff = 3.seconds,
                                maxBackoff = 30.seconds,
                                randomFactor = 0.2)(
           () =>
             Source
-              .fromFuture(offset)
+              .fromFuture(previousOffset())
               .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
               .mapAsync(1) { eventEnvelope =>
                 val zoneId =
                   ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
                 val zoneEventEnvelope =
                   eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
-                val nextOffset = eventEnvelope.offset.asInstanceOf[Sequence]
-                val offsetIo = (for {
+                val eventOffset = eventEnvelope.offset.asInstanceOf[Sequence]
+                val nextOffsetIo = (for {
                   _ <- projectEvent(zoneId, zoneEventEnvelope)
                   _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
-                                              nextOffset)
-                } yield offset).transact(analyticsTransactor)
+                                              eventOffset)
+                } yield eventOffset).transact(analyticsTransactor)
                 (for {
                   _ <- IO.shift(blockingIoEc)
-                  offset <- offsetIo
+                  nextOffset <- nextOffsetIo
                   _ <- IO.shift(ExecutionContext.global)
-                } yield offset).unsafeToFuture()
+                } yield nextOffset).unsafeToFuture()
               }
               .zipWithIndex
               .groupedWithin(n = 1000, d = 30.seconds)

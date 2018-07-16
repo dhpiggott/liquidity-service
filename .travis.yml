@@ -14,6 +14,8 @@ stages:
   - name: test
   - name: deploy
     if: branch = master
+  - name: test-deployment
+    if: branch = master
   - name: release
     if: branch = master
 jobs:
@@ -30,7 +32,11 @@ jobs:
     - stage: deploy
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/deploy-service.sh update eu-west-1 prod-blue api
+        ./cd-scripts/deploy-service.sh update eu-west-1 prod-blue
+    - stage: test-deployment
+      script: |
+        pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
+        ./cd-scripts/test-deployment.sh eu-west-1 prod-blue api
     - stage: release
       script: |
         # So sbt-dynver derives the version correctly

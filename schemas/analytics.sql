@@ -22,6 +22,22 @@ CREATE TABLE zone_name_changes (
   FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
 );
 
+CREATE TABLE zone_counts (
+  `time` TIMESTAMP(3) NOT NULL,
+  `count` INT NOT NULL,
+  PRIMARY KEY (`time`)
+);
+
+CREATE TRIGGER zone_counts_trigger
+  AFTER INSERT ON zones
+  FOR EACH ROW
+  INSERT INTO zone_counts(`time`, `count`)
+  SELECT newer_zones.created, (SELECT COUNT(*) FROM zones as older_zones WHERE older_zones.created <= newer_zones.created)
+    FROM zones AS newer_zones
+    WHERE newer_zones.created >= new.created
+  ON DUPLICATE KEY
+  UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
+
 CREATE TABLE members (
   zone_id CHAR(36) NOT NULL,
   member_id VARCHAR(36) NOT NULL,
@@ -51,6 +67,36 @@ CREATE TABLE member_owners (
   PRIMARY KEY (update_id),
   FOREIGN KEY (update_id) REFERENCES member_updates(update_id)
 );
+
+CREATE TABLE public_key_counts (
+  `time` TIMESTAMP(3) NOT NULL,
+  `count` INT NOT NULL,
+  PRIMARY KEY (`time`)
+);
+
+CREATE TRIGGER public_key_counts_trigger
+  AFTER INSERT ON member_owners
+  FOR EACH ROW
+  INSERT INTO public_key_counts(`time`, `count`)
+  SELECT newer_member_updates.updated, (SELECT COUNT(DISTINCT member_owners.public_key) FROM member_updates AS older_member_updates JOIN member_owners ON member_owners.update_id = older_member_updates.update_id WHERE older_member_updates.updated <= newer_member_updates.updated)
+    FROM member_updates AS newer_member_updates
+    WHERE newer_member_updates.updated >= (SELECT updated FROM member_updates WHERE update_id = new.update_id)
+  ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
+
+CREATE TABLE member_counts (
+  `time` TIMESTAMP(3) NOT NULL,
+  `count` INT NOT NULL,
+  PRIMARY KEY (`time`)
+);
+
+CREATE TRIGGER member_counts_trigger
+  AFTER INSERT ON members
+  FOR EACH ROW
+  INSERT INTO member_counts(`time`, `count`)
+  SELECT newer_members.created, (SELECT COUNT(*) FROM members as older_members WHERE older_members.created <= newer_members.created)
+    FROM members AS newer_members
+    WHERE newer_members.created >= new.created
+  ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
 
 CREATE TABLE accounts (
   zone_id CHAR(36) NOT NULL,
@@ -82,6 +128,21 @@ CREATE TABLE account_owners (
   FOREIGN KEY (update_id) REFERENCES account_updates(update_id)
 );
 
+CREATE TABLE account_counts (
+  `time` TIMESTAMP(3) NOT NULL,
+  `count` INT NOT NULL,
+  PRIMARY KEY (`time`)
+);
+
+CREATE TRIGGER account_counts_trigger
+  AFTER INSERT ON accounts
+  FOR EACH ROW
+  INSERT INTO account_counts(`time`, `count`)
+  SELECT newer_accounts.created, (SELECT COUNT(*) FROM accounts as older_accounts WHERE older_accounts.created <= newer_accounts.created)
+    FROM accounts AS newer_accounts
+    WHERE newer_accounts.created >= new.created
+  ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
+
 CREATE TABLE transactions (
   zone_id CHAR(36) NOT NULL,
   transaction_id VARCHAR(36) NOT NULL,
@@ -99,6 +160,21 @@ CREATE TABLE transactions (
   FOREIGN KEY (zone_id, `to`) REFERENCES accounts(zone_id, account_id),
   FOREIGN KEY (zone_id, creator) REFERENCES members(zone_id, member_id)
 );
+
+CREATE TABLE transaction_counts (
+  `time` TIMESTAMP(3) NOT NULL,
+  `count` INT NOT NULL,
+  PRIMARY KEY (`time`)
+);
+
+CREATE TRIGGER transaction_counts_trigger
+  AFTER INSERT ON transactions
+  FOR EACH ROW
+  INSERT INTO transaction_counts(`time`, `count`)
+  SELECT newer_transactions.created, (SELECT COUNT(*) FROM transactions as older_transactions WHERE older_transactions.created <= newer_transactions.created)
+    FROM transactions AS newer_transactions
+    WHERE newer_transactions.created >= new.created
+  ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
 
 CREATE TABLE client_sessions (
   zone_id CHAR(36) NOT NULL,

@@ -1,7 +1,6 @@
 addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.3")
 
-scalafmtVersion := "1.4.0"
-addSbtPlugin("com.lucidchart" % "sbt-scalafmt-coursier" % "1.15")
+addSbtPlugin("com.geirsson" % "sbt-scalafmt" % "1.5.1")
 
 libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.7.4"
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.18")

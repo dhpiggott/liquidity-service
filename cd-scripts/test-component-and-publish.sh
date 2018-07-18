@@ -31,7 +31,7 @@ $ECR_LOGIN_COMMAND
 
 INFRASTRUCTURE_STACK=liquidity-infrastructure-$ENVIRONMENT
 
-sbt ";server/it:scalafmt::test ;server/docker:publishLocal ;server/it:testOnly *LiquidityServerComponentSpec"
+sbt ";server/it:scalafmtCheck ;server/docker:publishLocal ;server/it:testOnly *LiquidityServerComponentSpec"
 
 docker tag \
   liquidity:"$TAG" \

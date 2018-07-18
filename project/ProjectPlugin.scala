@@ -1,4 +1,3 @@
-import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin
 import sbt.Keys._
 import sbt._
 
@@ -9,21 +8,15 @@ object ProjectPlugin extends AutoPlugin {
   override def globalSettings: Seq[Setting[_]] =
     addCommandAlias(
       "validate",
-      ";reload plugins ;sbt:scalafmt::test ;scalafmt::test " +
-        ";reload return ;sbt:scalafmt::test ;scalafmt::test " +
-        ";server/test:scalafmt::test ;server/test " +
-        ";server/it:scalafmt::test ;server/docker:publishLocal " +
+      ";scalafmtSbtCheck ;scalafmtCheck " +
+        ";server/test:scalafmtCheck ;server/test " +
+        ";server/it:scalafmtCheck ;server/docker:publishLocal " +
         ";server/it:testOnly *LiquidityServerComponentSpec ;server/docker:clean"
     )
 
   override def projectSettings: Seq[Setting[_]] =
     scalaProjectSettings ++
-      scalafmtProjectSettings ++
       testProjectSettings
-
-  private lazy val scalafmtProjectSettings = Seq(
-    ScalafmtCorePlugin.autoImport.scalafmtVersion := "1.4.0"
-  )
 
   private lazy val scalaProjectSettings = Seq(
     scalaVersion := "2.12.6",

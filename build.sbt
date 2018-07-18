@@ -1,3 +1,4 @@
+import org.scalafmt.sbt.ScalafmtPlugin
 import scala.sys.process._
 
 lazy val `ws-protocol` = project
@@ -5,7 +6,6 @@ lazy val `ws-protocol` = project
   .settings(
     name := "liquidity-ws-protocol"
   )
-  .disablePlugins(ScalafmtCorePlugin)
   .settings(
     libraryDependencies := Seq.empty,
     coverageEnabled := false,
@@ -61,7 +61,6 @@ lazy val `actor-protocol` = project
   )
   .settings(commitIshVersionSettings)
   .dependsOn(`ws-protocol`)
-  .disablePlugins(ScalafmtCorePlugin)
 
 lazy val `actor-protocol-scala-binding` = project
   .in(file("actor-protocol-scala-binding"))
@@ -133,7 +132,7 @@ lazy val server = project
   ))
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
-  .settings(inConfig(IntegrationTest)(scalafmtSettings))
+  .settings(inConfig(IntegrationTest)(ScalafmtPlugin.scalafmtConfigSettings))
   .settings(libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.0.5" % IntegrationTest,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.3" % IntegrationTest,

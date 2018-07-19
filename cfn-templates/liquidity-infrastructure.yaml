@@ -44,7 +44,6 @@ Resources:
         character-set-client-handshake: 0
         character_set_server: utf8mb4
         collation_server: utf8mb4_unicode_ci
-        log_bin_trust_function_creators: 1
   RDS:
     Type: AWS::RDS::DBInstance
     Properties:

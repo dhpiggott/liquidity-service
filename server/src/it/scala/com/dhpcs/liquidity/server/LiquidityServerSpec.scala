@@ -21,7 +21,6 @@ import cats.data.Validated
 import cats.effect.IO
 import cats.instances.list._
 import cats.syntax.applicative._
-import cats.syntax.apply._
 import cats.syntax.traverse._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
@@ -727,10 +726,13 @@ abstract class LiquidityServerSpec
   private[this] def awaitZoneProjection(zone: Zone): Zone = {
     val retrieveAllMembers: ConnectionIO[Seq[(MemberId, Member)]] = {
       def retrieve(memberId: MemberId): ConnectionIO[(MemberId, Member)] = {
-        val ownerPublicKeys = sql"""
-           SELECT public_key
+        for {
+          ownerPublicKeys <- sql"""
+           SELECT devices.public_key
              FROM member_owners
-             WHERE update_id = (
+             JOIN devices
+             ON devices.fingerprint = member_owners.fingerprint
+             WHERE member_owners.update_id = (
                SELECT update_id
                  FROM member_updates
                  WHERE zone_id = ${zone.id}
@@ -740,9 +742,9 @@ abstract class LiquidityServerSpec
                  LIMIT 1
              )
           """
-          .query[PublicKey]
-          .to[Set]
-        val nameAndMetadata = sql"""
+            .query[PublicKey]
+            .to[Set]
+          nameAndMetadata <- sql"""
            SELECT name, metadata
              FROM member_updates
              WHERE zone_id = ${zone.id}
@@ -751,12 +753,9 @@ abstract class LiquidityServerSpec
              DESC
              LIMIT 1
           """
-          .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
-          .unique
-        for {
-          ownerPublicKeysNameAndMetadata <- (ownerPublicKeys, nameAndMetadata)
-            .tupled
-          (ownerPublicKeys, (name, metadata)) = ownerPublicKeysNameAndMetadata
+            .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
+            .unique
+          (name, metadata) = nameAndMetadata
         } yield memberId -> Member(memberId, ownerPublicKeys, name, metadata)
       }
       for {
@@ -775,7 +774,8 @@ abstract class LiquidityServerSpec
     }
     val retrieveAllAccounts: ConnectionIO[Seq[(AccountId, Account)]] = {
       def retrieve(accountId: AccountId): ConnectionIO[(AccountId, Account)] = {
-        val ownerMemberIds = sql"""
+        for {
+          ownerMemberIds <- sql"""
            SELECT member_id
              FROM account_owners
              WHERE update_id = (
@@ -788,9 +788,9 @@ abstract class LiquidityServerSpec
                  LIMIT 1
              )
           """
-          .query[MemberId]
-          .to[Set]
-        val nameAndMetadata = sql"""
+            .query[MemberId]
+            .to[Set]
+          nameAndMetadata <- sql"""
            SELECT name, metadata
              FROM account_updates
              WHERE zone_id = ${zone.id}
@@ -799,12 +799,9 @@ abstract class LiquidityServerSpec
              DESC
              LIMIT 1
           """
-          .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
-          .unique
-        for {
-          ownerMemberIdsNameAndMetadata <- (ownerMemberIds, nameAndMetadata)
-            .tupled
-          (ownerMemberIds, (name, metadata)) = ownerMemberIdsNameAndMetadata
+            .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
+            .unique
+          (name, metadata) = nameAndMetadata
         } yield accountId -> Account(accountId, ownerMemberIds, name, metadata)
       }
       for {
@@ -869,12 +866,9 @@ abstract class LiquidityServerSpec
 
           case Some((name, equityAccountId, created, expires, metadata)) =>
             for {
-              membersAccountsTransactions <- (retrieveAllMembers.map(_.toMap),
-                                              retrieveAllAccounts.map(_.toMap),
-                                              retrieveAllTransactions.map(
-                                                _.toMap))
-                .tupled
-              (members, accounts, transactions) = membersAccountsTransactions
+              members <- retrieveAllMembers.map(_.toMap)
+              accounts <- retrieveAllAccounts.map(_.toMap)
+              transactions <- retrieveAllTransactions.map(_.toMap)
             } yield
               Some(
                 Zone(zone.id,

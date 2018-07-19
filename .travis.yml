@@ -32,7 +32,7 @@ jobs:
     - stage: deploy
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/deploy-service.sh update eu-west-1 prod-blue
+        ./cd-scripts/deploy-service.sh eu-west-1 prod-blue
     - stage: test-deployment
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&

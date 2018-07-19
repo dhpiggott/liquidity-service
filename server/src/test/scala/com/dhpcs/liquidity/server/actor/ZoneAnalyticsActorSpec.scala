@@ -20,7 +20,6 @@ import akka.util.Timeout
 import cats.effect.IO
 import cats.instances.list._
 import cats.syntax.applicative._
-import cats.syntax.apply._
 import cats.syntax.traverse._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.EventTags
@@ -133,6 +132,7 @@ class ZoneAnalyticsActorSpec
       url =
         s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID()};" +
           "DATABASE_TO_UPPER=false;" +
+          "MODE=MYSQL;" +
           "DB_CLOSE_DELAY=-1",
       user = "sa",
       pass = ""
@@ -300,7 +300,7 @@ class ZoneAnalyticsActorSpec
       assert(membersCount === 2)
       val memberOwnersCount =
         sql"""
-             SELECT COUNT(DISTINCT public_key)
+             SELECT COUNT(DISTINCT fingerprint)
                FROM member_owners
            """
           .query[Long]
@@ -456,6 +456,20 @@ object ZoneAnalyticsActorSpec {
 
   private val initAnalytics: ConnectionIO[Unit] = for {
     _ <- sql"""
+           CREATE TABLE devices (
+             public_key BLOB NOT NULL,
+             fingerprint CHAR(64) NOT NULL,
+             PRIMARY KEY (fingerprint)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE device_counts (
+             time TIMESTAMP NOT NULL,
+             count INT NOT NULL,
+             PRIMARY KEY (count)
+           );
+         """.update.run
+    _ <- sql"""
            CREATE TABLE zones (
              zone_id VARCHAR(36) NOT NULL,
              modified TIMESTAMP NULL,
@@ -476,6 +490,13 @@ object ZoneAnalyticsActorSpec {
              FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
            );
     """.update.run
+    _ <- sql"""
+           CREATE TABLE zone_counts (
+             time TIMESTAMP NOT NULL,
+             count INT NOT NULL,
+             PRIMARY KEY (count)
+           );
+         """.update.run
     _ <- sql"""
            CREATE TABLE members (
              zone_id CHAR(36) NOT NULL,
@@ -501,10 +522,17 @@ object ZoneAnalyticsActorSpec {
     _ <- sql"""
            CREATE TABLE member_owners (
              update_id INT NOT NULL,
-             public_key BLOB NOT NULL,
              fingerprint CHAR(64) NOT NULL,
              PRIMARY KEY (update_id),
-             FOREIGN KEY (update_id) REFERENCES member_updates(update_id)
+             FOREIGN KEY (update_id) REFERENCES member_updates(update_id),
+             FOREIGN KEY (fingerprint) REFERENCES devices(fingerprint)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE member_counts (
+             time TIMESTAMP NOT NULL,
+             count INT NOT NULL,
+             PRIMARY KEY (count)
            );
          """.update.run
     _ <- sql"""
@@ -539,6 +567,13 @@ object ZoneAnalyticsActorSpec {
            );
          """.update.run
     _ <- sql"""
+           CREATE TABLE account_counts (
+             time TIMESTAMP NOT NULL,
+             count INT NOT NULL,
+             PRIMARY KEY (count)
+           );
+         """.update.run
+    _ <- sql"""
            CREATE TABLE transactions (
              zone_id CHAR(36) NOT NULL,
              transaction_id VARCHAR(36) NOT NULL,
@@ -557,17 +592,31 @@ object ZoneAnalyticsActorSpec {
             );
          """.update.run
     _ <- sql"""
+           CREATE TABLE transaction_counts (
+             time TIMESTAMP NOT NULL,
+             count INT NOT NULL,
+             PRIMARY KEY (count)
+           );
+         """.update.run
+    _ <- sql"""
            CREATE TABLE client_sessions (
              zone_id CHAR(36) NOT NULL,
              session_id INT NOT NULL AUTO_INCREMENT,
              remote_address VARCHAR(45) NULL,
              actor_ref VARCHAR(100) NOT NULL,
-             public_key BLOB NULL,
-             fingerprint CHAR(64) NULL,
+             public_key BLOB NULL,fingerprint CHAR(64) NULL,
              joined TIMESTAMP NOT NULL,
              quit TIMESTAMP NULL,
              PRIMARY KEY (session_id),
-             FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
+             FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
+             FOREIGN KEY (fingerprint) REFERENCES devices(fingerprint)
+           );
+         """.update.run
+    _ <- sql"""
+           CREATE TABLE client_session_counts (
+             time TIMESTAMP NOT NULL,
+             count INT NOT NULL,
+             PRIMARY KEY (count)
            );
          """.update.run
     _ <- sql"""
@@ -629,25 +678,22 @@ object ZoneAnalyticsActorSpec {
 
         case Some((name, equityAccountId, created, expires, metadata)) =>
           for {
-            membersAccountsTransactions <- (retrieveAllMembers(zoneId).map(
-                                              _.toMap),
-                                            retrieveAllAccounts(zoneId).map(
-                                              _.toMap),
-                                            retrieveAllTransactions(zoneId).map(
-                                              _.toMap))
-              .tupled
-            (members, accounts, transactions) = membersAccountsTransactions
+            members <- retrieveAllMembers(zoneId).map(_.toMap)
+            accounts <- retrieveAllAccounts(zoneId).map(_.toMap)
+            transactions <- retrieveAllTransactions(zoneId).map(_.toMap)
           } yield
             Some(
-              Zone(zoneId,
-                   equityAccountId,
-                   members,
-                   accounts,
-                   transactions,
-                   created,
-                   expires,
-                   name,
-                   metadata)
+              Zone(
+                zoneId,
+                equityAccountId,
+                members,
+                accounts,
+                transactions,
+                created,
+                expires,
+                name,
+                metadata
+              )
             )
       }
     } yield maybeZone
@@ -655,10 +701,13 @@ object ZoneAnalyticsActorSpec {
   private def retrieveAllMembers(
       zoneId: ZoneId): ConnectionIO[Seq[(MemberId, Member)]] = {
     def retrieve(memberId: MemberId): ConnectionIO[(MemberId, Member)] = {
-      val ownerPublicKeys = sql"""
-           SELECT public_key
+      for {
+        ownerPublicKeys <- sql"""
+           SELECT devices.public_key
              FROM member_owners
-             WHERE update_id = (
+             JOIN devices
+             ON devices.fingerprint = member_owners.fingerprint
+             WHERE member_owners.update_id = (
                SELECT update_id
                  FROM member_updates
                  WHERE zone_id = $zoneId
@@ -668,9 +717,9 @@ object ZoneAnalyticsActorSpec {
                  LIMIT 1
              )
           """
-        .query[PublicKey]
-        .to[Set]
-      val nameAndMetadata = sql"""
+          .query[PublicKey]
+          .to[Set]
+        nameAndMetadata <- sql"""
            SELECT name, metadata
              FROM member_updates
              WHERE zone_id = $zoneId
@@ -679,12 +728,9 @@ object ZoneAnalyticsActorSpec {
              DESC
              LIMIT 1
           """
-        .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
-        .unique
-      for {
-        ownerPublicKeysNameAndMetadata <- (ownerPublicKeys, nameAndMetadata)
-          .tupled
-        (ownerPublicKeys, (name, metadata)) = ownerPublicKeysNameAndMetadata
+          .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
+          .unique
+        (name, metadata) = nameAndMetadata
       } yield memberId -> Member(memberId, ownerPublicKeys, name, metadata)
     }
     for {
@@ -705,7 +751,8 @@ object ZoneAnalyticsActorSpec {
   private def retrieveAllAccounts(
       zoneId: ZoneId): ConnectionIO[Seq[(AccountId, Account)]] = {
     def retrieve(accountId: AccountId): ConnectionIO[(AccountId, Account)] = {
-      val ownerMemberIds = sql"""
+      for {
+        ownerMemberIds <- sql"""
            SELECT member_id
              FROM account_owners
              WHERE update_id = (
@@ -718,9 +765,9 @@ object ZoneAnalyticsActorSpec {
                  LIMIT 1
              )
           """
-        .query[MemberId]
-        .to[Set]
-      val nameAndMetadata = sql"""
+          .query[MemberId]
+          .to[Set]
+        nameAndMetadata <- sql"""
            SELECT name, metadata
              FROM account_updates
              WHERE zone_id = $zoneId
@@ -729,12 +776,9 @@ object ZoneAnalyticsActorSpec {
              DESC
              LIMIT 1
           """
-        .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
-        .unique
-      for {
-        ownerMemberIdsNameAndMetadata <- (ownerMemberIds, nameAndMetadata)
-          .tupled
-        (ownerMemberIds, (name, metadata)) = ownerMemberIdsNameAndMetadata
+          .query[(Option[String], Option[com.google.protobuf.struct.Struct])]
+          .unique
+        (name, metadata) = nameAndMetadata
       } yield accountId -> Account(accountId, ownerMemberIds, name, metadata)
     }
     for {
@@ -787,8 +831,10 @@ object ZoneAnalyticsActorSpec {
   private def retrieveAllClientSessions(
       zoneId: ZoneId): ConnectionIO[Seq[(ClientSessionId, ClientSession)]] =
     sql"""
-       SELECT session_id, remote_address, actor_ref, public_key, joined, quit
+       SELECT client_sessions.session_id, client_sessions.remote_address, client_sessions.actor_ref, devices.public_key, client_sessions.joined, client_sessions.quit
          FROM client_sessions
+         LEFT JOIN devices
+         ON devices.fingerprint = client_sessions.fingerprint
          WHERE zone_id = $zoneId
       """
       .query[(ClientSessionId,

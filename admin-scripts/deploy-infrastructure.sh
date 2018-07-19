@@ -2,26 +2,25 @@
 
 set -euo pipefail
 
-if [ $# -ne 3 ]
+if [ $# -ne 2 ]
   then
-    echo "Usage: $0 <create|update> region environment"
+    echo "Usage: $0 region environment"
     exit 1
 fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
-case $1 in
-  create | update)
-    ACTION=$1
-    ;;
-  *)
-    echo "Usage: $0 <create|update> region environment"
-    exit 1
-    ;;
-esac
+REGION=$1
+ENVIRONMENT=$2
 
-REGION=$2
-ENVIRONMENT=$3
+if ! aws cloudformation describe-stacks \
+       --region "$REGION" \
+       --stack-name liquidity-infrastructure-"$ENVIRONMENT"
+then
+  ACTION="create"
+else
+  ACTION="update"
+fi
 
 case $ACTION in
   create)

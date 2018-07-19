@@ -27,13 +27,15 @@ lazy val `ws-protocol` = project
         name = "David Piggott",
         email = "david@piggott.me.uk",
         url = url("https://www.dhpiggott.net/")
-      )),
+      )
+    ),
     scmInfo := Some(
       ScmInfo(
         browseUrl = url("https://github.com/dhpcs/liquidity/"),
         connection = "scm:git:https://github.com/dhpcs/liquidity.git",
         devConnection = Some("scm:git:git@github.com:dhpcs/liquidity.git")
-      )),
+      )
+    ),
     releaseEarlyEnableInstantReleases := false,
     releaseEarlyNoGpg := true,
     releaseEarlyWith := BintrayPublisher,
@@ -41,87 +43,57 @@ lazy val `ws-protocol` = project
     bintrayOrganization := Some("dhpcs")
   )
 
-lazy val `ws-protocol-scala-binding` = project
-  .in(file("ws-protocol-scala-binding"))
+lazy val model = project
+  .in(file("model"))
   .settings(
-    name := "liquidity-ws-protocol-scala-binding"
+    Compile / PB.protoSources ++= (`ws-protocol` / Compile / PB.protoSources).value,
+    Compile / PB.targets := Seq(
+      scalapb.gen(
+        flatPackage = true,
+        javaConversions = false,
+        grpc = false,
+        singleLineToProtoString = true
+      ) -> (Compile / sourceManaged).value
+    )
   )
-  .settings(commitIshVersionSettings)
-  .settings(protobufScalaSettings(`ws-protocol`))
-  .settings(
-    libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-core" % "1.1.0",
-      "com.squareup.okio" % "okio" % "1.14.1"
-    ))
-
-lazy val `actor-protocol` = project
-  .in(file("actor-protocol"))
-  .settings(
-    name := "liquidity-actor-protocol"
-  )
-  .settings(commitIshVersionSettings)
-  .dependsOn(`ws-protocol`)
-
-lazy val `actor-protocol-scala-binding` = project
-  .in(file("actor-protocol-scala-binding"))
-  .settings(
-    name := "liquidity-actor-protocol-scala-binding"
-  )
-  .settings(commitIshVersionSettings)
-  .settings(protobufScalaSettings(`actor-protocol`))
-  .settings(
-    libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % "2.5.14"
-  )
-  .dependsOn(`ws-protocol-scala-binding`)
-  .settings(
-    Compile / PB.includePaths += file("ws-protocol/src/main/protobuf")
-  )
-
-lazy val `proto-bindings` = project
-  .in(file("proto-bindings"))
-  .settings(
-    name := "proto-bindings"
-  )
-  .dependsOn(`ws-protocol`)
-  .dependsOn(`ws-protocol-scala-binding`)
-  .dependsOn(`actor-protocol`)
-  .dependsOn(`actor-protocol-scala-binding`)
-  .settings(
-    libraryDependencies += "com.chuusai" %% "shapeless" % "2.3.3"
-  )
+  .settings(libraryDependencies ++= Seq(
+    "com.thesamet.scalapb" %% "scalapb-runtime" %
+      scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig,
+    "org.typelevel" %% "cats-core" % "1.1.0",
+    "com.squareup.okio" % "okio" % "1.14.1",
+    "com.typesafe.akka" %% "akka-actor-typed" % "2.5.14"
+  ))
 
 lazy val server = project
   .in(file("server"))
   .settings(
-    name := "server"
+    version := "git describe --always".!!.trim()
   )
-  .settings(commitIshVersionSettings)
-  .dependsOn(`proto-bindings`)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-slf4j" % "2.5.14",
-      "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "com.lightbend.akka.discovery" %% "akka-discovery-config" % "0.16.0",
-      "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.16.0",
-      "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.16.0",
-      "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "0.16.0",
-      "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.14",
-      "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.14",
-      "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.14",
-      "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.14",
-      "com.typesafe.akka" %% "akka-persistence-query" % "2.5.14",
-      "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
-      "org.tpolecat" %% "doobie-core" % "0.5.2",
-      "org.tpolecat" %% "doobie-hikari" % "0.5.2",
-      "mysql" % "mysql-connector-java" % "5.1.46",
-      "com.typesafe.akka" %% "akka-http" % "10.1.3",
-      "com.typesafe.akka" %% "akka-stream-typed" % "2.5.14",
-      "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",
-      "com.typesafe.play" %% "play-json" % "2.6.9",
-      "de.heikoseeberger" %% "akka-http-play-json" % "1.21.0",
-      "com.pauldijou" %% "jwt-play-json" % "0.16.0"
-    )
-  )
+  .dependsOn(model)
+  .settings(libraryDependencies ++= Seq(
+    "com.chuusai" %% "shapeless" % "2.3.3",
+    "com.typesafe.akka" %% "akka-slf4j" % "2.5.14",
+    "ch.qos.logback" % "logback-classic" % "1.2.3",
+    "com.lightbend.akka.discovery" %% "akka-discovery-config" % "0.16.0",
+    "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.16.0",
+    "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.16.0",
+    "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "0.16.0",
+    "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.14",
+    "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.14",
+    "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.14",
+    "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.14",
+    "com.typesafe.akka" %% "akka-persistence-query" % "2.5.14",
+    "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
+    "org.tpolecat" %% "doobie-core" % "0.5.2",
+    "org.tpolecat" %% "doobie-hikari" % "0.5.2",
+    "mysql" % "mysql-connector-java" % "5.1.46",
+    "com.typesafe.akka" %% "akka-http" % "10.1.3",
+    "com.typesafe.akka" %% "akka-stream-typed" % "2.5.14",
+    "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",
+    "com.typesafe.play" %% "play-json" % "2.6.9",
+    "de.heikoseeberger" %% "akka-http-play-json" % "1.21.0",
+    "com.pauldijou" %% "jwt-play-json" % "0.16.0"
+  ))
   .settings(libraryDependencies ++= Seq(
     "com.h2database" % "h2" % "1.4.197" % Test,
     "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.14" % Test,
@@ -138,7 +110,11 @@ lazy val server = project
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.3" % IntegrationTest,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.14" % IntegrationTest
   ))
-  .enablePlugins(BuildInfoPlugin, JavaAppPackaging, DockerPlugin)
+  .enablePlugins(
+    BuildInfoPlugin,
+    JavaAppPackaging,
+    DockerPlugin
+  )
   .settings(
     buildInfoPackage := "com.dhpcs.liquidity.server",
     buildInfoUsePackageAsPath := true,
@@ -147,21 +123,3 @@ lazy val server = project
     Docker / packageName := "liquidity",
     dockerBaseImage := "openjdk:10-jre-slim"
   )
-
-lazy val commitIshVersionSettings = Seq(
-  version := "git describe --always".!!.trim()
-)
-
-def protobufScalaSettings(project: Project) = Seq(
-  Compile / PB.protoSources ++= (project / Compile / PB.protoSources).value,
-  Compile / PB.targets := Seq(
-    scalapb.gen(
-      flatPackage = true,
-      javaConversions = false,
-      grpc = false,
-      singleLineToProtoString = true
-    ) -> (Compile / sourceManaged).value
-  ),
-  libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" %
-    scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig
-)

@@ -60,7 +60,7 @@ lazy val model = project
     "com.thesamet.scalapb" %% "scalapb-runtime" %
       scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig,
     "org.typelevel" %% "cats-core" % "1.1.0",
-    "com.squareup.okio" % "okio" % "1.14.1",
+    "com.squareup.okio" % "okio" % "1.15.0",
     "com.typesafe.akka" %% "akka-actor-typed" % "2.5.14"
   ))
 

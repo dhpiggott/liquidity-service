@@ -67,7 +67,7 @@ lazy val model = project
 lazy val server = project
   .in(file("server"))
   .settings(
-    version := "git describe --always".!!.trim()
+    version := "git describe --always --dirty".!!.trim()
   )
   .dependsOn(model)
   .settings(libraryDependencies ++= Seq(

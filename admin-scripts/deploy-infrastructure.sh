@@ -95,5 +95,6 @@ if [ "$ACTION" = "create" ]
   then
     "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" administrators
     "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" journal
+    "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" journal-v2
     "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" analytics
 fi

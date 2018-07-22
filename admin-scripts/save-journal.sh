@@ -14,7 +14,7 @@ REGION=$1
 ENVIRONMENT=$2
 OUTPUT_DIRECTORY=$3
 
-mkdir --parents "$OUTPUT_DIRECTORY"
+mkdir -p "$OUTPUT_DIRECTORY"
 touch "$OUTPUT_DIRECTORY"/journal_dump.sql
 
 MYSQL_HOSTNAME=$(
@@ -62,5 +62,5 @@ docker run \
     --add-locks \
     --disable-keys \
     --extended-insert \
-    --quick liquidity_journal > /dump.sql \
+    --quick liquidity_journal_v2 > /dump.sql \
     "

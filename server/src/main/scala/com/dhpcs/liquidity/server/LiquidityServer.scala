@@ -7,7 +7,7 @@ import java.util.concurrent.Executors
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.{ActorRefResolver, Props}
-import akka.actor.{Actor, ActorSystem, CoordinatedShutdown, Scheduler}
+import akka.actor.{ ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
@@ -17,11 +17,9 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.StandardRoute
 import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
-import akka.persistence.PersistentActor
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
-import akka.persistence.journal.Tagged
 import akka.persistence.query._
-import akka.stream.scaladsl.{Keep, Sink, Source}
+import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
 import akka.{Done, NotUsed}
@@ -31,7 +29,6 @@ import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
-import com.dhpcs.liquidity.persistence.EventTags
 import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -48,8 +45,7 @@ import doobie.util.transactor.Transactor
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
-import scala.collection.immutable.Seq
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 
 class LiquidityServer(
     administratorsTransactor: Transactor[IO],
@@ -62,7 +58,7 @@ class LiquidityServer(
   private[this] val cluster = Cluster(system.toTyped)
 
   private[this] val readJournal = PersistenceQuery(system)
-    .readJournalFor[JdbcReadJournal]("jdbc-read-journal-v2")
+    .readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
 
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
@@ -269,42 +265,20 @@ object LiquidityServer {
            |  extensions += "akka.persistence.Persistence"
            |  persistence {
            |    journal {
-           |      auto-start-journals = ["jdbc-journal-v2"]
-           |      plugin = "jdbc-journal-v2"
+           |      auto-start-journals = ["jdbc-journal"]
+           |      plugin = "jdbc-journal"
            |    }
            |    snapshot-store {
-           |      auto-start-snapshot-stores = ["jdbc-snapshot-store-v2"]
-           |      plugin = "jdbc-snapshot-store-v2"
+           |      auto-start-snapshot-stores = ["jdbc-snapshot-store"]
+           |      plugin = "jdbc-snapshot-store"
            |    }
            |  }
            |  http.server.idle-timeout = 10s
            |}
-           |jdbc-journal-v1 = $${jdbc-journal}
-           |jdbc-journal-v1.slick = $${slick-v1}
-           |jdbc-snapshot-store-v1 = $${jdbc-snapshot-store}
-           |jdbc-snapshot-store-v1.slick = $${slick-v1}
-           |jdbc-read-journal-v1 = $${jdbc-read-journal}
-           |jdbc-read-journal-v1.write-plugin = "jdbc-journal-v1"
-           |jdbc-read-journal-v1.slick = $${slick-v1}
-           |slick-v1 {
-           |  profile = "slick.jdbc.MySQLProfile$$"
-           |  db {
-           |    driver = "com.mysql.jdbc.Driver"
-           |    url = "${urlForDatabase(mysqlHostname, "liquidity_journal")}"
-           |    user = "$mysqlUsername"
-           |    password = "$mysqlPassword"
-           |    maxConnections = 2
-           |    numThreads = 2
-           |  }
-           |}
-           |jdbc-journal-v2 = $${jdbc-journal}
-           |jdbc-journal-v2.slick = $${slick-v2}
-           |jdbc-snapshot-store-v2 = $${jdbc-snapshot-store}
-           |jdbc-snapshot-store-v2.slick = $${slick-v2}
-           |jdbc-read-journal-v2 = $${jdbc-read-journal}
-           |jdbc-read-journal-v2.write-plugin = "jdbc-journal-v2"
-           |jdbc-read-journal-v2.slick = $${slick-v2}
-           |slick-v2 {
+           |jdbc-journal.slick = $${slick}
+           |jdbc-snapshot-store.slick = $${slick}
+           |jdbc-read-journal.slick = $${slick}
+           |slick {
            |  profile = "slick.jdbc.MySQLProfile$$"
            |  db {
            |    driver = "com.mysql.jdbc.Driver"
@@ -318,17 +292,10 @@ object LiquidityServer {
            |}
          """.stripMargin)
       )
-      .withFallback(ConfigFactory.defaultReference())
       .resolve()
     implicit val system: ActorSystem = ActorSystem("liquidity", config)
     implicit val mat: Materializer = ActorMaterializer()
     implicit val ec: ExecutionContext = ExecutionContext.global
-
-    doJournalTransform(
-      _.sortBy(eventEnvelope =>
-        (eventEnvelope.event.asInstanceOf[ZoneEventEnvelope].timestamp,
-         eventEnvelope.offset.asInstanceOf[Sequence].value)))
-
     val akkaManagement = AkkaManagement(system)
     akkaManagement.start()
     CoordinatedShutdown(system).addTask(
@@ -370,63 +337,6 @@ object LiquidityServer {
                                         "liquidityServerUnbind")(() =>
       httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
   }
-
-  private[this] class WriterActor(override val persistenceId: String)
-      extends PersistentActor {
-
-    override def receiveRecover: Receive = Actor.emptyBehavior
-
-    override def receiveCommand: Receive = {
-      case zoneEventEnvelope: ZoneEventEnvelope =>
-        persist(Tagged(zoneEventEnvelope, Set(EventTags.ZoneEventTag))) { _ =>
-          sender() ! Done
-          context.stop(self)
-        }
-    }
-  }
-
-  private[this] def doJournalTransform(
-      transform: Seq[EventEnvelope] => Seq[EventEnvelope])(
-      implicit system: ActorSystem,
-      mat: Materializer,
-      ec: ExecutionContext): Unit =
-    Await.result(
-      PersistenceQuery(system)
-        .readJournalFor[JdbcReadJournal]("jdbc-read-journal-v1")
-        .currentEventsByTag(EventTags.ZoneEventTag, NoOffset)
-        .zipWithIndex
-        .groupedWithin(n = 1000, d = 30.seconds)
-        .map { group =>
-          val (eventEnvelope, index) = group.last
-          val offset = eventEnvelope.offset.asInstanceOf[Sequence]
-          log.info(s"Read ${group.size} current zone events " +
-            s"(total: ${index + 1}, offset: ${offset.value})")
-          group.map(_._1)
-        }
-        .fold(Seq.empty[EventEnvelope])(_ ++ _)
-        .map(transform)
-        .flatMapConcat(Source(_))
-        .mapAsync(1) { eventEnvelope =>
-          val writer =
-            system.actorOf(akka.actor.Props(classOf[WriterActor],
-                                            eventEnvelope.persistenceId))
-          import akka.pattern.ask
-          implicit val askTimeout: Timeout = Timeout(5.seconds)
-          for (_ <- (writer ? eventEnvelope.event).mapTo[Done])
-            yield eventEnvelope.offset.asInstanceOf[Sequence]
-        }
-        .zipWithIndex
-        .groupedWithin(n = 1000, d = 30.seconds)
-        .map { group =>
-          val (offset, index) = group.last
-          log.info(s"Wrote ${group.size} current zone events " +
-            s"(total: ${index + 1}, offset: ${offset.value})")
-        }
-        .toMat(Sink.ignore)(Keep.right)
-        .run()
-        .map(_ => log.info("Completed journal transform")),
-      Duration.Inf
-    )
 
   private[this] def urlForDatabase(hostname: String, database: String): String =
     s"jdbc:mysql://$hostname/$database?" +

@@ -1,6 +1,6 @@
-CREATE DATABASE liquidity_journal;
+CREATE DATABASE liquidity_journal_v2;
 
-USE liquidity_journal;
+USE liquidity_journal_v2;
 
 CREATE TABLE IF NOT EXISTS journal (
   ordering SERIAL,

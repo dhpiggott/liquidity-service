@@ -140,7 +140,7 @@ CREATE TABLE client_sessions (
   zone_id CHAR(36) NOT NULL,
   session_id INT NOT NULL AUTO_INCREMENT,
   remote_address VARCHAR(45) NULL,
-  actor_ref VARCHAR(100) NOT NULL,
+  actor_ref VARCHAR(100) NULL,
   fingerprint CHAR(64) NULL,
   joined TIMESTAMP(3) NOT NULL,
   quit TIMESTAMP(3) NULL,

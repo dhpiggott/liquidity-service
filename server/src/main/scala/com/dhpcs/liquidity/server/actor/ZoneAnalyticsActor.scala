@@ -107,17 +107,11 @@ object ZoneAnalyticsActor {
           ZoneStore.insert(zone)
 
         case ClientJoinedEvent(maybeActorRef) =>
-          maybeActorRef match {
-            case None =>
-              ().pure[ConnectionIO]
-
-            case Some(actorRef) =>
-              ClientSessionsStore.insert(zoneId,
-                                         zoneEventEnvelope.remoteAddress,
-                                         actorRef,
-                                         zoneEventEnvelope.publicKey,
-                                         joined = zoneEventEnvelope.timestamp)
-          }
+          ClientSessionsStore.insert(zoneId,
+                                     zoneEventEnvelope.remoteAddress,
+                                     maybeActorRef,
+                                     zoneEventEnvelope.publicKey,
+                                     joined = zoneEventEnvelope.timestamp)
 
         case ClientQuitEvent(maybeActorRef) =>
           maybeActorRef match {
@@ -432,7 +426,7 @@ object ZoneAnalyticsActor {
 
     def insert(zoneId: ZoneId,
                remoteAddress: Option[InetAddress],
-               actorRef: String,
+               actorRef: Option[String],
                publicKey: Option[PublicKey],
                joined: Instant): ConnectionIO[Unit] =
       for {

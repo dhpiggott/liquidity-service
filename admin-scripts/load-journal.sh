@@ -54,5 +54,5 @@ docker run \
     --host=$MYSQL_HOSTNAME \
     --user=$MYSQL_USERNAME \
     --password=$MYSQL_PASSWORD \
-    liquidity_journal_v2 < /dump.sql \
+    liquidity_journal < /dump.sql \
   "

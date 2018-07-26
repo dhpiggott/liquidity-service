@@ -62,5 +62,5 @@ docker run \
     --add-locks \
     --disable-keys \
     --extended-insert \
-    --quick liquidity_journal_v2 > /dump.sql \
+    --quick liquidity_journal > /dump.sql \
     "

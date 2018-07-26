@@ -125,8 +125,7 @@ object LiquidityServer {
                |  profile = "slick.jdbc.MySQLProfile$$"
                |  db {
                |    driver = "com.mysql.jdbc.Driver"
-               |    url = "${urlForDatabase(mysqlHostname,
-                                            "liquidity_journal_v2")}"
+               |    url = "${urlForDatabase(mysqlHostname, "liquidity_journal")}"
                |    user = "$mysqlUsername"
                |    password = "$mysqlPassword"
                |    maxConnections = 2

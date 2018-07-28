@@ -5,13 +5,8 @@ USE liquidity_analytics;
 CREATE TABLE devices (
   fingerprint CHAR(64) NOT NULL,
   public_key BLOB NOT NULL,
+  created TIMESTAMP(3) NOT NULL,
   PRIMARY KEY (fingerprint)
-);
-
-CREATE TABLE device_counts (
-  `time` TIMESTAMP(3) NOT NULL,
-  `count` INT NOT NULL,
-  PRIMARY KEY (`time`)
 );
 
 CREATE TABLE zones (
@@ -32,12 +27,6 @@ CREATE TABLE zone_name_changes (
   PRIMARY KEY (change_id),
   INDEX (zone_id),
   FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
-);
-
-CREATE TABLE zone_counts (
-  `time` TIMESTAMP(3) NOT NULL,
-  `count` INT NOT NULL,
-  PRIMARY KEY (`time`)
 );
 
 CREATE TABLE members (
@@ -68,12 +57,6 @@ CREATE TABLE member_owners (
   PRIMARY KEY (update_id),
   FOREIGN KEY (update_id) REFERENCES member_updates(update_id),
   FOREIGN KEY (fingerprint) REFERENCES devices(fingerprint)
-);
-
-CREATE TABLE member_counts (
-  `time` TIMESTAMP(3) NOT NULL,
-  `count` INT NOT NULL,
-  PRIMARY KEY (`time`)
 );
 
 CREATE TABLE accounts (
@@ -130,12 +113,6 @@ CREATE TABLE transactions (
   FOREIGN KEY (zone_id, creator) REFERENCES members(zone_id, member_id)
 );
 
-CREATE TABLE transaction_counts (
-  `time` TIMESTAMP(3) NOT NULL,
-  `count` INT NOT NULL,
-  PRIMARY KEY (`time`)
-);
-
 CREATE TABLE client_sessions (
   zone_id CHAR(36) NOT NULL,
   session_id INT NOT NULL AUTO_INCREMENT,
@@ -148,12 +125,6 @@ CREATE TABLE client_sessions (
   INDEX (zone_id),
   FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
   FOREIGN KEY (fingerprint) REFERENCES devices(fingerprint)
-);
-
-CREATE TABLE client_session_counts (
-  `time` TIMESTAMP(3) NOT NULL,
-  `count` INT NOT NULL,
-  PRIMARY KEY (`time`)
 );
 
 CREATE TABLE tag_offsets (

@@ -187,22 +187,10 @@ object ZoneAnalyticsActor {
         _ <- if (exists)
           ().pure[ConnectionIO]
         else
-          for {
-            _ <- sql"""
-           INSERT INTO devices (fingerprint, public_key)
-             VALUES (${publicKey.fingerprint}, $publicKey);
-              """.update.run
-            count <- sql"""
-               SELECT `count` FROM device_counts
-                 ORDER BY `time` DESC
-                 LIMIT 1
-              """.query[Long].option
-            _ <- sql"""
-           INSERT INTO device_counts (`time`, `count`)
-             VALUES ( $created, ${count.fold(0L)(_ + 1)})
-             ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
-              """.update.run
-          } yield ()
+          for (_ <- sql"""
+           INSERT INTO devices (fingerprint, public_key, created)
+             VALUES (${publicKey.fingerprint}, $publicKey, $created);
+              """.update.run) yield ()
       } yield ()
 
   }
@@ -225,18 +213,6 @@ object ZoneAnalyticsActor {
         _ <- zone.transactions.values.toList
           .map(TransactionsStore.insert(zone.id, _))
           .sequence
-        count <- sql"""
-               SELECT `count` FROM zone_counts
-                 ORDER BY `time` DESC
-                 LIMIT 1
-          """
-          .query[Long]
-          .option
-        _ <- sql"""
-           INSERT INTO zone_counts (`time`, `count`)
-             VALUES ( ${zone.created}, ${count.fold(0L)(_ + 1)})
-             ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
-          """.update.run
       } yield ()
 
     def update(zoneId: ZoneId, modified: Instant): ConnectionIO[Unit] =
@@ -273,18 +249,6 @@ object ZoneAnalyticsActor {
                  VALUES ($zoneId, ${member.id}, $created)
              """.update.run
         _ <- MemberUpdatesStore.insert(zoneId, member, created)
-        count <- sql"""
-           SELECT `count` FROM member_counts
-             ORDER BY `time` DESC
-             LIMIT 1
-         """
-          .query[Long]
-          .option
-        _ <- sql"""
-               INSERT INTO member_counts (`time`, `count`)
-                 VALUES ( $created, ${count.fold(0L)(_ + 1)})
-               ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
-             """.update.run
       } yield ()
 
   }
@@ -334,18 +298,6 @@ object ZoneAnalyticsActor {
                  VALUES ($zoneId, ${account.id}, $created, $balance)
              """.update.run
         _ <- AccountUpdatesStore.insert(zoneId, account, created)
-        count <- sql"""
-           SELECT `count` FROM account_counts
-             ORDER BY `time` DESC
-             LIMIT 1
-         """
-          .query[Long]
-          .option
-        _ <- sql"""
-               INSERT INTO account_counts (`time`, `count`)
-                 VALUES ( $created, ${count.fold(0L)(_ + 1)})
-               ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
-             """.update.run
       } yield ()
 
     def retrieveBalance(zoneId: ZoneId,
@@ -401,24 +353,10 @@ object ZoneAnalyticsActor {
   object TransactionsStore {
 
     def insert(zoneId: ZoneId, transaction: Transaction): ConnectionIO[Unit] =
-      for {
-        _ <- sql"""
+      for (_ <- sql"""
              INSERT INTO transactions (zone_id, transaction_id, `from`, `to`, `value`, creator, created, description, metadata)
                VALUES ($zoneId, ${transaction.id}, ${transaction.from}, ${transaction.to}, ${transaction.value}, ${transaction.creator}, ${transaction.created}, ${transaction.description}, ${transaction.metadata})
-           """.update.run
-        count <- sql"""
-           SELECT `count` FROM transaction_counts
-             ORDER BY `time` DESC
-             LIMIT 1
-          """
-          .query[Long]
-          .option
-        _ <- sql"""
-               INSERT INTO transaction_counts (`time`, `count`)
-                 VALUES ( ${transaction.created}, ${count.fold(0L)(_ + 1)})
-               ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
-             """.update.run
-      } yield ()
+           """.update.run) yield ()
 
   }
 
@@ -438,18 +376,6 @@ object ZoneAnalyticsActor {
              VALUES ($zoneId, $remoteAddress, $actorRef, ${publicKey.map(
           _.fingerprint)}, $joined)
           """.update.run
-        count <- sql"""
-           SELECT `count` FROM client_session_counts
-             ORDER BY `time` DESC
-             LIMIT 1
-          """
-          .query[Long]
-          .option
-        _ <- sql"""
-               INSERT INTO client_session_counts (`time`, `count`)
-                 VALUES ( $joined, ${count.fold(0L)(_ + 1)})
-               ON DUPLICATE KEY UPDATE `time` = VALUES(`time`), `count` = VALUES(`count`);
-             """.update.run
       } yield ()
 
     def retrieve(zoneId: ZoneId, actorRef: String): ConnectionIO[Long] =

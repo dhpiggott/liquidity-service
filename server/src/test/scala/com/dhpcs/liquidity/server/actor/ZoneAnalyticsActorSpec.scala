@@ -459,14 +459,8 @@ object ZoneAnalyticsActorSpec {
            CREATE TABLE devices (
              public_key BLOB NOT NULL,
              fingerprint CHAR(64) NOT NULL,
+             created TIMESTAMP NOT NULL,
              PRIMARY KEY (fingerprint)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE device_counts (
-             time TIMESTAMP NOT NULL,
-             count INT NOT NULL,
-             PRIMARY KEY (count)
            );
          """.update.run
     _ <- sql"""
@@ -490,13 +484,6 @@ object ZoneAnalyticsActorSpec {
              FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
            );
     """.update.run
-    _ <- sql"""
-           CREATE TABLE zone_counts (
-             time TIMESTAMP NOT NULL,
-             count INT NOT NULL,
-             PRIMARY KEY (count)
-           );
-         """.update.run
     _ <- sql"""
            CREATE TABLE members (
              zone_id CHAR(36) NOT NULL,
@@ -526,13 +513,6 @@ object ZoneAnalyticsActorSpec {
              PRIMARY KEY (update_id),
              FOREIGN KEY (update_id) REFERENCES member_updates(update_id),
              FOREIGN KEY (fingerprint) REFERENCES devices(fingerprint)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE member_counts (
-             time TIMESTAMP NOT NULL,
-             count INT NOT NULL,
-             PRIMARY KEY (count)
            );
          """.update.run
     _ <- sql"""
@@ -592,13 +572,6 @@ object ZoneAnalyticsActorSpec {
             );
          """.update.run
     _ <- sql"""
-           CREATE TABLE transaction_counts (
-             time TIMESTAMP NOT NULL,
-             count INT NOT NULL,
-             PRIMARY KEY (count)
-           );
-         """.update.run
-    _ <- sql"""
            CREATE TABLE client_sessions (
              zone_id CHAR(36) NOT NULL,
              session_id INT NOT NULL AUTO_INCREMENT,
@@ -610,13 +583,6 @@ object ZoneAnalyticsActorSpec {
              PRIMARY KEY (session_id),
              FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
              FOREIGN KEY (fingerprint) REFERENCES devices(fingerprint)
-           );
-         """.update.run
-    _ <- sql"""
-           CREATE TABLE client_session_counts (
-             time TIMESTAMP NOT NULL,
-             count INT NOT NULL,
-             PRIMARY KEY (count)
            );
          """.update.run
     _ <- sql"""

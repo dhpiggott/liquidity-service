@@ -260,7 +260,6 @@ class LiquidityServer(
     (for {
       _ <- IO.shift(blockingIoEc)
       isAdministrator <- isAdministratorIo
-      _ <- IO.shift(system.dispatcher)
     } yield isAdministrator).unsafeToFuture()
   }
 

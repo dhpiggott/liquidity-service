@@ -1,5 +1,4 @@
 addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.3")
-
 addSbtPlugin("com.geirsson" % "sbt-scalafmt" % "1.5.1")
 
 libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.7.4"

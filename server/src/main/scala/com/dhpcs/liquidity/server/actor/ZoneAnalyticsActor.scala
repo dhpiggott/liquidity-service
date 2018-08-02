@@ -48,7 +48,7 @@ object ZoneAnalyticsActor {
         (for {
           _ <- IO.shift(blockingIoEc)
           previousOffset <- previousOffsetIo
-          _ <- IO.shift(ExecutionContext.global)
+          _ <- IO.shift(context.system.executionContext)
         } yield previousOffset).unsafeToFuture()
       val killSwitch = RestartSource
         .onFailuresWithBackoff(minBackoff = 3.seconds,
@@ -72,7 +72,7 @@ object ZoneAnalyticsActor {
                 (for {
                   _ <- IO.shift(blockingIoEc)
                   nextOffset <- nextOffsetIo
-                  _ <- IO.shift(ExecutionContext.global)
+                  _ <- IO.shift(context.system.executionContext)
                 } yield nextOffset).unsafeToFuture()
               }
               .zipWithIndex

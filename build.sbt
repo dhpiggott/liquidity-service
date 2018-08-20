@@ -86,7 +86,7 @@ lazy val server = project
     "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
     "org.tpolecat" %% "doobie-core" % "0.5.2",
     "org.tpolecat" %% "doobie-hikari" % "0.5.2",
-    "mysql" % "mysql-connector-java" % "5.1.46",
+    "mysql" % "mysql-connector-java" % "5.1.47",
     "com.typesafe.akka" %% "akka-http" % "10.1.4",
     "com.typesafe.akka" %% "akka-stream-typed" % "2.5.14",
     "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",

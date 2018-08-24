@@ -163,7 +163,7 @@ object ZoneValidatorActor {
                           )
                         )
                       )
-                      .andThen {
+                      .thenRun {
                         state =>
                           deliverNotification(
                             context.self,
@@ -218,7 +218,7 @@ object ZoneValidatorActor {
                         )
                       )
                     )
-                    .andThen {
+                    .thenRun {
                       state =>
                         deliverNotification(
                           context.self,
@@ -827,7 +827,7 @@ object ZoneValidatorActor {
           timestamp = Instant.now(),
           event
         ))
-      .andThen { state =>
+      .thenRun { state =>
         (event match {
           case EmptyZoneEvent =>
             None

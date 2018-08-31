@@ -16,7 +16,6 @@ CREATE TABLE zones (
   created TIMESTAMP(3) NOT NULL,
   expires TIMESTAMP(3) NOT NULL,
   metadata JSON NULL,
-  was_test BOOLEAN NULL,
   PRIMARY KEY (zone_id)
 );
 

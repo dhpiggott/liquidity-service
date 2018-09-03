@@ -35,7 +35,7 @@ import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.SqlBindings._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
-import com.dhpcs.liquidity.server.actor._
+import com.dhpcs.liquidity.server.actor.{ZoneAnalyticsActor, _}
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import doobie.hikari._
@@ -228,9 +228,11 @@ class LiquidityServer(
     ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
 
   ClusterSingleton(system.toTyped).spawn(
-    behavior = ZoneAnalyticsActor.singletonBehavior(readJournal,
-                                                    analyticsTransactor,
-                                                    blockingIoEc),
+    behavior = ZoneAnalyticsActor.singletonBehavior(
+      readJournal,
+      analyticsTransactor,
+      blockingIoEc,
+      zoneMonitor ! GetActiveZoneSummaries(_)),
     singletonName = "zoneAnalyticsSingleton",
     props = Props.empty,
     settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),

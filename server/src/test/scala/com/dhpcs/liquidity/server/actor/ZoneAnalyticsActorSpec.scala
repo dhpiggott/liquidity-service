@@ -142,7 +142,8 @@ class ZoneAnalyticsActorSpec
       ZoneAnalyticsActor.singletonBehavior(readJournal,
                                            transactor,
                                            blockingIoEc =
-                                             ExecutionContext.global),
+                                             ExecutionContext.global,
+                                           getActiveZoneSummaries = _ => ()),
       name = "zoneAnalytics"
     )
     val zoneId = ZoneId(UUID.randomUUID().toString)

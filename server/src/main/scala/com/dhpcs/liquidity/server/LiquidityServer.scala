@@ -153,6 +153,9 @@ object LiquidityServer {
       _ <- administratorsTransactor.configure(hikariDataSource =>
         IO(hikariDataSource.setMaximumPoolSize(2)))
     } yield administratorsTransactor).unsafeRunSync()
+    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
+                                        "liquidityServerUnbind")(() =>
+      for (_ <- administratorsTransactor.shutdown.unsafeToFuture()) yield Done)
     val analyticsTransactor = (for {
       analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",

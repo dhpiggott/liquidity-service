@@ -712,7 +712,8 @@ class HttpControllerSpec
   private[this] val clientConnection =
     TestProbe[ZoneNotificationEnvelope]()(system.toTyped).ref
 
-  protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean] =
+  override protected[this] def isAdministrator(
+      publicKey: PublicKey): Future[Boolean] =
     Future.successful(
       publicKey.value.toByteArray.sameElements(rsaPublicKey.getEncoded))
 

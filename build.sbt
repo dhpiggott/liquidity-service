@@ -92,7 +92,7 @@ lazy val server = project
     "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",
     "com.typesafe.play" %% "play-json" % "2.6.10",
     "de.heikoseeberger" %% "akka-http-play-json" % "1.21.0",
-    "com.pauldijou" %% "jwt-play-json" % "0.17.0"
+    "com.pauldijou" %% "jwt-play-json" % "0.18.0"
   ))
   .settings(libraryDependencies ++= Seq(
     "com.h2database" % "h2" % "1.4.197" % Test,

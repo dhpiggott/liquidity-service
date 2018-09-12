@@ -2,6 +2,7 @@ package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
 import java.security.KeyFactory
+import java.security.interfaces.RSAPublicKey
 import java.security.spec.X509EncodedKeySpec
 
 import akka.NotUsed
@@ -26,8 +27,13 @@ import com.dhpcs.liquidity.server.HttpController._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.google.protobuf.CodedOutputStream
+import com.nimbusds.jose.JWSAlgorithm
+import com.nimbusds.jose.jwk.{JWKSet, KeyUse, RSAKey}
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet
+import com.nimbusds.jose.proc.{JWSVerificationKeySelector, SecurityContext}
+import com.nimbusds.jwt.SignedJWT
+import com.nimbusds.jwt.proc.DefaultJWTProcessor
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-import pdi.jwt.{JwtAlgorithm, JwtJson, JwtOptions}
 import play.api.libs.json.Json
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import scalapb.json4s.JsonFormat
@@ -83,18 +89,13 @@ trait HttpController {
         case _ =>
           unauthorized[String]("Bearer token authorization must be presented.")
       }
-      claims <- JwtJson
-        .decodeJson(
-          token,
-          JwtOptions(signature = false, expiration = false, notBefore = false)
-        )
+      signedJwt <- Try(SignedJWT.parse(token))
         .map(provide)
-        .getOrElse(unauthorized("Token must be a JWT."))
-      subject <- (claims \ "sub")
-        .asOpt[String]
+        .getOrElse(unauthorized("Token must be a signed JWT."))
+      subject <- Option(signedJwt.getJWTClaimsSet.getSubject)
         .map(provide)
         .getOrElse(unauthorized("Token claims must contain a subject."))
-      publicKey <- Try(
+      rsaPublicKey <- Try(
         KeyFactory
           .getInstance("RSA")
           .generatePublic(
@@ -102,17 +103,31 @@ trait HttpController {
               okio.ByteString.decodeBase64(subject).toByteArray
             )
           )
+          .asInstanceOf[RSAPublicKey]
       ).map(provide)
         .getOrElse(unauthorized("Token subject must be an RSA public key."))
-      _ <- {
-        if (JwtJson.isValid(token, publicKey, Seq(JwtAlgorithm.RS256)))
-          provide(())
-        else
-          unauthorized[Unit](
-            "Token must be signed by subject's private key " +
-              "and used between nbf and iat claims.")
-      }
-    } yield PublicKey(publicKey.getEncoded)
+      _ <- Try {
+        val jwtProcessor = new DefaultJWTProcessor[SecurityContext]()
+        jwtProcessor.setJWSKeySelector(
+          new JWSVerificationKeySelector(
+            JWSAlgorithm.RS256,
+            new ImmutableJWKSet(
+              new JWKSet(
+                new RSAKey.Builder(rsaPublicKey)
+                  .keyUse(KeyUse.SIGNATURE)
+                  .build()
+              )
+            )
+          )
+        )
+        jwtProcessor.process(signedJwt, null)
+      }.map(provide)
+        .getOrElse(
+          unauthorized(
+            "Token must be signed by subject's private key and used " +
+              "between nbf and iat claims.")
+        )
+    } yield PublicKey(rsaPublicKey.getEncoded)
 
   private[this] def authorizeByPublicKey(
       publicKey: PublicKey): Directive1[PublicKey] =
@@ -311,26 +326,32 @@ trait HttpController {
   protected[this] def events(persistenceId: String,
                              fromSequenceNr: Long,
                              toSequenceNr: Long): Source[EventEnvelope, NotUsed]
+
   protected[this] def zoneState(
       zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
 
   protected[this] def isClusterHealthy: Boolean
+
   protected[this] def resolver: ActorRefResolver
+
   protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
 
   protected[this] def createZone(
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       createZoneCommand: CreateZoneCommand): Future[ZoneResponse]
+
   protected[this] def execZoneCommand(
       zoneId: ZoneId,
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       zoneCommand: ZoneCommand): Future[ZoneResponse]
+
   protected[this] def zoneNotificationSource(
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       zoneId: ZoneId): Source[ZoneNotification, NotUsed]
+
   protected[this] def pingInterval: FiniteDuration
 
 }

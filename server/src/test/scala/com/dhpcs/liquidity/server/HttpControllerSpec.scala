@@ -5,6 +5,8 @@ import java.net.InetAddress
 import java.security.KeyPairGenerator
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.time.Instant
+import java.time.temporal.ChronoUnit
+import java.util.Date
 
 import akka.NotUsed
 import akka.actor.typed.ActorRefResolver
@@ -32,9 +34,12 @@ import com.dhpcs.liquidity.server.HttpController.EventEnvelope
 import com.dhpcs.liquidity.server.HttpControllerSpec._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
+import com.nimbusds.jose.crypto.RSASSASigner
+import com.nimbusds.jose.util.Base64
+import com.nimbusds.jose.{JWSAlgorithm, JWSHeader}
+import com.nimbusds.jwt.{JWTClaimsSet, SignedJWT}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.scalatest.FreeSpec
-import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
@@ -71,7 +76,7 @@ class HttpControllerSpec
           assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
         }
       }
-      "when the token is not a JWT" in {
+      "when the token is not a signed JWT" in {
         val getRequest =
           RequestBuilding
             .Get("/akka-management")
@@ -84,7 +89,7 @@ class HttpControllerSpec
                 HttpChallenges
                   .oAuth2(realm = null)
                   .copy(
-                    params = Map("error" -> "Token must be a JWT.")
+                    params = Map("error" -> "Token must be a signed JWT.")
                   )
               )
             )
@@ -100,11 +105,20 @@ class HttpControllerSpec
             .withHeaders(
               Authorization(
                 OAuth2BearerToken(
-                  JwtJson.encode(
-                    Json.obj(),
-                    rsaPrivateKey,
-                    JwtAlgorithm.RS256
-                  )
+                  {
+                    val signedJwt = new SignedJWT(
+                      new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .build(),
+                      new JWTClaimsSet.Builder()
+                        .issueTime(Date.from(Instant.now()))
+                        .notBeforeTime(Date.from(Instant.now()))
+                        .expirationTime(
+                          Date.from(Instant.now().plus(5, ChronoUnit.MINUTES)))
+                        .build()
+                    )
+                    signedJwt.sign(new RSASSASigner(rsaPrivateKey))
+                    signedJwt.serialize()
+                  }
                 )
               )
             )
@@ -133,11 +147,21 @@ class HttpControllerSpec
             .withHeaders(
               Authorization(
                 OAuth2BearerToken(
-                  JwtJson.encode(
-                    Json.obj("sub" -> ""),
-                    rsaPrivateKey,
-                    JwtAlgorithm.RS256
-                  )
+                  {
+                    val signedJwt = new SignedJWT(
+                      new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .build(),
+                      new JWTClaimsSet.Builder()
+                        .subject("")
+                        .issueTime(Date.from(Instant.now()))
+                        .notBeforeTime(Date.from(Instant.now()))
+                        .expirationTime(
+                          Date.from(Instant.now().plus(5, ChronoUnit.MINUTES)))
+                        .build()
+                    )
+                    signedJwt.sign(new RSASSASigner(rsaPrivateKey))
+                    signedJwt.serialize()
+                  }
                 )
               )
             )
@@ -162,24 +186,128 @@ class HttpControllerSpec
         }
       }
       "when the token is not signed by the subject's private key" in {
-        val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-        keyPairGenerator.initialize(2048)
-        val otherRsaPrivateKey = keyPairGenerator.generateKeyPair.getPrivate
+        val otherRsaPrivateKey = {
+          val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+          keyPairGenerator.initialize(2048)
+          keyPairGenerator.generateKeyPair.getPrivate
+        }
         val getRequest =
           RequestBuilding
             .Get("/akka-management")
             .withHeaders(
               Authorization(
                 OAuth2BearerToken(
-                  JwtJson.encode(
-                    Json.obj(
-                      "sub" -> okio.ByteString
-                        .of(rsaPublicKey.getEncoded: _*)
-                        .base64()
-                    ),
-                    otherRsaPrivateKey,
-                    JwtAlgorithm.RS256
+                  {
+                    val signedJwt = new SignedJWT(
+                      new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .build(),
+                      new JWTClaimsSet.Builder()
+                        .subject(
+                          Base64.encode(rsaPublicKey.getEncoded).toString)
+                        .issueTime(Date.from(Instant.now()))
+                        .notBeforeTime(Date.from(Instant.now()))
+                        .expirationTime(
+                          Date.from(Instant.now().plus(5, ChronoUnit.MINUTES)))
+                        .build()
+                    )
+                    signedJwt.sign(new RSASSASigner(otherRsaPrivateKey))
+                    signedJwt.serialize()
+                  }
+                )
+              )
+            )
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Unauthorized)
+          assert(
+            header[`WWW-Authenticate`].contains(
+              `WWW-Authenticate`(
+                HttpChallenges
+                  .oAuth2(realm = null)
+                  .copy(
+                    params = Map(
+                      "error" ->
+                        ("Token must be signed by subject's private key and " +
+                          "used between nbf and iat claims.")
+                    )
                   )
+              )
+            )
+          )
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
+        }
+      }
+      "when the not-before claim has not passed" in {
+        val getRequest =
+          RequestBuilding
+            .Get("/akka-management")
+            .withHeaders(
+              Authorization(
+                OAuth2BearerToken(
+                  {
+                    val signedJwt = new SignedJWT(
+                      new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .build(),
+                      new JWTClaimsSet.Builder()
+                        .subject(
+                          Base64.encode(rsaPublicKey.getEncoded).toString)
+                        .issueTime(Date.from(Instant.now()))
+                        .notBeforeTime(
+                          Date.from(Instant.now().plus(5, ChronoUnit.MINUTES)))
+                        .expirationTime(
+                          Date.from(Instant.now().plus(5, ChronoUnit.MINUTES)))
+                        .build()
+                    )
+                    signedJwt.sign(new RSASSASigner(rsaPrivateKey))
+                    signedJwt.serialize()
+                  }
+                )
+              )
+            )
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Unauthorized)
+          assert(
+            header[`WWW-Authenticate`].contains(
+              `WWW-Authenticate`(
+                HttpChallenges
+                  .oAuth2(realm = null)
+                  .copy(
+                    params = Map(
+                      "error" ->
+                        ("Token must be signed by subject's private key and " +
+                          "used between nbf and iat claims.")
+                    )
+                  )
+              )
+            )
+          )
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
+        }
+      }
+      "when the expires at claim has passed" in {
+        val getRequest =
+          RequestBuilding
+            .Get("/akka-management")
+            .withHeaders(
+              Authorization(
+                OAuth2BearerToken(
+                  {
+                    val signedJwt = new SignedJWT(
+                      new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .build(),
+                      new JWTClaimsSet.Builder()
+                        .subject(
+                          Base64.encode(rsaPublicKey.getEncoded).toString)
+                        .issueTime(Date.from(Instant.now()))
+                        .notBeforeTime(Date.from(Instant.now()))
+                        .expirationTime(
+                          Date.from(Instant.now().minus(5, ChronoUnit.MINUTES)))
+                        .build()
+                    )
+                    signedJwt.sign(new RSASSASigner(rsaPrivateKey))
+                    signedJwt.serialize()
+                  }
                 )
               )
             )
@@ -205,26 +333,35 @@ class HttpControllerSpec
         }
       }
       "when the subject is not an administrator" in {
-        val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-        keyPairGenerator.initialize(2048)
-        val keyPair = keyPairGenerator.generateKeyPair
-        val otherRsaPrivateKey = keyPair.getPrivate
-        val otherRsaPublicKey = keyPair.getPublic
+        val (otherRsaPrivateKey: RSAPrivateKey,
+             otherRsaPublicKey: RSAPublicKey) = {
+          val keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+          keyPairGenerator.initialize(2048)
+          val keyPair = keyPairGenerator.generateKeyPair
+          (keyPair.getPrivate, keyPair.getPublic)
+        }
         val getRequest =
           RequestBuilding
             .Get("/akka-management")
             .withHeaders(
               Authorization(
                 OAuth2BearerToken(
-                  JwtJson.encode(
-                    Json.obj(
-                      "sub" -> okio.ByteString
-                        .of(otherRsaPublicKey.getEncoded: _*)
-                        .base64()
-                    ),
-                    otherRsaPrivateKey,
-                    JwtAlgorithm.RS256
-                  )
+                  {
+                    val signedJwt = new SignedJWT(
+                      new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .build(),
+                      new JWTClaimsSet.Builder()
+                        .subject(
+                          Base64.encode(otherRsaPublicKey.getEncoded).toString)
+                        .issueTime(Date.from(Instant.now()))
+                        .notBeforeTime(Date.from(Instant.now()))
+                        .expirationTime(
+                          Date.from(Instant.now().plus(5, ChronoUnit.MINUTES)))
+                        .build()
+                    )
+                    signedJwt.sign(new RSASSASigner(otherRsaPrivateKey))
+                    signedJwt.serialize()
+                  }
                 )
               )
             )
@@ -439,38 +576,38 @@ class HttpControllerSpec
           .withEntity(
             ContentTypes.`application/json`,
             s"""
-            |{
-            |  "equityOwnerPublicKey": "${publicKey.value.base64()}",
-            |  "equityOwnerName": "Dave",
-            |  "name": "Dave's Game"
-            |}
+               |{
+               |  "equityOwnerPublicKey": "${publicKey.value.base64()}",
+               |  "equityOwnerName": "Dave",
+               |  "name": "Dave's Game"
+               |}
           """.stripMargin
           )
         putRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""
-             |{
-             |  "createZoneResponse": {
-             |    "success": {
-             |      "zone": {
-             |        "id" : "32824da3-094f-45f0-9b35-23b7827547c6",
-             |        "equityAccountId" : "0",
-             |        "members" : [ {
-             |          "id" : "0",
-             |          "ownerPublicKeys": [ "${publicKey.value.base64()}" ],
-             |          "name":"Dave"
-             |        } ],
-             |        "accounts" : [ {
-             |        "id" :"0",
-             |          "ownerMemberIds" : [ "0" ]
-             |        } ],
-             |        "created" : "1514156286183",
-             |        "expires" : "1516748286183",
-             |        "name" : "Dave's Game"
-             |      }
-             |    }
-             |  }
-             |}
+               |{
+               |  "createZoneResponse": {
+               |    "success": {
+               |      "zone": {
+               |        "id" : "32824da3-094f-45f0-9b35-23b7827547c6",
+               |        "equityAccountId" : "0",
+               |        "members" : [ {
+               |          "id" : "0",
+               |          "ownerPublicKeys": [ "${publicKey.value.base64()}" ],
+               |          "name":"Dave"
+               |        } ],
+               |        "accounts" : [ {
+               |        "id" :"0",
+               |          "ownerMemberIds" : [ "0" ]
+               |        } ],
+               |        "created" : "1514156286183",
+               |        "expires" : "1516748286183",
+               |        "name" : "Dave's Game"
+               |      }
+               |    }
+               |  }
+               |}
            """.stripMargin))
         }
       }
@@ -540,20 +677,20 @@ class HttpControllerSpec
           .withEntity(
             ContentTypes.`application/json`,
             s"""
-             |{
-             |  "changeZoneNameCommand": {
-             |  }
-             |}
+               |{
+               |  "changeZoneNameCommand": {
+               |  }
+               |}
           """.stripMargin
           )
         putRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""
-             |{
-             |  "changeZoneNameResponse": {
-             |    "success": ""
-             |  }
-             |}
+               |{
+               |  "changeZoneNameResponse": {
+               |    "success": ""
+               |  }
+               |}
            """.stripMargin))
         }
       }
@@ -881,14 +1018,20 @@ object HttpControllerSpec {
     val keyPair = keyPairGenerator.generateKeyPair
     (keyPair.getPrivate, keyPair.getPublic)
   }
-  private val selfSignedJwt =
-    JwtJson.encode(
-      Json.obj(
-        "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
-      ),
-      rsaPrivateKey,
-      JwtAlgorithm.RS256
+  private val selfSignedJwt = {
+    val signedJwt = new SignedJWT(
+      new JWSHeader.Builder(JWSAlgorithm.RS256)
+        .build(),
+      new JWTClaimsSet.Builder()
+        .subject(Base64.encode(rsaPublicKey.getEncoded).toString)
+        .issueTime(Date.from(Instant.now()))
+        .notBeforeTime(Date.from(Instant.now()))
+        .expirationTime(Date.from(Instant.now().plus(5, ChronoUnit.MINUTES)))
+        .build()
     )
+    signedJwt.sign(new RSASSASigner(rsaPrivateKey))
+    signedJwt.serialize()
+  }
   private val publicKey = PublicKey(rsaPublicKey.getEncoded)
   private val zone = {
     val created = Instant.ofEpochMilli(1514156286183L)

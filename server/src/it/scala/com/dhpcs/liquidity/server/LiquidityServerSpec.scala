@@ -32,6 +32,8 @@ import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.google.protobuf.CodedInputStream
 import com.google.protobuf.struct.{Struct, Value}
+import com.nimbusds.jose.{JWSAlgorithm, JWSHeader, JWSObject, Payload}
+import com.nimbusds.jose.crypto.RSASSASigner
 import doobie._
 import doobie.implicits._
 import org.scalactic.TripleEqualsSupport.Spread
@@ -40,7 +42,6 @@ import org.scalatest.Inside._
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
-import pdi.jwt.{JwtAlgorithm, JwtJson}
 import play.api.libs.json.Json
 
 import scala.collection.immutable.Seq
@@ -113,6 +114,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
         assert(response.status === StatusCodes.OK)
         ()
       }
+
       statusIsOk("zone-host")
       statusIsOk("client-relay")
       statusIsOk("analytics")
@@ -758,6 +760,7 @@ abstract class LiquidityServerSpec
           (name, metadata) = nameAndMetadata
         } yield memberId -> Member(memberId, ownerPublicKeys, name, metadata)
       }
+
       for {
         memberIds <- sql"""
          SELECT member_id
@@ -804,6 +807,7 @@ abstract class LiquidityServerSpec
           (name, metadata) = nameAndMetadata
         } yield accountId -> Account(accountId, ownerMemberIds, name, metadata)
       }
+
       for {
         accountIds <- sql"""
          SELECT account_id
@@ -947,13 +951,18 @@ object LiquidityServerSpec {
     (keyPair.getPrivate, keyPair.getPublic)
   }
 
-  private val selfSignedJwt =
-    JwtJson.encode(
-      Json.obj(
-        "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
-      ),
-      rsaPrivateKey,
-      JwtAlgorithm.RS256
+  private val selfSignedJwt = {
+    val jws = new JWSObject(
+      new JWSHeader.Builder(JWSAlgorithm.RS256).build(),
+      new Payload(
+        Json.stringify(
+          Json.obj(
+            "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
+          )
+        )
+      )
     )
-
+    jws.sign(new RSASSASigner(rsaPrivateKey))
+    jws.serialize()
+  }
 }

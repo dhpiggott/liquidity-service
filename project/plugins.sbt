@@ -1,7 +1,7 @@
 addSbtPlugin("io.get-coursier" % "sbt-coursier" % "1.0.3")
 addSbtPlugin("com.geirsson" % "sbt-scalafmt" % "1.5.1")
 
-libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.7.4"
+libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.8.0"
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.18")
 
 addSbtPlugin("com.dwijnand" % "sbt-dynver" % "3.0.0")

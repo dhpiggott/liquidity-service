@@ -121,5 +121,5 @@ lazy val server = project
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     Docker / packageName := "liquidity",
-    dockerBaseImage := "openjdk:10-jre-slim"
+    dockerBaseImage := "openjdk:11-jre-slim"
   )

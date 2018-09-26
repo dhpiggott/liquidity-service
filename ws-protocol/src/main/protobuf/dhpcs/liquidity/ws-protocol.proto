@@ -10,44 +10,7 @@ import "google/protobuf/struct.proto";
 import "dhpcs/liquidity/model.proto";
 
 message ZoneCommand {
-    message CreateZoneCommand {
-        bytes equity_owner_public_key = 1;
-        google.protobuf.StringValue equity_owner_name = 2;
-        google.protobuf.Struct equity_owner_metadata = 3;
-        google.protobuf.StringValue equity_account_name = 4;
-        google.protobuf.Struct equity_account_metadata = 5;
-        google.protobuf.StringValue name = 6;
-        google.protobuf.Struct metadata = 7;
-    }
-    message ChangeZoneNameCommand {
-        google.protobuf.StringValue name = 1;
-    }
-    message CreateMemberCommand {
-        repeated bytes owner_public_keys = 1;
-        google.protobuf.StringValue name = 2;
-        google.protobuf.Struct metadata = 3;
-    }
-    message UpdateMemberCommand {
-        dhpcs.liquidity.model.Member member = 1;
-    }
-    message CreateAccountCommand {
-        repeated string owner_member_ids = 1;
-        google.protobuf.StringValue name = 2;
-        google.protobuf.Struct metadata = 3;
-    }
-    message UpdateAccountCommand {
-        string acting_as = 1;
-        dhpcs.liquidity.model.Account account = 2;
-    }
-    message AddTransactionCommand {
-        string acting_as = 1;
-        string from = 2;
-        string to = 3;
-        string value = 4;
-        google.protobuf.StringValue description = 5;
-        google.protobuf.Struct metadata = 6;
-    }
-    oneof zone_command {
+    oneof sealed_value {
         CreateZoneCommand create_zone_command = 1;
         ChangeZoneNameCommand change_zone_name_command = 4;
         CreateMemberCommand create_member_command = 5;
@@ -58,69 +21,52 @@ message ZoneCommand {
     }
 }
 
+message CreateZoneCommand {
+    bytes equity_owner_public_key = 1;
+    google.protobuf.StringValue equity_owner_name = 2;
+    google.protobuf.Struct equity_owner_metadata = 3;
+    google.protobuf.StringValue equity_account_name = 4;
+    google.protobuf.Struct equity_account_metadata = 5;
+    google.protobuf.StringValue name = 6;
+    google.protobuf.Struct metadata = 7;
+}
+
+message ChangeZoneNameCommand {
+    google.protobuf.StringValue name = 1;
+}
+
+message CreateMemberCommand {
+    repeated bytes owner_public_keys = 1;
+    google.protobuf.StringValue name = 2;
+    google.protobuf.Struct metadata = 3;
+}
+
+message UpdateMemberCommand {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message CreateAccountCommand {
+    repeated string owner_member_ids = 1;
+    google.protobuf.StringValue name = 2;
+    google.protobuf.Struct metadata = 3;
+}
+
+message UpdateAccountCommand {
+    string acting_as = 1;
+    dhpcs.liquidity.model.Account account = 2;
+}
+
+message AddTransactionCommand {
+    string acting_as = 1;
+    string from = 2;
+    string to = 3;
+    string value = 4;
+    google.protobuf.StringValue description = 5;
+    google.protobuf.Struct metadata = 6;
+}
+
 message ZoneResponse {
-    message Errors {
-        message Error {
-            int32 code = 1;
-            string description = 2;
-        }
-        repeated Error errors = 1;
-    }
-    message CreateZoneResponse {
-        message Success {
-            dhpcs.liquidity.model.Zone zone = 1;
-        }
-        oneof result {
-            Errors errors = 1;
-            Success success = 2;
-        }
-    }
-    message ChangeZoneNameResponse {
-        oneof result {
-            Errors errors = 1;
-            bytes success = 2;
-        }
-    }
-    message CreateMemberResponse {
-        message Success {
-            dhpcs.liquidity.model.Member member = 1;
-        }
-        oneof result {
-            Errors errors = 1;
-            Success success = 2;
-        }
-    }
-    message UpdateMemberResponse {
-        oneof result {
-            Errors errors = 1;
-            bytes success = 2;
-        }
-    }
-    message CreateAccountResponse {
-        message Success {
-            dhpcs.liquidity.model.Account account = 1;
-        }
-        oneof result {
-            Errors errors = 1;
-            Success success = 2;
-        }
-    }
-    message UpdateAccountResponse {
-        oneof result {
-            Errors errors = 1;
-            bytes success = 2;
-        }
-    }
-    message AddTransactionResponse {
-        message Success {
-            dhpcs.liquidity.model.Transaction transaction = 1;
-        }
-        oneof result {
-            Errors errors = 1;
-            Success success = 2;
-        }
-    }
-    oneof zone_response {
+    oneof sealed_value {
         CreateZoneResponse create_zone_response = 1;
         ChangeZoneNameResponse change_zone_name_response = 4;
         CreateMemberResponse create_member_response = 5;
@@ -131,39 +77,77 @@ message ZoneResponse {
     }
 }
 
-message ZoneNotification {
-    message ClientJoinedZoneNotification {
-        string connection_id = 1;
-        bytes public_key = 2;
+message Errors {
+    message Error {
+        int32 code = 1;
+        string description = 2;
     }
-    message ClientQuitZoneNotification {
-        string connection_id = 1;
-        bytes public_key = 2;
+    repeated Error errors = 1;
+}
+
+message CreateZoneResponse {
+    message Success {
+        dhpcs.liquidity.model.Zone zone = 1;
     }
-    message ZoneNameChangedNotification {
-        google.protobuf.StringValue name = 1;
+    oneof result {
+        Errors errors = 1;
+        Success success = 2;
     }
-    message MemberCreatedNotification {
+}
+
+message ChangeZoneNameResponse {
+    oneof result {
+        Errors errors = 1;
+        bytes success = 2;
+    }
+}
+
+message CreateMemberResponse {
+    message Success {
         dhpcs.liquidity.model.Member member = 1;
     }
-    message MemberUpdatedNotification {
-        dhpcs.liquidity.model.Member member = 1;
+    oneof result {
+        Errors errors = 1;
+        Success success = 2;
     }
-    message AccountCreatedNotification {
+}
+
+message UpdateMemberResponse {
+    oneof result {
+        Errors errors = 1;
+        bytes success = 2;
+    }
+}
+
+message CreateAccountResponse {
+    message Success {
         dhpcs.liquidity.model.Account account = 1;
     }
-    message AccountUpdatedNotification {
-        string acting_as = 1;
-        dhpcs.liquidity.model.Account account = 2;
+    oneof result {
+        Errors errors = 1;
+        Success success = 2;
     }
-    message TransactionAddedNotification {
+}
+
+message UpdateAccountResponse {
+    oneof result {
+        Errors errors = 1;
+        bytes success = 2;
+    }
+}
+
+message AddTransactionResponse {
+    message Success {
         dhpcs.liquidity.model.Transaction transaction = 1;
     }
-    message ZoneStateNotification {
-        dhpcs.liquidity.model.Zone zone = 1;
-        map<string, bytes> connected_clients = 2;
+    oneof result {
+        Errors errors = 1;
+        Success success = 2;
     }
-    oneof zone_notification {
+}
+
+message ZoneNotification {
+    oneof sealed_value {
         ClientJoinedZoneNotification client_joined_zone_notification = 1;
         ClientQuitZoneNotification client_quit_zone_notification = 2;
         ZoneNameChangedNotification zone_name_changed_notification = 3;
@@ -173,6 +157,49 @@ message ZoneNotification {
         AccountUpdatedNotification account_updated_notification = 7;
         TransactionAddedNotification transaction_added_notification = 8;
         ZoneStateNotification zone_state_notification = 9;
-        bytes ping_notification = 10;
+        PingNotification ping_notification = 10;
     }
+}
+
+message ClientJoinedZoneNotification {
+    string connection_id = 1;
+    bytes public_key = 2;
+}
+
+message ClientQuitZoneNotification {
+    string connection_id = 1;
+    bytes public_key = 2;
+}
+
+message ZoneNameChangedNotification {
+    google.protobuf.StringValue name = 1;
+}
+
+message MemberCreatedNotification {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message MemberUpdatedNotification {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message AccountCreatedNotification {
+    dhpcs.liquidity.model.Account account = 1;
+}
+
+message AccountUpdatedNotification {
+    string acting_as = 1;
+    dhpcs.liquidity.model.Account account = 2;
+}
+
+message TransactionAddedNotification {
+    dhpcs.liquidity.model.Transaction transaction = 1;
+}
+
+message ZoneStateNotification {
+    dhpcs.liquidity.model.Zone zone = 1;
+    map<string, bytes> connected_clients = 2;
+}
+
+message PingNotification {
 }

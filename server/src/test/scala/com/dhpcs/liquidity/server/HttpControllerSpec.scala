@@ -632,7 +632,7 @@ class HttpControllerSpec
                                      comp = MediaType.NotCompressible)
             ),
             ProtoBinding[CreateZoneCommand,
-                         proto.ws.protocol.ZoneCommand.CreateZoneCommand,
+                         proto.ws.protocol.CreateZoneCommand,
                          Any]
               .asProto(
                 CreateZoneCommand(
@@ -657,6 +657,7 @@ class HttpControllerSpec
             entityAs[Array[Byte]] ===
               ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
                 .asProto(CreateZoneResponse(zone.valid))(())
+                .asMessage
                 .toByteArray
           )
         }
@@ -722,6 +723,7 @@ class HttpControllerSpec
               .asProto(
                 ChangeZoneNameCommand(name = None)
               )(())
+              .asMessage
               .toByteArray
           )
         putRequest ~> httpRoutes(enableClientRelay = true) ~> check {
@@ -731,6 +733,7 @@ class HttpControllerSpec
             entityAs[Array[Byte]] ===
               ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
                 .asProto(ChangeZoneNameResponse(().valid))(())
+                .asMessage
                 .toByteArray
           )
         }
@@ -832,13 +835,13 @@ class HttpControllerSpec
           assert(status === StatusCodes.OK)
           import PredefinedFromEntityUnmarshallers.byteStringUnmarshaller
           assert(
-            proto.ws.protocol.ZoneNotification.streamFromDelimitedInput(
+            proto.ws.protocol.ZoneNotificationMessage.streamFromDelimitedInput(
               new ByteArrayInputStream(entityAs[ByteString].toArray)
             ) === zoneNotifications.map(
               zoneNotification =>
                 ProtoBinding[ZoneNotification,
                              proto.ws.protocol.ZoneNotification,
-                             Any].asProto(zoneNotification)(())
+                             Any].asProto(zoneNotification)(()).asMessage
             )
           )
         }

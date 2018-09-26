@@ -21,23 +21,24 @@ message ZoneState {
 }
 
 message ZoneEventEnvelope {
-    message ZoneEvent {
-        oneof event {
-            ZoneCreatedEvent zone_created_event = 1;
-            ClientJoinedEvent client_joined_event = 2;
-            ClientQuitEvent client_quit_event = 3;
-            ZoneNameChangedEvent zone_name_changed_event = 4;
-            MemberCreatedEvent member_created_event = 5;
-            MemberUpdatedEvent member_updated_event = 6;
-            AccountCreatedEvent account_created_event = 7;
-            AccountUpdatedEvent account_updated_event = 8;
-            TransactionAddedEvent transaction_added_event = 9;
-        }
-    }
     google.protobuf.BytesValue remote_address = 1;
     google.protobuf.BytesValue public_key = 2;
     int64 timestamp = 3;
     ZoneEvent event = 4;
+}
+
+message ZoneEvent {
+    oneof sealed_value {
+        ZoneCreatedEvent zone_created_event = 1;
+        ClientJoinedEvent client_joined_event = 2;
+        ClientQuitEvent client_quit_event = 3;
+        ZoneNameChangedEvent zone_name_changed_event = 4;
+        MemberCreatedEvent member_created_event = 5;
+        MemberUpdatedEvent member_updated_event = 6;
+        AccountCreatedEvent account_created_event = 7;
+        AccountUpdatedEvent account_updated_event = 8;
+        TransactionAddedEvent transaction_added_event = 9;
+    }
 }
 
 message ZoneCreatedEvent {

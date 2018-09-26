@@ -7,12 +7,15 @@ sealed abstract class ZoneMessage
 
 sealed abstract class ZoneCommand extends ZoneMessage
 object ZoneCommand {
+
   final val RequiredKeySize = 2048
   final val MaximumTagLength = 160
   final val MaximumMetadataSize = 1024
+
+  case object Empty extends ZoneCommand
+
 }
 
-case object EmptyZoneCommand extends ZoneCommand
 final case class CreateZoneCommand(
     equityOwnerPublicKey: PublicKey,
     equityOwnerName: Option[String],
@@ -117,9 +120,10 @@ object ZoneResponse {
 
   final case class Error(code: Int, description: String)
 
+  case object Empty extends ZoneResponse
+
 }
 
-case object EmptyZoneResponse extends ZoneResponse
 final case class CreateZoneResponse(
     result: ValidatedNel[ZoneResponse.Error, Zone])
     extends ZoneResponse
@@ -143,7 +147,9 @@ final case class AddTransactionResponse(
     extends ZoneResponse
 
 sealed abstract class ZoneNotification extends ZoneMessage
-case object EmptyZoneNotification extends ZoneNotification
+object ZoneNotification {
+  case object Empty extends ZoneNotification
+}
 final case class ClientJoinedNotification(connectionId: String,
                                           publicKey: PublicKey)
     extends ZoneNotification
@@ -166,4 +172,4 @@ final case class TransactionAddedNotification(transaction: Transaction)
 final case class ZoneStateNotification(zone: Option[Zone],
                                        connectedClients: Map[String, PublicKey])
     extends ZoneNotification
-final case class PingNotification(unit: Unit) extends ZoneNotification
+final case class PingNotification() extends ZoneNotification

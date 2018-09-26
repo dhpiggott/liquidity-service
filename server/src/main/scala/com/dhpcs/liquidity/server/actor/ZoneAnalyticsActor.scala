@@ -140,7 +140,7 @@ object ZoneAnalyticsActor {
       zoneEventEnvelope: ZoneEventEnvelope): ConnectionIO[Unit] =
     for {
       _ <- zoneEventEnvelope.zoneEvent match {
-        case EmptyZoneEvent =>
+        case ZoneEvent.Empty =>
           ().pure[ConnectionIO]
 
         case ZoneCreatedEvent(zone) =>

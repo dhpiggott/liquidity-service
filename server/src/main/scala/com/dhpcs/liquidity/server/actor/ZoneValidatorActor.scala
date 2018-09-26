@@ -262,7 +262,7 @@ object ZoneValidatorActor {
       zoneCommandEnvelope: ZoneCommandEnvelope)
     : Effect[ZoneEventEnvelope, ZoneState] =
     zoneCommandEnvelope.zoneCommand match {
-      case EmptyZoneCommand =>
+      case ZoneCommand.Empty =>
         Effect.none
 
       case CreateZoneCommand(
@@ -829,7 +829,7 @@ object ZoneValidatorActor {
         ))
       .thenRun { state =>
         (event match {
-          case EmptyZoneEvent =>
+          case ZoneEvent.Empty =>
             None
 
           case ZoneCreatedEvent(zone) =>
@@ -865,7 +865,7 @@ object ZoneValidatorActor {
           )
         )
         (event match {
-          case EmptyZoneEvent =>
+          case ZoneEvent.Empty =>
             None
 
           case ZoneCreatedEvent(_) =>
@@ -957,7 +957,7 @@ object ZoneValidatorActor {
                                                    event: ZoneEventEnvelope)(
       implicit resolver: ActorRefResolver): ZoneState =
     event.zoneEvent match {
-      case EmptyZoneEvent =>
+      case ZoneEvent.Empty =>
         state
 
       case zoneCreatedEvent: ZoneCreatedEvent =>

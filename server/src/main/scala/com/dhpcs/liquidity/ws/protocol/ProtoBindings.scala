@@ -17,7 +17,7 @@ object ProtoBindings {
 
   implicit final val CreateZoneCommandProtoBinding
     : ProtoBinding[CreateZoneCommand,
-                   proto.ws.protocol.ZoneCommand.CreateZoneCommand,
+                   proto.ws.protocol.CreateZoneCommand,
                    Any] =
     cachedImplicit
 

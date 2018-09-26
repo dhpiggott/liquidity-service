@@ -309,7 +309,7 @@ abstract class LiquidityServerSpec
       }
       zoneNotificationTestProbe.within(10.seconds)(
         inside(zoneNotificationTestProbe.requestNext()) {
-          case PingNotification(()) => ()
+          case PingNotification() => ()
         }
       )
       zoneNotificationTestProbe.cancel()
@@ -474,11 +474,11 @@ abstract class LiquidityServerSpec
         }
     }
     delimitedByteArraySource.map { delimitedByteArray =>
-      val protoZoneNotification =
-        proto.ws.protocol.ZoneNotification.parseFrom(delimitedByteArray)
+      val protoZoneNotificationMessage =
+        proto.ws.protocol.ZoneNotificationMessage.parseFrom(delimitedByteArray)
       val zoneNotification =
         ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any]
-          .asScala(protoZoneNotification)(())
+          .asScala(protoZoneNotificationMessage.toZoneNotification)(())
       zoneNotification
     }
   }
@@ -671,9 +671,7 @@ abstract class LiquidityServerSpec
       implicit ec: ExecutionContext): Future[ZoneResponse] =
     execZoneCommand(
       Uri.Path.Empty,
-      ProtoBinding[CreateZoneCommand,
-                   proto.ws.protocol.ZoneCommand.CreateZoneCommand,
-                   Any]
+      ProtoBinding[CreateZoneCommand, proto.ws.protocol.CreateZoneCommand, Any]
         .asProto(createZoneCommand)(())
         .toByteArray
     )
@@ -684,6 +682,7 @@ abstract class LiquidityServerSpec
       Uri.Path / zoneId.value,
       ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
         .asProto(zoneCommand)(())
+        .asMessage
         .toByteArray
     )
 
@@ -716,12 +715,13 @@ abstract class LiquidityServerSpec
       )
       _ = assert(httpResponse.status === StatusCodes.OK)
       byteString <- Unmarshal(httpResponse.entity).to[ByteString]
-      protoZoneResponse = proto.ws.protocol.ZoneResponse.parseFrom(
-        byteString.toArray
-      )
+      protoZoneResponseMessage = proto.ws.protocol.ZoneResponseMessage
+        .parseFrom(
+          byteString.toArray
+        )
     } yield
       ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asScala(
-        protoZoneResponse
+        protoZoneResponseMessage.toZoneResponse
       )(())
   }
 

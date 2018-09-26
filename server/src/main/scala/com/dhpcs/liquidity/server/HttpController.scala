@@ -241,11 +241,11 @@ trait HttpController {
       publicKey: PublicKey)(implicit ec: ExecutionContext): Route =
     put(
       pathEnd(
-        entity(as[proto.ws.protocol.ZoneCommand.CreateZoneCommand]) {
+        entity(as[proto.ws.protocol.CreateZoneCommand]) {
           protoCreateZoneCommand =>
             val createZoneCommand =
               ProtoBinding[CreateZoneCommand,
-                           proto.ws.protocol.ZoneCommand.CreateZoneCommand,
+                           proto.ws.protocol.CreateZoneCommand,
                            Any].asScala(
                 protoCreateZoneCommand
               )(())
@@ -255,42 +255,47 @@ trait HttpController {
                   zoneResponse =>
                     ProtoBinding[ZoneResponse,
                                  proto.ws.protocol.ZoneResponse,
-                                 Any].asProto(
-                      zoneResponse
-                    )(()))
+                                 Any]
+                      .asProto(
+                        zoneResponse
+                      )(())
+                      .asMessage)
             )
         }
       ) ~
         path(zoneIdMatcher)(
           zoneId =>
-            entity(as[proto.ws.protocol.ZoneCommand]) { protoZoneCommand =>
-              val zoneCommand =
-                ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
-                  .asScala(
-                    protoZoneCommand
-                  )(())
-              zoneCommand match {
-                case _: CreateZoneCommand =>
-                  reject(
-                    ValidationRejection(
-                      "Zone ID cannot be specified with CreateZoneCommands"
+            entity(as[proto.ws.protocol.ZoneCommandMessage]) {
+              protoZoneCommandMessage =>
+                val zoneCommand =
+                  ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
+                    .asScala(
+                      protoZoneCommandMessage.toZoneCommand
+                    )(())
+                zoneCommand match {
+                  case _: CreateZoneCommand =>
+                    reject(
+                      ValidationRejection(
+                        "Zone ID cannot be specified with CreateZoneCommands"
+                      )
                     )
-                  )
 
-                case _ =>
-                  complete(
-                    execZoneCommand(zoneId,
-                                    remoteAddress,
-                                    publicKey,
-                                    zoneCommand).map(
-                      zoneResponse =>
-                        ProtoBinding[ZoneResponse,
-                                     proto.ws.protocol.ZoneResponse,
-                                     Any].asProto(
-                          zoneResponse
-                        )(()))
-                  )
-              }
+                  case _ =>
+                    complete(
+                      execZoneCommand(zoneId,
+                                      remoteAddress,
+                                      publicKey,
+                                      zoneCommand).map(
+                        zoneResponse =>
+                          ProtoBinding[ZoneResponse,
+                                       proto.ws.protocol.ZoneResponse,
+                                       Any]
+                            .asProto(
+                              zoneResponse
+                            )(())
+                            .asMessage)
+                    )
+                }
           }
         )
     )
@@ -306,14 +311,14 @@ trait HttpController {
                 zoneNotification =>
                   ProtoBinding[ZoneNotification,
                                proto.ws.protocol.ZoneNotification,
-                               Any].asProto(zoneNotification)(())
+                               Any].asProto(zoneNotification)(()).asMessage
               )
               .keepAlive(
                 pingInterval,
                 () =>
                   ProtoBinding[ZoneNotification,
                                proto.ws.protocol.ZoneNotification,
-                               Any].asProto(PingNotification(()))(())
+                               Any].asProto(PingNotification())(()).asMessage
               )
         )
       )

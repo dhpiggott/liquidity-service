@@ -405,7 +405,7 @@ object HttpController {
     Marshaller.oneOf(
       PredefinedToResponseMarshallers.fromEntityStreamingSupportAndEntityMarshaller,
       Marshaller[Source[GeneratedMessage, NotUsed], HttpResponse](
-        implicit ec =>
+        _ =>
           source =>
             FastFuture.successful(List(Marshalling.WithFixedContentType(
               ContentType(

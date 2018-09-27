@@ -10,6 +10,7 @@ import akka.actor.typed.{ActorRefResolver, Props}
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ClusterShardingSettings
+import akka.cluster.sharding.typed.scaladsl.ShardedEntity
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
 import akka.discovery.awsapi.ecs.AsyncEcsSimpleServiceDiscovery
@@ -35,7 +36,7 @@ import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.server.LiquidityServer._
 import com.dhpcs.liquidity.server.SqlBindings._
 import com.dhpcs.liquidity.server.actor.ZoneAnalyticsActor.StopZoneAnalytics
-import com.dhpcs.liquidity.server.actor.{ZoneAnalyticsActor, _}
+import com.dhpcs.liquidity.server.actor._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import doobie.hikari._
@@ -218,13 +219,14 @@ class LiquidityServer(
     system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
 
   private[this] val zoneValidatorShardRegion =
-    ClusterSharding(system.toTyped).spawnWithMessageExtractor(
-      behavior = ZoneValidatorActor.shardingBehavior,
-      entityProps = Props.empty,
-      typeKey = ZoneValidatorActor.ShardingTypeName,
-      settings = ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole),
-      messageExtractor = ZoneValidatorActor.messageExtractor,
-      allocationStrategy = None
+    ClusterSharding(system.toTyped).start(
+      ShardedEntity(
+        create = ZoneValidatorActor.shardingBehavior(_),
+        typeKey = ZoneValidatorActor.ShardingTypeName,
+        stopMessage = StopZone
+      ).withSettings(
+          ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole))
+        .withMessageExtractor(ZoneValidatorActor.messageExtractor)
     )
 
   private[this] val blockingIoEc =

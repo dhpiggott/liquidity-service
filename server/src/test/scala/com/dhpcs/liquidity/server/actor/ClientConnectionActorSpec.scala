@@ -6,29 +6,47 @@ import java.security.KeyPairGenerator
 import java.time.Instant
 import java.util.UUID
 
+import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
-import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.testkit.scaladsl.TestSink
-import akka.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
+import akka.stream.{ActorMaterializer, Materializer}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.server.actor.ClientConnectionActorSpec._
 import com.dhpcs.liquidity.ws.protocol._
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
-class ClientConnectionActorSpec
-    extends FreeSpec
-    with ActorTestKit
-    with BeforeAndAfterAll {
+class ClientConnectionActorSpec extends FreeSpec with BeforeAndAfterAll {
+
+  private[this] val testKit = ActorTestKit(
+    "clientConnectionActorSpec",
+    ConfigFactory.parseString(s"""
+         |akka {
+         |  loglevel = "WARNING"
+         |  actor.provider = "cluster"
+         |  remote.artery {
+         |    enabled = on
+         |    transport = tcp
+         |    canonical.hostname = "localhost"
+         |    canonical.port = $akkaRemotingPort
+         |  }
+         |  cluster {
+         |    seed-nodes = ["akka://clientConnectionActorSpec@localhost:$akkaRemotingPort"]
+         |    jmx.enabled = off
+         |  }
+         |}
+       """.stripMargin)
+  )
 
   "ClientConnectionActor" in {
     val zoneValidatorShardRegionTestProbe =
-      TestProbe[ZoneValidatorMessage]("zoneValidatorShardRegion")
+      testKit.createTestProbe[ZoneValidatorMessage]("zoneValidatorShardRegion")
     val zoneId = ZoneId(UUID.randomUUID().toString)
-    implicit val mat: Materializer = ActorMaterializer()(system.toUntyped)
+    implicit val mat: Materializer =
+      ActorMaterializer()(testKit.system.toUntyped)
     val zoneNotificationOutTestSink =
       ClientConnectionActor
         .zoneNotificationSource(
@@ -36,9 +54,9 @@ class ClientConnectionActorSpec
           remoteAddress,
           publicKey,
           zoneId,
-          spawn(_)
+          testKit.spawn(_)
         )
-        .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
+        .runWith(TestSink.probe[ZoneNotification](testKit.system.toUntyped))
     val created = Instant.now()
     val equityAccountId = AccountId(0.toString)
     val equityAccountOwnerId = MemberId(0.toString)
@@ -70,7 +88,7 @@ class ClientConnectionActorSpec
     val zoneNotificationSubscription = zoneValidatorShardRegionTestProbe
       .expectMessageType[ZoneNotificationSubscription]
     val connectedClients = Map(
-      ActorRefResolver(system)
+      ActorRefResolver(testKit.system)
         .toSerializationFormat(zoneNotificationSubscription.subscriber) ->
         publicKey
     )
@@ -93,24 +111,7 @@ class ClientConnectionActorSpec
     port
   }
 
-  override def config: Config = ConfigFactory.parseString(s"""
-       |akka {
-       |  loglevel = "WARNING"
-       |  actor.provider = "cluster"
-       |  remote.artery {
-       |    enabled = on
-       |    transport = tcp
-       |    canonical.hostname = "localhost"
-       |    canonical.port = $akkaRemotingPort
-       |  }
-       |  cluster {
-       |    seed-nodes = ["akka://$name@localhost:$akkaRemotingPort"]
-       |    jmx.enabled = off
-       |  }
-       |}
-     """.stripMargin)
-
-  override protected def afterAll(): Unit = shutdownTestKit()
+  override protected def afterAll(): Unit = testKit.shutdownTestKit()
 
 }
 

@@ -61,7 +61,7 @@ lazy val model = project
       scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig,
     "org.typelevel" %% "cats-core" % "1.4.0",
     "com.squareup.okio" % "okio" % "2.1.0",
-    "com.typesafe.akka" %% "akka-actor-typed" % "2.5.16"
+    "com.typesafe.akka" %% "akka-actor-typed" % "2.5.17"
   ))
 
 lazy val server = project
@@ -72,23 +72,23 @@ lazy val server = project
   .dependsOn(model)
   .settings(libraryDependencies ++= Seq(
     "com.chuusai" %% "shapeless" % "2.3.3",
-    "com.typesafe.akka" %% "akka-slf4j" % "2.5.16",
+    "com.typesafe.akka" %% "akka-slf4j" % "2.5.17",
     "ch.qos.logback" % "logback-classic" % "1.2.3",
     "com.lightbend.akka.discovery" %% "akka-discovery-config" % "0.18.0",
     "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.18.0",
     "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.18.0",
     "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "0.18.0",
-    "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.16",
-    "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.16",
-    "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.16",
-    "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.16",
-    "com.typesafe.akka" %% "akka-persistence-query" % "2.5.16",
+    "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.17",
+    "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.17",
+    "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.17",
+    "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.17",
+    "com.typesafe.akka" %% "akka-persistence-query" % "2.5.17",
     "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
     "org.tpolecat" %% "doobie-core" % "0.5.2",
     "org.tpolecat" %% "doobie-hikari" % "0.5.2",
     "mysql" % "mysql-connector-java" % "5.1.47",
     "com.typesafe.akka" %% "akka-http" % "10.1.5",
-    "com.typesafe.akka" %% "akka-stream-typed" % "2.5.16",
+    "com.typesafe.akka" %% "akka-stream-typed" % "2.5.17",
     "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",
     "com.typesafe.play" %% "play-json" % "2.6.10",
     "de.heikoseeberger" %% "akka-http-play-json" % "1.22.0",
@@ -96,11 +96,11 @@ lazy val server = project
   ))
   .settings(libraryDependencies ++= Seq(
     "com.h2database" % "h2" % "1.4.197" % Test,
-    "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.16" % Test,
+    "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.17" % Test,
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.5" % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.5" % Test,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.16" % Test
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.17" % Test
   ))
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
@@ -108,7 +108,7 @@ lazy val server = project
   .settings(libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.0.5" % IntegrationTest,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.5" % IntegrationTest,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.16" % IntegrationTest
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.17" % IntegrationTest
   ))
   .enablePlugins(
     BuildInfoPlugin,

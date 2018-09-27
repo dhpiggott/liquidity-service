@@ -44,7 +44,7 @@ object ZoneValidatorActor {
                                SerializableZoneValidatorMessage] =
     ShardingMessageExtractor.noEnvelope[SerializableZoneValidatorMessage](
       MaxNumberOfShards,
-      handOffStopMessage = StopZone) {
+      stopMessage = StopZone) {
       // This has to be part of SerializableZoneValidatorMessage because the
       // akka-typed sharding API requires that the hand-off stop-message is a
       // subtype of the ShardingMessageExtractor Envelope type. Of course,
@@ -99,7 +99,7 @@ object ZoneValidatorActor {
         emptyState = ZoneState(zone = None,
                                balances = Map.empty,
                                connectedClients = Map.empty),
-        commandHandler = (context, state, command) =>
+        commandHandler = (state, command) =>
           command match {
             case StopZone =>
               context.log.info("Stopping")

@@ -16,7 +16,7 @@ import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.StandardRoute
-import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
 import akka.stream.scaladsl.Source
 import akka.actor.testkit.typed.scaladsl.TestProbe
@@ -392,6 +392,7 @@ class HttpControllerSpec
             )
           )
           .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
+        implicit val timeout: RouteTestTimeout = RouteTestTimeout(5.seconds)
         getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""

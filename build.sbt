@@ -70,30 +70,33 @@ lazy val server = project
     version := "git describe --always --dirty".!!.trim()
   )
   .dependsOn(model)
-  .settings(libraryDependencies ++= Seq(
-    "com.chuusai" %% "shapeless" % "2.3.3",
-    "com.typesafe.akka" %% "akka-slf4j" % "2.5.17",
-    "ch.qos.logback" % "logback-classic" % "1.2.3",
-    "com.lightbend.akka.discovery" %% "akka-discovery-config" % "0.18.0",
-    "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.18.0",
-    "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.18.0",
-    "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "0.18.0",
-    "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.17",
-    "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.17",
-    "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.17",
-    "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.17",
-    "com.typesafe.akka" %% "akka-persistence-query" % "2.5.17",
-    "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
-    "org.tpolecat" %% "doobie-core" % "0.5.2",
-    "org.tpolecat" %% "doobie-hikari" % "0.5.2",
-    "mysql" % "mysql-connector-java" % "5.1.47",
-    "com.typesafe.akka" %% "akka-http" % "10.1.5",
-    "com.typesafe.akka" %% "akka-stream-typed" % "2.5.17",
-    "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",
-    "com.typesafe.play" %% "play-json" % "2.6.10",
-    "de.heikoseeberger" %% "akka-http-play-json" % "1.22.0",
-    "com.nimbusds" % "nimbus-jose-jwt" % "6.1.1"
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.chuusai" %% "shapeless" % "2.3.3",
+      "com.typesafe.akka" %% "akka-slf4j" % "2.5.17",
+      "ch.qos.logback" % "logback-classic" % "1.2.3",
+      "com.lightbend.akka.discovery" %% "akka-discovery-config" % "0.18.0",
+      "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.18.0",
+      "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.18.0",
+      "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "0.18.0",
+      "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.17",
+      "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.17",
+      "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.17",
+      "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.17",
+      "com.typesafe.akka" %% "akka-persistence-query" % "2.5.17",
+      "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
+      "org.tpolecat" %% "doobie-core" % "0.5.3",
+      "org.tpolecat" %% "doobie-hikari" % "0.5.3",
+      "mysql" % "mysql-connector-java" % "5.1.47",
+      "com.typesafe.akka" %% "akka-http" % "10.1.5",
+      "com.typesafe.akka" %% "akka-stream-typed" % "2.5.17",
+      "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",
+      "com.typesafe.play" %% "play-json" % "2.6.10",
+      "de.heikoseeberger" %% "akka-http-play-json" % "1.22.0",
+      "com.nimbusds" % "nimbus-jose-jwt" % "6.1.1"
+    ),
+    dependencyOverrides += "com.zaxxer" % "HikariCP" % "2.7.8"
+  )
   .settings(libraryDependencies ++= Seq(
     "com.h2database" % "h2" % "1.4.197" % Test,
     "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.17" % Test,

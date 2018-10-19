@@ -18,7 +18,7 @@ import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.TestKit
 import akka.util.ByteString
 import cats.data.Validated
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.instances.list._
 import cats.syntax.applicative._
 import cats.syntax.traverse._
@@ -315,6 +315,9 @@ abstract class LiquidityServerSpec
       zoneNotificationTestProbe.cancel()
     }
   }
+
+  protected[this] implicit val contextShift: ContextShift[IO] =
+    IO.contextShift(ExecutionContext.global)
 
   protected[this] implicit val system: ActorSystem = ActorSystem()
   protected[this] implicit val mat: Materializer = ActorMaterializer()

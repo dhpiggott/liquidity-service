@@ -22,7 +22,6 @@ import com.dhpcs.liquidity.server.SqlBindings._
 import doobie._
 import doobie.implicits._
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 
 object ZoneAnalyticsActor {
@@ -39,7 +38,6 @@ object ZoneAnalyticsActor {
   def singletonBehavior(
       readJournal: ReadJournal with EventsByTagQuery,
       analyticsTransactor: Transactor[IO],
-      blockingIoEc: ExecutionContext,
       getActiveZoneSummaries: ActorRef[Set[ActiveZoneSummary]] => Unit)(
       implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Behaviors.setup { context =>
@@ -61,17 +59,12 @@ object ZoneAnalyticsActor {
               previousOffset.pure[ConnectionIO]
           }
         } yield previousOffset).transact(analyticsTransactor)
-        def previousOffset(): Future[Sequence] =
-          (for {
-            _ <- IO.shift(blockingIoEc)
-            previousOffset <- previousOffsetIo
-          } yield previousOffset).unsafeToFuture()
         val killSwitch = RestartSource
           .onFailuresWithBackoff(minBackoff = 3.seconds,
                                  maxBackoff = 30.seconds,
                                  randomFactor = 0.2)(() =>
             Source
-              .fromFuture(previousOffset())
+              .fromFuture(previousOffsetIo.unsafeToFuture())
               .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
               .mapAsync(1) { eventEnvelope =>
                 val zoneId =
@@ -84,10 +77,7 @@ object ZoneAnalyticsActor {
                   _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
                                               eventOffset)
                 } yield eventOffset).transact(analyticsTransactor)
-                (for {
-                  _ <- IO.shift(blockingIoEc)
-                  nextOffset <- nextOffsetIo
-                } yield nextOffset).unsafeToFuture()
+                nextOffsetIo.unsafeToFuture()
               }
               .zipWithIndex
               .groupedWithin(n = 1000, d = 30.seconds)

@@ -11,25 +11,25 @@ object SqlBindings {
 
   implicit val PublicKeyMeta: Meta[PublicKey] =
     Meta[Array[Byte]]
-      .xmap(bytes => PublicKey(ByteString.of(bytes: _*)), _.value.toByteArray)
+      .timap(bytes => PublicKey(ByteString.of(bytes: _*)))(_.value.toByteArray)
 
   implicit val InetAddressMeta: Meta[InetAddress] =
-    Meta[String].xmap(InetAddress.getByName, _.getHostAddress)
+    Meta[String].timap(InetAddress.getByName)(_.getHostAddress)
 
-  implicit val ZoneIdMeta: Meta[ZoneId] = Meta[String].xmap(ZoneId(_), _.value)
+  implicit val ZoneIdMeta: Meta[ZoneId] = Meta[String].timap(ZoneId(_))(_.value)
 
   implicit val MemberIdMeta: Meta[MemberId] =
-    Meta[String].xmap(MemberId, _.value)
+    Meta[String].timap(MemberId)(_.value)
 
   implicit val AccountIdMeta: Meta[AccountId] =
-    Meta[String].xmap(AccountId, _.value)
+    Meta[String].timap(AccountId)(_.value)
 
   implicit val TransactionIdMeta: Meta[TransactionId] =
-    Meta[String].xmap(TransactionId, _.value)
+    Meta[String].timap(TransactionId)(_.value)
 
   implicit val StructMeta: Meta[com.google.protobuf.struct.Struct] =
-    Meta[String].xmap(
-      JsonFormat.fromJsonString[com.google.protobuf.struct.Struct],
+    Meta[String].timap(
+      JsonFormat.fromJsonString[com.google.protobuf.struct.Struct])(
       JsonFormat.toJsonString[com.google.protobuf.struct.Struct])
 
 }

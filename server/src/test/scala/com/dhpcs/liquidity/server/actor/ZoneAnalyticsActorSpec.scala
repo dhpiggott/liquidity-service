@@ -17,7 +17,7 @@ import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.{TestKit, TestProbe}
 import akka.util.Timeout
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.instances.list._
 import cats.syntax.applicative._
 import cats.syntax.traverse._
@@ -109,6 +109,9 @@ class ZoneAnalyticsActorSpec
        |}
      """.stripMargin)
 
+  private[this] implicit val contextShift: ContextShift[IO] =
+    IO.contextShift(ExecutionContext.global)
+
   private[this] implicit val system: ActorSystem =
     ActorSystem("zoneAnalyticsActorSpec", config)
   private[this] implicit val mat: Materializer = ActorMaterializer()
@@ -141,8 +144,6 @@ class ZoneAnalyticsActorSpec
     val analytics = system.spawn(
       ZoneAnalyticsActor.singletonBehavior(readJournal,
                                            transactor,
-                                           blockingIoEc =
-                                             ExecutionContext.global,
                                            getActiveZoneSummaries = _ => ()),
       name = "zoneAnalytics"
     )

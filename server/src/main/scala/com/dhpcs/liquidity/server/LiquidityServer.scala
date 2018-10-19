@@ -2,7 +2,6 @@ package com.dhpcs.liquidity.server
 
 import java.net.InetAddress
 import java.util.UUID
-import java.util.concurrent.Executors
 
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
@@ -24,7 +23,8 @@ import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
 import akka.{Done, NotUsed}
-import cats.effect.IO
+import cats.effect.{ContextShift, IO, Resource}
+import cats.implicits._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonemonitor._
@@ -40,8 +40,8 @@ import com.dhpcs.liquidity.server.actor._
 import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import doobie.hikari._
-import doobie.hikari.implicits._
 import doobie.implicits._
+import doobie.util.ExecutionContexts
 import doobie.util.transactor.Transactor
 import org.slf4j.LoggerFactory
 
@@ -136,52 +136,68 @@ object LiquidityServer {
              """.stripMargin)
       )
       .resolve()
-    implicit val system: ActorSystem = ActorSystem("liquidity", config)
-    implicit val mat: Materializer = ActorMaterializer()
-    implicit val ec: ExecutionContext = ExecutionContext.global
-    val akkaManagement = AkkaManagement(system)
-    akkaManagement.start()
-    CoordinatedShutdown(system).addTask(
-      CoordinatedShutdown.PhaseClusterExitingDone,
-      "akkaManagementStop")(() => akkaManagement.stop())
-    val administratorsTransactor = (for {
+    implicit val contextShift: ContextShift[IO] =
+      IO.contextShift(ExecutionContext.global)
+    val administratorsTransactorResource = for {
+      connectEc <- ExecutionContexts.fixedThreadPool[IO](2)
+      transactionEc <- ExecutionContexts.cachedThreadPool[IO]
       administratorsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
         url = urlForDatabase(mysqlHostname, "liquidity_administrators"),
         user = mysqlUsername,
-        pass = mysqlPassword
+        pass = mysqlPassword,
+        connectEc,
+        transactionEc
       )
-      _ <- administratorsTransactor.configure(hikariDataSource =>
-        IO(hikariDataSource.setMaximumPoolSize(2)))
-    } yield administratorsTransactor).unsafeRunSync()
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
-                                        "liquidityServerUnbind")(() =>
-      for (_ <- administratorsTransactor.shutdown.unsafeToFuture()) yield Done)
-    val analyticsTransactor = (for {
+      _ <- Resource.liftF(
+        administratorsTransactor.configure(hikariDataSource =>
+          IO(hikariDataSource.setMaximumPoolSize(2)))
+      )
+    } yield administratorsTransactor
+    val analyticsTransactorResource = for {
+      connectEc <- ExecutionContexts.fixedThreadPool[IO](2)
+      transactionEc <- ExecutionContexts.cachedThreadPool[IO]
       analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
         driverClassName = "com.mysql.jdbc.Driver",
         url = urlForDatabase(mysqlHostname, "liquidity_analytics"),
         user = mysqlUsername,
-        pass = mysqlPassword
+        pass = mysqlPassword,
+        connectEc,
+        transactionEc
       )
-      _ <- analyticsTransactor.configure(hikariDataSource =>
-        IO(hikariDataSource.setMaximumPoolSize(2)))
-    } yield analyticsTransactor).unsafeRunSync()
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
-                                        "liquidityServerUnbind")(() =>
-      for (_ <- analyticsTransactor.shutdown.unsafeToFuture()) yield Done)
-    ClusterBootstrap(system).start()
-    val server = new LiquidityServer(
-      administratorsTransactor,
-      analyticsTransactor,
-      pingInterval = 5.seconds,
-      httpInterface = privateAddress.getHostAddress,
-      httpPort = 8080
-    )
-    val httpBinding = server.bindHttp()
-    CoordinatedShutdown(system).addTask(CoordinatedShutdown.PhaseServiceUnbind,
-                                        "liquidityServerUnbind")(() =>
-      httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
+      _ <- Resource.liftF(
+        analyticsTransactor.configure(hikariDataSource =>
+          IO(hikariDataSource.setMaximumPoolSize(2)))
+      )
+    } yield analyticsTransactor
+    administratorsTransactorResource
+      .use { administratorsTransactor =>
+        analyticsTransactorResource.use { analyticsTransactor =>
+          implicit val system: ActorSystem = ActorSystem("liquidity", config)
+          implicit val mat: Materializer = ActorMaterializer()
+          implicit val ec: ExecutionContext = ExecutionContext.global
+          val akkaManagement = AkkaManagement(system)
+          akkaManagement.start()
+          CoordinatedShutdown(system).addTask(
+            CoordinatedShutdown.PhaseClusterExitingDone,
+            "akkaManagementStop")(() => akkaManagement.stop())
+          ClusterBootstrap(system).start()
+          val server = new LiquidityServer(
+            administratorsTransactor,
+            analyticsTransactor,
+            pingInterval = 5.seconds,
+            httpInterface = privateAddress.getHostAddress,
+            httpPort = 8080
+          )
+          val httpBinding = server.bindHttp()
+          CoordinatedShutdown(system).addTask(
+            CoordinatedShutdown.PhaseServiceUnbind,
+            "liquidityServerUnbind")(() =>
+            httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
+          IO.fromFuture(IO(system.whenTerminated.map(_ => ())))
+        }
+      }
+      .unsafeRunSync()
   }
 
   private[this] def urlForDatabase(hostname: String, database: String): String =
@@ -229,14 +245,10 @@ class LiquidityServer(
         .withMessageExtractor(ZoneValidatorActor.messageExtractor)
     )
 
-  private[this] val blockingIoEc =
-    ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
-
   ClusterSingleton(system.toTyped).spawn(
     behavior = ZoneAnalyticsActor.singletonBehavior(
       readJournal,
       analyticsTransactor,
-      blockingIoEc,
       zoneMonitor ! GetActiveZoneSummaries(_)),
     singletonName = "zoneAnalyticsSingleton",
     props = Props.empty,
@@ -254,8 +266,8 @@ class LiquidityServer(
   )
 
   override protected[this] def isAdministrator(
-      publicKey: PublicKey): Future[Boolean] = {
-    val isAdministratorIo = sql"""
+      publicKey: PublicKey): Future[Boolean] =
+    sql"""
        SELECT 1
          FROM administrators
          WHERE public_key = $publicKey
@@ -264,11 +276,7 @@ class LiquidityServer(
       .option
       .map(_.isDefined)
       .transact(administratorsTransactor)
-    (for {
-      _ <- IO.shift(blockingIoEc)
-      isAdministrator <- isAdministratorIo
-    } yield isAdministrator).unsafeToFuture()
-  }
+      .unsafeToFuture()
 
   override protected[this] def akkaManagement: StandardRoute =
     requestContext =>

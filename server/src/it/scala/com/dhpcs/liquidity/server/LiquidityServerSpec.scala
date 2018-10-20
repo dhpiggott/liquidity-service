@@ -37,10 +37,9 @@ import com.nimbusds.jose.crypto.RSASSASigner
 import doobie._
 import doobie.implicits._
 import org.scalactic.TripleEqualsSupport.Spread
-import org.scalactic.source.Position
 import org.scalatest.Inside._
+import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
-import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 import play.api.libs.json.Json
 
@@ -74,7 +73,6 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     super.beforeAll()
     assert(dockerCompose(projectName, "up", "-d", "--remove-orphans").! === 0)
     val connectionTest = for (_ <- sql"SELECT 1".query[Int].unique) yield ()
-    val pc = patienceConfig.copy(timeout = scaled(Span(30, Seconds)))
     val (_, mysqlPort) =
       externalDockerComposeServicePorts(projectName, "mysql", 3306).head
     val transactor = Transactor.fromDriverManager[IO](
@@ -83,7 +81,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
       user = "root",
       pass = ""
     )
-    eventually(
+    eventually(Timeout(60.seconds))(
       connectionTest
         .transact(transactor)
         .unsafeRunSync()
@@ -100,7 +98,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     addAdministrator(PublicKey(rsaPublicKey.getEncoded))
       .transact(transactor)
       .unsafeRunSync()
-    eventually {
+    eventually(Timeout(60.seconds)) {
       def statusIsOk(serviceName: String): Unit = {
         val (_, akkaHttpPort) =
           externalDockerComposeServicePorts(projectName, serviceName, 8080).head
@@ -114,11 +112,10 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
         assert(response.status === StatusCodes.OK)
         ()
       }
-
       statusIsOk("zone-host")
       statusIsOk("client-relay")
       statusIsOk("analytics")
-    }(pc, Position.here)
+    }
   }
 
   override protected def afterAll(): Unit = {

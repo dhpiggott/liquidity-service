@@ -54,7 +54,7 @@ MYSQL_PASSWORD=$(
 docker run \
   --rm \
   --volume "$DIR/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem" \
-  mysql:5 \
+  mysql:8.0 \
   mysql \
     --ssl-ca=/rds-combined-ca-bundle.pem \
     --ssl-mode=VERIFY_IDENTITY \

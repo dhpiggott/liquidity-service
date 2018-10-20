@@ -49,7 +49,7 @@ docker run \
   --rm \
   --volume "$DIR"/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
   --volume "$OUTPUT_DIRECTORY"/journal_dump.sql:/dump.sql \
-  mysql:5 \
+  mysql:8.0 \
   sh -c " \
     mysqldump \
     --ssl-ca=/rds-combined-ca-bundle.pem \

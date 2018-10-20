@@ -39,16 +39,14 @@ Resources:
     Type: AWS::RDS::DBParameterGroup
     Properties:
       Description: !Ref AWS::StackName
-      Family: mysql5.7
+      Family: mysql8.0
       Parameters:
         character-set-client-handshake: 0
-        character_set_server: utf8mb4
-        collation_server: utf8mb4_unicode_ci
   RDS:
     Type: AWS::RDS::DBInstance
     Properties:
       Engine: MySQL
-      EngineVersion: "5.7"
+      EngineVersion: "8.0"
       DBInstanceClass: db.t2.micro
       StorageType: gp2
       AllocatedStorage: "20"

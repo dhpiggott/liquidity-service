@@ -46,7 +46,7 @@ docker run \
   --rm \
   --volume "$DIR"/rds-combined-ca-bundle.pem:/rds-combined-ca-bundle.pem \
   --volume "$DIR"/../schemas/"$SCHEMA".sql:/schema.sql \
-  mysql:5 \
+  mysql:8.0 \
   sh -c " \
     mysql \
     --ssl-ca=/rds-combined-ca-bundle.pem \

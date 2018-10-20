@@ -1,17 +1,14 @@
 version: '3'
 services:
   mysql:
-    image: "mysql:5"
+    image: "mysql:8.0"
     ports:
      - "3306"
-    command: [
-      "--character-set-client-handshake=false",
-      "--character-set-server=utf8mb4",
-      "--collation-server=utf8mb4_unicode_ci",
-      "--explicit-defaults-for-timestamp=true"
-    ]
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+    command: [
+      "--character-set-client-handshake=false"
+    ]
   zone-host:
     image: "liquidity:${TAG}"
     ports:

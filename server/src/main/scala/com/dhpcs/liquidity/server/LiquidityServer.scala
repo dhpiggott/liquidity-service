@@ -125,7 +125,7 @@ object LiquidityServer {
                |slick {
                |  profile = "slick.jdbc.MySQLProfile$$"
                |  db {
-               |    driver = "com.mysql.jdbc.Driver"
+               |    driver = "com.mysql.cj.jdbc.Driver"
                |    url = "${urlForDatabase(mysqlHostname, "liquidity_journal")}"
                |    user = "$mysqlUsername"
                |    password = "$mysqlPassword"
@@ -142,7 +142,7 @@ object LiquidityServer {
       connectEc <- ExecutionContexts.fixedThreadPool[IO](2)
       transactionEc <- ExecutionContexts.cachedThreadPool[IO]
       administratorsTransactor <- HikariTransactor.newHikariTransactor[IO](
-        driverClassName = "com.mysql.jdbc.Driver",
+        driverClassName = "com.mysql.cj.jdbc.Driver",
         url = urlForDatabase(mysqlHostname, "liquidity_administrators"),
         user = mysqlUsername,
         pass = mysqlPassword,
@@ -158,7 +158,7 @@ object LiquidityServer {
       connectEc <- ExecutionContexts.fixedThreadPool[IO](2)
       transactionEc <- ExecutionContexts.cachedThreadPool[IO]
       analyticsTransactor <- HikariTransactor.newHikariTransactor[IO](
-        driverClassName = "com.mysql.jdbc.Driver",
+        driverClassName = "com.mysql.cj.jdbc.Driver",
         url = urlForDatabase(mysqlHostname, "liquidity_analytics"),
         user = mysqlUsername,
         pass = mysqlPassword,
@@ -208,9 +208,7 @@ object LiquidityServer {
       "cacheResultSetMetadata=true&" +
       "cacheServerConfiguration=true&" +
       "useLocalSessionState=true&" +
-      "useLocalSessionState=true&" +
-      "useServerPrepStmts=true&" +
-      "useLegacyDatetimeCode=false"
+      "useServerPrepStmts=true"
 
 }
 

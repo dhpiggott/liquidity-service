@@ -63,7 +63,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     val (_, mysqlPort) =
       externalDockerComposeServicePorts(projectName, "mysql", 3306).head
     Transactor.fromDriverManager[IO](
-      driver = "com.mysql.jdbc.Driver",
+      driver = "com.mysql.cj.jdbc.Driver",
       url = urlFor(s"localhost:$mysqlPort", Some("liquidity_analytics")),
       user = "root",
       pass = ""
@@ -78,7 +78,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     val (_, mysqlPort) =
       externalDockerComposeServicePorts(projectName, "mysql", 3306).head
     val transactor = Transactor.fromDriverManager[IO](
-      driver = "com.mysql.jdbc.Driver",
+      driver = "com.mysql.cj.jdbc.Driver",
       url = urlFor(s"localhost:$mysqlPort"),
       user = "root",
       pass = ""
@@ -210,7 +210,7 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
 
   protected[this] override val analyticsTransactor: Transactor[IO] =
     Transactor.fromDriverManager[IO](
-      driver = "com.mysql.jdbc.Driver",
+      driver = "com.mysql.cj.jdbc.Driver",
       url = urlFor(sys.env("MYSQL_HOSTNAME"), Some("liquidity_analytics")),
       user = sys.env("MYSQL_USERNAME"),
       pass = sys.env("MYSQL_PASSWORD")
@@ -935,9 +935,7 @@ abstract class LiquidityServerSpec
       "cacheResultSetMetadata=true&" +
       "cacheServerConfiguration=true&" +
       "useLocalSessionState=true&" +
-      "useLocalSessionState=true&" +
-      "useServerPrepStmts=true&" +
-      "useLegacyDatetimeCode=false"
+      "useServerPrepStmts=true"
 
   override protected def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

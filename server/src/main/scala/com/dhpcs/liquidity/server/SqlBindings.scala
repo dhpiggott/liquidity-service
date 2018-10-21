@@ -32,4 +32,7 @@ object SqlBindings {
       JsonFormat.fromJsonString[com.google.protobuf.struct.Struct])(
       JsonFormat.toJsonString[com.google.protobuf.struct.Struct])
 
+  implicit val BigDecimalMeta: Meta[BigDecimal] =
+    Meta[String].timap(BigDecimal(_))(_.toString())
+
 }

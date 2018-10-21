@@ -461,7 +461,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
             actingAs = MemberId("0"),
             from = AccountId("0"),
             to = AccountId("1"),
-            value = BigDecimal(5000),
+            value = BigDecimal("5000000000000000000000"),
             description = Some("Jenny's Lottery Win"),
             metadata = None
           )
@@ -479,7 +479,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
             actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
             from = AccountId("non-existent"),
             to = account.id,
-            value = BigDecimal(5000),
+            value = BigDecimal("5000000000000000000000"),
             description = Some("Jenny's Lottery Win"),
             metadata = None
           )
@@ -498,7 +498,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
               actingAs = member.id,
               from = zone.equityAccountId,
               to = account.id,
-              value = BigDecimal(5000),
+              value = BigDecimal("5000000000000000000000"),
               description = Some("Jenny's Lottery Win"),
               metadata = None
             )
@@ -526,7 +526,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
                   zone.accounts(zone.equityAccountId).ownerMemberIds.head,
                 from = zone.equityAccountId,
                 to = account.id,
-                value = BigDecimal(5000),
+                value = BigDecimal("5000000000000000000000"),
                 description = Some("Jenny's Lottery Win"),
                 metadata = None
               )
@@ -543,7 +543,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
             actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
             from = zone.equityAccountId,
             to = AccountId("non-existent"),
-            value = BigDecimal(5000),
+            value = BigDecimal("5000000000000000000000"),
             description = Some("Jenny's Lottery Win"),
             metadata = None
           )
@@ -560,7 +560,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
               actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
               from = zone.equityAccountId,
               to = zone.equityAccountId,
-              value = BigDecimal(5000),
+              value = BigDecimal("5000000000000000000000"),
               description = Some("Jenny's Lottery Win"),
               metadata = None
             )
@@ -597,7 +597,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
               actingAs = member.id,
               from = account.id,
               to = zone.equityAccountId,
-              value = BigDecimal(5000),
+              value = BigDecimal("5000000000000000000000"),
               description = Some("Jenny's Lottery Win"),
               metadata = None
             )
@@ -826,7 +826,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
         from = zone.equityAccountId,
         to = to,
-        value = BigDecimal(5000),
+        value = BigDecimal("5000000000000000000000"),
         description = Some("Jenny's Lottery Win"),
         metadata = None
       )
@@ -835,7 +835,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       case AddTransactionResponse(Validated.Valid(transaction)) =>
         assert(transaction.from === zone.equityAccountId)
         assert(transaction.to === to)
-        assert(transaction.value === BigDecimal(5000))
+        assert(transaction.value === BigDecimal("5000000000000000000000"))
         assert(
           transaction.creator === zone
             .accounts(zone.equityAccountId)

@@ -618,7 +618,7 @@ abstract class LiquidityServerSpec
              actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
              from = zone.equityAccountId,
              to = to,
-             value = BigDecimal(5000),
+             value = BigDecimal("5000000000000000000000"),
              description = Some("Jenny's Lottery Win"),
              metadata = None
            )
@@ -628,7 +628,7 @@ abstract class LiquidityServerSpec
           case AddTransactionResponse(Validated.Valid(transaction)) =>
             assert(transaction.from === zone.equityAccountId)
             assert(transaction.to === to)
-            assert(transaction.value === BigDecimal(5000))
+            assert(transaction.value === BigDecimal("5000000000000000000000"))
             assert(
               transaction.creator === zone
                 .accounts(zone.equityAccountId)

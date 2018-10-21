@@ -391,7 +391,7 @@ class ZoneAnalyticsActorSpec
       id = TransactionId(0.toString),
       from = zone.equityAccountId,
       to = to,
-      value = BigDecimal(5000),
+      value = BigDecimal("5000000000000000000000"),
       creator = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
       created = Instant.now(),
       description = Some("Jenny's Lottery Win"),
@@ -423,7 +423,7 @@ class ZoneAnalyticsActorSpec
         .unique
         .transact(transactor)
         .unsafeRunSync()
-      assert(sourceBalance === BigDecimal(-5000))
+      assert(sourceBalance === BigDecimal("-5000000000000000000000"))
       val destinationBalance = sql"""
          SELECT balance FROM accounts
            WHERE zone_id = $zoneId AND account_id = $to
@@ -432,7 +432,7 @@ class ZoneAnalyticsActorSpec
         .unique
         .transact(transactor)
         .unsafeRunSync()
-      assert(destinationBalance === BigDecimal(5000))
+      assert(destinationBalance === BigDecimal("5000000000000000000000"))
     }
     ()
   }

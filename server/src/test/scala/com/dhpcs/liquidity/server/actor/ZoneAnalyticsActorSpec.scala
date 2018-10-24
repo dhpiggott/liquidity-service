@@ -142,9 +142,7 @@ class ZoneAnalyticsActorSpec
     )
     initAnalytics.transact(transactor).unsafeRunSync()
     val analytics = system.spawn(
-      ZoneAnalyticsActor.singletonBehavior(readJournal,
-                                           transactor,
-                                           getActiveZoneSummaries = _ => ()),
+      ZoneAnalyticsActor.singletonBehavior(readJournal, transactor),
       name = "zoneAnalytics"
     )
     val zoneId = ZoneId(UUID.randomUUID().toString)
@@ -156,10 +154,10 @@ class ZoneAnalyticsActorSpec
     finally {
       system.stop(writer)
       system.stop(analytics.toUntyped)
-      implicit val askTimeout: Timeout = Timeout(5.seconds)
+      implicit val timeout: Timeout = Timeout(5.seconds)
       Await.result(
         StorageExtension(system).journalStorage ? InMemoryJournalStorage.ClearJournal,
-        askTimeout.duration
+        timeout.duration
       )
       ()
     }
@@ -701,6 +699,7 @@ object ZoneAnalyticsActorSpec {
         (name, metadata) = nameAndMetadata
       } yield memberId -> Member(memberId, ownerPublicKeys, name, metadata)
     }
+
     for {
       memberIds <- sql"""
          SELECT member_id
@@ -749,6 +748,7 @@ object ZoneAnalyticsActorSpec {
         (name, metadata) = nameAndMetadata
       } yield accountId -> Account(accountId, ownerMemberIds, name, metadata)
     }
+
     for {
       accountIds <- sql"""
          SELECT account_id

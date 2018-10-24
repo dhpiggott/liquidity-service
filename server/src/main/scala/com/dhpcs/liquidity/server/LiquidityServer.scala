@@ -227,7 +227,6 @@ class LiquidityServer(
 
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
-  private[this] implicit val askTimeout: Timeout = Timeout(5.seconds)
 
   private[this] val zoneMonitor =
     system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
@@ -244,10 +243,8 @@ class LiquidityServer(
     )
 
   ClusterSingleton(system.toTyped).spawn(
-    behavior = ZoneAnalyticsActor.singletonBehavior(
-      readJournal,
-      analyticsTransactor,
-      zoneMonitor ! GetActiveZoneSummaries(_)),
+    behavior =
+      ZoneAnalyticsActor.singletonBehavior(readJournal, analyticsTransactor),
     singletonName = "zoneAnalyticsSingleton",
     props = Props.empty,
     settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
@@ -304,6 +301,7 @@ class LiquidityServer(
 
   override protected[this] def zoneState(
       zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] = {
+    implicit val timeout: Timeout = Timeout(5.seconds)
     val zoneState
       : Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(
       _,
@@ -322,8 +320,10 @@ class LiquidityServer(
     system.toTyped)
 
   override protected[this] def getActiveZoneSummaries
-    : Future[Set[ActiveZoneSummary]] =
+    : Future[Set[ActiveZoneSummary]] = {
+    implicit val timeout: Timeout = Timeout(5.seconds)
     zoneMonitor ? GetActiveZoneSummaries
+  }
 
   override protected[this] def createZone(
       remoteAddress: InetAddress,
@@ -338,7 +338,8 @@ class LiquidityServer(
       zoneId: ZoneId,
       remoteAddress: InetAddress,
       publicKey: PublicKey,
-      zoneCommand: ZoneCommand): Future[ZoneResponse] =
+      zoneCommand: ZoneCommand): Future[ZoneResponse] = {
+    implicit val timeout: Timeout = Timeout(5.seconds)
     for {
       zoneResponseEnvelope <- zoneValidatorShardRegion.?[ZoneResponseEnvelope](
         ZoneCommandEnvelope(_,
@@ -348,6 +349,7 @@ class LiquidityServer(
                             correlationId = 0,
                             zoneCommand))
     } yield zoneResponseEnvelope.zoneResponse
+  }
 
   override protected[this] def zoneNotificationSource(
       remoteAddress: InetAddress,

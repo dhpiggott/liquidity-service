@@ -4,17 +4,15 @@ import java.net.InetAddress
 import java.time.Instant
 
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, ActorRefResolver, Behavior, PostStop}
+import akka.actor.typed.{Behavior, PostStop}
 import akka.persistence.query.Sequence
 import akka.persistence.query.scaladsl.{EventsByTagQuery, ReadJournal}
-import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
+import akka.stream.scaladsl.{Keep, Merge, RestartSource, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import cats.effect.IO
 import cats.instances.list._
 import cats.syntax.applicative._
-import cats.syntax.list._
 import cats.syntax.traverse._
-import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.EventTags
 import com.dhpcs.liquidity.persistence.zone._
@@ -27,101 +25,81 @@ import scala.concurrent.duration._
 object ZoneAnalyticsActor {
 
   sealed abstract class ZoneAnalyticsMessage
-  case object GetActiveZoneSummaries extends ZoneAnalyticsMessage
-  final case class CloseStaleConnections(
-      activeZoneSummaries: Set[ActiveZoneSummary])
-      extends ZoneAnalyticsMessage
   case object StopZoneAnalytics extends ZoneAnalyticsMessage
 
-  private[this] case object CloseStaleConnectionsTimerKey
-
-  def singletonBehavior(
-      readJournal: ReadJournal with EventsByTagQuery,
-      analyticsTransactor: Transactor[IO],
-      getActiveZoneSummaries: ActorRef[Set[ActiveZoneSummary]] => Unit)(
+  def singletonBehavior(readJournal: ReadJournal with EventsByTagQuery,
+                        analyticsTransactor: Transactor[IO])(
       implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Behaviors.setup { context =>
-      Behaviors.withTimers { timers =>
-        timers.startPeriodicTimer(CloseStaleConnectionsTimerKey,
-                                  GetActiveZoneSummaries,
-                                  1.hour)
-        implicit val resolver: ActorRefResolver =
-          ActorRefResolver(context.system)
-        val previousOffsetIo = (for {
-          maybePreviousOffset <- TagOffsetsStore.retrieve(
-            EventTags.ZoneEventTag)
-          previousOffset <- maybePreviousOffset match {
-            case None =>
-              val firstOffset = Sequence(0)
-              for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag,
-                                               firstOffset)) yield firstOffset
-            case Some(previousOffset) =>
-              previousOffset.pure[ConnectionIO]
-          }
-        } yield previousOffset).transact(analyticsTransactor)
-        val killSwitch = RestartSource
-          .onFailuresWithBackoff(minBackoff = 3.seconds,
-                                 maxBackoff = 30.seconds,
-                                 randomFactor = 0.2)(() =>
-            Source
-              .fromFuture(previousOffsetIo.unsafeToFuture())
-              .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
-              .mapAsync(1) { eventEnvelope =>
-                val zoneId =
-                  ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
-                val zoneEventEnvelope =
-                  eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
-                val eventOffset = eventEnvelope.offset.asInstanceOf[Sequence]
-                val nextOffsetIo = (for {
-                  _ <- projectEvent(zoneId, zoneEventEnvelope)
-                  _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
-                                              eventOffset)
-                } yield eventOffset).transact(analyticsTransactor)
-                nextOffsetIo.unsafeToFuture()
-              }
-              .zipWithIndex
-              .groupedWithin(n = 1000, d = 30.seconds)
-              .map { group =>
-                val (offset, index) = group.last
-                context.log.info(s"Projected ${group.size} zone events " +
-                  s"(total: ${index + 1}, offset: ${offset.value})")
-            })
-          .viaMat(KillSwitches.single)(Keep.right)
-          .to(Sink.ignore)
-          .run()
-        Behaviors.receiveMessage[ZoneAnalyticsMessage] {
-          case GetActiveZoneSummaries =>
-            getActiveZoneSummaries(
-              context.messageAdapter(CloseStaleConnections))
-            Behaviors.same
+      val killSwitch = RestartSource
+        .onFailuresWithBackoff(minBackoff = 3.seconds,
+                               maxBackoff = 30.seconds,
+                               randomFactor = 0.2)(
+          () =>
+            Source.combine(
+              Source
+                .fromFuture(
+                  (for {
+                    maybePreviousOffset <- TagOffsetsStore.retrieve(
+                      EventTags.ZoneEventTag)
+                    previousOffset <- maybePreviousOffset match {
+                      case None =>
+                        val firstOffset = Sequence(0)
+                        for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag,
+                                                         firstOffset))
+                          yield firstOffset
+                      case Some(previousOffset) =>
+                        previousOffset.pure[ConnectionIO]
+                    }
+                  } yield previousOffset)
+                    .transact(analyticsTransactor)
+                    .unsafeToFuture()
+                )
+                .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag,
+                                                       _))
+                .mapAsync(1) { eventEnvelope =>
+                  val zoneId =
+                    ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
+                  val zoneEventEnvelope =
+                    eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
+                  val eventOffset = eventEnvelope.offset.asInstanceOf[Sequence]
+                  (for {
+                    _ <- projectEvent(zoneId, zoneEventEnvelope)
+                    _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
+                                                eventOffset)
+                  } yield eventOffset)
+                    .transact(analyticsTransactor)
+                    .unsafeToFuture()
+                }
+                .zipWithIndex
+                .groupedWithin(n = 1000, d = 30.seconds)
+                .map { group =>
+                  val (offset, index) = group.last
+                  context.log.info(s"Projected ${group.size} zone events " +
+                    s"(total: ${index + 1}, offset: ${offset.value})")
+                },
+              Source
+                .tick(0.hours, 24.hours, ())
+                .mapAsync(1)(_ =>
+                  closeStaleConnections
+                    .transact(analyticsTransactor)
+                    .unsafeToFuture())
+                .map(count =>
+                  context.log.info(s"Closed $count stale connections"))
+            )(Merge(_))
+        )
+        .viaMat(KillSwitches.single)(Keep.right)
+        .to(Sink.ignore)
+        .run()
 
-          case CloseStaleConnections(activeZoneSummaries) =>
-            val maybeActiveConnectionIds = (for {
-              activeZoneSummary <- activeZoneSummaries
-              connectedClient <- activeZoneSummary.connectedClients.values
-              connectionId = resolver.toSerializationFormat(
-                connectedClient.connectionId)
-            } yield connectionId).toList.toNel
+      Behaviors.receiveMessage[ZoneAnalyticsMessage] {
+        case StopZoneAnalytics =>
+          Behaviors.stopped
 
-            (fr"""
-                 UPDATE client_sessions
-                   SET quit = joined + INTERVAL 1 DAY
-                   WHERE quit IS NULL AND joined <= NOW() - INTERVAL 1 HOUR""" ++
-              Fragments.andOpt(
-                maybeActiveConnectionIds.map(activeConnectionIds =>
-                  Fragments.notIn(fr"actor_ref", activeConnectionIds))
-              )).update.run
-              .transact(analyticsTransactor)
-            Behaviors.same
-
-          case StopZoneAnalytics =>
-            Behaviors.stopped
-
-        } receiveSignal {
-          case (_, PostStop) =>
-            killSwitch.shutdown()
-            Behaviors.same
-        }
+      } receiveSignal {
+        case (_, PostStop) =>
+          killSwitch.shutdown()
+          Behaviors.same
       }
     }
 
@@ -202,6 +180,13 @@ object ZoneAnalyticsActor {
       }
       _ <- ZoneStore.update(zoneId, modified = zoneEventEnvelope.timestamp)
     } yield ()
+
+  private[this] def closeStaleConnections: ConnectionIO[Int] =
+    sql"""
+          UPDATE client_sessions
+            SET quit = joined
+            WHERE quit IS NULL
+      """.update.run
 
   object DevicesStore {
 

@@ -5,7 +5,7 @@ import java.net.InetAddress
 import akka.NotUsed
 import akka.actor.typed._
 import akka.actor.typed.scaladsl.Behaviors
-import akka.stream.scaladsl.{Keep, Sink, Source}
+import akka.stream.scaladsl.Source
 import akka.stream.typed.scaladsl.ActorSource
 import akka.stream.{Materializer, OverflowStrategy}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
@@ -28,7 +28,7 @@ object ClientConnectionActor {
       actorRefFactory: Behavior[ClientConnectionMessage] => ActorRef[
         ClientConnectionMessage]
   )(implicit mat: Materializer): Source[ZoneNotification, NotUsed] = {
-    val (outActor, publisher) = ActorSource
+    val (outActor, source) = ActorSource
       .actorRef[ActorSourceMessage](
         completionMatcher = {
           case StopActorSource => ()
@@ -37,8 +37,7 @@ object ClientConnectionActor {
         bufferSize = 16,
         overflowStrategy = OverflowStrategy.fail
       )
-      .toMat(Sink.asPublisher(false))(Keep.both)
-      .run()
+      .preMaterialize()
     actorRefFactory(
       ClientConnectionActor.zoneNotificationBehavior(
         zoneValidatorShardRegion,
@@ -48,7 +47,7 @@ object ClientConnectionActor {
         outActor
       )
     )
-    Source.fromPublisher(publisher).collect {
+    source.collect {
       case ForwardZoneNotification(zoneNotification) => zoneNotification
     }
   }

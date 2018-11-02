@@ -12,12 +12,12 @@ env:
     - secure: O+QOjGKLJgCPfeQ+LGBc5JvdqsfbSRig2d6Hx5RRU9yutcYqtj+QwKqS7f4d14m5Ob9nppV7GDWTlJdgCMYyRDkpo+kSk//05t2JdwnbXcL44Wozq9O3g5ETS9mC9aPDt1BpoPXJr6P6woInBH09ysWzsk4Jt275w1CJOytZrSlnY1biTtpRexQmWp/2Zr/JEV5MdeYiX0U++/UeOwdct7IxIzz8Up3Q9NzCQaB1zxMY5RgoJebQHAjZmqCissBjGR8z26St5sgyfa4tHHBB4MaKJgdDyGg/MtnJMCmhWwEIOLU5v73r3Jnil2cvDKJAbvM1u6zAozO2i1U1UNRPX9UaWjh8ooTV3vZo+kREfUB37fWHSWcbObNKBWn7rZfhDvFR7o2zch0hqoFdJOgpuTJlJCVPr+X+YwBa+qInG/8QWyU5AIKJL/qMlNifOqTsXNqUBLe+tMNEa49u/VfR/Ybp9l3spSTdXNV56aPBWZOQjODeK6OnWCW9sYp1F387ALB1rCmcNfvDjH8wGcwZhxuFt5vdygeBIEAWDRj0XhDNa0s+rY/FFUDqf+GjAvyH6mP5o78pzGzh+YYlH8dWA/+y3+M26kq/4JpebPXC8vKqnfcrcrs+im9ALcXUm7aJG+UfpV+YS5rcJ1RRA+NrCUL0FINMd4asSpzsfbwwSvQ=
 stages:
   - name: test
-  - name: deploy
-    if: branch = master
+  - name: publish-and-deploy
+    if: branch = master AND type = push
   - name: test-deployment
-    if: branch = master
+    if: branch = master AND type = push
   - name: release
-    if: branch = master
+    if: branch = master AND type = push
 jobs:
   include:
     - stage: test
@@ -27,11 +27,11 @@ jobs:
         bash <(curl -s https://codecov.io/bash)
     - stage: test
       script: |
-        pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/test-component-and-publish.sh eu-west-1 prod-blue
-    - stage: deploy
+        ./cd-scripts/test-component.sh
+    - stage: publish-and-deploy
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
+        ./cd-scripts/publish.sh eu-west-1 prod-blue
         ./cd-scripts/deploy-service.sh eu-west-1 prod-blue
     - stage: test-deployment
       script: |

@@ -59,7 +59,7 @@ object ZoneAnalyticsActor {
                                                        _))
                 .mapAsync(1) { eventEnvelope =>
                   val zoneId =
-                    ZoneId.fromPersistenceId(eventEnvelope.persistenceId)
+                    ZoneId.fromPersistentEntityId(eventEnvelope.persistenceId)
                   val zoneEventEnvelope =
                     eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
                   val eventOffset = eventEnvelope.offset.asInstanceOf[Sequence]

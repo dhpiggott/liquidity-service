@@ -46,7 +46,7 @@ object ZoneId {
 
   final val PersistenceIdPrefix = "zone-"
 
-  def fromPersistenceId(persistenceId: String): ZoneId =
+  def fromPersistentEntityId(persistenceId: String): ZoneId =
     ZoneId(persistenceId.stripPrefix(PersistenceIdPrefix))
 
 }

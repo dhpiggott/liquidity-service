@@ -65,6 +65,7 @@ object ZoneValidatorActor {
     }
 
   private[this] final val PassivationTimeout = 2.minutes
+  private[this] final val SnapshotInterval = 100
 
   def shardingBehavior(
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
@@ -77,179 +78,168 @@ object ZoneValidatorActor {
           mutable.Map.empty[ActorRef[Nothing], Long]
         implicit val resolver: ActorRefResolver =
           ActorRefResolver(context.system)
-        persistentBehavior(
-          ZoneId.fromPersistenceId(entityId),
-          notificationSequenceNumbers,
-          mediator,
-          context
-        )
-      }
-      .narrow[SerializableZoneValidatorMessage]
+        val id = ZoneId.fromPersistentEntityId(entityId)
+        PersistentBehavior[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
+          persistenceId = PersistenceId(id.persistenceId),
+          emptyState = ZoneState(zone = None,
+                                 balances = Map.empty,
+                                 connectedClients = Map.empty),
+          commandHandler = (state, command) =>
+            command match {
+              case StopZone =>
+                context.log.info("Stopping")
+                Effect.stop()
 
-  private[this] final val SnapShotInterval = 100
-
-  private[this] def persistentBehavior(
-      id: ZoneId,
-      notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
-      mediator: ActorRef[Publish],
-      context: ActorContext[ZoneValidatorMessage]
-  )(implicit resolver: ActorRefResolver): Behavior[ZoneValidatorMessage] =
-    PersistentBehavior[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
-      persistenceId = PersistenceId(id.persistenceId),
-      emptyState = ZoneState(zone = None,
-                             balances = Map.empty,
-                             connectedClients = Map.empty),
-      commandHandler = (state, command) =>
-        command match {
-          case StopZone =>
-            context.log.info("Stopping")
-            Effect.stop()
-
-          case GetZoneStateCommand(replyTo, _) =>
-            replyTo ! state
-            Effect.none
-
-          case zoneCommandEnvelope: ZoneCommandEnvelope =>
-            handleCommand(mediator,
-                          context,
-                          id,
-                          notificationSequenceNumbers,
-                          state,
-                          zoneCommandEnvelope)
-
-          case ZoneNotificationSubscription(subscriber,
-                                            _,
-                                            remoteAddress,
-                                            publicKey) =>
-            state.zone match {
-              case None =>
-                subscriber ! ZoneNotificationEnvelope(
-                  context.self,
-                  id,
-                  sequenceNumber = 0,
-                  ZoneStateNotification(zone = None,
-                                        connectedClients = Map.empty)
-                )
+              case GetZoneStateCommand(replyTo, _) =>
+                replyTo ! state
                 Effect.none
 
-              case Some(zone) =>
-                def connectedClients(state: ZoneState): Map[String, PublicKey] =
-                  state.connectedClients.map {
-                    case (connectionId, connectedClient) =>
-                      resolver
-                        .toSerializationFormat(connectionId) -> connectedClient.publicKey
-                  }
-                if (state.connectedClients.contains(subscriber)) {
-                  // We already accepted the command; this was just a redelivery
-                  notificationSequenceNumbers += subscriber -> 0
-                  deliverNotification(
-                    context.self,
-                    id,
-                    Iterable(subscriber),
-                    notificationSequenceNumbers,
-                    ZoneStateNotification(Some(zone), connectedClients(state))
-                  )
-                  Effect.none
-                } else
-                  Effect
-                    .persist(
-                      ZoneEventEnvelope(
-                        Some(remoteAddress),
-                        Some(publicKey),
-                        timestamp = Instant.now(),
-                        ClientJoinedEvent(
-                          Some(resolver.toSerializationFormat(subscriber))
-                        )
-                      )
-                    )
-                    .thenRun {
-                      state =>
-                        deliverNotification(
-                          context.self,
-                          id,
-                          Iterable(subscriber),
-                          notificationSequenceNumbers,
-                          ZoneStateNotification(Some(zone),
-                                                connectedClients(state))
-                        )
-                        deliverNotification(
-                          context.self,
-                          id,
-                          state.connectedClients.keys,
-                          notificationSequenceNumbers,
-                          ClientJoinedNotification(
-                            ActorRefResolver(context.system)
-                              .toSerializationFormat(subscriber),
-                            publicKey
-                          )
-                        )
-                        mediator ! Publish(
-                          ZoneMonitorActor.ZoneStatusTopic,
-                          UpsertActiveZoneSummary(
-                            context.self,
-                            ActiveZoneSummary(
+              case zoneCommandEnvelope: ZoneCommandEnvelope =>
+                handleCommand(mediator,
+                              context,
                               id,
-                              zone.members.size,
-                              zone.accounts.size,
-                              zone.transactions.size,
-                              zone.metadata,
-                              state.connectedClients
-                            )
-                          )
-                        )
-                    }
-            }
+                              notificationSequenceNumbers,
+                              state,
+                              zoneCommandEnvelope)
 
-          case RemoveClient(clientConnection) =>
-            (state.zone, state.connectedClients.get(clientConnection)).tupled match {
-              case None =>
-                Effect.none
-
-              case Some((zone, connectedClient)) =>
-                Effect
-                  .persist(
-                    ZoneEventEnvelope(
-                      Some(connectedClient.remoteAddress),
-                      Some(connectedClient.publicKey),
-                      timestamp = Instant.now(),
-                      ClientQuitEvent(
-                        Some(resolver.toSerializationFormat(clientConnection))
-                      )
+              case ZoneNotificationSubscription(subscriber,
+                                                _,
+                                                remoteAddress,
+                                                publicKey) =>
+                state.zone match {
+                  case None =>
+                    subscriber ! ZoneNotificationEnvelope(
+                      context.self,
+                      id,
+                      sequenceNumber = 0,
+                      ZoneStateNotification(zone = None,
+                                            connectedClients = Map.empty)
                     )
-                  )
-                  .thenRun {
-                    state =>
+                    Effect.none
+
+                  case Some(zone) =>
+                    def connectedClients(
+                        state: ZoneState): Map[String, PublicKey] =
+                      state.connectedClients.map {
+                        case (connectionId, connectedClient) =>
+                          resolver
+                            .toSerializationFormat(connectionId) -> connectedClient.publicKey
+                      }
+                    if (state.connectedClients.contains(subscriber)) {
+                      // We already accepted the command; this was just a redelivery
+                      notificationSequenceNumbers += subscriber -> 0
                       deliverNotification(
                         context.self,
                         id,
-                        state.connectedClients.keys,
+                        Iterable(subscriber),
                         notificationSequenceNumbers,
-                        ClientQuitNotification(
-                          ActorRefResolver(context.system)
-                            .toSerializationFormat(clientConnection),
-                          connectedClient.publicKey
-                        )
+                        ZoneStateNotification(Some(zone),
+                                              connectedClients(state))
                       )
-                      mediator ! Publish(
-                        ZoneMonitorActor.ZoneStatusTopic,
-                        UpsertActiveZoneSummary(
-                          context.self,
-                          ActiveZoneSummary(
-                            id,
-                            zone.members.size,
-                            zone.accounts.size,
-                            zone.transactions.size,
-                            zone.metadata,
-                            state.connectedClients
+                      Effect.none
+                    } else
+                      Effect
+                        .persist(
+                          ZoneEventEnvelope(
+                            Some(remoteAddress),
+                            Some(publicKey),
+                            timestamp = Instant.now(),
+                            ClientJoinedEvent(
+                              Some(resolver.toSerializationFormat(subscriber))
+                            )
+                          )
+                        )
+                        .thenRun {
+                          state =>
+                            deliverNotification(
+                              context.self,
+                              id,
+                              Iterable(subscriber),
+                              notificationSequenceNumbers,
+                              ZoneStateNotification(Some(zone),
+                                                    connectedClients(state))
+                            )
+                            deliverNotification(
+                              context.self,
+                              id,
+                              state.connectedClients.keys,
+                              notificationSequenceNumbers,
+                              ClientJoinedNotification(
+                                ActorRefResolver(context.system)
+                                  .toSerializationFormat(subscriber),
+                                publicKey
+                              )
+                            )
+                            mediator ! Publish(
+                              ZoneMonitorActor.ZoneStatusTopic,
+                              UpsertActiveZoneSummary(
+                                context.self,
+                                ActiveZoneSummary(
+                                  id,
+                                  zone.members.size,
+                                  zone.accounts.size,
+                                  zone.transactions.size,
+                                  zone.metadata,
+                                  state.connectedClients
+                                )
+                              )
+                            )
+                        }
+                }
+
+              case RemoveClient(clientConnection) =>
+                (state.zone, state.connectedClients.get(clientConnection)).tupled match {
+                  case None =>
+                    Effect.none
+
+                  case Some((zone, connectedClient)) =>
+                    Effect
+                      .persist(
+                        ZoneEventEnvelope(
+                          Some(connectedClient.remoteAddress),
+                          Some(connectedClient.publicKey),
+                          timestamp = Instant.now(),
+                          ClientQuitEvent(
+                            Some(
+                              resolver.toSerializationFormat(clientConnection))
                           )
                         )
                       )
-                  }
-            }
-      },
-      eventHandler(notificationSequenceNumbers, context)
-    ).snapshotEvery(SnapShotInterval)
-      .withTagger(_ => Set(EventTags.ZoneEventTag))
+                      .thenRun {
+                        state =>
+                          deliverNotification(
+                            context.self,
+                            id,
+                            state.connectedClients.keys,
+                            notificationSequenceNumbers,
+                            ClientQuitNotification(
+                              ActorRefResolver(context.system)
+                                .toSerializationFormat(clientConnection),
+                              connectedClient.publicKey
+                            )
+                          )
+                          mediator ! Publish(
+                            ZoneMonitorActor.ZoneStatusTopic,
+                            UpsertActiveZoneSummary(
+                              context.self,
+                              ActiveZoneSummary(
+                                id,
+                                zone.members.size,
+                                zone.accounts.size,
+                                zone.transactions.size,
+                                zone.metadata,
+                                state.connectedClients
+                              )
+                            )
+                          )
+                      }
+                }
+          },
+          eventHandler(notificationSequenceNumbers, context)
+        ).snapshotEvery(SnapshotInterval)
+          .withTagger(_ => Set(EventTags.ZoneEventTag))
+      }
+      .narrow[SerializableZoneValidatorMessage]
 
   private[this] def handleCommand(
       mediator: ActorRef[Publish],

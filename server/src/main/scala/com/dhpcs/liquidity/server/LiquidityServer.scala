@@ -9,7 +9,7 @@ import akka.actor.typed.{ActorRefResolver, Props}
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ClusterShardingSettings
-import akka.cluster.sharding.typed.scaladsl.ShardedEntity
+import akka.cluster.sharding.typed.scaladsl.Entity
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
 import akka.discovery.awsapi.ecs.AsyncEcsSimpleServiceDiscovery
@@ -232,12 +232,15 @@ class LiquidityServer(
     system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
 
   private[this] val zoneValidatorShardRegion =
-    ClusterSharding(system.toTyped).start(
-      ShardedEntity(
-        create = ZoneValidatorActor.shardingBehavior(_),
+    ClusterSharding(system.toTyped).init(
+      Entity(
         typeKey = ZoneValidatorActor.ShardingTypeName,
-        stopMessage = StopZone
-      ).withSettings(
+        createBehavior = entityContext =>
+          ZoneValidatorActor.shardingBehavior(entityContext.entityId)
+      ).withStopMessage(
+          StopZone
+        )
+        .withSettings(
           ClusterShardingSettings(system.toTyped).withRole(ZoneHostRole))
         .withMessageExtractor(ZoneValidatorActor.messageExtractor)
     )

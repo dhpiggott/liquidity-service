@@ -15,12 +15,12 @@ SUB=$(
   -in "$PRIVATE_KEY_PATH" \
   -pubout \
   -outform DER 2> /dev/null |
-  base64 --wrap=0
+  base64
 )
 
 IAT=$(date +%s)
 
-EXP=$(("$IAT" + 3600))
+EXP=$((IAT + 3600))
 
 jwt \
   --encode \

@@ -7,7 +7,7 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{Behavior, PostStop}
 import akka.persistence.query.Sequence
 import akka.persistence.query.scaladsl.{EventsByTagQuery, ReadJournal}
-import akka.stream.scaladsl.{Keep, Merge, RestartSource, Sink, Source}
+import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
 import cats.effect.IO
 import cats.instances.list._
@@ -36,57 +36,46 @@ object ZoneAnalyticsActor {
                                maxBackoff = 30.seconds,
                                randomFactor = 0.2)(
           () =>
-            Source.combine(
-              Source
-                .fromFuture(
-                  (for {
-                    maybePreviousOffset <- TagOffsetsStore.retrieve(
-                      EventTags.ZoneEventTag)
-                    previousOffset <- maybePreviousOffset match {
-                      case None =>
-                        val firstOffset = Sequence(0)
-                        for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag,
-                                                         firstOffset))
-                          yield firstOffset
-                      case Some(previousOffset) =>
-                        previousOffset.pure[ConnectionIO]
-                    }
-                  } yield previousOffset)
-                    .transact(analyticsTransactor)
-                    .unsafeToFuture()
-                )
-                .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag,
-                                                       _))
-                .mapAsync(1) { eventEnvelope =>
-                  val zoneId =
-                    ZoneId.fromPersistentEntityId(eventEnvelope.persistenceId)
-                  val zoneEventEnvelope =
-                    eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
-                  val eventOffset = eventEnvelope.offset.asInstanceOf[Sequence]
-                  (for {
-                    _ <- projectEvent(zoneId, zoneEventEnvelope)
-                    _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
-                                                eventOffset)
-                  } yield eventOffset)
-                    .transact(analyticsTransactor)
-                    .unsafeToFuture()
-                }
-                .zipWithIndex
-                .groupedWithin(n = 1000, d = 30.seconds)
-                .map { group =>
-                  val (offset, index) = group.last
-                  context.log.info(s"Projected ${group.size} zone events " +
-                    s"(total: ${index + 1}, offset: ${offset.value})")
-                },
-              Source
-                .tick(0.hours, 24.hours, ())
-                .mapAsync(1)(_ =>
-                  closeStaleConnections
-                    .transact(analyticsTransactor)
-                    .unsafeToFuture())
-                .map(count =>
-                  context.log.info(s"Closed $count stale connections"))
-            )(Merge(_))
+            Source
+              .fromFuture(
+                (for {
+                  maybePreviousOffset <- TagOffsetsStore.retrieve(
+                    EventTags.ZoneEventTag)
+                  previousOffset <- maybePreviousOffset match {
+                    case None =>
+                      val firstOffset = Sequence(0)
+                      for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag,
+                                                       firstOffset))
+                        yield firstOffset
+                    case Some(previousOffset) =>
+                      previousOffset.pure[ConnectionIO]
+                  }
+                } yield previousOffset)
+                  .transact(analyticsTransactor)
+                  .unsafeToFuture()
+              )
+              .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
+              .mapAsync(1) { eventEnvelope =>
+                val zoneId =
+                  ZoneId.fromPersistentEntityId(eventEnvelope.persistenceId)
+                val zoneEventEnvelope =
+                  eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
+                val eventOffset = eventEnvelope.offset.asInstanceOf[Sequence]
+                (for {
+                  _ <- projectEvent(zoneId, zoneEventEnvelope)
+                  _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
+                                              eventOffset)
+                } yield eventOffset)
+                  .transact(analyticsTransactor)
+                  .unsafeToFuture()
+              }
+              .zipWithIndex
+              .groupedWithin(n = 1000, d = 30.seconds)
+              .map { group =>
+                val (offset, index) = group.last
+                context.log.info(s"Projected ${group.size} zone events " +
+                  s"(total: ${index + 1}, offset: ${offset.value})")
+            }
         )
         .viaMat(KillSwitches.single)(Keep.right)
         .to(Sink.ignore)
@@ -180,13 +169,6 @@ object ZoneAnalyticsActor {
       }
       _ <- ZoneStore.update(zoneId, modified = zoneEventEnvelope.timestamp)
     } yield ()
-
-  private[this] def closeStaleConnections: ConnectionIO[Int] =
-    sql"""
-          UPDATE client_sessions
-            SET quit = joined
-            WHERE quit IS NULL
-      """.update.run
 
   object DevicesStore {
 

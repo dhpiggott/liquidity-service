@@ -1,8 +1,23 @@
 <configuration>
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%-5level %logger{36} %X{akkaSource} - %msg%n%ex</pattern>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <timeZone>UTC</timeZone>
+                </timestamp>
+                <logstashMarkers/>
+                <pattern>
+                    <pattern>
+                        {
+                            "level" : "%level",
+                            "logger" : "%logger",
+                            "akkaSource" : "%X{akkaSource}",
+                            "message" : "%message"
+                        }
+                    </pattern>
+                </pattern>
+            </providers>
         </encoder>
     </appender>
 

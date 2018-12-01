@@ -92,7 +92,7 @@ lazy val server = project
       "com.typesafe.akka" %% "akka-http" % "10.1.5",
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.18",
       "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.1",
-      "com.typesafe.play" %% "play-json" % "2.6.10",
+      "com.typesafe.play" %% "play-json" % "2.6.11",
       "de.heikoseeberger" %% "akka-http-play-json" % "1.22.0",
       "com.nimbusds" % "nimbus-jose-jwt" % "6.4.1"
     ),

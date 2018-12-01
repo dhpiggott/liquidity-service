@@ -59,7 +59,7 @@ lazy val model = project
   .settings(libraryDependencies ++= Seq(
     "com.thesamet.scalapb" %% "scalapb-runtime" %
       scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig,
-    "org.typelevel" %% "cats-core" % "1.4.0",
+    "org.typelevel" %% "cats-core" % "1.5.0",
     "com.squareup.okio" % "okio" % "2.1.0",
     "com.typesafe.akka" %% "akka-actor-typed" % "2.5.18"
   ))

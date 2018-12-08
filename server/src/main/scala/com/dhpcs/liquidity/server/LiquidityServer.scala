@@ -5,13 +5,13 @@ import java.util.UUID
 
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.{ActorRefResolver, Props}
+import akka.actor.typed.ActorRefResolver
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.Entity
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
-import akka.cluster.typed.{Cluster, ClusterSingleton, ClusterSingletonSettings}
+import akka.cluster.typed._
 import akka.discovery.awsapi.ecs.AsyncEcsSimpleServiceDiscovery
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.StandardRoute
@@ -245,13 +245,14 @@ class LiquidityServer(
         .withMessageExtractor(ZoneValidatorActor.messageExtractor)
     )
 
-  ClusterSingleton(system.toTyped).spawn(
-    behavior =
-      ZoneAnalyticsActor.singletonBehavior(readJournal, analyticsTransactor),
-    singletonName = "zoneAnalyticsSingleton",
-    props = Props.empty,
-    settings = ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole),
-    terminationMessage = StopZoneAnalytics
+  ClusterSingleton(system.toTyped).init(
+    SingletonActor(
+      behavior =
+        ZoneAnalyticsActor.singletonBehavior(readJournal, analyticsTransactor),
+      name = "zoneAnalyticsSingleton"
+    ).withSettings(
+        ClusterSingletonSettings(system.toTyped).withRole(AnalyticsRole))
+      .withStopMessage(StopZoneAnalytics)
   )
 
   private def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(

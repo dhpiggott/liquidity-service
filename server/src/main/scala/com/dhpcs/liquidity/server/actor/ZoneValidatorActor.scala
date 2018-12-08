@@ -79,7 +79,9 @@ object ZoneValidatorActor {
         implicit val resolver: ActorRefResolver =
           ActorRefResolver(context.system)
         val id = ZoneId.fromPersistentEntityId(entityId)
-        PersistentBehavior[ZoneValidatorMessage, ZoneEventEnvelope, ZoneState](
+        EventSourcedBehavior[ZoneValidatorMessage,
+                             ZoneEventEnvelope,
+                             ZoneState](
           persistenceId = PersistenceId(id.persistenceId),
           emptyState = ZoneState(zone = None,
                                  balances = Map.empty,

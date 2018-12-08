@@ -19,7 +19,7 @@ object ProjectPlugin extends AutoPlugin {
       testProjectSettings
 
   private lazy val scalaProjectSettings = Seq(
-    scalaVersion := "2.12.7",
+    scalaVersion := "2.12.8",
     // See https://tpolecat.github.io/2017/04/25/scalac-flags.html for
     // explanations.
     scalacOptions ++= Seq(

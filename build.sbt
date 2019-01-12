@@ -90,6 +90,7 @@ lazy val server = project
       "org.tpolecat" %% "doobie-hikari" % "0.6.0",
       "mysql" % "mysql-connector-java" % "8.0.13",
       "com.typesafe.akka" %% "akka-http" % "10.1.7",
+      "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.7",
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.19",
       "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.2",
       "com.typesafe.play" %% "play-json" % "2.6.13",

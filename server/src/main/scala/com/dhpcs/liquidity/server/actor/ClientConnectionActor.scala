@@ -61,7 +61,13 @@ object ClientConnectionActor {
     : Behavior[ClientConnectionMessage] =
     Behaviors.setup { context =>
       context.watchWith(zoneNotificationOut, ConnectionClosed)
-      context.log.info(s"Starting for ${publicKey.fingerprint}@$remoteAddress")
+      context.log
+        .withMdc(
+          Map(
+            "publicKey.fingerprint" -> publicKey.fingerprint,
+            "remoteAddress" -> remoteAddress
+          ))
+        .info("Starting")
       zoneValidatorShardRegion ! ZoneNotificationSubscription(
         context.self,
         zoneId,
@@ -92,11 +98,14 @@ object ClientConnectionActor {
                                       sequenceNumber,
                                       zoneNotification) =>
           if (sequenceNumber != expectedSequenceNumber) {
-            context.log.warning(
-              s"Rejoining for ${publicKey.fingerprint}@$remoteAddress due " +
-                "to unexpected sequence number " +
-                s"($sequenceNumber != $expectedSequenceNumber)"
-            )
+            context.log
+              .withMdc(
+                Map(
+                  "publicKey.fingerprint" -> publicKey.fingerprint,
+                  "remoteAddress" -> remoteAddress
+                ))
+              .info("Rejoining due to unexpected sequence number " +
+                s"($sequenceNumber != $expectedSequenceNumber)")
             zoneValidatorShardRegion ! ZoneNotificationSubscription(
               context.self,
               zoneId,
@@ -114,9 +123,13 @@ object ClientConnectionActor {
           } else {
             zoneNotification match {
               case ZoneStateNotification(None, _) =>
-                context.log.warning(
-                  s"Stopping for ${publicKey.fingerprint}@$remoteAddress " +
-                    "because zone does not exist")
+                context.log
+                  .withMdc(
+                    Map(
+                      "publicKey.fingerprint" -> publicKey.fingerprint,
+                      "remoteAddress" -> remoteAddress
+                    ))
+                  .info("Stopping because zone does not exist")
                 Behaviors.stopped
 
               case _ =>
@@ -140,14 +153,23 @@ object ClientConnectionActor {
           }
 
         case ConnectionClosed =>
-          context.log.info(
-            s"Stopping for ${publicKey.fingerprint}@$remoteAddress")
+          context.log
+            .withMdc(
+              Map(
+                "publicKey.fingerprint" -> publicKey.fingerprint,
+                "remoteAddress" -> remoteAddress
+              ))
+            .info("Stopping")
           Behaviors.stopped
 
         case ZoneTerminated =>
-          context.log.warning(
-            s"Stopping for ${publicKey.fingerprint}@$remoteAddress due to " +
-              "zone termination")
+          context.log
+            .withMdc(
+              Map(
+                "publicKey.fingerprint" -> publicKey.fingerprint,
+                "remoteAddress" -> remoteAddress
+              ))
+            .info("Stopping due to zone termination")
           Behaviors.stopped
     }) receiveSignal {
       case (_, PostStop) =>

@@ -12,7 +12,7 @@
                         {
                             "level" : "%level",
                             "logger" : "%logger",
-                            "akkaSource" : "%X{akkaSource}",
+                            "mdc" : "%mdc",
                             "message" : "%message"
                         }
                     </pattern>

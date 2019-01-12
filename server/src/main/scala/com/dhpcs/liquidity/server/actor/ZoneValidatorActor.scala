@@ -71,7 +71,12 @@ object ZoneValidatorActor {
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
     Behaviors
       .setup[ZoneValidatorMessage] { context =>
-        context.log.info("Starting")
+        context.log
+          .withMdc(
+            Map(
+              "zone" -> entityId
+            ))
+          .info("Starting")
         context.setReceiveTimeout(PassivationTimeout, StopZone)
         val mediator = DistributedPubSub(context.system.toUntyped).mediator
         val notificationSequenceNumbers =
@@ -89,7 +94,12 @@ object ZoneValidatorActor {
           commandHandler = (state, command) =>
             command match {
               case StopZone =>
-                context.log.info("Stopping")
+                context.log
+                  .withMdc(
+                    Map(
+                      "zone" -> entityId
+                    ))
+                  .info("Stopping")
                 Effect.stop()
 
               case GetZoneStateCommand(replyTo, _) =>

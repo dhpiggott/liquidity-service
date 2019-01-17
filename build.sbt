@@ -95,7 +95,7 @@ lazy val server = project
       "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.2",
       "com.typesafe.play" %% "play-json" % "2.6.13",
       "de.heikoseeberger" %% "akka-http-play-json" % "1.23.0",
-      "com.nimbusds" % "nimbus-jose-jwt" % "6.5.1"
+      "com.nimbusds" % "nimbus-jose-jwt" % "6.6"
     ),
     dependencyOverrides += "com.zaxxer" % "HikariCP" % "2.7.8"
   )

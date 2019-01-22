@@ -75,7 +75,7 @@ lazy val server = project
       "com.chuusai" %% "shapeless" % "2.3.3",
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.19",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "net.logstash.logback" % "logstash-logback-encoder" % "5.2",
+      "net.logstash.logback" % "logstash-logback-encoder" % "5.3",
       "com.lightbend.akka.discovery" %% "akka-discovery-config" % "0.20.0",
       "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "0.20.0",
       "com.lightbend.akka.management" %% "akka-management-cluster-http" % "0.20.0",

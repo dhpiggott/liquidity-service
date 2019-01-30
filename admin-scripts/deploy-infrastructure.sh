@@ -76,20 +76,17 @@ ALB_LISTENER_CERTIFICATE=$(
       "CertificateSummaryList[?DomainName=='*.liquidityapp.com'].CertificateArn"
 )
 
-aws cloudformation "$ACTION"-stack \
+aws cloudformation deploy \
   --region "$REGION" \
   --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
-  --template-body file://"$DIR"/../cfn-templates/liquidity-infrastructure.yaml \
-  --parameters \
-    ParameterKey=VPCId,ParameterValue="$VPC_ID" \
-    ParameterKey=Subnets,ParameterValue=\""$SUBNETS"\" \
-    ParameterKey=RDSUsername,ParameterValue="$MYSQL_USERNAME" \
-    ParameterKey=RDSPassword,ParameterValue="$MYSQL_PASSWORD" \
-    ParameterKey=ALBListenerCertificate,ParameterValue="$ALB_LISTENER_CERTIFICATE"
-
-aws cloudformation wait stack-"$ACTION"-complete \
-  --region "$REGION" \
-  --stack-name liquidity-infrastructure-"$ENVIRONMENT"
+  --template-file "$DIR"/../cfn-templates/liquidity-infrastructure.yaml \
+  --no-fail-on-empty-changeset \
+  --parameter-overrides \
+      VPCId="$VPC_ID" \
+      Subnets="$SUBNETS" \
+      RDSUsername="$MYSQL_USERNAME" \
+      RDSPassword="$MYSQL_PASSWORD" \
+      ALBListenerCertificate="$ALB_LISTENER_CERTIFICATE"
 
 if [ "$ACTION" = "create" ]
   then

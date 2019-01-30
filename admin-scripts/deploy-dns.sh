@@ -14,23 +14,11 @@ REGION=$1
 ENVIRONMENT=$2
 SUBDOMAIN=$3
 
-if ! aws cloudformation describe-stacks \
-       --region "$REGION" \
-       --stack-name liquidity-dns-"$SUBDOMAIN"
-then
-  ACTION="create"
-else
-  ACTION="update"
-fi
-
-aws cloudformation "$ACTION"-stack \
+aws cloudformation deploy \
   --region "$REGION" \
   --stack-name liquidity-dns-"$SUBDOMAIN" \
-  --template-body file://"$DIR"/../cfn-templates/liquidity-dns.yaml \
-  --parameters \
-    ParameterKey=InfrastructureStack,ParameterValue=liquidity-infrastructure-"$ENVIRONMENT" \
-    ParameterKey=Subdomain,ParameterValue="$SUBDOMAIN"
-
-aws cloudformation wait stack-"$ACTION"-complete \
-  --region "$REGION" \
-  --stack-name liquidity-dns-"$SUBDOMAIN"
+  --template-file "$DIR"/../cfn-templates/liquidity-dns.yaml \
+  --no-fail-on-empty-changeset \
+  --parameter-overrides \
+      InfrastructureStack=liquidity-infrastructure-"$ENVIRONMENT" \
+      Subdomain="$SUBDOMAIN"

@@ -13,15 +13,6 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 REGION=$1
 ENVIRONMENT=$2
 
-if ! aws cloudformation describe-stacks \
-       --region "$REGION" \
-       --stack-name liquidity-service-"$ENVIRONMENT"
-then
-  ACTION="create"
-else
-  ACTION="update"
-fi
-
 VPC_ID=$(
   aws ec2 describe-vpcs \
     --region "$REGION" \
@@ -47,16 +38,13 @@ TAG=$(
     --dirty
 )
 
-aws cloudformation "$ACTION"-stack \
+aws cloudformation deploy \
   --region "$REGION" \
   --stack-name liquidity-service-"$ENVIRONMENT" \
-  --template-body file://"$DIR"/../cfn-templates/liquidity-service.yaml \
+  --template-file "$DIR"/../cfn-templates/liquidity-service.yaml \
+  --no-fail-on-empty-changeset \
   --capabilities CAPABILITY_IAM \
-  --parameters \
-    ParameterKey=InfrastructureStack,ParameterValue=liquidity-infrastructure-"$ENVIRONMENT" \
-    ParameterKey=Subnets,ParameterValue=\""$SUBNETS"\" \
-    ParameterKey=Tag,ParameterValue="$TAG"
-
-aws cloudformation wait stack-"$ACTION"-complete \
-  --region "$REGION" \
-  --stack-name liquidity-service-"$ENVIRONMENT"
+  --parameter-overrides \
+      InfrastructureStack=liquidity-infrastructure-"$ENVIRONMENT" \
+      Subnets="$SUBNETS" \
+      Tag="$TAG"

@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  IAMUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "liquidity-travis-${AWS::Region}"
+      Policies:
+        - PolicyName: "liquidity-travis"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:DescribeImages
+                  - ecr:DescribeRepositories
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:ListImages
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource:
+                  - arn:aws:ecr:*:*:repository/liquidity-infrastructure-*
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListExports
+                  - cloudformation:ListImports
+                  - cloudformation:ListStacks
+                  - cloudformation:ValidateTemplate
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudformation:CancelUpdateStack
+                  - cloudformation:ContinueUpdateRollback
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:CreateStack
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResourceDrifts
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DetectStackDrift
+                  - cloudformation:DetectStackResourceDrift
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:GetStackPolicy
+                  - cloudformation:GetTemplate
+                  - cloudformation:ListChangeSets
+                  - cloudformation:ListStackResources
+                  - cloudformation:SetStackPolicy
+                  - cloudformation:SignalResource
+                  - cloudformation:UpdateStack
+                  - cloudformation:UpdateTerminationProtection
+                Resource:
+                  - arn:aws:cloudformation:*:*:stack/liquidity-*/*
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:PassRole
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecs:DeregisterTaskDefinition
+                  - ecs:DescribeServices
+                  - ecs:RegisterTaskDefinition
+                  - ecs:UpdateService
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeClusters
+                Resource:
+                  - arn:aws:ecs:*:*:cluster/liquidity-service-*

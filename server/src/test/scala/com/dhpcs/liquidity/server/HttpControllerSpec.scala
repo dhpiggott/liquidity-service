@@ -36,7 +36,7 @@ import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jose.util.Base64
-import com.nimbusds.jose.{JWSAlgorithm, JWSHeader}
+import com.nimbusds.jose.{JWSAlgorithm, JWSHeader, JWSObject, Payload}
 import com.nimbusds.jwt.{JWTClaimsSet, SignedJWT}
 import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.scalatest.FreeSpec
@@ -90,6 +90,42 @@ class HttpControllerSpec
                   .oAuth2(realm = null)
                   .copy(
                     params = Map("error" -> "Token must be a signed JWT.")
+                  )
+              )
+            )
+          )
+          import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+          assert(entityAs[String] === StatusCodes.Unauthorized.defaultMessage)
+        }
+      }
+      "when the token payload is not JSON" in {
+        val getRequest =
+          RequestBuilding
+            .Get("/akka-management")
+            .withHeaders(
+              Authorization(
+                OAuth2BearerToken(
+                  {
+                    val signedJwt = new JWSObject(
+                      new JWSHeader.Builder(JWSAlgorithm.RS256)
+                        .build(),
+                      new Payload("")
+                    )
+                    signedJwt.sign(new RSASSASigner(rsaPrivateKey))
+                    signedJwt.serialize()
+                  }
+                )
+              )
+            )
+        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+          assert(status === StatusCodes.Unauthorized)
+          assert(
+            header[`WWW-Authenticate`].contains(
+              `WWW-Authenticate`(
+                HttpChallenges
+                  .oAuth2(realm = null)
+                  .copy(
+                    params = Map("error" -> "Token payload must be JSON.")
                   )
               )
             )

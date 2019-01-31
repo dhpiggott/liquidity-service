@@ -92,7 +92,10 @@ trait HttpController {
       signedJwt <- Try(SignedJWT.parse(token))
         .map(provide)
         .getOrElse(unauthorized("Token must be a signed JWT."))
-      subject <- Option(signedJwt.getJWTClaimsSet.getSubject)
+      claims <- Try(signedJwt.getJWTClaimsSet)
+        .map(provide)
+        .getOrElse(unauthorized("Token payload must be JSON."))
+      subject <- Option(claims.getSubject)
         .map(provide)
         .getOrElse(unauthorized("Token claims must contain a subject."))
       rsaPublicKey <- Try(

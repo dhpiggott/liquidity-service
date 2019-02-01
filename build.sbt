@@ -85,7 +85,7 @@ lazy val server = project
       "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.20",
       "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.20",
       "com.typesafe.akka" %% "akka-persistence-query" % "2.5.20",
-      "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
+      "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.5.0",
       "org.tpolecat" %% "doobie-core" % "0.6.0",
       "org.tpolecat" %% "doobie-hikari" % "0.6.0",
       "mysql" % "mysql-connector-java" % "8.0.14",

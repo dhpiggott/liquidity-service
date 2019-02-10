@@ -12,15 +12,8 @@ Resources:
       RecordSets:
         - AliasTarget:
             HostedZoneId:
-              Fn::ImportValue: !Sub "${NetworkStack}-ALBCanonicalHostedZoneID"
+              Fn::ImportValue: !Sub "${NetworkStack}-NLBCanonicalHostedZoneID"
             DNSName:
-              Fn::ImportValue: !Sub "${NetworkStack}-ALBDNSName"
+              Fn::ImportValue: !Sub "${NetworkStack}-NLBDNSName"
           Name: !Sub "${Subdomain}.liquidityapp.com"
           Type: A
-        - AliasTarget:
-            HostedZoneId:
-              Fn::ImportValue: !Sub "${NetworkStack}-ALBCanonicalHostedZoneID"
-            DNSName:
-              Fn::ImportValue: !Sub "${NetworkStack}-ALBDNSName"
-          Name: !Sub "${Subdomain}.liquidityapp.com"
-          Type: AAAA

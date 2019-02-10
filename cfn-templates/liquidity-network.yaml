@@ -4,48 +4,37 @@ Parameters:
     Type: AWS::EC2::VPC::Id
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
-  ALBListenerCertificate:
+  NLBListenerCertificate:
     Type: String
 Resources:
-  ALBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: !Sub "${AWS::StackName}-alb"
-      SecurityGroupIngress:
-        - IpProtocol: "tcp"
-          FromPort: 443
-          ToPort: 443
-          CidrIp: "0.0.0.0/0"
-        - IpProtocol: "tcp"
-          FromPort: 443
-          ToPort: 443
-          CidrIpv6: "::/0"
-  ALB:
+  NLB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
+      Type: network
       Subnets: !Ref Subnets
-      IpAddressType: dualstack
-      SecurityGroups:
-        - !GetAtt ALBSecurityGroup.GroupId
-  ALBTargetGroup:
+  NLBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !Ref VPCId
       TargetType: ip
-      Protocol: "HTTP"
+      Protocol: TCP
       Port: 80
+      HealthCheckProtocol: HTTP
       HealthCheckPath: "/status"
-  ALBListener:
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 0
+  NLBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !Ref ALB
-      Protocol: HTTPS
+      LoadBalancerArn: !Ref NLB
+      Protocol: TLS
       Port: 443
       Certificates:
-        - CertificateArn: !Ref ALBListenerCertificate
+        - CertificateArn: !Ref NLBListenerCertificate
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref ALBTargetGroup
+          TargetGroupArn: !Ref NLBTargetGroup
   SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -56,12 +45,12 @@ Resources:
   UnHealthyHostCountAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      Namespace: AWS/ApplicationELB
+      Namespace: AWS/NetworkELB
       Dimensions:
         - Name: LoadBalancer
-          Value: !Ref ALB
+          Value: !Ref NLB
         - Name: TargetGroup
-          Value: !Ref ALBTargetGroup
+          Value: !Ref NLBTargetGroup
       MetricName: UnHealthyHostCount
       Statistic: Maximum
       Period: 60
@@ -75,60 +64,16 @@ Resources:
         - !Ref SNSTopic
       OKActions:
         - !Ref SNSTopic
-  HTTPCodeELB5XXCountAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      Namespace: AWS/ApplicationELB
-      Dimensions:
-        - Name: LoadBalancer
-          Value: !GetAtt ALB.LoadBalancerFullName
-      MetricName: HTTPCode_ELB_5XX_Count
-      Statistic: Sum
-      Period: 60
-      EvaluationPeriods: 1
-      Threshold: 0
-      ComparisonOperator: GreaterThanThreshold
-      TreatMissingData: notBreaching
-      InsufficientDataActions:
-        - !Ref SNSTopic
-      AlarmActions:
-        - !Ref SNSTopic
-      OKActions:
-        - !Ref SNSTopic
-  HTTPCodeTarget5XXCountAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      Namespace: AWS/ApplicationELB
-      Dimensions:
-        - Name: LoadBalancer
-          Value: !GetAtt ALB.LoadBalancerFullName
-      MetricName: HTTPCode_Target_5XX_Count
-      Statistic: Sum
-      Period: 60
-      EvaluationPeriods: 1
-      Threshold: 0
-      ComparisonOperator: GreaterThanThreshold
-      TreatMissingData: notBreaching
-      InsufficientDataActions:
-        - !Ref SNSTopic
-      AlarmActions:
-        - !Ref SNSTopic
-      OKActions:
-        - !Ref SNSTopic
 Outputs:
-  ALBSecurityGroup:
-    Value: !GetAtt ALBSecurityGroup.GroupId
+  NLBTargetGroup:
+    Value: !Ref NLBTargetGroup
     Export:
-      Name: !Sub "${AWS::StackName}-ALBSecurityGroup"
-  ALBTargetGroup:
-    Value: !Ref ALBTargetGroup
+      Name: !Sub "${AWS::StackName}-NLBTargetGroup"
+  NLBCanonicalHostedZoneID:
+    Value: !GetAtt NLB.CanonicalHostedZoneID
     Export:
-      Name: !Sub "${AWS::StackName}-ALBTargetGroup"
-  ALBCanonicalHostedZoneID:
-    Value: !GetAtt ALB.CanonicalHostedZoneID
+      Name: !Sub "${AWS::StackName}-NLBCanonicalHostedZoneID"
+  NLBDNSName:
+    Value: !GetAtt NLB.DNSName
     Export:
-      Name: !Sub "${AWS::StackName}-ALBCanonicalHostedZoneID"
-  ALBDNSName:
-    Value: !GetAtt ALB.DNSName
-    Export:
-      Name: !Sub "${AWS::StackName}-ALBDNSName"
+      Name: !Sub "${AWS::StackName}-NLBDNSName"

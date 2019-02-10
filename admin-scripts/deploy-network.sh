@@ -32,7 +32,7 @@ SUBNETS=$(
     --query \
       "Subnets[].SubnetId | join(',', @)"
 )
-ALB_LISTENER_CERTIFICATE=$(
+NLB_LISTENER_CERTIFICATE=$(
   aws acm list-certificates \
     --region "$REGION" \
     --output text \
@@ -48,4 +48,4 @@ aws cloudformation deploy \
   --parameter-overrides \
       VPCId="$VPC_ID" \
       Subnets="$SUBNETS" \
-      ALBListenerCertificate="$ALB_LISTENER_CERTIFICATE"
+      NLBListenerCertificate="$NLB_LISTENER_CERTIFICATE"

@@ -118,7 +118,10 @@ object LiquidityServer {
                |      plugin = "jdbc-snapshot-store"
                |    }
                |  }
-               |  http.server.idle-timeout = 10s
+               |  http.server {
+               |    remote-address-header = on
+               |    idle-timeout = 10s
+               |  }
                |}
                |jdbc-journal.slick = $${slick}
                |jdbc-snapshot-store.slick = $${slick}

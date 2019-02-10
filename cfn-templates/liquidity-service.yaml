@@ -105,8 +105,7 @@ Resources:
         - IpProtocol: "tcp"
           FromPort: 8080
           ToPort: 8080
-          SourceSecurityGroupId:
-            Fn::ImportValue: !Sub "${NetworkStack}-ALBSecurityGroup"
+          CidrIp: "0.0.0.0/0"
   ServiceSecurityGroupAkkaManagementSelfIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -144,5 +143,5 @@ Resources:
         - ContainerName: liquidity
           ContainerPort: 8080
           TargetGroupArn:
-            Fn::ImportValue: !Sub "${NetworkStack}-ALBTargetGroup"
+            Fn::ImportValue: !Sub "${NetworkStack}-NLBTargetGroup"
       HealthCheckGracePeriodSeconds: 300

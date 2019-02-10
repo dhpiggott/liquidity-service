@@ -31,12 +31,12 @@ jobs:
     - stage: publish-and-deploy
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/publish.sh eu-west-1 prod-blue
-        ./cd-scripts/deploy-service.sh eu-west-1 prod-blue
+        ./cd-scripts/publish.sh eu-west-1 prod-1
+        ./cd-scripts/deploy-service.sh eu-west-1 prod-1 prod-1 prod-1
     - stage: test-deployment
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/test-deployment.sh eu-west-1 prod-blue api
+        ./cd-scripts/test-deployment.sh eu-west-1 api prod-1
     - stage: release
       script: |
         # So sbt-dynver derives the version correctly

@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-if [ $# -ne 4 ]
+if [ $# -ne 2 ]
   then
-    echo "Usage: $0 region environment state-environment network-environment"
+    echo "Usage: $0 region environment"
     exit 1
 fi
 
@@ -12,8 +12,6 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 REGION=$1
 ENVIRONMENT=$2
-STATE_ENVIRONMENT=$3
-NETWORK_ENVIRONMENT=$4
 
 VPC_ID=$(
   aws ec2 describe-vpcs \
@@ -34,20 +32,20 @@ SUBNETS=$(
     --query \
       "Subnets[].SubnetId | join(',', @)"
 )
-TAG=$(
-  git describe \
-    --always \
-    --dirty
+ALB_LISTENER_CERTIFICATE=$(
+  aws acm list-certificates \
+    --region "$REGION" \
+    --output text \
+    --query \
+      "CertificateSummaryList[?DomainName=='*.liquidityapp.com'].CertificateArn"
 )
 
 aws cloudformation deploy \
   --region "$REGION" \
-  --stack-name liquidity-service-"$ENVIRONMENT" \
-  --template-file "$DIR"/../cfn-templates/liquidity-service.yaml \
+  --stack-name liquidity-network-"$ENVIRONMENT" \
+  --template-file "$DIR"/../cfn-templates/liquidity-network.yaml \
   --no-fail-on-empty-changeset \
-  --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-      StateStack=liquidity-state-"$STATE_ENVIRONMENT" \
-      NetworkStack=liquidity-network-"$NETWORK_ENVIRONMENT" \
+      VPCId="$VPC_ID" \
       Subnets="$SUBNETS" \
-      Tag="$TAG"
+      ALBListenerCertificate="$ALB_LISTENER_CERTIFICATE"

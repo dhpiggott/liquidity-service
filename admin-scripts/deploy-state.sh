@@ -15,7 +15,7 @@ ENVIRONMENT=$2
 
 if ! aws cloudformation describe-stacks \
        --region "$REGION" \
-       --stack-name liquidity-infrastructure-"$ENVIRONMENT"
+       --stack-name liquidity-state-"$ENVIRONMENT"
 then
   ACTION="create"
 else
@@ -31,19 +31,19 @@ case $ACTION in
     MYSQL_USERNAME=$(
       aws cloudformation describe-stacks \
         --region "$REGION" \
-        --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
+        --stack-name liquidity-state-"$ENVIRONMENT" \
         --output text \
         --query \
-          "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
+          "Stacks[?StackName=='liquidity-state-$ENVIRONMENT'] \
           | [0].Outputs[?OutputKey=='RDSUsername'].OutputValue"
     )
     MYSQL_PASSWORD=$(
       aws cloudformation describe-stacks \
         --region "$REGION" \
-        --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
+        --stack-name liquidity-state-"$ENVIRONMENT" \
         --output text \
         --query \
-          "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
+          "Stacks[?StackName=='liquidity-state-$ENVIRONMENT'] \
           | [0].Outputs[?OutputKey=='RDSPassword'].OutputValue"
     )
     ;;
@@ -68,25 +68,16 @@ SUBNETS=$(
     --query \
       "Subnets[].SubnetId | join(',', @)"
 )
-ALB_LISTENER_CERTIFICATE=$(
-  aws acm list-certificates \
-    --region "$REGION" \
-    --output text \
-    --query \
-      "CertificateSummaryList[?DomainName=='*.liquidityapp.com'].CertificateArn"
-)
 
 aws cloudformation deploy \
   --region "$REGION" \
-  --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
-  --template-file "$DIR"/../cfn-templates/liquidity-infrastructure.yaml \
+  --stack-name liquidity-state-"$ENVIRONMENT" \
+  --template-file "$DIR"/../cfn-templates/liquidity-state.yaml \
   --no-fail-on-empty-changeset \
   --parameter-overrides \
-      VPCId="$VPC_ID" \
       Subnets="$SUBNETS" \
       RDSUsername="$MYSQL_USERNAME" \
-      RDSPassword="$MYSQL_PASSWORD" \
-      ALBListenerCertificate="$ALB_LISTENER_CERTIFICATE"
+      RDSPassword="$MYSQL_PASSWORD"
 
 if [ "$ACTION" = "create" ]
   then

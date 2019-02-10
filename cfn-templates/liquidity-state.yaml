@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+  RDSUsername:
+    Type: String
+  RDSPassword:
+    Type: String
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AWS::StackName
+      LifecyclePolicy:
+        LifecyclePolicyText: "{\"rules\":[{\"rulePriority\":1,\"selection\":{\"tagStatus\":\"any\",\"countType\":\"imageCountMoreThan\",\"countNumber\":1},\"action\":{\"type\":\"expire\"}}]}"
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub "${AWS::StackName}"
+      SubnetIds: !Ref Subnets
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName}-rds"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          CidrIpv6: "::/0"
+  RDSParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: !Ref AWS::StackName
+      Family: mysql8.0
+      Parameters:
+        character-set-client-handshake: 0
+  RDS:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: MySQL
+      EngineVersion: "8.0"
+      DBInstanceClass: db.t2.micro
+      StorageType: gp2
+      AllocatedStorage: "20"
+      BackupRetentionPeriod: "30"
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      PubliclyAccessible: true
+      VPCSecurityGroups:
+        - !GetAtt RDSSecurityGroup.GroupId
+      DBParameterGroupName: !Ref RDSParameterGroup
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+Outputs:
+  RDSHostname:
+    Value: !GetAtt RDS.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSHostname"
+  RDSUsername:
+    Value: !Ref RDSUsername
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSUsername"
+  RDSPassword:
+    Value: !Ref RDSPassword
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSPassword"

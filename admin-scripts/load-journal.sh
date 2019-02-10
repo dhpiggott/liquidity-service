@@ -17,28 +17,28 @@ INPUT_DIRECTORY=$3
 MYSQL_HOSTNAME=$(
   aws cloudformation describe-stacks \
     --region "$REGION" \
-    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
+    --stack-name liquidity-state-"$ENVIRONMENT" \
     --output text \
     --query \
-      "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
+      "Stacks[?StackName=='liquidity-state-$ENVIRONMENT'] \
       | [0].Outputs[?OutputKey=='RDSHostname'].OutputValue"
 )
 MYSQL_USERNAME=$(
   aws cloudformation describe-stacks \
     --region "$REGION" \
-    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
+    --stack-name liquidity-state-"$ENVIRONMENT" \
     --output text \
     --query \
-      "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
+      "Stacks[?StackName=='liquidity-state-$ENVIRONMENT'] \
       | [0].Outputs[?OutputKey=='RDSUsername'].OutputValue"
 )
 MYSQL_PASSWORD=$(
   aws cloudformation describe-stacks \
     --region "$REGION" \
-    --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
+    --stack-name liquidity-state-"$ENVIRONMENT" \
     --output text \
     --query \
-      "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
+      "Stacks[?StackName=='liquidity-state-$ENVIRONMENT'] \
       | [0].Outputs[?OutputKey=='RDSPassword'].OutputValue"
 )
 

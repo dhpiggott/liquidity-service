@@ -1,6 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
-  InfrastructureStack:
+  StateStack:
+    Type: String
+  NetworkStack:
     Type: String
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
@@ -65,7 +67,7 @@ Resources:
       ContainerDefinitions:
         - Name: liquidity
           Image:
-            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${InfrastructureStack}:${Tag}"
+            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StateStack}:${Tag}"
           ReadonlyRootFilesystem: true
           PortMappings:
           - ContainerPort: 8080
@@ -88,13 +90,13 @@ Resources:
                 -Dakka.cluster.roles.2=analytics"
             - Name: MYSQL_HOSTNAME
               Value:
-                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSHostname"
+                Fn::ImportValue: !Sub "${StateStack}-RDSHostname"
             - Name: MYSQL_USERNAME
               Value:
-                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSUsername"
+                Fn::ImportValue: !Sub "${StateStack}-RDSUsername"
             - Name: MYSQL_PASSWORD
               Value:
-                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSPassword"
+                Fn::ImportValue: !Sub "${StateStack}-RDSPassword"
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -104,7 +106,7 @@ Resources:
           FromPort: 8080
           ToPort: 8080
           SourceSecurityGroupId:
-            Fn::ImportValue: !Sub "${InfrastructureStack}-ALBSecurityGroup"
+            Fn::ImportValue: !Sub "${NetworkStack}-ALBSecurityGroup"
   ServiceSecurityGroupAkkaManagementSelfIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -142,5 +144,5 @@ Resources:
         - ContainerName: liquidity
           ContainerPort: 8080
           TargetGroupArn:
-            Fn::ImportValue: !Sub "${InfrastructureStack}-ALBTargetGroup"
+            Fn::ImportValue: !Sub "${NetworkStack}-ALBTargetGroup"
       HealthCheckGracePeriodSeconds: 300

@@ -29,19 +29,19 @@ ECR_LOGIN_COMMAND=$(
 )
 $ECR_LOGIN_COMMAND
 
-INFRASTRUCTURE_STACK=liquidity-infrastructure-$ENVIRONMENT
+STATE_STACK=liquidity-state-$ENVIRONMENT
 
 sbt ";server/docker:publishLocal"
 
 docker tag \
   liquidity:"$TAG" \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$INFRASTRUCTURE_STACK":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$STATE_STACK":"$TAG"
 
 docker push \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$INFRASTRUCTURE_STACK":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$STATE_STACK":"$TAG"
 
 docker rmi \
   liquidity:"$TAG"
 
 docker rmi \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$INFRASTRUCTURE_STACK":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$STATE_STACK":"$TAG"

@@ -12,11 +12,11 @@ import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.Entity
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed._
-import akka.discovery.awsapi.ecs.AsyncEcsSimpleServiceDiscovery
+import akka.discovery.awsapi.ecs.AsyncEcsServiceDiscovery
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.StandardRoute
-import akka.management.AkkaManagement
 import akka.management.cluster.bootstrap.ClusterBootstrap
+import akka.management.scaladsl.AkkaManagement
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query._
 import akka.stream.scaladsl.{Sink, Source}
@@ -61,7 +61,7 @@ object LiquidityServer {
     val mysqlUsername = sys.env("MYSQL_USERNAME")
     val mysqlPassword = sys.env("MYSQL_PASSWORD")
     val privateAddress =
-      AsyncEcsSimpleServiceDiscovery.getContainerAddress match {
+      AsyncEcsServiceDiscovery.getContainerAddress match {
         case Left(error) =>
           log.error(s"$error Halting.")
           sys.exit(1)
@@ -99,6 +99,7 @@ object LiquidityServer {
                |  management.http {
                |    hostname = "${privateAddress.getHostAddress}"
                |    base-path = "akka-management"
+               |    route-providers-read-only = false
                |  }
                |  remote.artery {
                |    enabled = on

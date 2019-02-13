@@ -43,7 +43,7 @@ TAG=$(
 IMAGE_ID=$(
   aws ecr describe-images \
     --region "$REGION" \
-    --repository liquidity-state-"$ENVIRONMENT" \
+    --repository liquidity-state-"$STATE_ENVIRONMENT" \
     --image-ids imageTag="$TAG" \
     --output text \
     --query \

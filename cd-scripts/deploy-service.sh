@@ -34,10 +34,20 @@ SUBNETS=$(
     --query \
       "Subnets[].SubnetId | join(',', @)"
 )
+
 TAG=$(
   git describe \
     --always \
     --dirty
+)
+IMAGE_ID=$(
+  aws ecr describe-images \
+    --region "$REGION" \
+    --repository liquidity-state-"$ENVIRONMENT" \
+    --image-ids imageTag="$TAG" \
+    --output text \
+    --query \
+      "imageDetails[0].imageDigest"
 )
 
 aws cloudformation deploy \
@@ -50,4 +60,4 @@ aws cloudformation deploy \
       StateStack=liquidity-state-"$STATE_ENVIRONMENT" \
       NetworkStack=liquidity-network-"$NETWORK_ENVIRONMENT" \
       Subnets="$SUBNETS" \
-      Tag="$TAG"
+      ImageId="$IMAGE_ID"

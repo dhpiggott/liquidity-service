@@ -16,6 +16,7 @@ AWS_ACCOUNT_ID=$(
     --output text \
     --query 'Account'
 )
+
 TAG=$(
   git describe \
     --always \
@@ -29,19 +30,17 @@ ECR_LOGIN_COMMAND=$(
 )
 $ECR_LOGIN_COMMAND
 
-STATE_STACK=liquidity-state-$ENVIRONMENT
-
 sbt ";server/docker:publishLocal"
 
 docker tag \
   liquidity:"$TAG" \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$STATE_STACK":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-state-"$ENVIRONMENT":"$TAG"
 
 docker push \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$STATE_STACK":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-state-"$ENVIRONMENT":"$TAG"
 
 docker rmi \
   liquidity:"$TAG"
 
 docker rmi \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/"$STATE_STACK":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-state-"$ENVIRONMENT":"$TAG"

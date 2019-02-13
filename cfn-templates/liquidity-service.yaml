@@ -6,7 +6,7 @@ Parameters:
     Type: String
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
-  Tag:
+  ImageId:
     Type: String
 Resources:
   Cluster:
@@ -67,7 +67,7 @@ Resources:
       ContainerDefinitions:
         - Name: liquidity
           Image:
-            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StateStack}:${Tag}"
+            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StateStack}@${ImageId}"
           ReadonlyRootFilesystem: true
           PortMappings:
           - ContainerPort: 8080

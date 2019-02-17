@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-sbt ";scalafmtSbtCheck ;scalafmtCheck ;server/test:scalafmtCheck
+sbt ";scalafmtSbtCheck ;scalafmtCheck ;service/test:scalafmtCheck
   ;coverage
-  ;server/test
+  ;service/test
   ;coverageReport"

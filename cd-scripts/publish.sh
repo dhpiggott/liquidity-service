@@ -30,7 +30,7 @@ ECR_LOGIN_COMMAND=$(
 )
 $ECR_LOGIN_COMMAND
 
-sbt ";server/docker:publishLocal"
+sbt ";service/docker:publishLocal"
 
 docker tag \
   liquidity:"$TAG" \

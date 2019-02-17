@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-sbt ";server/it:scalafmtCheck
-  ;server/docker:publishLocal
-  ;server/it:testOnly *LiquidityServerComponentSpec
-  ;server/docker:clean"
+sbt ";service/it:scalafmtCheck
+  ;service/docker:publishLocal
+  ;service/it:testOnly *LiquidityServerComponentSpec
+  ;service/docker:clean"

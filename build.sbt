@@ -64,8 +64,8 @@ lazy val model = project
     "com.typesafe.akka" %% "akka-actor-typed" % "2.5.21"
   ))
 
-lazy val server = project
-  .in(file("server"))
+lazy val service = project
+  .in(file("service"))
   .settings(
     version := "git describe --always --dirty".!!.trim()
   )
@@ -121,7 +121,7 @@ lazy val server = project
     DockerPlugin
   )
   .settings(
-    buildInfoPackage := "com.dhpcs.liquidity.server",
+    buildInfoPackage := "com.dhpcs.liquidity.service",
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq(version),
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),

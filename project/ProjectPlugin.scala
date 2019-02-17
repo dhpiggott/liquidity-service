@@ -9,9 +9,9 @@ object ProjectPlugin extends AutoPlugin {
     addCommandAlias(
       "validate",
       ";scalafmtSbtCheck ;scalafmtCheck " +
-        ";server/test:scalafmtCheck ;server/test " +
-        ";server/it:scalafmtCheck ;server/docker:publishLocal " +
-        ";server/it:testOnly *LiquidityServerComponentSpec ;server/docker:clean"
+        ";service/test:scalafmtCheck ;service/test " +
+        ";service/it:scalafmtCheck ;service/docker:publishLocal " +
+        ";service/it:testOnly *LiquidityServerComponentSpec ;service/docker:clean"
     )
 
   override def projectSettings: Seq[Setting[_]] =

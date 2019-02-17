@@ -41,4 +41,4 @@ MYSQL_PASSWORD=$(
 )
 
 (export SUBDOMAIN MYSQL_HOSTNAME MYSQL_USERNAME MYSQL_PASSWORD && \
-  sbt ";server/it:testOnly *LiquidityServerIntegrationSpec")
+  sbt ";service/it:testOnly *LiquidityServerIntegrationSpec")

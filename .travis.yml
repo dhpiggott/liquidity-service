@@ -29,9 +29,11 @@ jobs:
       script: |
         ./cd-scripts/test-component.sh
     - stage: publish-and-deploy
+        # So sbt-dynver derives the version correctly
       script: |
+        git fetch --unshallow &&
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/publish.sh eu-west-1 prod-1
+        ./cd-scripts/publish.sh eu-west-1 prod-1 &&
         ./cd-scripts/deploy-service.sh eu-west-1 prod-1 prod-1 prod-1
     - stage: test-deployment
       script: |
@@ -40,7 +42,8 @@ jobs:
     - stage: release
       script: |
         # So sbt-dynver derives the version correctly
-        git fetch --unshallow && ./cd-scripts/release.sh
+        git fetch --unshallow &&
+        ./cd-scripts/release.sh
 cache:
   directories:
     - $HOME/.sbt

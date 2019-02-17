@@ -1,5 +1,6 @@
 import sbt.Keys._
 import sbt._
+import sbtdynver.DynVerPlugin.autoImport._
 
 object ProjectPlugin extends AutoPlugin {
 
@@ -16,6 +17,7 @@ object ProjectPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Setting[_]] =
     scalaProjectSettings ++
+      dynVerSettings ++
       testProjectSettings
 
   private lazy val scalaProjectSettings = Seq(
@@ -70,6 +72,11 @@ object ProjectPlugin extends AutoPlugin {
       "-Ywarn-unused:privates",
       "-Ywarn-value-discard"
     )
+  )
+
+  private lazy val dynVerSettings = Seq(
+    dynver in ThisBuild ~= (_.replace('+', '-')),
+    version in ThisBuild ~= (_.replace('+', '-'))
   )
 
   private lazy val testProjectSettings = Seq(

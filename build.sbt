@@ -1,5 +1,4 @@
 import org.scalafmt.sbt.ScalafmtPlugin
-import scala.sys.process._
 
 lazy val `ws-protocol` = project
   .in(file("ws-protocol"))
@@ -66,9 +65,6 @@ lazy val model = project
 
 lazy val service = project
   .in(file("service"))
-  .settings(
-    version := "git describe --always --dirty".!!.trim()
-  )
   .dependsOn(model)
   .settings(
     libraryDependencies ++= Seq(

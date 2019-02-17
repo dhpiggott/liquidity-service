@@ -2,4 +2,4 @@
 
 set -euo pipefail
 
-sbt ";ws-protocol/releaseEarly"
+sbt ws-protocol/releaseEarly

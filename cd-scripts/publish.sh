@@ -18,9 +18,10 @@ AWS_ACCOUNT_ID=$(
 )
 
 TAG=$(
-  git describe \
-    --always \
-    --dirty
+  sbt -Dsbt.log.noformat=true version \
+    | tail -n 1 \
+    | cut -d " " -f 2 \
+    | tr -d "[:blank:]"
 )
 
 ECR_LOGIN_COMMAND=$(
@@ -30,7 +31,7 @@ ECR_LOGIN_COMMAND=$(
 )
 $ECR_LOGIN_COMMAND
 
-sbt ";service/docker:publishLocal"
+sbt service/docker:publishLocal
 
 docker tag \
   liquidity:"$TAG" \

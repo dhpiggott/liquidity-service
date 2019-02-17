@@ -36,9 +36,10 @@ SUBNETS=$(
 )
 
 TAG=$(
-  git describe \
-    --always \
-    --dirty
+  sbt -Dsbt.log.noformat=true version \
+    | tail -n 1 \
+    | cut -d " " -f 2 \
+    | tr -d "[:blank:]"
 )
 IMAGE_ID=$(
   aws ecr describe-images \

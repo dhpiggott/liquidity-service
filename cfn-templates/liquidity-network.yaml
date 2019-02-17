@@ -29,6 +29,7 @@ Resources:
     Properties:
       LoadBalancerArn: !Ref NLB
       Protocol: TLS
+      SslPolicy: "ELBSecurityPolicy-TLS-1-2-2017-01"
       Port: 443
       Certificates:
         - CertificateArn: !Ref NLBListenerCertificate

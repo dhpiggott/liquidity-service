@@ -43,15 +43,37 @@ Resources:
       Subscription:
         - Protocol: email
           Endpoint: "admin@liquidityapp.com"
+  HealthyHostCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/NetworkELB
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt NLB.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt NLBTargetGroup.TargetGroupFullName
+      MetricName: HealthyHostCount
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      InsufficientDataActions:
+        - !Ref SNSTopic
+      AlarmActions:
+        - !Ref SNSTopic
+      OKActions:
+        - !Ref SNSTopic
   UnHealthyHostCountAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       Namespace: AWS/NetworkELB
       Dimensions:
         - Name: LoadBalancer
-          Value: !Ref NLB
+          Value: !GetAtt NLB.LoadBalancerFullName
         - Name: TargetGroup
-          Value: !Ref NLBTargetGroup
+          Value: !GetAtt NLBTargetGroup.TargetGroupFullName
       MetricName: UnHealthyHostCount
       Statistic: Maximum
       Period: 60

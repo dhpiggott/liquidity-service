@@ -4,7 +4,7 @@ set -euo pipefail
 
 if [ $# -ne 3 ]
   then
-    echo "Usage: $0 region subdomain network-environment"
+    echo "Usage: $0 region subdomain infrastructure-stack-environment"
     exit 1
 fi
 
@@ -12,7 +12,7 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 REGION=$1
 SUBDOMAIN=$2
-NETWORK_ENVIRONMENT=$3
+INFRASTRUCTURE_STACK_ENVIRONMENT=$3
 
 aws cloudformation deploy \
   --region "$REGION" \
@@ -21,4 +21,4 @@ aws cloudformation deploy \
   --no-fail-on-empty-changeset \
   --parameter-overrides \
       Subdomain="$SUBDOMAIN" \
-      NetworkStack=liquidity-network-"$NETWORK_ENVIRONMENT"
+      InfrastructureStack=liquidity-infrastructure-"$INFRASTRUCTURE_STACK_ENVIRONMENT"

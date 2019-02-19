@@ -35,13 +35,13 @@ sbt service/docker:publishLocal
 
 docker tag \
   liquidity:"$TAG" \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-state-"$ENVIRONMENT":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-infrastructure-"$ENVIRONMENT":"$TAG"
 
 docker push \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-state-"$ENVIRONMENT":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-infrastructure-"$ENVIRONMENT":"$TAG"
 
 docker rmi \
   liquidity:"$TAG"
 
 docker rmi \
-  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-state-"$ENVIRONMENT":"$TAG"
+  "$AWS_ACCOUNT_ID".dkr.ecr."$REGION".amazonaws.com/liquidity-infrastructure-"$ENVIRONMENT":"$TAG"

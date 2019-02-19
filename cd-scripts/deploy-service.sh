@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-if [ $# -ne 4 ]
+if [ $# -ne 3 ]
   then
-    echo "Usage: $0 region environment state-environment network-environment"
+    echo "Usage: $0 region environment infrastructure-stack-environment"
     exit 1
 fi
 
@@ -12,28 +12,7 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 REGION=$1
 ENVIRONMENT=$2
-STATE_ENVIRONMENT=$3
-NETWORK_ENVIRONMENT=$4
-
-VPC_ID=$(
-  aws ec2 describe-vpcs \
-    --region "$REGION" \
-    --filters \
-      Name=isDefault,Values=true \
-    --output text \
-    --query \
-      "Vpcs[0].VpcId"
-)
-SUBNETS=$(
-  aws ec2 describe-subnets \
-    --region "$REGION" \
-    --filter \
-      Name=vpcId,Values="$VPC_ID" \
-      Name=defaultForAz,Values=true \
-    --output text \
-    --query \
-      "Subnets[].SubnetId | join(',', @)"
-)
+INFRASTRUCTURE_STACK_ENVIRONMENT=$3
 
 TAG=$(
   sbt -Dsbt.log.noformat=true version \
@@ -44,7 +23,7 @@ TAG=$(
 IMAGE_ID=$(
   aws ecr describe-images \
     --region "$REGION" \
-    --repository liquidity-state-"$STATE_ENVIRONMENT" \
+    --repository liquidity-infrastructure-"$INFRASTRUCTURE_STACK_ENVIRONMENT" \
     --image-ids imageTag="$TAG" \
     --output text \
     --query \
@@ -58,7 +37,5 @@ aws cloudformation deploy \
   --no-fail-on-empty-changeset \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-      StateStack=liquidity-state-"$STATE_ENVIRONMENT" \
-      NetworkStack=liquidity-network-"$NETWORK_ENVIRONMENT" \
-      Subnets="$SUBNETS" \
+      InfrastructureStack=liquidity-infrastructure-"$INFRASTRUCTURE_STACK_ENVIRONMENT" \
       ImageId="$IMAGE_ID"

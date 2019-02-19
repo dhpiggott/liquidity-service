@@ -1,11 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
-  StateStack:
+  InfrastructureStack:
     Type: String
-  NetworkStack:
-    Type: String
-  Subnets:
-    Type: List<AWS::EC2::Subnet::Id>
   ImageId:
     Type: String
 Resources:
@@ -67,7 +63,7 @@ Resources:
       ContainerDefinitions:
         - Name: liquidity
           Image:
-            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StateStack}@${ImageId}"
+            !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${InfrastructureStack}@${ImageId}"
           ReadonlyRootFilesystem: true
           PortMappings:
           - ContainerPort: 8080
@@ -90,17 +86,19 @@ Resources:
                 -Dakka.cluster.roles.2=analytics"
             - Name: MYSQL_HOSTNAME
               Value:
-                Fn::ImportValue: !Sub "${StateStack}-RDSHostname"
+                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSHostname"
             - Name: MYSQL_USERNAME
               Value:
-                Fn::ImportValue: !Sub "${StateStack}-RDSUsername"
+                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSUsername"
             - Name: MYSQL_PASSWORD
               Value:
-                Fn::ImportValue: !Sub "${StateStack}-RDSPassword"
+                Fn::ImportValue: !Sub "${InfrastructureStack}-RDSPassword"
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: !Sub "${AWS::StackName}-service"
+      VpcId:
+        Fn::ImportValue: !Sub "${InfrastructureStack}-VPCId"
       SecurityGroupIngress:
         - IpProtocol: "tcp"
           FromPort: 8080
@@ -128,7 +126,10 @@ Resources:
       Cluster: !Ref Cluster
       NetworkConfiguration:
         AwsvpcConfiguration:
-          Subnets: !Ref Subnets
+          Subnets:
+            - Fn::ImportValue: !Sub "${InfrastructureStack}-SubnetAId"
+            - Fn::ImportValue: !Sub "${InfrastructureStack}-SubnetBId"
+            - Fn::ImportValue: !Sub "${InfrastructureStack}-SubnetCId"
           AssignPublicIp: ENABLED
           SecurityGroups:
             - !GetAtt ServiceSecurityGroup.GroupId
@@ -143,5 +144,5 @@ Resources:
         - ContainerName: liquidity
           ContainerPort: 8080
           TargetGroupArn:
-            Fn::ImportValue: !Sub "${NetworkStack}-NLBTargetGroup"
+            Fn::ImportValue: !Sub "${InfrastructureStack}-NLBTargetGroup"
       HealthCheckGracePeriodSeconds: 300

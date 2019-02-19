@@ -1,0 +1,255 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  RDSUsername:
+    Type: String
+  RDSPassword:
+    Type: String
+  NLBListenerCertificate:
+    Type: String
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 172.31.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref RouteTable
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 172.31.0.0/20
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Sub "${AWS::Region}a"
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-a"
+  SubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref SubnetA
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 172.31.16.0/20
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Sub "${AWS::Region}b"
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-b"
+  SubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref SubnetB
+  SubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 172.31.32.0/20
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Sub "${AWS::Region}c"
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-c"
+  SubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref SubnetC
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref AWS::StackName
+      LifecyclePolicy:
+        LifecyclePolicyText: "{\"rules\":[{\"rulePriority\":1,\"selection\":{\"tagStatus\":\"any\",\"countType\":\"imageCountMoreThan\",\"countNumber\":1},\"action\":{\"type\":\"expire\"}}]}"
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub "${AWS::StackName}"
+      SubnetIds:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName}-rds"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          CidrIpv6: "::/0"
+  RDSParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: !Ref AWS::StackName
+      Family: mysql8.0
+      Parameters:
+        character-set-client-handshake: 0
+  RDS:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: MySQL
+      EngineVersion: "8.0"
+      DBInstanceClass: db.t2.micro
+      StorageType: gp2
+      AllocatedStorage: "20"
+      BackupRetentionPeriod: "30"
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      PubliclyAccessible: true
+      VPCSecurityGroups:
+        - !GetAtt RDSSecurityGroup.GroupId
+      DBParameterGroupName: !Ref RDSParameterGroup
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+  NLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      Subnets:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+  NLBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VPC
+      TargetType: ip
+      Protocol: TCP
+      Port: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: "/status"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 0
+  NLBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref NLB
+      Protocol: TLS
+      SslPolicy: "ELBSecurityPolicy-TLS-1-2-2017-01"
+      Port: 443
+      Certificates:
+        - CertificateArn: !Ref NLBListenerCertificate
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBTargetGroup
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Ref AWS::StackName
+      Subscription:
+        - Protocol: email
+          Endpoint: "admin@liquidityapp.com"
+  HealthyHostCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/NetworkELB
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt NLB.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt NLBTargetGroup.TargetGroupFullName
+      MetricName: HealthyHostCount
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      InsufficientDataActions:
+        - !Ref SNSTopic
+      AlarmActions:
+        - !Ref SNSTopic
+      OKActions:
+        - !Ref SNSTopic
+  UnHealthyHostCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/NetworkELB
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt NLB.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt NLBTargetGroup.TargetGroupFullName
+      MetricName: UnHealthyHostCount
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      InsufficientDataActions:
+        - !Ref SNSTopic
+      AlarmActions:
+        - !Ref SNSTopic
+      OKActions:
+        - !Ref SNSTopic
+Outputs:
+  VPCId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCId"
+  SubnetAId:
+    Value: !Ref SubnetA
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetAId"
+  SubnetBId:
+    Value: !Ref SubnetB
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetBId"
+  SubnetCId:
+    Value: !Ref SubnetC
+    Export:
+      Name: !Sub "${AWS::StackName}-SubnetCId"
+  RDSHostname:
+    Value: !GetAtt RDS.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSHostname"
+  RDSUsername:
+    Value: !Ref RDSUsername
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSUsername"
+  RDSPassword:
+    Value: !Ref RDSPassword
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSPassword"
+  NLBTargetGroup:
+    Value: !Ref NLBTargetGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-NLBTargetGroup"
+  NLBCanonicalHostedZoneID:
+    Value: !GetAtt NLB.CanonicalHostedZoneID
+    Export:
+      Name: !Sub "${AWS::StackName}-NLBCanonicalHostedZoneID"
+  NLBDNSName:
+    Value: !GetAtt NLB.DNSName
+    Export:
+      Name: !Sub "${AWS::StackName}-NLBDNSName"

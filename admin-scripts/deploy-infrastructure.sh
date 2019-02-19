@@ -15,7 +15,7 @@ ENVIRONMENT=$2
 
 if ! aws cloudformation describe-stacks \
        --region "$REGION" \
-       --stack-name liquidity-state-"$ENVIRONMENT"
+       --stack-name liquidity-infrastructure-"$ENVIRONMENT"
 then
   ACTION="create"
 else
@@ -31,53 +31,41 @@ case $ACTION in
     MYSQL_USERNAME=$(
       aws cloudformation describe-stacks \
         --region "$REGION" \
-        --stack-name liquidity-state-"$ENVIRONMENT" \
+        --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
         --output text \
         --query \
-          "Stacks[?StackName=='liquidity-state-$ENVIRONMENT'] \
+          "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
           | [0].Outputs[?OutputKey=='RDSUsername'].OutputValue"
     )
     MYSQL_PASSWORD=$(
       aws cloudformation describe-stacks \
         --region "$REGION" \
-        --stack-name liquidity-state-"$ENVIRONMENT" \
+        --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
         --output text \
         --query \
-          "Stacks[?StackName=='liquidity-state-$ENVIRONMENT'] \
+          "Stacks[?StackName=='liquidity-infrastructure-$ENVIRONMENT'] \
           | [0].Outputs[?OutputKey=='RDSPassword'].OutputValue"
     )
     ;;
 esac
 
-VPC_ID=$(
-  aws ec2 describe-vpcs \
+NLB_LISTENER_CERTIFICATE=$(
+  aws acm list-certificates \
     --region "$REGION" \
-    --filters \
-      Name=isDefault,Values=true \
     --output text \
     --query \
-      "Vpcs[0].VpcId"
-)
-SUBNETS=$(
-  aws ec2 describe-subnets \
-    --region "$REGION" \
-    --filter \
-      Name=vpcId,Values="$VPC_ID" \
-      Name=defaultForAz,Values=true \
-    --output text \
-    --query \
-      "Subnets[].SubnetId | join(',', @)"
+      "CertificateSummaryList[?DomainName=='*.liquidityapp.com'].CertificateArn"
 )
 
 aws cloudformation deploy \
   --region "$REGION" \
-  --stack-name liquidity-state-"$ENVIRONMENT" \
-  --template-file "$DIR"/../cfn-templates/liquidity-state.yaml \
+  --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
+  --template-file "$DIR"/../cfn-templates/liquidity-infrastructure.yaml \
   --no-fail-on-empty-changeset \
   --parameter-overrides \
-      Subnets="$SUBNETS" \
       RDSUsername="$MYSQL_USERNAME" \
-      RDSPassword="$MYSQL_PASSWORD"
+      RDSPassword="$MYSQL_PASSWORD" \
+      NLBListenerCertificate="$NLB_LISTENER_CERTIFICATE"
 
 if [ "$ACTION" = "create" ]
   then

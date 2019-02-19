@@ -33,12 +33,12 @@ jobs:
       script: |
         git fetch --unshallow &&
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/publish.sh eu-west-1 prod-1 &&
-        ./cd-scripts/deploy-service.sh eu-west-1 prod-1 prod-1 prod-1
+        ./cd-scripts/publish.sh eu-west-1 prod-green &&
+        ./cd-scripts/deploy-service.sh eu-west-1 prod-green prod-green
     - stage: test-deployment
       script: |
         pip install --user awscli && export PATH=$PATH:$HOME/.local/bin &&
-        ./cd-scripts/test-deployment.sh eu-west-1 api prod-1
+        ./cd-scripts/test-deployment.sh eu-west-1 api prod-green
     - stage: release
       script: |
         # So sbt-dynver derives the version correctly

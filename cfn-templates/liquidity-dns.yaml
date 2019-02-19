@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
   Subdomain:
     Type: String
-  NetworkStack:
+  InfrastructureStack:
     Type: String
 Resources:
   RecordSetGroup:
@@ -12,8 +12,8 @@ Resources:
       RecordSets:
         - AliasTarget:
             HostedZoneId:
-              Fn::ImportValue: !Sub "${NetworkStack}-NLBCanonicalHostedZoneID"
+              Fn::ImportValue: !Sub "${InfrastructureStack}-NLBCanonicalHostedZoneID"
             DNSName:
-              Fn::ImportValue: !Sub "${NetworkStack}-NLBDNSName"
+              Fn::ImportValue: !Sub "${InfrastructureStack}-NLBDNSName"
           Name: !Sub "${Subdomain}.liquidityapp.com"
           Type: A

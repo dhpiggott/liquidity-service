@@ -26,7 +26,7 @@ Resources:
                   - ecr:PutImage
                   - ecr:UploadLayerPart
                 Resource:
-                  - arn:aws:ecr:*:*:repository/liquidity-state-*
+                  - arn:aws:ecr:*:*:repository/liquidity-infrastructure-*
               - Effect: Allow
                 Action:
                   - ec2:DescribeSecurityGroups

@@ -78,6 +78,58 @@ Resources:
     Properties:
       RouteTableId: !Ref RouteTable
       SubnetId: !Ref SubnetC
+  EndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName}-vpc-endpoint"
+      VpcId: !Ref VPC
+  LogEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.logs"
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+      SecurityGroupIds:
+        - !GetAtt EndpointSecurityGroup.GroupId
+      PrivateDnsEnabled: true
+  EcrEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ecr.dkr"
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+      SecurityGroupIds:
+        - !GetAtt EndpointSecurityGroup.GroupId
+      PrivateDnsEnabled: true
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Gateway
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcId: !Ref VPC
+      RouteTableIds:
+        - !Ref RouteTable
+  EcsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ecs"
+      VpcId: !Ref VPC
+      SubnetIds:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+      SecurityGroupIds:
+        - !GetAtt EndpointSecurityGroup.GroupId
+      PrivateDnsEnabled: true
   Repository:
     Type: AWS::ECR::Repository
     Properties:
@@ -217,6 +269,10 @@ Outputs:
     Value: !Ref VPC
     Export:
       Name: !Sub "${AWS::StackName}-VPCId"
+  EndpointSecurityGroupId:
+    Value: !Ref EndpointSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-EndpointSecurityGroupId"
   SubnetAId:
     Value: !Ref SubnetA
     Export:
@@ -229,6 +285,10 @@ Outputs:
     Value: !Ref SubnetC
     Export:
       Name: !Sub "${AWS::StackName}-SubnetCId"
+  RDSSecurityGroup:
+    Value: !GetAtt RDSSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}-RDSSecurityGroup"
   RDSHostname:
     Value: !GetAtt RDS.Endpoint.Address
     Export:

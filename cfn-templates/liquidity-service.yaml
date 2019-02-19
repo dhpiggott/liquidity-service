@@ -2,6 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Parameters:
   InfrastructureStack:
     Type: String
+  S3PrefixListId:
+    Type: String
   ImageId:
     Type: String
 Resources:
@@ -18,9 +20,9 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
-          - Effect: "Allow"
+          - Effect: Allow
             Principal:
               Service:
                 - "ecs-tasks.amazonaws.com"
@@ -32,9 +34,9 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
-          - Effect: "Allow"
+          - Effect: Allow
             Principal:
               Service:
                 - "ecs-tasks.amazonaws.com"
@@ -43,9 +45,9 @@ Resources:
       Policies:
         - PolicyName: "EcsServiceDiscovery"
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
-              - Effect: "Allow"
+              - Effect: Allow
                 Action:
                   - "ecs:ListTasks"
                   - "ecs:DescribeTasks"
@@ -99,11 +101,39 @@ Resources:
       GroupDescription: !Sub "${AWS::StackName}-service"
       VpcId:
         Fn::ImportValue: !Sub "${InfrastructureStack}-VPCId"
+      SecurityGroupEgress:
+        - IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          DestinationSecurityGroupId:
+            Fn::ImportValue: !Sub "${InfrastructureStack}-RDSSecurityGroup"
+        - IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          DestinationPrefixListId: !Ref S3PrefixListId
       SecurityGroupIngress:
         - IpProtocol: "tcp"
           FromPort: 8080
           ToPort: 8080
           CidrIp: "0.0.0.0/0"
+  EndpointSecurityGroupEndpointIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId:
+        Fn::ImportValue: !Sub "${InfrastructureStack}-EndpointSecurityGroupId"
+      IpProtocol: "tcp"
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !GetAtt ServiceSecurityGroup.GroupId
+  ServiceSecurityGroupEndpointEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt ServiceSecurityGroup.GroupId
+      IpProtocol: "tcp"
+      FromPort: 443
+      ToPort: 443
+      DestinationSecurityGroupId:
+        Fn::ImportValue: !Sub "${InfrastructureStack}-EndpointSecurityGroupId"
   ServiceSecurityGroupAkkaManagementSelfIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -112,6 +142,14 @@ Resources:
       FromPort: 8558
       ToPort: 8558
       SourceSecurityGroupId: !GetAtt ServiceSecurityGroup.GroupId
+  ServiceSecurityGroupAkkaManagementSelfEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt ServiceSecurityGroup.GroupId
+      IpProtocol: "tcp"
+      FromPort: 8558
+      ToPort: 8558
+      DestinationSecurityGroupId: !GetAtt ServiceSecurityGroup.GroupId
   ServiceSecurityGroupAkkaClusterSelfIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -120,6 +158,14 @@ Resources:
       FromPort: 25520
       ToPort: 25520
       SourceSecurityGroupId: !GetAtt ServiceSecurityGroup.GroupId
+  ServiceSecurityGroupAkkaClusterSelfEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt ServiceSecurityGroup.GroupId
+      IpProtocol: "tcp"
+      FromPort: 25520
+      ToPort: 25520
+      DestinationSecurityGroupId: !GetAtt ServiceSecurityGroup.GroupId
   Service:
     Type: AWS::ECS::Service
     Properties:
@@ -130,7 +176,6 @@ Resources:
             - Fn::ImportValue: !Sub "${InfrastructureStack}-SubnetAId"
             - Fn::ImportValue: !Sub "${InfrastructureStack}-SubnetBId"
             - Fn::ImportValue: !Sub "${InfrastructureStack}-SubnetCId"
-          AssignPublicIp: ENABLED
           SecurityGroups:
             - !GetAtt ServiceSecurityGroup.GroupId
       LaunchType: FARGATE

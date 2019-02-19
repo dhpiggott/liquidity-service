@@ -29,9 +29,7 @@ Resources:
                   - arn:aws:ecr:*:*:repository/liquidity-infrastructure-*
               - Effect: Allow
                 Action:
-                  - ec2:DescribeSecurityGroups
-                  - ec2:DescribeSubnets
-                  - ec2:DescribeVpcs
+                  - ec2:DescribePrefixLists
                 Resource: "*"
               - Effect: Allow
                 Action:

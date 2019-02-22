@@ -78,7 +78,7 @@ lazy val service = project
       "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.21",
       "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.21",
       "com.typesafe.akka" %% "akka-persistence-query" % "2.5.21",
-      "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "1.0.0-RC2",
+      "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "1.0.0-RC3",
       "com.lightbend.akka.management" %% "akka-management-cluster-http" % "1.0.0-RC2",
       "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "1.0.0-RC2",
       "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.5.0",

@@ -14,6 +14,7 @@ import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed._
 import akka.discovery.awsapi.ecs.AsyncEcsServiceDiscovery
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.StandardRoute
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
@@ -267,6 +268,20 @@ class LiquidityServer(
     httpInterface,
     httpPort
   )
+
+  override protected[this] def ready: StandardRoute =
+    requestContext =>
+      akkaManagement(
+        requestContext.withRequest(
+          requestContext.request.withUri(Uri("/akka-management/ready")))
+    )
+
+  override protected[this] def alive: StandardRoute =
+    requestContext =>
+      akkaManagement(
+        requestContext.withRequest(
+          requestContext.request.withUri(Uri("/akka-management/alive")))
+    )
 
   override protected[this] def isAdministrator(
       publicKey: PublicKey): Future[Boolean] =

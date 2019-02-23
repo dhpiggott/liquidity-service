@@ -50,6 +50,8 @@ trait HttpController {
   protected[this] def httpRoutes(enableClientRelay: Boolean)(
       implicit ec: ExecutionContext): Route =
     path("version")(version) ~
+      path("ready")(ready) ~
+      path("alive")(alive) ~
       path("status")(status) ~
       logRequestResult(("access-log", Logging.InfoLevel))(
         pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
@@ -326,6 +328,10 @@ trait HttpController {
         )
       )
     )
+
+  protected[this] def ready: StandardRoute
+
+  protected[this] def alive: StandardRoute
 
   protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean]
 

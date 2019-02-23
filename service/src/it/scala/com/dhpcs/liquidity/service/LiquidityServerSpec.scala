@@ -105,7 +105,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
         val response = Http()
           .singleRequest(
             HttpRequest(
-              uri = Uri(s"http://localhost:$akkaHttpPort/status")
+              uri = Uri(s"http://localhost:$akkaHttpPort/ready")
             )
           )
           .futureValue
@@ -193,7 +193,7 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
       val response = Http()
         .singleRequest(
           HttpRequest(
-            uri = baseUri.withPath(Uri.Path("/status"))
+            uri = baseUri.withPath(Uri.Path("/ready"))
           )
         )
         .futureValue

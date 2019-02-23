@@ -889,6 +889,18 @@ class HttpControllerSpec
   private[this] val clientConnection =
     TestProbe[ZoneNotificationEnvelope]()(system.toTyped).ref
 
+  override protected[this] def ready: StandardRoute =
+    requestContext => {
+      import PredefinedToEntityMarshallers.StringMarshaller
+      requestContext.complete("akka-management")
+    }
+
+  override protected[this] def alive: StandardRoute =
+    requestContext => {
+      import PredefinedToEntityMarshallers.StringMarshaller
+      requestContext.complete("akka-management")
+    }
+
   override protected[this] def isAdministrator(
       publicKey: PublicKey): Future[Boolean] =
     Future.successful(

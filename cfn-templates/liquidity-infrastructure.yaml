@@ -197,7 +197,7 @@ Resources:
       Protocol: TCP
       Port: 80
       HealthCheckProtocol: HTTP
-      HealthCheckPath: "/status"
+      HealthCheckPath: "/ready"
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
           Value: 0

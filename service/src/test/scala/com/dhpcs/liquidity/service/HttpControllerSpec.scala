@@ -987,9 +987,6 @@ class HttpControllerSpec
         )
     )
 
-  override protected[this] def isClusterHealthy: Boolean =
-    true
-
   override protected[this] val resolver: ActorRefResolver =
     ActorRefResolver(system.toTyped)
 

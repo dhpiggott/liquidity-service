@@ -7,7 +7,6 @@ import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.ActorRefResolver
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
-import akka.cluster.MemberStatus
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.Entity
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
@@ -225,8 +224,6 @@ class LiquidityServer(
     httpPort: Int)(implicit system: ActorSystem, mat: Materializer)
     extends HttpController {
 
-  private[this] val cluster = Cluster(system.toTyped)
-
   private[this] val readJournal = PersistenceQuery(system)
     .readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
 
@@ -335,9 +332,6 @@ class LiquidityServer(
                    ActorRefResolver]
         .asProto(_)(ActorRefResolver(system.toTyped)))
   }
-
-  override protected[this] def isClusterHealthy: Boolean =
-    cluster.selfMember.status == MemberStatus.Up
 
   override protected[this] val resolver: ActorRefResolver = ActorRefResolver(
     system.toTyped)

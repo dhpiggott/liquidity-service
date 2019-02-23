@@ -165,79 +165,76 @@ trait HttpController {
   private[this] def status(implicit ec: ExecutionContext): Route =
     get(
       complete(
-        if (!isClusterHealthy)
-          ServiceUnavailable
-        else
-          for (activeZoneSummaries <- getActiveZoneSummaries)
-            yield
-              Json.obj(
-                "activeZones" -> Json.obj(
-                  "count" -> activeZoneSummaries.size,
-                  "zones" -> activeZoneSummaries.toSeq
-                    .sortBy(_.zoneId.value)
-                    .map {
-                      case ActiveZoneSummary(zoneId,
-                                             members,
-                                             accounts,
-                                             transactions,
-                                             metadata,
-                                             connectedClients) =>
-                        Json.obj(
-                          "zoneIdFingerprint" -> okio.ByteString
-                            .encodeUtf8(zoneId.value)
-                            .sha256
-                            .hex,
-                          "metadata" -> metadata
-                            .map(JsonFormat.toJsonString)
-                            .map(Json.parse),
-                          "members" -> members,
-                          "accounts" -> accounts,
-                          "transactions" -> transactions,
-                          "clientConnections" -> connectedClients.values
-                            .groupBy(_.remoteAddress)
-                            .toSeq
-                            .sortBy {
-                              case (remoteAddress, _) =>
-                                remoteAddress.getHostAddress
-                            }
-                            .map {
-                              case (remoteAddress, clientsAtHostAddress) =>
-                                Json.obj(
-                                  "hostAddressFingerprint" -> okio.ByteString
-                                    .encodeUtf8(remoteAddress.getHostAddress)
-                                    .sha256
-                                    .hex,
-                                  "count" -> clientsAtHostAddress.size,
-                                  "clientsAtHostAddress" -> clientsAtHostAddress
-                                    .groupBy(_.publicKey)
-                                    .toSeq
-                                    .sortBy {
-                                      case (publicKey, _) =>
-                                        publicKey.fingerprint
-                                    }
-                                    .map {
-                                      case (publicKey, clientsWithPublicKey) =>
-                                        Json.obj(
-                                          "publicKeyFingerprint" -> publicKey.fingerprint,
+        for (activeZoneSummaries <- getActiveZoneSummaries)
+          yield
+            Json.obj(
+              "activeZones" -> Json.obj(
+                "count" -> activeZoneSummaries.size,
+                "zones" -> activeZoneSummaries.toSeq
+                  .sortBy(_.zoneId.value)
+                  .map {
+                    case ActiveZoneSummary(zoneId,
+                                           members,
+                                           accounts,
+                                           transactions,
+                                           metadata,
+                                           connectedClients) =>
+                      Json.obj(
+                        "zoneIdFingerprint" -> okio.ByteString
+                          .encodeUtf8(zoneId.value)
+                          .sha256
+                          .hex,
+                        "metadata" -> metadata
+                          .map(JsonFormat.toJsonString)
+                          .map(Json.parse),
+                        "members" -> members,
+                        "accounts" -> accounts,
+                        "transactions" -> transactions,
+                        "clientConnections" -> connectedClients.values
+                          .groupBy(_.remoteAddress)
+                          .toSeq
+                          .sortBy {
+                            case (remoteAddress, _) =>
+                              remoteAddress.getHostAddress
+                          }
+                          .map {
+                            case (remoteAddress, clientsAtHostAddress) =>
+                              Json.obj(
+                                "hostAddressFingerprint" -> okio.ByteString
+                                  .encodeUtf8(remoteAddress.getHostAddress)
+                                  .sha256
+                                  .hex,
+                                "count" -> clientsAtHostAddress.size,
+                                "clientsAtHostAddress" -> clientsAtHostAddress
+                                  .groupBy(_.publicKey)
+                                  .toSeq
+                                  .sortBy {
+                                    case (publicKey, _) =>
+                                      publicKey.fingerprint
+                                  }
+                                  .map {
+                                    case (publicKey, clientsWithPublicKey) =>
+                                      Json.obj(
+                                        "publicKeyFingerprint" -> publicKey.fingerprint,
+                                        "count" -> clientsWithPublicKey.size,
+                                        "clientsWithPublicKey" -> Json.obj(
                                           "count" -> clientsWithPublicKey.size,
-                                          "clientsWithPublicKey" -> Json.obj(
-                                            "count" -> clientsWithPublicKey.size,
-                                            "connectionIds" -> clientsWithPublicKey
-                                              .map(clientsWithPublicKey =>
-                                                resolver
-                                                  .toSerializationFormat(
-                                                    clientsWithPublicKey.connectionId))
-                                              .toSeq
-                                              .sorted
-                                          )
+                                          "connectionIds" -> clientsWithPublicKey
+                                            .map(clientsWithPublicKey =>
+                                              resolver
+                                                .toSerializationFormat(
+                                                  clientsWithPublicKey.connectionId))
+                                            .toSeq
+                                            .sorted
                                         )
-                                    }
-                                )
-                            }
-                        )
-                    }
-                )
+                                      )
+                                  }
+                              )
+                          }
+                      )
+                  }
               )
+            )
       )
     )
 
@@ -343,8 +340,6 @@ trait HttpController {
 
   protected[this] def zoneState(
       zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
-
-  protected[this] def isClusterHealthy: Boolean
 
   protected[this] def resolver: ActorRefResolver
 

@@ -557,17 +557,17 @@ object ZoneAnalyticsActorSpec {
            CREATE TABLE transactions (
              zone_id CHAR(36) NOT NULL,
              transaction_id VARCHAR(36) NOT NULL,
-             "from" VARCHAR(36) NOT NULL,
-             "to" VARCHAR(36) NOT NULL,
-             "value" TEXT NOT NULL,
+             `from` VARCHAR(36) NOT NULL,
+             `to` VARCHAR(36) NOT NULL,
+             `value` TEXT NOT NULL,
              creator VARCHAR(36) NOT NULL,
              created TIMESTAMP NOT NULL,
              description VARCHAR(160) NULL,
              metadata VARCHAR(1024) NULL,
              PRIMARY KEY (zone_id, transaction_id),
              FOREIGN KEY (zone_id) REFERENCES zones(zone_id),
-             FOREIGN KEY (zone_id, "from") REFERENCES accounts(zone_id, account_id),
-             FOREIGN KEY (zone_id, "to") REFERENCES accounts(zone_id, account_id),
+             FOREIGN KEY (zone_id, `from`) REFERENCES accounts(zone_id, account_id),
+             FOREIGN KEY (zone_id, `to`) REFERENCES accounts(zone_id, account_id),
              FOREIGN KEY (zone_id, creator) REFERENCES members(zone_id, member_id)
             );
          """.update.run
@@ -588,7 +588,7 @@ object ZoneAnalyticsActorSpec {
     _ <- sql"""
            CREATE TABLE tag_offsets (
              tag VARCHAR(10) NOT NULL,
-             "offset" INT NOT NULL,
+             `offset` INT NOT NULL,
              PRIMARY KEY (tag)
            );
          """.update.run

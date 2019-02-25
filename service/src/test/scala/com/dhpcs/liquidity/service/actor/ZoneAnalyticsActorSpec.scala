@@ -134,8 +134,6 @@ class ZoneAnalyticsActorSpec
       driver = "org.h2.Driver",
       url =
         s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID()};" +
-          "DATABASE_TO_UPPER=false;" +
-          "MODE=MYSQL;" +
           "DB_CLOSE_DELAY=-1",
       user = "sa",
       pass = ""

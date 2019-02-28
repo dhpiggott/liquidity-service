@@ -119,6 +119,7 @@ object LiquidityServer {
                |    }
                |  }
                |  http.server {
+               |    preview.enable-http2 = on
                |    remote-address-header = on
                |    idle-timeout = 10s
                |  }

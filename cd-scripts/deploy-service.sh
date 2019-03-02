@@ -14,15 +14,6 @@ REGION=$1
 ENVIRONMENT=$2
 INFRASTRUCTURE_STACK_ENVIRONMENT=$3
 
-S3_PREFIX_LIST_ID=$(
-  aws ec2 describe-prefix-lists \
-    --region "$REGION" \
-    --filter \
-      Name=prefix-list-name,Values=com.amazonaws.eu-west-1.s3 \
-    --output text \
-    --query \
-      "PrefixLists[0].PrefixListId"
-)
 TAG=$(
   sbt -Dsbt.log.noformat=true version \
     | tail -n 1 \
@@ -47,5 +38,4 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
       InfrastructureStack=liquidity-infrastructure-"$INFRASTRUCTURE_STACK_ENVIRONMENT" \
-      S3PrefixListId="$S3_PREFIX_LIST_ID" \
       ImageId="$IMAGE_ID"

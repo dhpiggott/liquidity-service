@@ -58,11 +58,11 @@ class HttpController(
     pingInterval: FiniteDuration) {
 
   def route(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
-    path("version")(version) ~
       path("ready")(ready) ~
       path("alive")(alive) ~
-      path("status")(status) ~
       logRequestResult(("access-log", Logging.InfoLevel))(
+        path("version")(version) ~
+        path("status")(status) ~
         pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
           pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
           (if (enableClientRelay)
@@ -150,16 +150,6 @@ class HttpController(
       else forbidden
     }
 
-  private[this] def diagnostics: Route =
-    path("events" / Segment)(
-      persistenceId =>
-        parameters(("fromSequenceNr".as[Long] ? 0L,
-                    "toSequenceNr".as[Long] ? Long.MaxValue)) {
-          (fromSequenceNr, toSequenceNr) =>
-            get(complete(events(persistenceId, fromSequenceNr, toSequenceNr)))
-      }) ~
-      path("zone" / zoneIdMatcher)(zoneId => get(complete(zoneState(zoneId))))
-
   private[this] def version: Route =
     get(
       complete(
@@ -177,9 +167,7 @@ class HttpController(
         for (activeZoneSummaries <- getActiveZoneSummaries())
           yield
             Json.obj(
-              "activeZones" -> Json.obj(
-                "count" -> activeZoneSummaries.size,
-                "zones" -> activeZoneSummaries.toSeq
+                "activeZones" -> activeZoneSummaries.toSeq
                   .sortBy(_.zoneId.value)
                   .map {
                     case ActiveZoneSummary(zoneId,
@@ -213,7 +201,6 @@ class HttpController(
                                   .encodeUtf8(remoteAddress.getHostAddress)
                                   .sha256
                                   .hex,
-                                "count" -> clientsAtHostAddress.size,
                                 "clientsAtHostAddress" -> clientsAtHostAddress
                                   .groupBy(_.publicKey)
                                   .toSeq
@@ -225,17 +212,13 @@ class HttpController(
                                     case (publicKey, clientsWithPublicKey) =>
                                       Json.obj(
                                         "publicKeyFingerprint" -> publicKey.fingerprint,
-                                        "count" -> clientsWithPublicKey.size,
-                                        "clientsWithPublicKey" -> Json.obj(
-                                          "count" -> clientsWithPublicKey.size,
-                                          "connectionIds" -> clientsWithPublicKey
+                                        "clientsWithPublicKey" -> clientsWithPublicKey
                                             .map(clientsWithPublicKey =>
                                               resolver
                                                 .toSerializationFormat(
                                                   clientsWithPublicKey.connectionId))
                                             .toSeq
                                             .sorted
-                                        )
                                       )
                                   }
                               )
@@ -243,9 +226,18 @@ class HttpController(
                       )
                   }
               )
-            )
       )
     )
+
+  private[this] def diagnostics: Route =
+    path("events" / Segment)(
+      persistenceId =>
+        parameters(("fromSequenceNr".as[Long] ? 0L,
+          "toSequenceNr".as[Long] ? Long.MaxValue)) {
+          (fromSequenceNr, toSequenceNr) =>
+            get(complete(events(persistenceId, fromSequenceNr, toSequenceNr)))
+        }) ~
+      path("zone" / zoneIdMatcher)(zoneId => get(complete(zoneState(zoneId))))
 
   private[this] def zoneCommand(
       remoteAddress: InetAddress,

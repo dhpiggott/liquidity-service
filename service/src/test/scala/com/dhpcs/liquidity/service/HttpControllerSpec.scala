@@ -550,19 +550,6 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
         }
       }
     }
-    "provides version information" in {
-      val getRequest = RequestBuilding.Get("/version")
-      getRequest ~> httpController.route(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.OK)
-        val buildInfo = entityAs[JsObject]
-        assert((buildInfo \ "version").as[String] == BuildInfo.version)
-        assert(
-          (buildInfo \ "builtAtString").as[String] == BuildInfo.builtAtString)
-        assert(
-          (buildInfo \ "builtAtMillis")
-            .as[String] == BuildInfo.builtAtMillis.toString)
-      }
-    }
     "provides ready information" in {
       val getRequest = RequestBuilding.Get("/ready")
       getRequest ~> httpController.route(enableClientRelay = true) ~> check {
@@ -579,37 +566,41 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
         assert(entityAs[String] == "OK")
       }
     }
+    "provides version information" in {
+      val getRequest = RequestBuilding.Get("/version")
+      getRequest ~> httpController.route(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        val buildInfo = entityAs[JsObject]
+        assert((buildInfo \ "version").as[String] == BuildInfo.version)
+        assert(
+          (buildInfo \ "builtAtString").as[String] == BuildInfo.builtAtString)
+        assert(
+          (buildInfo \ "builtAtMillis")
+            .as[String] == BuildInfo.builtAtMillis.toString)
+      }
+    }
     "provides status information" in {
       val getRequest = RequestBuilding.Get("/status")
       getRequest ~> httpController.route(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
         assert(entityAs[JsValue] === Json.parse(s"""
              |{
-             |  "activeZones" : {
-             |    "count" : 1,
-             |    "zones" : [ {
-             |      "zoneIdFingerprint" : "b697e3a3a1eceb99d9e0b3e932e47596e77dfab19697d6fe15b3b0db75e96f12",
-             |      "metadata" : null,
-             |      "members" : 2,
-             |      "accounts" : 2,
-             |      "transactions" : 1,
-             |      "clientConnections" : [ {
-             |        "hostAddressFingerprint" : "14853799b55e545f862f2fc26bca37ab6adbb7a3696db3ee733c8c78714de3c4",
-             |        "count" : 1,
-             |        "clientsAtHostAddress" : [ {
-             |          "publicKeyFingerprint" : "${publicKey.fingerprint}",
-             |          "count" : 1,
-             |          "clientsWithPublicKey" : {
-             |            "count" : 1,
-             |            "connectionIds" : [
-             |              "${resolver.toSerializationFormat(
-                                                       clientConnection)}"
-             |            ]
-             |          }
-             |        } ]
+             |  "activeZones" : [ {
+             |    "zoneIdFingerprint" : "b697e3a3a1eceb99d9e0b3e932e47596e77dfab19697d6fe15b3b0db75e96f12",
+             |    "metadata" : null,
+             |    "members" : 2,
+             |    "accounts" : 2,
+             |    "transactions" : 1,
+             |    "clientConnections" : [ {
+             |      "hostAddressFingerprint" : "14853799b55e545f862f2fc26bca37ab6adbb7a3696db3ee733c8c78714de3c4",
+             |      "clientsAtHostAddress" : [ {
+             |        "publicKeyFingerprint" : "${publicKey.fingerprint}",
+             |        "clientsWithPublicKey" : [
+             |          "${resolver.toSerializationFormat(clientConnection)}"
+             |        ]
              |      } ]
              |    } ]
-             |  }
+             |  } ]
              |}
            """.stripMargin))
       }

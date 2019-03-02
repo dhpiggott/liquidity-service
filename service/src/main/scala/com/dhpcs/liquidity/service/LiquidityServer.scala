@@ -220,10 +220,9 @@ object LiquidityServer {
 class LiquidityServer(
     administratorsTransactor: Transactor[IO],
     analyticsTransactor: Transactor[IO],
-    override protected[this] val pingInterval: FiniteDuration,
+    pingInterval: FiniteDuration,
     httpInterface: String,
-    httpPort: Int)(implicit system: ActorSystem, mat: Materializer)
-    extends HttpController {
+    httpPort: Int)(implicit system: ActorSystem, mat: Materializer) {
 
   private[this] val readJournal = PersistenceQuery(system)
     .readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
@@ -258,43 +257,7 @@ class LiquidityServer(
       .withStopMessage(StopZoneAnalytics)
   )
 
-  private def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
-    httpRoutes(
-      enableClientRelay =
-        Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole)
-    ),
-    httpInterface,
-    httpPort
-  )
-
-  override protected[this] def ready: StandardRoute =
-    requestContext =>
-      akkaManagement(
-        requestContext.withRequest(
-          requestContext.request.withUri(Uri("/akka-management/ready")))
-    )
-
-  override protected[this] def alive: StandardRoute =
-    requestContext =>
-      akkaManagement(
-        requestContext.withRequest(
-          requestContext.request.withUri(Uri("/akka-management/alive")))
-    )
-
-  override protected[this] def isAdministrator(
-      publicKey: PublicKey): Future[Boolean] =
-    sql"""
-       SELECT 1
-         FROM administrators
-         WHERE public_key = $publicKey
-      """
-      .query[Int]
-      .option
-      .map(_.isDefined)
-      .transact(administratorsTransactor)
-      .unsafeToFuture()
-
-  override protected[this] def akkaManagement: StandardRoute =
+  private[this] val akkaManagement: StandardRoute =
     requestContext =>
       Source
         .single(requestContext.request)
@@ -302,83 +265,114 @@ class LiquidityServer(
         .runWith(Sink.head)
         .flatMap(requestContext.complete(_))
 
-  override protected[this] def events(
-      persistenceId: String,
-      fromSequenceNr: Long,
-      toSequenceNr: Long): Source[HttpController.EventEnvelope, NotUsed] =
-    readJournal
-      .eventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr)
-      .map {
-        case EventEnvelope(_, _, sequenceNr, event) =>
-          val protoEvent = event match {
-            case zoneEventEnvelope: ZoneEventEnvelope =>
-              ProtoBinding[ZoneEventEnvelope,
-                           proto.persistence.zone.ZoneEventEnvelope,
-                           ActorRefResolver]
-                .asProto(zoneEventEnvelope)(ActorRefResolver(system.toTyped))
-          }
-          HttpController.EventEnvelope(sequenceNr, protoEvent)
+  private[this] val httpController = new HttpController(
+    ready = requestContext =>
+      akkaManagement(
+        requestContext.withRequest(
+          requestContext.request.withUri(Uri("/akka-management/ready")))
+    ),
+    alive = requestContext =>
+      akkaManagement(
+        requestContext.withRequest(
+          requestContext.request.withUri(Uri("/akka-management/alive")))
+    ),
+    isAdministrator = publicKey =>
+      sql"""
+       SELECT 1
+         FROM administrators
+         WHERE public_key = $publicKey
+      """
+        .query[Int]
+        .option
+        .map(_.isDefined)
+        .transact(administratorsTransactor)
+        .unsafeToFuture(),
+    akkaManagement = akkaManagement,
+    events =
+      (persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) =>
+        readJournal
+          .eventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr)
+          .map {
+            case EventEnvelope(_, _, sequenceNr, event) =>
+              val protoEvent = event match {
+                case zoneEventEnvelope: ZoneEventEnvelope =>
+                  ProtoBinding[ZoneEventEnvelope,
+                               proto.persistence.zone.ZoneEventEnvelope,
+                               ActorRefResolver]
+                    .asProto(zoneEventEnvelope)(
+                      ActorRefResolver(system.toTyped))
+              }
+              HttpController.EventEnvelope(sequenceNr, protoEvent)
+        },
+    zoneState = zoneId => {
+      implicit val timeout: Timeout = Timeout(5.seconds)
+      val zoneState
+        : Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(
+        _,
+        zoneId))
+      zoneState.map(
+        ProtoBinding[ZoneState,
+                     proto.persistence.zone.ZoneState,
+                     ActorRefResolver]
+          .asProto(_)(ActorRefResolver(system.toTyped)))
+    },
+    resolver = ActorRefResolver(system.toTyped),
+    getActiveZoneSummaries = () => {
+      implicit val timeout: Timeout = Timeout(5.seconds)
+      zoneMonitor ? GetActiveZoneSummaries
+    },
+    zoneValidator = new HttpController.ZoneValidator {
+
+      override def createZone(
+          remoteAddress: InetAddress,
+          publicKey: PublicKey,
+          createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =
+        execZoneCommand(zoneId = ZoneId(UUID.randomUUID().toString),
+                        remoteAddress,
+                        publicKey,
+                        createZoneCommand)
+
+      override def execZoneCommand(
+          zoneId: ZoneId,
+          remoteAddress: InetAddress,
+          publicKey: PublicKey,
+          zoneCommand: ZoneCommand): Future[ZoneResponse] = {
+        implicit val timeout: Timeout = Timeout(5.seconds)
+        for {
+          zoneResponseEnvelope <- zoneValidatorShardRegion
+            .?[ZoneResponseEnvelope](
+              ZoneCommandEnvelope(_,
+                                  zoneId,
+                                  remoteAddress,
+                                  publicKey,
+                                  correlationId = 0,
+                                  zoneCommand))
+        } yield zoneResponseEnvelope.zoneResponse
       }
 
-  override protected[this] def zoneState(
-      zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] = {
-    implicit val timeout: Timeout = Timeout(5.seconds)
-    val zoneState
-      : Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(
-      _,
-      zoneId))
-    zoneState.map(
-      ProtoBinding[ZoneState,
-                   proto.persistence.zone.ZoneState,
-                   ActorRefResolver]
-        .asProto(_)(ActorRefResolver(system.toTyped)))
-  }
+      override def zoneNotificationSource(
+          remoteAddress: InetAddress,
+          publicKey: PublicKey,
+          zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
+        ClientConnectionActor.zoneNotificationSource(
+          zoneValidatorShardRegion,
+          remoteAddress,
+          publicKey,
+          zoneId,
+          system.spawnAnonymous(_)
+        )
 
-  override protected[this] val resolver: ActorRefResolver = ActorRefResolver(
-    system.toTyped)
+    },
+    pingInterval = pingInterval
+  )
 
-  override protected[this] def getActiveZoneSummaries
-    : Future[Set[ActiveZoneSummary]] = {
-    implicit val timeout: Timeout = Timeout(5.seconds)
-    zoneMonitor ? GetActiveZoneSummaries
-  }
-
-  override protected[this] def createZone(
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =
-    execZoneCommand(zoneId = ZoneId(UUID.randomUUID().toString),
-                    remoteAddress,
-                    publicKey,
-                    createZoneCommand)
-
-  override protected[this] def execZoneCommand(
-      zoneId: ZoneId,
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      zoneCommand: ZoneCommand): Future[ZoneResponse] = {
-    implicit val timeout: Timeout = Timeout(5.seconds)
-    for {
-      zoneResponseEnvelope <- zoneValidatorShardRegion.?[ZoneResponseEnvelope](
-        ZoneCommandEnvelope(_,
-                            zoneId,
-                            remoteAddress,
-                            publicKey,
-                            correlationId = 0,
-                            zoneCommand))
-    } yield zoneResponseEnvelope.zoneResponse
-  }
-
-  override protected[this] def zoneNotificationSource(
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
-    ClientConnectionActor.zoneNotificationSource(
-      zoneValidatorShardRegion,
-      remoteAddress,
-      publicKey,
-      zoneId,
-      system.spawnAnonymous(_)
-    )
+  private def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
+    httpController.route(
+      enableClientRelay =
+        Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole)
+    ),
+    httpInterface,
+    httpPort
+  )
 
 }

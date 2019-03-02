@@ -63,7 +63,7 @@ object ProtoBindings {
     ProtoBinding.instance((zoneId, _) => zoneId.value.toString,
                           (id, _) => ZoneId(id))
 
-  trait EntityIdExtractor[E, I] {
+  abstract class EntityIdExtractor[E, I] {
     def extractId(entity: E): I
   }
 

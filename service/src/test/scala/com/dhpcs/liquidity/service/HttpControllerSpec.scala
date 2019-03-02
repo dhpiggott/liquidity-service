@@ -15,7 +15,6 @@ import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.server.StandardRoute
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
 import akka.stream.scaladsl.Source
@@ -46,17 +45,14 @@ import scala.collection.immutable.Seq
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class HttpControllerSpec
-    extends FreeSpec
-    with HttpController
-    with ScalatestRouteTest {
+class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
 
   "HttpController" - {
     "rejects access" - {
       "when no bearer token is presented" in {
         val getRequest = RequestBuilding
           .Get("/akka-management")
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
             header[`WWW-Authenticate`].contains(
@@ -81,7 +77,7 @@ class HttpControllerSpec
           RequestBuilding
             .Get("/akka-management")
             .withHeaders(Authorization(OAuth2BearerToken("")))
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
             header[`WWW-Authenticate`].contains(
@@ -117,7 +113,7 @@ class HttpControllerSpec
                 )
               )
             )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
             header[`WWW-Authenticate`].contains(
@@ -158,7 +154,7 @@ class HttpControllerSpec
                 )
               )
             )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
             header[`WWW-Authenticate`].contains(
@@ -201,7 +197,7 @@ class HttpControllerSpec
                 )
               )
             )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
             header[`WWW-Authenticate`].contains(
@@ -252,7 +248,7 @@ class HttpControllerSpec
                 )
               )
             )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
             header[`WWW-Authenticate`].contains(
@@ -300,7 +296,7 @@ class HttpControllerSpec
                 )
               )
             )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
             header[`WWW-Authenticate`].contains(
@@ -347,7 +343,7 @@ class HttpControllerSpec
                 )
               )
             )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Unauthorized)
           assert(
             header[`WWW-Authenticate`].contains(
@@ -401,7 +397,7 @@ class HttpControllerSpec
                 )
               )
             )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.Forbidden)
           import PredefinedFromEntityUnmarshallers.stringUnmarshaller
           assert(entityAs[String] === StatusCodes.Forbidden.defaultMessage)
@@ -413,7 +409,7 @@ class HttpControllerSpec
         RequestBuilding
           .Get("/akka-management")
           .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+      getRequest ~> httpController.route(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
         import PredefinedFromEntityUnmarshallers.stringUnmarshaller
         assert(entityAs[String] === "akka-management")
@@ -429,7 +425,7 @@ class HttpControllerSpec
           )
           .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
         implicit val timeout: RouteTestTimeout = RouteTestTimeout(5.seconds)
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""
                |[{
@@ -529,7 +525,7 @@ class HttpControllerSpec
             )
           )
           .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""
                |{
@@ -556,7 +552,7 @@ class HttpControllerSpec
     }
     "provides version information" in {
       val getRequest = RequestBuilding.Get("/version")
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+      getRequest ~> httpController.route(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
         val buildInfo = entityAs[JsObject]
         assert((buildInfo \ "version").as[String] == BuildInfo.version)
@@ -567,9 +563,25 @@ class HttpControllerSpec
             .as[String] == BuildInfo.builtAtMillis.toString)
       }
     }
+    "provides ready information" in {
+      val getRequest = RequestBuilding.Get("/ready")
+      getRequest ~> httpController.route(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+        assert(entityAs[String] == "OK")
+      }
+    }
+    "provides alive information" in {
+      val getRequest = RequestBuilding.Get("/alive")
+      getRequest ~> httpController.route(enableClientRelay = true) ~> check {
+        assert(status === StatusCodes.OK)
+        import PredefinedFromEntityUnmarshallers.stringUnmarshaller
+        assert(entityAs[String] == "OK")
+      }
+    }
     "provides status information" in {
       val getRequest = RequestBuilding.Get("/status")
-      getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+      getRequest ~> httpController.route(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
         assert(entityAs[JsValue] === Json.parse(s"""
              |{
@@ -620,7 +632,7 @@ class HttpControllerSpec
                |}
           """.stripMargin
           )
-        putRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        putRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""
                |{
@@ -687,7 +699,7 @@ class HttpControllerSpec
               )(())
               .toByteArray
           )
-        putRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        putRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           import PredefinedFromEntityUnmarshallers.byteArrayUnmarshaller
           assert(
@@ -721,7 +733,7 @@ class HttpControllerSpec
                |}
           """.stripMargin
           )
-        putRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        putRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""
                |{
@@ -763,7 +775,7 @@ class HttpControllerSpec
               .asMessage
               .toByteArray
           )
-        putRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        putRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           import PredefinedFromEntityUnmarshallers.byteArrayUnmarshaller
           assert(
@@ -788,7 +800,7 @@ class HttpControllerSpec
             `Remote-Address`(RemoteAddress(remoteAddress)),
             Authorization(OAuth2BearerToken(selfSignedJwt))
           )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           assert(entityAs[JsValue] === Json.parse(s"""
                |[{
@@ -868,7 +880,7 @@ class HttpControllerSpec
               )
             )
           )
-        getRequest ~> httpRoutes(enableClientRelay = true) ~> check {
+        getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
           import PredefinedFromEntityUnmarshallers.byteStringUnmarshaller
           assert(
@@ -886,175 +898,165 @@ class HttpControllerSpec
     }
   }
 
+  private[this] val resolver = ActorRefResolver(system.toTyped)
+
   private[this] val clientConnection =
     TestProbe[ZoneNotificationEnvelope]()(system.toTyped).ref
 
-  override protected[this] def ready: StandardRoute =
-    requestContext => {
+  private[this] val httpController = new HttpController(
+    ready = requestContext => {
+      import PredefinedToEntityMarshallers.StringMarshaller
+      requestContext.complete("OK")
+    },
+    alive = requestContext => {
+      import PredefinedToEntityMarshallers.StringMarshaller
+      requestContext.complete("OK")
+    },
+    isAdministrator = publicKey =>
+      Future.successful(
+        publicKey.value.toByteArray.sameElements(rsaPublicKey.getEncoded)),
+    akkaManagement = requestContext => {
       import PredefinedToEntityMarshallers.StringMarshaller
       requestContext.complete("akka-management")
-    }
-
-  override protected[this] def alive: StandardRoute =
-    requestContext => {
-      import PredefinedToEntityMarshallers.StringMarshaller
-      requestContext.complete("akka-management")
-    }
-
-  override protected[this] def isAdministrator(
-      publicKey: PublicKey): Future[Boolean] =
-    Future.successful(
-      publicKey.value.toByteArray.sameElements(rsaPublicKey.getEncoded))
-
-  override protected[this] def akkaManagement: StandardRoute =
-    requestContext => {
-      import PredefinedToEntityMarshallers.StringMarshaller
-      requestContext.complete("akka-management")
-    }
-
-  override protected[this] def events(
-      persistenceId: String,
-      fromSequenceNr: Long,
-      toSequenceNr: Long): Source[EventEnvelope, NotUsed] =
-    if (persistenceId != zone.id.persistenceId)
-      Source.empty
-    else
-      Source(
-        Seq(
-          ZoneCreatedEvent(
-            zone
-          ),
-          MemberCreatedEvent(
-            Member(
-              id = MemberId("1"),
-              ownerPublicKeys = Set(publicKey),
-              name = Some("Jenny"),
-              metadata = None
+    },
+    events = (persistenceId: String, _: Long, _: Long) =>
+      if (persistenceId != zone.id.persistenceId)
+        Source.empty
+      else
+        Source(
+          Seq(
+            ZoneCreatedEvent(
+              zone
+            ),
+            MemberCreatedEvent(
+              Member(
+                id = MemberId("1"),
+                ownerPublicKeys = Set(publicKey),
+                name = Some("Jenny"),
+                metadata = None
+              )
+            ),
+            AccountCreatedEvent(
+              Account(
+                id = AccountId("1"),
+                ownerMemberIds = Set(MemberId("1")),
+                name = Some("Jenny's Account"),
+                metadata = None
+              )
+            ),
+            TransactionAddedEvent(
+              Transaction(
+                id = TransactionId("0"),
+                from = AccountId("0"),
+                to = AccountId("1"),
+                value = BigDecimal("5000000000000000000000"),
+                creator = MemberId("0"),
+                created = zone.created.plusMillis(3000),
+                description = Some("Jenny's Lottery Win"),
+                metadata = None
+              )
             )
-          ),
-          AccountCreatedEvent(
-            Account(
-              id = AccountId("1"),
-              ownerMemberIds = Set(MemberId("1")),
-              name = Some("Jenny's Account"),
-              metadata = None
-            )
-          ),
-          TransactionAddedEvent(
-            Transaction(
-              id = TransactionId("0"),
-              from = AccountId("0"),
-              to = AccountId("1"),
-              value = BigDecimal("5000000000000000000000"),
-              creator = MemberId("0"),
-              created = zone.created.plusMillis(3000),
-              description = Some("Jenny's Lottery Win"),
-              metadata = None
-            )
+          ).zipWithIndex.map {
+            case (event, index) =>
+              val zoneEventEnvelope = ZoneEventEnvelope(
+                remoteAddress = Some(remoteAddress),
+                publicKey = Some(publicKey),
+                timestamp = zone.created.plusMillis(index * 1000L),
+                zoneEvent = event
+              )
+              EventEnvelope(
+                sequenceNr = index.toLong,
+                event = ProtoBinding[ZoneEventEnvelope,
+                                     proto.persistence.zone.ZoneEventEnvelope,
+                                     ActorRefResolver]
+                  .asProto(zoneEventEnvelope)(ActorRefResolver(system.toTyped))
+              )
+          }),
+    zoneState = zoneId =>
+      Future.successful(
+        proto.persistence.zone
+          .ZoneState(
+            zone =
+              if (zoneId != zone.id)
+                None
+              else
+                Some(
+                  ProtoBinding[Zone, proto.model.Zone, Any].asProto(
+                    zone
+                  )(())),
+            balances = Map.empty,
+            connectedClients = Seq.empty
           )
-        ).zipWithIndex.map {
-          case (event, index) =>
-            val zoneEventEnvelope = ZoneEventEnvelope(
-              remoteAddress = Some(remoteAddress),
-              publicKey = Some(publicKey),
-              timestamp = zone.created.plusMillis(index * 1000L),
-              zoneEvent = event
-            )
-            EventEnvelope(
-              sequenceNr = index.toLong,
-              event = ProtoBinding[ZoneEventEnvelope,
-                                   proto.persistence.zone.ZoneEventEnvelope,
-                                   ActorRefResolver]
-                .asProto(zoneEventEnvelope)(ActorRefResolver(system.toTyped))
-            )
-        })
-
-  override protected[this] def zoneState(
-      zoneId: ZoneId): Future[proto.persistence.zone.ZoneState] =
-    Future.successful(
-      proto.persistence.zone
-        .ZoneState(
-          zone =
-            if (zoneId != zone.id)
-              None
-            else
-              Some(
-                ProtoBinding[Zone, proto.model.Zone, Any].asProto(
-                  zone
-                )(())),
-          balances = Map.empty,
-          connectedClients = Seq.empty
-        )
-    )
-
-  override protected[this] val resolver: ActorRefResolver =
-    ActorRefResolver(system.toTyped)
-
-  override protected[this] def getActiveZoneSummaries
-    : Future[Set[ActiveZoneSummary]] =
-    Future.successful(
-      Set(
-        ActiveZoneSummary(
-          zone.id,
-          members = 2,
-          accounts = 2,
-          transactions = 1,
-          metadata = None,
-          connectedClients = Map(
-            clientConnection -> ConnectedClient(
-              clientConnection,
-              remoteAddress,
-              publicKey
+    ),
+    resolver = resolver,
+    getActiveZoneSummaries = () =>
+      Future.successful(
+        Set(
+          ActiveZoneSummary(
+            zone.id,
+            members = 2,
+            accounts = 2,
+            transactions = 1,
+            metadata = None,
+            connectedClients = Map(
+              clientConnection -> ConnectedClient(
+                clientConnection,
+                remoteAddress,
+                publicKey
+              )
             )
           )
         )
-      )
-    )
+    ),
+    zoneValidator = new HttpController.ZoneValidator {
 
-  override protected[this] def createZone(
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =
-    Future.successful(
-      if (remoteAddress == HttpControllerSpec.remoteAddress &&
-          publicKey == HttpControllerSpec.publicKey &&
-          createZoneCommand == CreateZoneCommand(
-            equityOwnerPublicKey = publicKey,
-            equityOwnerName = zone
-              .members(zone.accounts(zone.equityAccountId).ownerMemberIds.head)
-              .name,
-            equityOwnerMetadata = None,
-            equityAccountName = None,
-            equityAccountMetadata = None,
-            name = zone.name,
-            metadata = None
-          ))
-        CreateZoneResponse(zone.valid)
-      else fail()
-    )
+      override def createZone(
+          remoteAddress: InetAddress,
+          publicKey: PublicKey,
+          createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =
+        Future.successful(
+          if (remoteAddress == HttpControllerSpec.remoteAddress &&
+              publicKey == HttpControllerSpec.publicKey &&
+              createZoneCommand == CreateZoneCommand(
+                equityOwnerPublicKey = publicKey,
+                equityOwnerName = zone
+                  .members(
+                    zone.accounts(zone.equityAccountId).ownerMemberIds.head)
+                  .name,
+                equityOwnerMetadata = None,
+                equityAccountName = None,
+                equityAccountMetadata = None,
+                name = zone.name,
+                metadata = None
+              ))
+            CreateZoneResponse(zone.valid)
+          else fail()
+        )
 
-  override protected[this] def execZoneCommand(
-      zoneId: ZoneId,
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      zoneCommand: ZoneCommand): Future[ZoneResponse] =
-    Future.successful(
-      if (zoneId == zone.id &&
-          remoteAddress == HttpControllerSpec.remoteAddress &&
-          publicKey == HttpControllerSpec.publicKey &&
-          zoneCommand == ChangeZoneNameCommand(name = None))
-        ChangeZoneNameResponse(().valid)
-      else fail()
-    )
+      override def execZoneCommand(
+          zoneId: ZoneId,
+          remoteAddress: InetAddress,
+          publicKey: PublicKey,
+          zoneCommand: ZoneCommand): Future[ZoneResponse] =
+        Future.successful(
+          if (zoneId == zone.id &&
+              remoteAddress == HttpControllerSpec.remoteAddress &&
+              publicKey == HttpControllerSpec.publicKey &&
+              zoneCommand == ChangeZoneNameCommand(name = None))
+            ChangeZoneNameResponse(().valid)
+          else fail()
+        )
 
-  override protected[this] def zoneNotificationSource(
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
-    if (zoneId != zone.id) Source.empty
-    else Source(zoneNotifications)
+      override def zoneNotificationSource(
+          remoteAddress: InetAddress,
+          publicKey: PublicKey,
+          zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
+        if (zoneId != zone.id) Source.empty
+        else Source(zoneNotifications)
 
-  override protected[this] val pingInterval: FiniteDuration = 3.seconds
+    },
+    pingInterval = 3.seconds
+  )
 
 }
 

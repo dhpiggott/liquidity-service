@@ -1,6 +1,6 @@
 package com.dhpcs.liquidity.proto.binding
 
-trait ProtoBinding[S, P, -C] {
+abstract class ProtoBinding[S, P, -C] {
 
   def asProto(s: S)(implicit c: C): P
 

@@ -45,10 +45,19 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.util.control.NonFatal
 
-trait HttpController {
+class HttpController(
+    ready: StandardRoute,
+    alive: StandardRoute,
+    isAdministrator: PublicKey => Future[Boolean],
+    akkaManagement: StandardRoute,
+    events: (String, Long, Long) => Source[EventEnvelope, NotUsed],
+    zoneState: ZoneId => Future[proto.persistence.zone.ZoneState],
+    resolver: ActorRefResolver,
+    getActiveZoneSummaries: () => Future[Set[ActiveZoneSummary]],
+    zoneValidator: ZoneValidator,
+    pingInterval: FiniteDuration) {
 
-  protected[this] def httpRoutes(enableClientRelay: Boolean)(
-      implicit ec: ExecutionContext): Route =
+  def route(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
     path("version")(version) ~
       path("ready")(ready) ~
       path("alive")(alive) ~
@@ -165,7 +174,7 @@ trait HttpController {
   private[this] def status(implicit ec: ExecutionContext): Route =
     get(
       complete(
-        for (activeZoneSummaries <- getActiveZoneSummaries)
+        for (activeZoneSummaries <- getActiveZoneSummaries())
           yield
             Json.obj(
               "activeZones" -> Json.obj(
@@ -252,7 +261,8 @@ trait HttpController {
                 protoCreateZoneCommand
               )(())
             complete(
-              createZone(remoteAddress, publicKey, createZoneCommand)
+              zoneValidator
+                .createZone(remoteAddress, publicKey, createZoneCommand)
                 .map(
                   zoneResponse =>
                     ProtoBinding[ZoneResponse,
@@ -284,18 +294,20 @@ trait HttpController {
 
                   case _ =>
                     complete(
-                      execZoneCommand(zoneId,
-                                      remoteAddress,
-                                      publicKey,
-                                      zoneCommand).map(
-                        zoneResponse =>
-                          ProtoBinding[ZoneResponse,
-                                       proto.ws.protocol.ZoneResponse,
-                                       Any]
-                            .asProto(
-                              zoneResponse
-                            )(())
-                            .asMessage)
+                      zoneValidator
+                        .execZoneCommand(zoneId,
+                                         remoteAddress,
+                                         publicKey,
+                                         zoneCommand)
+                        .map(
+                          zoneResponse =>
+                            ProtoBinding[ZoneResponse,
+                                         proto.ws.protocol.ZoneResponse,
+                                         Any]
+                              .asProto(
+                                zoneResponse
+                              )(())
+                              .asMessage)
                     )
                 }
           }
@@ -308,7 +320,8 @@ trait HttpController {
       path(zoneIdMatcher)(
         zoneId =>
           complete(
-            zoneNotificationSource(remoteAddress, publicKey, zoneId)
+            zoneValidator
+              .zoneNotificationSource(remoteAddress, publicKey, zoneId)
               .map(
                 zoneNotification =>
                   ProtoBinding[ZoneNotification,
@@ -326,46 +339,27 @@ trait HttpController {
       )
     )
 
-  protected[this] def ready: StandardRoute
-
-  protected[this] def alive: StandardRoute
-
-  protected[this] def isAdministrator(publicKey: PublicKey): Future[Boolean]
-
-  protected[this] def akkaManagement: StandardRoute
-
-  protected[this] def events(persistenceId: String,
-                             fromSequenceNr: Long,
-                             toSequenceNr: Long): Source[EventEnvelope, NotUsed]
-
-  protected[this] def zoneState(
-      zoneId: ZoneId): Future[proto.persistence.zone.ZoneState]
-
-  protected[this] def resolver: ActorRefResolver
-
-  protected[this] def getActiveZoneSummaries: Future[Set[ActiveZoneSummary]]
-
-  protected[this] def createZone(
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      createZoneCommand: CreateZoneCommand): Future[ZoneResponse]
-
-  protected[this] def execZoneCommand(
-      zoneId: ZoneId,
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      zoneCommand: ZoneCommand): Future[ZoneResponse]
-
-  protected[this] def zoneNotificationSource(
-      remoteAddress: InetAddress,
-      publicKey: PublicKey,
-      zoneId: ZoneId): Source[ZoneNotification, NotUsed]
-
-  protected[this] def pingInterval: FiniteDuration
-
 }
 
 object HttpController {
+
+  abstract class ZoneValidator {
+
+    def createZone(remoteAddress: InetAddress,
+                   publicKey: PublicKey,
+                   createZoneCommand: CreateZoneCommand): Future[ZoneResponse]
+
+    def execZoneCommand(zoneId: ZoneId,
+                        remoteAddress: InetAddress,
+                        publicKey: PublicKey,
+                        zoneCommand: ZoneCommand): Future[ZoneResponse]
+
+    def zoneNotificationSource(
+        remoteAddress: InetAddress,
+        publicKey: PublicKey,
+        zoneId: ZoneId): Source[ZoneNotification, NotUsed]
+
+  }
 
   private def unauthorized[A](error: String): Directive1[A] =
     complete(

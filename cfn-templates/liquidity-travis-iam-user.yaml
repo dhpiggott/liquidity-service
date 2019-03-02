@@ -29,12 +29,6 @@ Resources:
                   - arn:aws:ecr:*:*:repository/liquidity-infrastructure-*
               - Effect: Allow
                 Action:
-                  - ec2:DescribeSecurityGroups
-                  - ec2:DescribeSubnets
-                  - ec2:DescribeVpcs
-                Resource: "*"
-              - Effect: Allow
-                Action:
                   - cloudformation:GetTemplateSummary
                   - cloudformation:ListExports
                   - cloudformation:ListImports
@@ -75,13 +69,13 @@ Resources:
                 Resource: "*"
               - Effect: Allow
                 Action:
-                  - ecs:DeregisterTaskDefinition
-                  - ecs:DescribeServices
-                  - ecs:RegisterTaskDefinition
-                  - ecs:UpdateService
-                Resource: "*"
-              - Effect: Allow
-                Action:
                   - ecs:DescribeClusters
                 Resource:
                   - arn:aws:ecs:*:*:cluster/liquidity-service-*
+              - Effect: Allow
+                Action:
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                  - ecs:DeregisterTaskDefinition
+                Resource: "*"

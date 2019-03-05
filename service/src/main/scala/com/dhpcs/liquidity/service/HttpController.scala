@@ -6,7 +6,6 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.X509EncodedKeySpec
 
 import akka.NotUsed
-import akka.actor.typed.ActorRefResolver
 import akka.event.Logging
 import akka.http.scaladsl.common._
 import akka.http.scaladsl.marshalling._
@@ -19,7 +18,6 @@ import akka.http.scaladsl.unmarshalling._
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import com.dhpcs.liquidity.actor.protocol.zonemonitor.ActiveZoneSummary
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -52,18 +50,15 @@ class HttpController(
     akkaManagement: StandardRoute,
     events: (String, Long, Long) => Source[EventEnvelope, NotUsed],
     zoneState: ZoneId => Future[proto.persistence.zone.ZoneState],
-    resolver: ActorRefResolver,
-    getActiveZoneSummaries: () => Future[Set[ActiveZoneSummary]],
     zoneValidator: ZoneValidator,
     pingInterval: FiniteDuration) {
 
   def route(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
-      path("ready")(ready) ~
+    path("ready")(ready) ~
       path("alive")(alive) ~
       logRequestResult(("access-log", Logging.InfoLevel))(
         path("version")(version) ~
-        path("status")(status) ~
-        pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
+          pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
           pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
           (if (enableClientRelay)
              extractClientIP(_.toOption match {
@@ -161,82 +156,14 @@ class HttpController(
       )
     )
 
-  private[this] def status(implicit ec: ExecutionContext): Route =
-    get(
-      complete(
-        for (activeZoneSummaries <- getActiveZoneSummaries())
-          yield
-            Json.obj(
-                "activeZones" -> activeZoneSummaries.toSeq
-                  .sortBy(_.zoneId.value)
-                  .map {
-                    case ActiveZoneSummary(zoneId,
-                                           members,
-                                           accounts,
-                                           transactions,
-                                           metadata,
-                                           connectedClients) =>
-                      Json.obj(
-                        "zoneIdFingerprint" -> okio.ByteString
-                          .encodeUtf8(zoneId.value)
-                          .sha256
-                          .hex,
-                        "metadata" -> metadata
-                          .map(JsonFormat.toJsonString)
-                          .map(Json.parse),
-                        "members" -> members,
-                        "accounts" -> accounts,
-                        "transactions" -> transactions,
-                        "clientConnections" -> connectedClients.values
-                          .groupBy(_.remoteAddress)
-                          .toSeq
-                          .sortBy {
-                            case (remoteAddress, _) =>
-                              remoteAddress.getHostAddress
-                          }
-                          .map {
-                            case (remoteAddress, clientsAtHostAddress) =>
-                              Json.obj(
-                                "hostAddressFingerprint" -> okio.ByteString
-                                  .encodeUtf8(remoteAddress.getHostAddress)
-                                  .sha256
-                                  .hex,
-                                "clientsAtHostAddress" -> clientsAtHostAddress
-                                  .groupBy(_.publicKey)
-                                  .toSeq
-                                  .sortBy {
-                                    case (publicKey, _) =>
-                                      publicKey.fingerprint
-                                  }
-                                  .map {
-                                    case (publicKey, clientsWithPublicKey) =>
-                                      Json.obj(
-                                        "publicKeyFingerprint" -> publicKey.fingerprint,
-                                        "clientsWithPublicKey" -> clientsWithPublicKey
-                                            .map(clientsWithPublicKey =>
-                                              resolver
-                                                .toSerializationFormat(
-                                                  clientsWithPublicKey.connectionId))
-                                            .toSeq
-                                            .sorted
-                                      )
-                                  }
-                              )
-                          }
-                      )
-                  }
-              )
-      )
-    )
-
   private[this] def diagnostics: Route =
     path("events" / Segment)(
       persistenceId =>
         parameters(("fromSequenceNr".as[Long] ? 0L,
-          "toSequenceNr".as[Long] ? Long.MaxValue)) {
+                    "toSequenceNr".as[Long] ? Long.MaxValue)) {
           (fromSequenceNr, toSequenceNr) =>
             get(complete(events(persistenceId, fromSequenceNr, toSequenceNr)))
-        }) ~
+      }) ~
       path("zone" / zoneIdMatcher)(zoneId => get(complete(zoneState(zoneId))))
 
   private[this] def zoneCommand(

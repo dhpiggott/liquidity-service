@@ -18,12 +18,9 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.http.scaladsl.unmarshalling.PredefinedFromEntityUnmarshallers
 import akka.stream.scaladsl.Source
-import akka.actor.testkit.typed.scaladsl.TestProbe
 import akka.util.ByteString
 import cats.syntax.validated._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
-import com.dhpcs.liquidity.actor.protocol.clientconnection.ZoneNotificationEnvelope
-import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone._
@@ -579,32 +576,6 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
             .as[String] == BuildInfo.builtAtMillis.toString)
       }
     }
-    "provides status information" in {
-      val getRequest = RequestBuilding.Get("/status")
-      getRequest ~> httpController.route(enableClientRelay = true) ~> check {
-        assert(status === StatusCodes.OK)
-        assert(entityAs[JsValue] === Json.parse(s"""
-             |{
-             |  "activeZones" : [ {
-             |    "zoneIdFingerprint" : "b697e3a3a1eceb99d9e0b3e932e47596e77dfab19697d6fe15b3b0db75e96f12",
-             |    "metadata" : null,
-             |    "members" : 2,
-             |    "accounts" : 2,
-             |    "transactions" : 1,
-             |    "clientConnections" : [ {
-             |      "hostAddressFingerprint" : "14853799b55e545f862f2fc26bca37ab6adbb7a3696db3ee733c8c78714de3c4",
-             |      "clientsAtHostAddress" : [ {
-             |        "publicKeyFingerprint" : "${publicKey.fingerprint}",
-             |        "clientsWithPublicKey" : [
-             |          "${resolver.toSerializationFormat(clientConnection)}"
-             |        ]
-             |      } ]
-             |    } ]
-             |  } ]
-             |}
-           """.stripMargin))
-      }
-    }
     "accepts CreateZoneCommands" - {
       "with JSON encoding" in {
         val putRequest = RequestBuilding
@@ -889,11 +860,6 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
     }
   }
 
-  private[this] val resolver = ActorRefResolver(system.toTyped)
-
-  private[this] val clientConnection =
-    TestProbe[ZoneNotificationEnvelope]()(system.toTyped).ref
-
   private[this] val httpController = new HttpController(
     ready = requestContext => {
       import PredefinedToEntityMarshallers.StringMarshaller
@@ -978,26 +944,6 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
             balances = Map.empty,
             connectedClients = Seq.empty
           )
-    ),
-    resolver = resolver,
-    getActiveZoneSummaries = () =>
-      Future.successful(
-        Set(
-          ActiveZoneSummary(
-            zone.id,
-            members = 2,
-            accounts = 2,
-            transactions = 1,
-            metadata = None,
-            connectedClients = Map(
-              clientConnection -> ConnectedClient(
-                clientConnection,
-                remoteAddress,
-                publicKey
-              )
-            )
-          )
-        )
     ),
     zoneValidator = new HttpController.ZoneValidator {
 

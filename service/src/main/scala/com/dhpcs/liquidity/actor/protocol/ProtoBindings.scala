@@ -5,7 +5,6 @@ import java.net.InetAddress
 import akka.actor.typed.{ActorRef, ActorRefResolver}
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
-import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model.ProtoBindings._
 import com.dhpcs.liquidity.persistence.zone._
@@ -51,11 +50,6 @@ object ProtoBindings {
     ZoneNotificationEnvelope,
     proto.actor.protocol.clientconnection.ZoneNotificationEnvelope,
     ActorRefResolver] = cachedImplicit
-
-  implicit final val UpsertActiveZoneSummaryProtoBinding
-    : ProtoBinding[UpsertActiveZoneSummary,
-                   proto.actor.protocol.zonemonitor.UpsertActiveZoneSummary,
-                   ActorRefResolver] = cachedImplicit
 
   implicit final val InetAddressProtoBinding
     : ProtoBinding[InetAddress, com.google.protobuf.ByteString, Any] =

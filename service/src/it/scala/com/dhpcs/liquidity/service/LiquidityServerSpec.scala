@@ -651,7 +651,7 @@ abstract class LiquidityServerSpec
   private[this] def transactionAdded(
       zone: Zone,
       balances: Map[AccountId, BigDecimal],
-      transaction: Transaction): (Zone, Map[AccountId, BigDecimal]) = {
+      transaction: Transaction): (Zone, Map[AccountId, BigDecimal]) =
     (
       awaitZoneProjection(
         zone.copy(
@@ -665,7 +665,6 @@ abstract class LiquidityServerSpec
           (transaction.to -> (balances(transaction.to) + transaction.value))
       )
     )
-  }
 
   private[this] def createZone(createZoneCommand: CreateZoneCommand)(
       implicit ec: ExecutionContext): Future[ZoneResponse] =
@@ -687,7 +686,7 @@ abstract class LiquidityServerSpec
     )
 
   private[this] def execZoneCommand(zoneSubPath: Uri.Path, entity: Array[Byte])(
-      implicit ec: ExecutionContext): Future[ZoneResponse] = {
+      implicit ec: ExecutionContext): Future[ZoneResponse] =
     for {
       httpResponse <- Http().singleRequest(
         HttpRequest(
@@ -723,7 +722,6 @@ abstract class LiquidityServerSpec
       ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asScala(
         protoZoneResponseMessage.toZoneResponse
       )(())
-  }
 
   private[this] def awaitZoneProjection(zone: Zone): Zone = {
     val retrieveAllMembers: ConnectionIO[Seq[(MemberId, Member)]] = {

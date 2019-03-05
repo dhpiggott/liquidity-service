@@ -75,7 +75,6 @@ lazy val service = project
       "com.typesafe.akka" %% "akka-discovery" % "2.5.21",
       "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.21",
       "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.21",
-      "com.typesafe.akka" %% "akka-cluster-tools" % "2.5.21",
       "com.typesafe.akka" %% "akka-persistence-typed" % "2.5.21",
       "com.typesafe.akka" %% "akka-persistence-query" % "2.5.21",
       "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "1.0.0-RC3",
@@ -107,6 +106,7 @@ lazy val service = project
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
   .settings(inConfig(IntegrationTest)(ScalafmtPlugin.scalafmtConfigSettings))
+  .settings(IntegrationTest / logBuffered := false)
   .settings(libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.0.6" % IntegrationTest,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.7" % IntegrationTest,

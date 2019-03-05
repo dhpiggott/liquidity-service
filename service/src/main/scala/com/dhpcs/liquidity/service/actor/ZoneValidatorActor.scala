@@ -6,10 +6,7 @@ import java.security.spec.{InvalidKeySpecException, X509EncodedKeySpec}
 import java.time.Instant
 
 import akka.actor.typed._
-import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.Publish
 import akka.cluster.sharding.typed.ShardingMessageExtractor
 import akka.cluster.sharding.typed.scaladsl.EntityTypeKey
 import akka.persistence.typed.PersistenceId
@@ -22,7 +19,6 @@ import cats.syntax.apply._
 import cats.syntax.validated._
 import com.dhpcs.liquidity.actor.protocol.clientconnection._
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
-import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.EventTags
@@ -78,7 +74,6 @@ object ZoneValidatorActor {
             ))
           .info("Starting")
         context.setReceiveTimeout(PassivationTimeout, StopZone)
-        val mediator = DistributedPubSub(context.system.toUntyped).mediator
         val notificationSequenceNumbers =
           mutable.Map.empty[ActorRef[Nothing], Long]
         implicit val resolver: ActorRefResolver =
@@ -107,8 +102,7 @@ object ZoneValidatorActor {
                 Effect.none
 
               case zoneCommandEnvelope: ZoneCommandEnvelope =>
-                handleCommand(mediator,
-                              context,
+                handleCommand(context,
                               id,
                               notificationSequenceNumbers,
                               state,
@@ -182,29 +176,15 @@ object ZoneValidatorActor {
                                 publicKey
                               )
                             )
-                            mediator ! Publish(
-                              ZoneMonitorActor.ZoneStatusTopic,
-                              UpsertActiveZoneSummary(
-                                context.self,
-                                ActiveZoneSummary(
-                                  id,
-                                  zone.members.size,
-                                  zone.accounts.size,
-                                  zone.transactions.size,
-                                  zone.metadata,
-                                  state.connectedClients
-                                )
-                              )
-                            )
                         }
                 }
 
               case RemoveClient(clientConnection) =>
-                (state.zone, state.connectedClients.get(clientConnection)).tupled match {
+                state.connectedClients.get(clientConnection) match {
                   case None =>
                     Effect.none
 
-                  case Some((zone, connectedClient)) =>
+                  case Some(connectedClient) =>
                     Effect
                       .persist(
                         ZoneEventEnvelope(
@@ -217,33 +197,18 @@ object ZoneValidatorActor {
                           )
                         )
                       )
-                      .thenRun {
-                        state =>
-                          deliverNotification(
-                            context.self,
-                            id,
-                            state.connectedClients.keys,
-                            notificationSequenceNumbers,
-                            ClientQuitNotification(
-                              ActorRefResolver(context.system)
-                                .toSerializationFormat(clientConnection),
-                              connectedClient.publicKey
-                            )
+                      .thenRun { state =>
+                        deliverNotification(
+                          context.self,
+                          id,
+                          state.connectedClients.keys,
+                          notificationSequenceNumbers,
+                          ClientQuitNotification(
+                            ActorRefResolver(context.system)
+                              .toSerializationFormat(clientConnection),
+                            connectedClient.publicKey
                           )
-                          mediator ! Publish(
-                            ZoneMonitorActor.ZoneStatusTopic,
-                            UpsertActiveZoneSummary(
-                              context.self,
-                              ActiveZoneSummary(
-                                id,
-                                zone.members.size,
-                                zone.accounts.size,
-                                zone.transactions.size,
-                                zone.metadata,
-                                state.connectedClients
-                              )
-                            )
-                          )
+                        )
                       }
                 }
           },
@@ -254,7 +219,6 @@ object ZoneValidatorActor {
       .narrow[SerializableZoneValidatorMessage]
 
   private[this] def handleCommand(
-      mediator: ActorRef[Publish],
       context: ActorContext[ZoneValidatorMessage],
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
@@ -344,7 +308,6 @@ object ZoneValidatorActor {
                 )
                 acceptCommand(
                   context.self,
-                  mediator,
                   id,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
@@ -386,7 +349,6 @@ object ZoneValidatorActor {
                 } else
                   acceptCommand(
                     context.self,
-                    mediator,
                     id,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
@@ -429,7 +391,6 @@ object ZoneValidatorActor {
               case Valid(params) =>
                 acceptCommand(
                   context.self,
-                  mediator,
                   id,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
@@ -481,7 +442,6 @@ object ZoneValidatorActor {
                 } else
                   acceptCommand(
                     context.self,
-                    mediator,
                     id,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
@@ -524,7 +484,6 @@ object ZoneValidatorActor {
               case Valid(params) =>
                 acceptCommand(
                   context.self,
-                  mediator,
                   id,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
@@ -576,7 +535,6 @@ object ZoneValidatorActor {
                 } else
                   acceptCommand(
                     context.self,
-                    mediator,
                     id,
                     notificationSequenceNumbers,
                     zoneCommandEnvelope,
@@ -647,7 +605,6 @@ object ZoneValidatorActor {
               case Valid(params) =>
                 acceptCommand(
                   context.self,
-                  mediator,
                   id,
                   notificationSequenceNumbers,
                   zoneCommandEnvelope,
@@ -814,7 +771,6 @@ object ZoneValidatorActor {
 
   private[this] def acceptCommand(
       self: ActorRef[ZoneValidatorMessage],
-      mediator: ActorRef[Publish],
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       zoneCommandEnvelope: ZoneCommandEnvelope,
@@ -909,23 +865,6 @@ object ZoneValidatorActor {
             state.connectedClients.keys,
             notificationSequenceNumbers,
             _
-          )
-        )
-        state.zone.foreach(
-          zone =>
-            mediator ! Publish(
-              ZoneMonitorActor.ZoneStatusTopic,
-              UpsertActiveZoneSummary(
-                self,
-                ActiveZoneSummary(
-                  id,
-                  zone.members.size,
-                  zone.accounts.size,
-                  zone.transactions.size,
-                  zone.metadata,
-                  state.connectedClients
-                )
-              )
           )
         )
       }

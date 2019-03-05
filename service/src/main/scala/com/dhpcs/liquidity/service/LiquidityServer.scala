@@ -27,7 +27,6 @@ import cats.effect.{ContextShift, IO, Resource}
 import cats.implicits._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
-import com.dhpcs.liquidity.actor.protocol.zonemonitor._
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone._
@@ -85,14 +84,12 @@ object LiquidityServer {
                |      client-connection-message = "com.dhpcs.liquidity.service.serialization.ClientConnectionMessageSerializer"
                |      liquidity-server-message = "com.dhpcs.liquidity.service.serialization.LiquidityServerMessageSerializer"
                |      zone-validator-message = "com.dhpcs.liquidity.service.serialization.ZoneValidatorMessageSerializer"
-               |      zone-monitor-message = "com.dhpcs.liquidity.service.serialization.ZoneMonitorMessageSerializer"
                |    }
                |    serialization-bindings {
                |      "com.dhpcs.liquidity.persistence.zone.ZoneRecord" = zone-record
                |      "com.dhpcs.liquidity.actor.protocol.clientconnection.SerializableClientConnectionMessage" = client-connection-message
                |      "com.dhpcs.liquidity.actor.protocol.liquidityserver.LiquidityServerMessage" = liquidity-server-message
                |      "com.dhpcs.liquidity.actor.protocol.zonevalidator.SerializableZoneValidatorMessage" = zone-validator-message
-               |      "com.dhpcs.liquidity.actor.protocol.zonemonitor.SerializableZoneMonitorMessage" = zone-monitor-message
                |    }
                |    allow-java-serialization = off
                |  }
@@ -230,9 +227,6 @@ class LiquidityServer(
   private[this] implicit val scheduler: Scheduler = system.scheduler
   private[this] implicit val ec: ExecutionContext = system.dispatcher
 
-  private[this] val zoneMonitor =
-    system.spawn(ZoneMonitorActor.behavior, "zoneMonitor")
-
   private[this] val zoneValidatorShardRegion =
     ClusterSharding(system.toTyped).init(
       Entity(
@@ -315,11 +309,6 @@ class LiquidityServer(
                      proto.persistence.zone.ZoneState,
                      ActorRefResolver]
           .asProto(_)(ActorRefResolver(system.toTyped)))
-    },
-    resolver = ActorRefResolver(system.toTyped),
-    getActiveZoneSummaries = () => {
-      implicit val timeout: Timeout = Timeout(5.seconds)
-      zoneMonitor ? GetActiveZoneSummaries
     },
     zoneValidator = new HttpController.ZoneValidator {
 

@@ -1,8 +1,5 @@
 package com.dhpcs.liquidity.service
 
-import java.net.InetAddress
-import java.util.UUID
-
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.ActorRefResolver
@@ -22,13 +19,12 @@ import akka.persistence.query._
 import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
-import akka.{Done, NotUsed}
+import akka.Done
 import cats.effect.{ContextShift, IO, Resource}
 import cats.implicits._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
-import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -36,7 +32,6 @@ import com.dhpcs.liquidity.service.LiquidityServer._
 import com.dhpcs.liquidity.service.SqlBindings._
 import com.dhpcs.liquidity.service.actor.ZoneAnalyticsActor.StopZoneAnalytics
 import com.dhpcs.liquidity.service.actor._
-import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import doobie.hikari._
 import doobie.implicits._
@@ -310,48 +305,27 @@ class LiquidityServer(
                      ActorRefResolver]
           .asProto(_)(ActorRefResolver(system.toTyped)))
     },
-    zoneValidator = new HttpController.ZoneValidator {
-
-      override def createZone(
-          remoteAddress: InetAddress,
-          publicKey: PublicKey,
-          createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =
-        execZoneCommand(zoneId = ZoneId(UUID.randomUUID().toString),
-                        remoteAddress,
-                        publicKey,
-                        createZoneCommand)
-
-      override def execZoneCommand(
-          zoneId: ZoneId,
-          remoteAddress: InetAddress,
-          publicKey: PublicKey,
-          zoneCommand: ZoneCommand): Future[ZoneResponse] = {
-        implicit val timeout: Timeout = Timeout(5.seconds)
-        for {
-          zoneResponseEnvelope <- zoneValidatorShardRegion
-            .?[ZoneResponseEnvelope](
-              ZoneCommandEnvelope(_,
-                                  zoneId,
-                                  remoteAddress,
-                                  publicKey,
-                                  correlationId = 0,
-                                  zoneCommand))
-        } yield zoneResponseEnvelope.zoneResponse
-      }
-
-      override def zoneNotificationSource(
-          remoteAddress: InetAddress,
-          publicKey: PublicKey,
-          zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
-        ClientConnectionActor.zoneNotificationSource(
-          zoneValidatorShardRegion,
-          remoteAddress,
-          publicKey,
-          zoneId,
-          system.spawnAnonymous(_)
-        )
-
+    execZoneCommand = (remoteAddress, publicKey, zoneId, zoneCommand) => {
+      implicit val timeout: Timeout = Timeout(5.seconds)
+      for {
+        zoneResponseEnvelope <- zoneValidatorShardRegion
+          .?[ZoneResponseEnvelope](
+            ZoneCommandEnvelope(_,
+                                zoneId,
+                                remoteAddress,
+                                publicKey,
+                                correlationId = 0,
+                                zoneCommand))
+      } yield zoneResponseEnvelope.zoneResponse
     },
+    zoneNotificationSource = (remoteAddress, publicKey, zoneId) =>
+      ClientConnectionActor.zoneNotificationSource(
+        zoneValidatorShardRegion,
+        remoteAddress,
+        publicKey,
+        zoneId,
+        system.spawnAnonymous(_)
+    ),
     pingInterval = pingInterval
   )
 

@@ -8,7 +8,6 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Date
 
-import akka.NotUsed
 import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.client.RequestBuilding
@@ -27,7 +26,7 @@ import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.service.HttpController.EventEnvelope
-import com.dhpcs.liquidity.service.HttpControllerSpec._
+import com.dhpcs.liquidity.service.HttpControllerSpec.{publicKey, _}
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.nimbusds.jose.crypto.RSASSASigner
@@ -945,16 +944,11 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
             connectedClients = Seq.empty
           )
     ),
-    zoneValidator = new HttpController.ZoneValidator {
-
-      override def createZone(
-          remoteAddress: InetAddress,
-          publicKey: PublicKey,
-          createZoneCommand: CreateZoneCommand): Future[ZoneResponse] =
-        Future.successful(
-          if (remoteAddress == HttpControllerSpec.remoteAddress &&
-              publicKey == HttpControllerSpec.publicKey &&
-              createZoneCommand == CreateZoneCommand(
+    execZoneCommand = (remoteAddress, publicKey, zoneId, zoneCommand) =>
+      Future.successful(
+        if (remoteAddress == HttpControllerSpec.remoteAddress &&
+            publicKey == HttpControllerSpec.publicKey)
+          if (zoneCommand == CreateZoneCommand(
                 equityOwnerPublicKey = publicKey,
                 equityOwnerName = zone
                   .members(
@@ -967,31 +961,15 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
                 metadata = None
               ))
             CreateZoneResponse(zone.valid)
-          else fail()
-        )
-
-      override def execZoneCommand(
-          zoneId: ZoneId,
-          remoteAddress: InetAddress,
-          publicKey: PublicKey,
-          zoneCommand: ZoneCommand): Future[ZoneResponse] =
-        Future.successful(
-          if (zoneId == zone.id &&
-              remoteAddress == HttpControllerSpec.remoteAddress &&
-              publicKey == HttpControllerSpec.publicKey &&
-              zoneCommand == ChangeZoneNameCommand(name = None))
+          else if (zoneId == zone.id &&
+                   zoneCommand == ChangeZoneNameCommand(name = None))
             ChangeZoneNameResponse(().valid)
           else fail()
-        )
-
-      override def zoneNotificationSource(
-          remoteAddress: InetAddress,
-          publicKey: PublicKey,
-          zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
-        if (zoneId != zone.id) Source.empty
-        else Source(zoneNotifications)
-
-    },
+        else fail()
+    ),
+    zoneNotificationSource = (_, _, zoneId) =>
+      if (zoneId != zone.id) Source.empty
+      else Source(zoneNotifications),
     pingInterval = 3.seconds
   )
 

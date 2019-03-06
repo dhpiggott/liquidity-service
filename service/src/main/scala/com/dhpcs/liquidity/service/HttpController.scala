@@ -4,6 +4,7 @@ import java.net.InetAddress
 import java.security.KeyFactory
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.X509EncodedKeySpec
+import java.util.UUID
 
 import akka.NotUsed
 import akka.event.Logging
@@ -50,7 +51,13 @@ class HttpController(
     akkaManagement: StandardRoute,
     events: (String, Long, Long) => Source[EventEnvelope, NotUsed],
     zoneState: ZoneId => Future[proto.persistence.zone.ZoneState],
-    zoneValidator: ZoneValidator,
+    execZoneCommand: (InetAddress,
+                      PublicKey,
+                      ZoneId,
+                      ZoneCommand) => Future[ZoneResponse],
+    zoneNotificationSource: (InetAddress,
+                             PublicKey,
+                             ZoneId) => Source[ZoneNotification, NotUsed],
     pingInterval: FiniteDuration) {
 
   def route(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
@@ -180,8 +187,10 @@ class HttpController(
                 protoCreateZoneCommand
               )(())
             complete(
-              zoneValidator
-                .createZone(remoteAddress, publicKey, createZoneCommand)
+              execZoneCommand(remoteAddress,
+                              publicKey,
+                              ZoneId(UUID.randomUUID().toString),
+                              createZoneCommand)
                 .map(
                   zoneResponse =>
                     ProtoBinding[ZoneResponse,
@@ -213,11 +222,10 @@ class HttpController(
 
                   case _ =>
                     complete(
-                      zoneValidator
-                        .execZoneCommand(zoneId,
-                                         remoteAddress,
-                                         publicKey,
-                                         zoneCommand)
+                      execZoneCommand(remoteAddress,
+                                      publicKey,
+                                      zoneId,
+                                      zoneCommand)
                         .map(
                           zoneResponse =>
                             ProtoBinding[ZoneResponse,
@@ -239,8 +247,7 @@ class HttpController(
       path(zoneIdMatcher)(
         zoneId =>
           complete(
-            zoneValidator
-              .zoneNotificationSource(remoteAddress, publicKey, zoneId)
+            zoneNotificationSource(remoteAddress, publicKey, zoneId)
               .map(
                 zoneNotification =>
                   ProtoBinding[ZoneNotification,
@@ -261,24 +268,6 @@ class HttpController(
 }
 
 object HttpController {
-
-  abstract class ZoneValidator {
-
-    def createZone(remoteAddress: InetAddress,
-                   publicKey: PublicKey,
-                   createZoneCommand: CreateZoneCommand): Future[ZoneResponse]
-
-    def execZoneCommand(zoneId: ZoneId,
-                        remoteAddress: InetAddress,
-                        publicKey: PublicKey,
-                        zoneCommand: ZoneCommand): Future[ZoneResponse]
-
-    def zoneNotificationSource(
-        remoteAddress: InetAddress,
-        publicKey: PublicKey,
-        zoneId: ZoneId): Source[ZoneNotification, NotUsed]
-
-  }
 
   private def unauthorized[A](error: String): Directive1[A] =
     complete(

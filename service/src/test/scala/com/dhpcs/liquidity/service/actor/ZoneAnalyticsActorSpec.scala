@@ -545,13 +545,6 @@ object ZoneAnalyticsActorSpec {
            );
          """.update.run
     _ <- sql"""
-           CREATE TABLE account_counts (
-             time TIMESTAMP NOT NULL,
-             count INT NOT NULL,
-             PRIMARY KEY (count)
-           );
-         """.update.run
-    _ <- sql"""
            CREATE TABLE transactions (
              zone_id CHAR(36) NOT NULL,
              transaction_id VARCHAR(36) NOT NULL,

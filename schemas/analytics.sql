@@ -89,12 +89,6 @@ CREATE TABLE account_owners (
   FOREIGN KEY (update_id) REFERENCES account_updates(update_id)
 );
 
-CREATE TABLE account_counts (
-  `time` TIMESTAMP(3) NOT NULL,
-  `count` INT NOT NULL,
-  PRIMARY KEY (`time`)
-);
-
 CREATE TABLE transactions (
   zone_id CHAR(36) NOT NULL,
   transaction_id VARCHAR(36) NOT NULL,

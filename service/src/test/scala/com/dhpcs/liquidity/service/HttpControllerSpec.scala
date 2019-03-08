@@ -35,6 +35,7 @@ import com.nimbusds.jwt.{JWTClaimsSet, SignedJWT}
 import org.json4s._
 import org.json4s.native.JsonMethods
 import org.scalatest.FreeSpec
+import scalaz.zio.DefaultRuntime
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
@@ -970,7 +971,8 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
     ),
     zoneNotificationSource = (_, _, zoneId) =>
       if (zoneId != zone.id) Source.empty
-      else Source(zoneNotifications)
+      else Source(zoneNotifications),
+    runtime = new DefaultRuntime {}
   )
 
 }

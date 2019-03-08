@@ -42,26 +42,36 @@ lazy val `ws-protocol` = project
     bintrayOrganization := Some("dhpcs")
   )
 
-lazy val model = project
-  .in(file("model"))
+lazy val `proto-gen` = project
+  .in(file("proto-gen"))
+  .enablePlugins(
+    AkkaGrpcPlugin
+  )
   .settings(
     Compile / PB.protoSources ++= (`ws-protocol` / Compile / PB.protoSources).value,
-    Compile / PB.targets := Seq(
-      scalapb.gen(
-        flatPackage = true,
-        javaConversions = false,
-        grpc = false,
-        singleLineToProtoString = true
-      ) -> (Compile / sourceManaged).value
+    PB.generate / excludeFilter := "descriptor.proto",
+    akkaGrpcCodeGeneratorSettings += "server_power_apis"
+  )
+  .settings(
+    // Because the sources akka-grpc generates aren't perfect in this regard
+    scalacOptions -= "-Xfatal-warnings"
+  )
+  .settings(
+    libraryDependencies +=
+      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion %
+        ProtocPlugin.ProtobufConfig
+  )
+
+lazy val model = project
+  .in(file("model"))
+  .dependsOn(`proto-gen`)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats-core" % "1.6.0",
+      "com.squareup.okio" % "okio" % "2.2.2",
+      "com.typesafe.akka" %% "akka-actor-typed" % "2.5.22"
     )
   )
-  .settings(libraryDependencies ++= Seq(
-    "com.thesamet.scalapb" %% "scalapb-runtime" %
-      scalapb.compiler.Version.scalapbVersion % ProtocPlugin.ProtobufConfig,
-    "org.typelevel" %% "cats-core" % "1.6.0",
-    "com.squareup.okio" % "okio" % "2.2.2",
-    "com.typesafe.akka" %% "akka-actor-typed" % "2.5.22"
-  ))
 
 lazy val service = project
   .in(file("service"))

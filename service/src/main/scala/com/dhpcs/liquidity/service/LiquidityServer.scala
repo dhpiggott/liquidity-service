@@ -6,10 +6,10 @@ import java.security.spec.PKCS8EncodedKeySpec
 import java.security.{KeyFactory, KeyStore, SecureRandom}
 import java.util.zip.ZipInputStream
 
-import akka.actor.typed.{ActorRef, ActorRefResolver, ActorSystem, Behavior}
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
+import akka.actor.typed.{ActorRef, ActorRefResolver, ActorSystem, Behavior}
 import akka.actor.{CoordinatedShutdown, Scheduler}
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
@@ -560,84 +560,81 @@ class LiquidityServer(administratorsTransactor: Transactor[Task],
 
   private val handler = {
     implicit val untypedSystem: akka.actor.ActorSystem = system.toUntyped
-    Route.asyncHandler(
-      new HttpController(
-        ready = requestContext =>
-          akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/ready"))),
-        alive = requestContext =>
-          akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/alive"))),
-        akkaManagement = akkaManagement,
-        isAdministrator = publicKey =>
-          runtime.unsafeRunToFuture(
-            sql"""
+    new HttpController(
+      ready = requestContext =>
+        akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/ready"))),
+      alive = requestContext =>
+        akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/alive"))),
+      akkaManagement = akkaManagement,
+      isAdministrator = publicKey =>
+        runtime.unsafeRunToFuture(
+          sql"""
          SELECT 1
            FROM administrators
            WHERE public_key = $publicKey
         """.query[Int]
-              .option
-              .map(_.isDefined)
-              .transact(administratorsTransactor)
-        ),
-        events =
-          (persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) =>
-            readJournal
-              .eventsByPersistenceId(persistenceId,
-                                     fromSequenceNr,
-                                     toSequenceNr)
-              .map {
-                case EventEnvelope(_, _, sequenceNr, event) =>
-                  val protoEvent = event match {
-                    case zoneEventEnvelope: ZoneEventEnvelope =>
-                      ProtoBinding[ZoneEventEnvelope,
-                                   proto.persistence.zone.ZoneEventEnvelope,
-                                   ActorRefResolver]
-                        .asProto(zoneEventEnvelope)(ActorRefResolver(system))
-                  }
-                  HttpController.EventEnvelope(sequenceNr, protoEvent)
-            },
-        zoneState = zoneId => {
-          implicit val timeout: Timeout = Timeout(5.seconds)
-          zoneValidatorShardRegion
-            .ask[ZoneState](GetZoneStateCommand(_, zoneId))
-            .map(
-              ProtoBinding[ZoneState,
-                           proto.persistence.zone.ZoneState,
-                           ActorRefResolver]
-                .asProto(_)(ActorRefResolver(system))
-            )
-        },
-        execZoneCommand = (remoteAddress, publicKey, zoneId, zoneCommand) => {
-          implicit val timeout: Timeout = Timeout(5.seconds)
-          for {
-            zoneResponseEnvelope <- zoneValidatorShardRegion
-              .ask[ZoneResponseEnvelope](
-                ZoneCommandEnvelope(
-                  _,
-                  zoneId,
-                  remoteAddress,
-                  publicKey,
-                  correlationId = 0,
-                  zoneCommand
-                )
-              )
-          } yield zoneResponseEnvelope.zoneResponse
-        },
-        zoneNotificationSource = (remoteAddress, publicKey, zoneId) => {
-          implicit val timeout: Timeout = Timeout(5.seconds)
-          ClientConnectionActor.zoneNotificationSource(
-            zoneValidatorShardRegion,
-            remoteAddress,
-            publicKey,
-            zoneId,
-            behavior =>
-              system.ask(
-                LiquidityServer.Guardian.CreateClientConnection(_, behavior))
+            .option
+            .map(_.isDefined)
+            .transact(administratorsTransactor)
+      ),
+      events =
+        (persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) =>
+          readJournal
+            .eventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr)
+            .map {
+              case EventEnvelope(_, _, sequenceNr, event) =>
+                val protoEvent = event match {
+                  case zoneEventEnvelope: ZoneEventEnvelope =>
+                    ProtoBinding[ZoneEventEnvelope,
+                                 proto.persistence.zone.ZoneEventEnvelope,
+                                 ActorRefResolver]
+                      .asProto(zoneEventEnvelope)(ActorRefResolver(system))
+                }
+                HttpController.EventEnvelope(sequenceNr, protoEvent)
+          },
+      zoneState = zoneId => {
+        implicit val timeout: Timeout = Timeout(5.seconds)
+        zoneValidatorShardRegion
+          .ask[ZoneState](GetZoneStateCommand(_, zoneId))
+          .map(
+            ProtoBinding[ZoneState,
+                         proto.persistence.zone.ZoneState,
+                         ActorRefResolver]
+              .asProto(_)(ActorRefResolver(system))
           )
-        }
-      ).route(
-        enableClientRelay = Cluster(system).selfMember.roles
-          .contains(LiquidityServer.ClientRelayRole)
-      )
+      },
+      execZoneCommand = (remoteAddress, publicKey, zoneId, zoneCommand) => {
+        implicit val timeout: Timeout = Timeout(5.seconds)
+        for {
+          zoneResponseEnvelope <- zoneValidatorShardRegion
+            .ask[ZoneResponseEnvelope](
+              ZoneCommandEnvelope(
+                _,
+                zoneId,
+                remoteAddress,
+                publicKey,
+                correlationId = 0,
+                zoneCommand
+              )
+            )
+        } yield zoneResponseEnvelope.zoneResponse
+      },
+      zoneNotificationSource = (remoteAddress, publicKey, zoneId) => {
+        implicit val timeout: Timeout = Timeout(5.seconds)
+        ClientConnectionActor.zoneNotificationSource(
+          zoneValidatorShardRegion,
+          remoteAddress,
+          publicKey,
+          zoneId,
+          behavior =>
+            system.ask(
+              LiquidityServer.Guardian.CreateClientConnection(_, behavior))
+        )
+      },
+      runtime
+    ).handler(
+      enableClientRelay = Cluster(system).selfMember.roles
+        .contains(LiquidityServer.ClientRelayRole)
     )
   }
 }

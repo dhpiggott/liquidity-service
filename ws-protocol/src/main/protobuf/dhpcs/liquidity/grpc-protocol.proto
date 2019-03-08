@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+package dhpcs.liquidity.grpc.protocol;
+
+option java_package = "com.dhpcs.liquidity.proto.grpc.protocol";
+
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
+
+import "dhpcs/liquidity/model.proto";
+
+service LiquidityService {
+
+    rpc CreateZone (CreateZoneCommand) returns (CreateZoneResponse) {}
+    rpc ChangeZoneName (ChangeZoneNameCommand) returns (ChangeZoneNameResponse) {}
+    rpc CreateMember (CreateMemberCommand) returns (CreateMemberResponse) {}
+    rpc UpdateMember (UpdateMemberCommand) returns (UpdateMemberResponse) {}
+    rpc CreateAccount (CreateAccountCommand) returns (CreateAccountResponse) {}
+    rpc UpdateAccount (UpdateAccountCommand) returns (UpdateAccountResponse) {}
+    rpc AddTransaction (AddTransactionCommand) returns (AddTransactionResponse) {}
+
+    rpc ZoneNotifications (ZoneSubscription) returns (stream ZoneNotification) {}
+
+}
+
+message CreateZoneCommand {
+    bytes equity_owner_public_key = 1;
+    google.protobuf.StringValue equity_owner_name = 2;
+    google.protobuf.Struct equity_owner_metadata = 3;
+    google.protobuf.StringValue equity_account_name = 4;
+    google.protobuf.Struct equity_account_metadata = 5;
+    google.protobuf.StringValue name = 6;
+    google.protobuf.Struct metadata = 7;
+}
+
+message ChangeZoneNameCommand {
+    string zone_id = 1;
+    google.protobuf.StringValue name = 2;
+}
+
+message CreateMemberCommand {
+    string zone_id = 1;
+    repeated bytes owner_public_keys = 2;
+    google.protobuf.StringValue name = 3;
+    google.protobuf.Struct metadata = 4;
+}
+
+message UpdateMemberCommand {
+    string zone_id = 1;
+    dhpcs.liquidity.model.Member member = 2;
+}
+
+message CreateAccountCommand {
+    string zone_id = 1;
+    repeated string owner_member_ids = 2;
+    google.protobuf.StringValue name = 3;
+    google.protobuf.Struct metadata = 4;
+}
+
+message UpdateAccountCommand {
+    string zone_id = 1;
+    string acting_as = 2;
+    dhpcs.liquidity.model.Account account = 3;
+}
+
+message AddTransactionCommand {
+    string zone_id = 1;
+    string acting_as = 2;
+    string from = 3;
+    string to = 4;
+    string value = 5;
+    google.protobuf.StringValue description = 6;
+    google.protobuf.Struct metadata = 7;
+}
+
+message Errors {
+    message Error {
+        int32 code = 1;
+        string description = 2;
+    }
+    repeated Error errors = 1;
+}
+
+message CreateZoneResponse {
+    message Success {
+        dhpcs.liquidity.model.Zone zone = 1;
+    }
+    oneof result {
+        Errors errors = 1;
+        Success success = 2;
+    }
+}
+
+message ChangeZoneNameResponse {
+    oneof result {
+        Errors errors = 1;
+        bytes success = 2;
+    }
+}
+
+message CreateMemberResponse {
+    message Success {
+        dhpcs.liquidity.model.Member member = 1;
+    }
+    oneof result {
+        Errors errors = 1;
+        Success success = 2;
+    }
+}
+
+message UpdateMemberResponse {
+    oneof result {
+        Errors errors = 1;
+        bytes success = 2;
+    }
+}
+
+message CreateAccountResponse {
+    message Success {
+        dhpcs.liquidity.model.Account account = 1;
+    }
+    oneof result {
+        Errors errors = 1;
+        Success success = 2;
+    }
+}
+
+message UpdateAccountResponse {
+    oneof result {
+        Errors errors = 1;
+        bytes success = 2;
+    }
+}
+
+message AddTransactionResponse {
+    message Success {
+        dhpcs.liquidity.model.Transaction transaction = 1;
+    }
+    oneof result {
+        Errors errors = 1;
+        Success success = 2;
+    }
+}
+
+message ZoneSubscription {
+    string zone_id = 1;
+}
+
+message ZoneNotification {
+    oneof sealed_value {
+        Errors errors = 1;
+        ZoneStateNotification zone_state_notification = 2;
+        ClientJoinedZoneNotification client_joined_zone_notification = 3;
+        ClientQuitZoneNotification client_quit_zone_notification = 4;
+        ZoneNameChangedNotification zone_name_changed_notification = 5;
+        MemberCreatedNotification member_created_notification = 6;
+        MemberUpdatedNotification member_updated_notification = 7;
+        AccountCreatedNotification account_created_notification = 8;
+        AccountUpdatedNotification account_updated_notification = 9;
+        TransactionAddedNotification transaction_added_notification = 10;
+    }
+}
+
+message ZoneStateNotification {
+    dhpcs.liquidity.model.Zone zone = 1;
+    map<string, bytes> connected_clients = 2;
+}
+
+message ClientJoinedZoneNotification {
+    string connection_id = 1;
+    bytes public_key = 2;
+}
+
+message ClientQuitZoneNotification {
+    string connection_id = 1;
+    bytes public_key = 2;
+}
+
+message ZoneNameChangedNotification {
+    google.protobuf.StringValue name = 1;
+}
+
+message MemberCreatedNotification {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message MemberUpdatedNotification {
+    dhpcs.liquidity.model.Member member = 1;
+}
+
+message AccountCreatedNotification {
+    dhpcs.liquidity.model.Account account = 1;
+}
+
+message AccountUpdatedNotification {
+    string acting_as = 1;
+    dhpcs.liquidity.model.Account account = 2;
+}
+
+message TransactionAddedNotification {
+    dhpcs.liquidity.model.Transaction transaction = 1;
+}

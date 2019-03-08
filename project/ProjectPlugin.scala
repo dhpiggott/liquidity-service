@@ -20,6 +20,7 @@ object ProjectPlugin extends AutoPlugin {
       dynVerSettings ++
       testProjectSettings
 
+  // TODO: Switch to sbt-tpolecat
   private lazy val scalaProjectSettings = Seq(
     scalaVersion := "2.12.8",
     // See https://tpolecat.github.io/2017/04/25/scalac-flags.html for

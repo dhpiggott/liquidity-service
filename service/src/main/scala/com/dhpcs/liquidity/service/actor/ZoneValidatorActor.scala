@@ -48,7 +48,7 @@ object ZoneValidatorActor {
       // hand-off stop-messages are sent directly to the entity to be
       // stopped, so this extractor won't actually encounter them.
       case StopZone =>
-        throw new IllegalArgumentException("Received StopZone")
+        throw new Error
 
       case GetZoneStateCommand(_, zoneId) =>
         zoneId.value

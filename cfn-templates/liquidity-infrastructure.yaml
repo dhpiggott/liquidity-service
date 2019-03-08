@@ -4,6 +4,7 @@ Parameters:
     Type: String
   RDSPassword:
     Type: String
+    NoEcho: true
   NLBListenerCertificate:
     Type: String
 Resources:
@@ -112,7 +113,7 @@ Resources:
       Description: !Ref AWS::StackName
       Family: mysql8.0
       Parameters:
-        character-set-client-handshake: 0
+        character-set-client-handshake: "0"
   RDS:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -148,7 +149,7 @@ Resources:
       HealthCheckPath: "/ready"
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
-          Value: 0
+          Value: "0"
   NLBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:

@@ -22,6 +22,8 @@ jobs:
   include:
     - stage: test
       script: |
+        pip install --user cfn-lint && export PATH=$PATH:$HOME/.local/bin &&
+        cfn-lint --template cfn-templates/*.yaml  --region eu-west-1 &&
         shellcheck **/*.sh &&
         ./cd-scripts/test-units.sh &&
         bash <(curl -s https://codecov.io/bash)

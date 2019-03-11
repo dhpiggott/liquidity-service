@@ -2,16 +2,17 @@
 
 set -euo pipefail
 
-if [ $# -ne 2 ]
+if [ $# -ne 3 ]
   then
-    echo "Usage: $0 region environment"
+    echo "Usage: $0 region subdomain environment"
     exit 1
 fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 REGION=$1
-ENVIRONMENT=$2
+SUBDOMAIN=$2
+ENVIRONMENT=$3
 
 if ! aws cloudformation describe-stacks \
        --region "$REGION" \
@@ -54,7 +55,7 @@ NLB_LISTENER_CERTIFICATE=$(
     --region "$REGION" \
     --output text \
     --query \
-      "CertificateSummaryList[?DomainName=='*.liquidityapp.com'].CertificateArn"
+      "CertificateSummaryList[?DomainName=='$SUBDOMAIN.liquidityapp.com'].CertificateArn"
 )
 
 aws cloudformation deploy \

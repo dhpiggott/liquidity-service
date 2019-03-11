@@ -47,8 +47,8 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - "ecs:ListTasks"
-                  - "ecs:DescribeTasks"
+                  - ecs:ListTasks
+                  - ecs:DescribeTasks
                 Resource: "*"
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition

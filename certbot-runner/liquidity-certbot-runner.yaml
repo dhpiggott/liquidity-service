@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Parameters:
+  HostedZoneId:
+    Type: String
+  Domains:
+    Type: CommaDelimitedList
+Resources:
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Ref AWS::StackName
+      Subscription:
+        - Protocol: email
+          Endpoint: "admin@liquidityapp.com"
+  Lambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - acm:ListCertificates
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - acm:DescribeCertificate
+              Resource:
+                - !Sub "arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/*"
+            - Effect: Allow
+              Action:
+                - route53:ListHostedZones
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - route53:ChangeResourceRecordSets
+              Resource:
+                - !Sub "arn:aws:route53:::hostedzone/${HostedZoneId}"
+            - Effect: Allow
+              Action:
+                - route53:GetChange
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - acm:ImportCertificate
+              Resource: "*"
+        - SNSPublishMessagePolicy:
+            TopicName: !Ref SNSTopic
+      Runtime: python3.7
+      CodeUri: .
+      Handler: certbot_runner.handler
+      Environment:
+        Variables:
+          LETSENCRYPT_DOMAINS: !Join [ ",", !Ref Domains ]
+          LETSENCRYPT_EMAIL: "admin@liquidityapp.com"
+          NOTIFICATION_SNS_ARN: !Ref SNSTopic
+      ReservedConcurrentExecutions: 1
+      Timeout: 900
+      DeadLetterQueue:
+        Type: SNS
+        TargetArn: !Ref SNSTopic
+      Events:
+        Cron:
+          Type: Schedule
+          Properties:
+            Schedule: rate(12 hours)
+Outputs:
+  LambdaId:
+    Value: !Ref Lambda

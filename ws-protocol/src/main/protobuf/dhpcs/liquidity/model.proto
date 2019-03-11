@@ -4,8 +4,8 @@ package dhpcs.liquidity.model;
 
 option java_package = "com.dhpcs.liquidity.proto.model";
 
-import "google/protobuf/wrappers.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/wrappers.proto";
 
 message Member {
     string id = 1;

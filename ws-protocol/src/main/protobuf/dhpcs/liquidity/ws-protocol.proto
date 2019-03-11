@@ -4,8 +4,9 @@ package dhpcs.liquidity.ws.protocol;
 
 option java_package = "com.dhpcs.liquidity.proto.ws.protocol";
 
-import "google/protobuf/wrappers.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/wrappers.proto";
 
 import "dhpcs/liquidity/model.proto";
 
@@ -98,7 +99,7 @@ message CreateZoneResponse {
 message ChangeZoneNameResponse {
     oneof result {
         Errors errors = 1;
-        bytes success = 2;
+        google.protobuf.Empty success = 2;
     }
 }
 
@@ -115,7 +116,7 @@ message CreateMemberResponse {
 message UpdateMemberResponse {
     oneof result {
         Errors errors = 1;
-        bytes success = 2;
+        google.protobuf.Empty success = 2;
     }
 }
 
@@ -132,7 +133,7 @@ message CreateAccountResponse {
 message UpdateAccountResponse {
     oneof result {
         Errors errors = 1;
-        bytes success = 2;
+        google.protobuf.Empty success = 2;
     }
 }
 

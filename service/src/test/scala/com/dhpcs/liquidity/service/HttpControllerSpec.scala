@@ -699,7 +699,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           assert(entityAs[JsValue] === Json.parse(s"""
                |{
                |  "changeZoneNameResponse": {
-               |    "success": ""
+               |    "success": {}
                |  }
                |}
            """.stripMargin))

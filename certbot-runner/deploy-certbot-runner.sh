@@ -38,7 +38,7 @@ sam deploy \
   --no-fail-on-empty-changeset \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-      HostedZoneId=${HOSTED_ZONE_ID#"/hostedzone/"} \
+      HostedZoneId="${HOSTED_ZONE_ID#"/hostedzone/"}" \
       Domains="$SUBDOMAIN".liquidityapp.com
 
 LAMBDA_ID=$(

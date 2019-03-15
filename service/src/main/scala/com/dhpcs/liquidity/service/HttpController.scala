@@ -39,7 +39,7 @@ import scalapb.json4s.JsonFormat
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion, Message}
 
 import scala.collection.immutable.Seq
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.util.control.NonFatal
@@ -57,8 +57,7 @@ class HttpController(
                       ZoneCommand) => Future[ZoneResponse],
     zoneNotificationSource: (InetAddress,
                              PublicKey,
-                             ZoneId) => Source[ZoneNotification, NotUsed],
-    pingInterval: FiniteDuration) {
+                             ZoneId) => Source[ZoneNotification, NotUsed]) {
 
   def route(enableClientRelay: Boolean)(implicit ec: ExecutionContext): Route =
     path("ready")(ready) ~
@@ -255,7 +254,7 @@ class HttpController(
                                Any].asProto(zoneNotification)(()).asMessage
               )
               .keepAlive(
-                pingInterval,
+                5.seconds,
                 () =>
                   ProtoBinding[ZoneNotification,
                                proto.ws.protocol.ZoneNotification,

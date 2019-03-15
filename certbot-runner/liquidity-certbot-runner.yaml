@@ -3,9 +3,17 @@ Transform: 'AWS::Serverless-2016-10-31'
 Parameters:
   HostedZoneId:
     Type: String
-  Domains:
-    Type: CommaDelimitedList
+  Domain:
+    Type: String
 Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::Region}.liquidity-certbot-runner-${Domain}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
   SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -21,13 +29,14 @@ Resources:
           Statement:
             - Effect: Allow
               Action:
-                - acm:ListCertificates
-              Resource: "*"
+                - s3:ListBucket
+              Resource:
+                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Domain}"
             - Effect: Allow
               Action:
-                - acm:DescribeCertificate
+                - s3:GetObject
               Resource:
-                - !Sub "arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/*"
+                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Domain}/*"
             - Effect: Allow
               Action:
                 - route53:ListHostedZones
@@ -43,8 +52,9 @@ Resources:
               Resource: "*"
             - Effect: Allow
               Action:
-                - acm:ImportCertificate
-              Resource: "*"
+                - s3:PutObject
+              Resource:
+                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Domain}/*"
         - SNSPublishMessagePolicy:
             TopicName: !Ref SNSTopic
       Runtime: python3.7
@@ -52,7 +62,7 @@ Resources:
       Handler: certbot_runner.handler
       Environment:
         Variables:
-          LETSENCRYPT_DOMAINS: !Join [ ",", !Ref Domains ]
+          LETSENCRYPT_DOMAIN: !Ref Domain
           LETSENCRYPT_EMAIL: "admin@liquidityapp.com"
           NOTIFICATION_SNS_ARN: !Ref SNSTopic
       ReservedConcurrentExecutions: 1

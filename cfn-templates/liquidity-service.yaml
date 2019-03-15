@@ -4,6 +4,8 @@ Parameters:
     Type: String
   ImageId:
     Type: String
+  Subdomain:
+    Type: String
 Resources:
   Cluster:
     Type: AWS::ECS::Cluster
@@ -50,6 +52,12 @@ Resources:
                   - ecs:ListTasks
                   - ecs:DescribeTasks
                 Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Subdomain}.liquidityapp.com/live/${Subdomain}.liquidityapp.com/privkey.pem"
+                  - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Subdomain}.liquidityapp.com/live/${Subdomain}.liquidityapp.com/fullchain.pem"
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -66,7 +74,7 @@ Resources:
             !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${InfrastructureStack}@${ImageId}"
           ReadonlyRootFilesystem: true
           PortMappings:
-          - ContainerPort: 8080
+          - ContainerPort: 8443
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -93,6 +101,8 @@ Resources:
             - Name: MYSQL_PASSWORD
               Value:
                 Fn::ImportValue: !Sub "${InfrastructureStack}-RDSPassword"
+            - Name: SUBDOMAIN
+              Value: !Ref Subdomain
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -103,6 +113,10 @@ Resources:
         - IpProtocol: "tcp"
           FromPort: 8080
           ToPort: 8080
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: "tcp"
+          FromPort: 8443
+          ToPort: 8443
           CidrIp: "0.0.0.0/0"
   ServiceSecurityGroupAkkaManagementSelfIngress:
     Type: AWS::EC2::SecurityGroupIngress
@@ -142,7 +156,7 @@ Resources:
       TaskDefinition: !Ref TaskDefinition
       LoadBalancers:
         - ContainerName: liquidity
-          ContainerPort: 8080
+          ContainerPort: 8443
           TargetGroupArn:
             Fn::ImportValue: !Sub "${InfrastructureStack}-NLBTargetGroup"
       HealthCheckGracePeriodSeconds: 300

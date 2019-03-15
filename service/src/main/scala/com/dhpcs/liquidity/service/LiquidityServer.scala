@@ -1,5 +1,10 @@
 package com.dhpcs.liquidity.service
 
+import java.io.{ByteArrayInputStream, InputStreamReader}
+import java.security.{KeyFactory, KeyStore, SecureRandom}
+import java.security.cert.CertificateFactory
+import java.security.spec.PKCS8EncodedKeySpec
+
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.ActorRefResolver
@@ -9,17 +14,18 @@ import akka.cluster.sharding.typed.scaladsl.Entity
 import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed._
 import akka.discovery.awsapi.ecs.AsyncEcsServiceDiscovery
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{ConnectionContext, Http, Http2}
 import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.server.StandardRoute
+import akka.http.scaladsl.server.{Route, StandardRoute}
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query._
 import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer}
-import akka.util.Timeout
+import akka.util.{ByteString, Timeout}
 import akka.Done
+import akka.stream.alpakka.s3.scaladsl.S3
 import cats.effect.{ContextShift, IO, Resource}
 import cats.implicits._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
@@ -37,8 +43,11 @@ import doobie.hikari._
 import doobie.implicits._
 import doobie.util.ExecutionContexts
 import doobie.util.transactor.Transactor
+import javax.net.ssl._
+import org.bouncycastle.openssl.PEMParser
 import org.slf4j.LoggerFactory
 
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -54,6 +63,7 @@ object LiquidityServer {
     val mysqlHostname = sys.env("MYSQL_HOSTNAME")
     val mysqlUsername = sys.env("MYSQL_USERNAME")
     val mysqlPassword = sys.env("MYSQL_PASSWORD")
+    val maybeSubdomain = sys.env.get("SUBDOMAIN")
     val privateAddress =
       AsyncEcsServiceDiscovery.getContainerAddress match {
         case Left(error) =>
@@ -111,7 +121,6 @@ object LiquidityServer {
                |    }
                |  }
                |  http.server {
-               |    preview.enable-http2 = on
                |    remote-address-header = on
                |    idle-timeout = 10s
                |  }
@@ -182,15 +191,39 @@ object LiquidityServer {
           val server = new LiquidityServer(
             administratorsTransactor,
             analyticsTransactor,
-            pingInterval = 5.seconds,
-            httpInterface = privateAddress.getHostAddress,
-            httpPort = 8080
+            httpInterface = privateAddress.getHostAddress
           )
           val httpBinding = server.bindHttp()
           CoordinatedShutdown(system).addTask(
             CoordinatedShutdown.PhaseServiceUnbind,
             "liquidityServerUnbind")(() =>
             httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
+          maybeSubdomain match {
+            case None =>
+              ()
+
+            case Some(subdomain) =>
+              val region = sys.env("AWS_REGION")
+              val keyManagerFactory = IO
+                .fromFuture(IO(loadCertificate(region, subdomain)))
+                .unsafeRunSync()
+              val trustManagerFactory = TrustManagerFactory
+                .getInstance(TrustManagerFactory.getDefaultAlgorithm)
+              trustManagerFactory.init(null: KeyStore)
+              val sslContext = SSLContext.getInstance("TLS")
+              sslContext.init(
+                keyManagerFactory.getKeyManagers,
+                trustManagerFactory.getTrustManagers,
+                new SecureRandom
+              )
+              // TODO: Refine protocols and cipher suites
+              val http2Binding =
+                server.bindHttp2(ConnectionContext.https(sslContext))
+              CoordinatedShutdown(system).addTask(
+                CoordinatedShutdown.PhaseServiceUnbind,
+                "liquidityServerUnbind")(() =>
+                http2Binding.flatMap(_.terminate(5.seconds).map(_ => Done)))
+          }
           IO.fromFuture(IO(system.whenTerminated.map(_ => ())))
         }
       }
@@ -207,14 +240,69 @@ object LiquidityServer {
       "useLocalSessionState=true&" +
       "useServerPrepStmts=true"
 
+  private[this] def loadCertificate(region: String, subdomain: String)(
+      implicit system: ActorSystem,
+      mat: Materializer): Future[KeyManagerFactory] = {
+    import system.dispatcher
+    def load(key: String): Future[ByteString] =
+      for {
+        dataAndMetadata <- S3
+          .download(
+            bucket =
+              s"$region.liquidity-certbot-runner-$subdomain.liquidityapp.com",
+            key
+          )
+          .runWith(Sink.head)
+        data <- dataAndMetadata match {
+          case None =>
+            Future.failed(
+              new IllegalArgumentException(s"Object $key cannot be found"))
+
+          case Some((data, _)) =>
+            data.fold(ByteString.empty)(_ ++ _).runWith(Sink.head)
+        }
+      } yield data
+    for {
+      privateKeyBytes <- load(s"live/$subdomain.liquidityapp.com/privkey.pem")
+      fullChainBytes <- load(s"live/$subdomain.liquidityapp.com/fullchain.pem")
+      keyFactory = KeyFactory.getInstance("RSA")
+      certificateFactory = CertificateFactory.getInstance("X.509")
+      privateKey = keyFactory.generatePrivate(
+        new PKCS8EncodedKeySpec(
+          new PEMParser(
+            new InputStreamReader(
+              new ByteArrayInputStream(
+                privateKeyBytes.toArray
+              )
+            )
+          ).readPemObject().getContent
+        )
+      )
+      fullChain = certificateFactory.generateCertificates(
+        new ByteArrayInputStream(fullChainBytes.toArray)
+      )
+      keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
+      _ = keyStore.load(null, Array.emptyCharArray)
+      _ = keyStore.setKeyEntry(
+        "identity",
+        privateKey,
+        Array.emptyCharArray,
+        fullChain.asScala.toArray
+      )
+      keyManagerFactory = KeyManagerFactory.getInstance(
+        KeyManagerFactory.getDefaultAlgorithm)
+      _ = keyManagerFactory.init(
+        keyStore,
+        Array.emptyCharArray
+      )
+    } yield keyManagerFactory
+  }
 }
 
 class LiquidityServer(
     administratorsTransactor: Transactor[IO],
     analyticsTransactor: Transactor[IO],
-    pingInterval: FiniteDuration,
-    httpInterface: String,
-    httpPort: Int)(implicit system: ActorSystem, mat: Materializer) {
+    httpInterface: String)(implicit system: ActorSystem, mat: Materializer) {
 
   private[this] val readJournal = PersistenceQuery(system)
     .readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
@@ -254,88 +342,98 @@ class LiquidityServer(
         .runWith(Sink.head)
         .flatMap(requestContext.complete(_))
 
-  private[this] val httpController = new HttpController(
-    ready = requestContext =>
-      akkaManagement(
-        requestContext.withRequest(
-          requestContext.request.withUri(Uri("/akka-management/ready")))
-    ),
-    alive = requestContext =>
-      akkaManagement(
-        requestContext.withRequest(
-          requestContext.request.withUri(Uri("/akka-management/alive")))
-    ),
-    isAdministrator = publicKey =>
-      sql"""
+  private[this] val handler = Route.asyncHandler(
+    new HttpController(
+      ready = requestContext =>
+        akkaManagement(
+          requestContext.withRequest(
+            requestContext.request.withUri(Uri("/akka-management/ready")))
+      ),
+      alive = requestContext =>
+        akkaManagement(
+          requestContext.withRequest(
+            requestContext.request.withUri(Uri("/akka-management/alive")))
+      ),
+      isAdministrator = publicKey =>
+        sql"""
        SELECT 1
          FROM administrators
          WHERE public_key = $publicKey
-      """
-        .query[Int]
-        .option
-        .map(_.isDefined)
-        .transact(administratorsTransactor)
-        .unsafeToFuture(),
-    akkaManagement = akkaManagement,
-    events =
-      (persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) =>
-        readJournal
-          .eventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr)
-          .map {
-            case EventEnvelope(_, _, sequenceNr, event) =>
-              val protoEvent = event match {
-                case zoneEventEnvelope: ZoneEventEnvelope =>
-                  ProtoBinding[ZoneEventEnvelope,
-                               proto.persistence.zone.ZoneEventEnvelope,
-                               ActorRefResolver]
-                    .asProto(zoneEventEnvelope)(
-                      ActorRefResolver(system.toTyped))
-              }
-              HttpController.EventEnvelope(sequenceNr, protoEvent)
-        },
-    zoneState = zoneId => {
-      implicit val timeout: Timeout = Timeout(5.seconds)
-      val zoneState
-        : Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(
-        _,
-        zoneId))
-      zoneState.map(
-        ProtoBinding[ZoneState,
-                     proto.persistence.zone.ZoneState,
-                     ActorRefResolver]
-          .asProto(_)(ActorRefResolver(system.toTyped)))
-    },
-    execZoneCommand = (remoteAddress, publicKey, zoneId, zoneCommand) => {
-      implicit val timeout: Timeout = Timeout(5.seconds)
-      for {
-        zoneResponseEnvelope <- zoneValidatorShardRegion
-          .?[ZoneResponseEnvelope](
-            ZoneCommandEnvelope(_,
-                                zoneId,
-                                remoteAddress,
-                                publicKey,
-                                correlationId = 0,
-                                zoneCommand))
-      } yield zoneResponseEnvelope.zoneResponse
-    },
-    zoneNotificationSource = (remoteAddress, publicKey, zoneId) =>
-      ClientConnectionActor.zoneNotificationSource(
-        zoneValidatorShardRegion,
-        remoteAddress,
-        publicKey,
-        zoneId,
-        system.spawnAnonymous(_)
-    ),
-    pingInterval = pingInterval
-  )
-
-  private def bindHttp(): Future[Http.ServerBinding] = Http().bindAndHandle(
-    httpController.route(
+      """.query[Int]
+          .option
+          .map(_.isDefined)
+          .transact(administratorsTransactor)
+          .unsafeToFuture(),
+      akkaManagement = akkaManagement,
+      events =
+        (persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) =>
+          readJournal
+            .eventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr)
+            .map {
+              case EventEnvelope(_, _, sequenceNr, event) =>
+                val protoEvent = event match {
+                  case zoneEventEnvelope: ZoneEventEnvelope =>
+                    ProtoBinding[ZoneEventEnvelope,
+                                 proto.persistence.zone.ZoneEventEnvelope,
+                                 ActorRefResolver]
+                      .asProto(zoneEventEnvelope)(
+                        ActorRefResolver(system.toTyped))
+                }
+                HttpController.EventEnvelope(sequenceNr, protoEvent)
+          },
+      zoneState = zoneId => {
+        implicit val timeout: Timeout = Timeout(5.seconds)
+        val zoneState
+          : Future[ZoneState] = zoneValidatorShardRegion ? (GetZoneStateCommand(
+          _,
+          zoneId))
+        zoneState.map(
+          ProtoBinding[ZoneState,
+                       proto.persistence.zone.ZoneState,
+                       ActorRefResolver]
+            .asProto(_)(ActorRefResolver(system.toTyped)))
+      },
+      execZoneCommand = (remoteAddress, publicKey, zoneId, zoneCommand) => {
+        implicit val timeout: Timeout = Timeout(5.seconds)
+        for {
+          zoneResponseEnvelope <- zoneValidatorShardRegion
+            .?[ZoneResponseEnvelope](
+              ZoneCommandEnvelope(_,
+                                  zoneId,
+                                  remoteAddress,
+                                  publicKey,
+                                  correlationId = 0,
+                                  zoneCommand))
+        } yield zoneResponseEnvelope.zoneResponse
+      },
+      zoneNotificationSource = (remoteAddress, publicKey, zoneId) =>
+        ClientConnectionActor.zoneNotificationSource(
+          zoneValidatorShardRegion,
+          remoteAddress,
+          publicKey,
+          zoneId,
+          system.spawnAnonymous(_)
+      )
+    ).route(
       enableClientRelay =
         Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole)
-    ),
-    httpInterface,
-    httpPort
+    )
   )
+
+  private def bindHttp(): Future[Http.ServerBinding] =
+    Http().bindAndHandleAsync(
+      handler,
+      httpInterface,
+      port = 8080
+    )
+
+  private def bindHttp2(
+      connectionContext: ConnectionContext): Future[Http.ServerBinding] =
+    Http2().bindAndHandleAsync(
+      handler,
+      httpInterface,
+      port = 8443,
+      connectionContext
+    )
 
 }

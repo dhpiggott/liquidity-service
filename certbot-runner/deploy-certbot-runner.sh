@@ -39,7 +39,7 @@ sam deploy \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
       HostedZoneId="${HOSTED_ZONE_ID#"/hostedzone/"}" \
-      Domains="$SUBDOMAIN".liquidityapp.com
+      Domain="$SUBDOMAIN".liquidityapp.com
 
 LAMBDA_ID=$(
   aws cloudformation describe-stacks \

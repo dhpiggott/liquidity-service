@@ -5,8 +5,6 @@ Parameters:
   RDSPassword:
     Type: String
     NoEcho: true
-  NLBListenerCertificate:
-    Type: String
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -144,8 +142,9 @@ Resources:
       VpcId: !Ref VPC
       TargetType: ip
       Protocol: TCP
-      Port: 80
+      Port: 8443
       HealthCheckProtocol: HTTP
+      HealthCheckPort: 8080
       HealthCheckPath: "/ready"
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
@@ -154,11 +153,8 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref NLB
-      Protocol: TLS
-      SslPolicy: "ELBSecurityPolicy-TLS-1-2-2017-01"
+      Protocol: TCP
       Port: 443
-      Certificates:
-        - CertificateArn: !Ref NLBListenerCertificate
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref NLBTargetGroup

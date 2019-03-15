@@ -969,8 +969,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
     ),
     zoneNotificationSource = (_, _, zoneId) =>
       if (zoneId != zone.id) Source.empty
-      else Source(zoneNotifications),
-    pingInterval = 3.seconds
+      else Source(zoneNotifications)
   )
 
 }

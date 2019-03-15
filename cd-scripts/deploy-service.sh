@@ -2,17 +2,18 @@
 
 set -euo pipefail
 
-if [ $# -ne 3 ]
+if [ $# -ne 4 ]
   then
-    echo "Usage: $0 region environment infrastructure-stack-environment"
+    echo "Usage: $0 region subdomain environment infrastructure-stack-environment"
     exit 1
 fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 REGION=$1
-ENVIRONMENT=$2
-INFRASTRUCTURE_STACK_ENVIRONMENT=$3
+SUBDOMAIN=$2
+ENVIRONMENT=$3
+INFRASTRUCTURE_STACK_ENVIRONMENT=$4
 
 TAG=$(
   sbt -Dsbt.log.noformat=true version \
@@ -38,4 +39,5 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
       InfrastructureStack=liquidity-infrastructure-"$INFRASTRUCTURE_STACK_ENVIRONMENT" \
-      ImageId="$IMAGE_ID"
+      ImageId="$IMAGE_ID" \
+      Subdomain="$SUBDOMAIN"

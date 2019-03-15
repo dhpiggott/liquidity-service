@@ -2,17 +2,16 @@
 
 set -euo pipefail
 
-if [ $# -ne 3 ]
+if [ $# -ne 2 ]
   then
-    echo "Usage: $0 region subdomain environment"
+    echo "Usage: $0 region environment"
     exit 1
 fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 REGION=$1
-SUBDOMAIN=$2
-ENVIRONMENT=$3
+ENVIRONMENT=$2
 
 if ! aws cloudformation describe-stacks \
        --region "$REGION" \
@@ -50,14 +49,6 @@ case $ACTION in
     ;;
 esac
 
-NLB_LISTENER_CERTIFICATE=$(
-  aws acm list-certificates \
-    --region "$REGION" \
-    --output text \
-    --query \
-      "CertificateSummaryList[?DomainName=='$SUBDOMAIN.liquidityapp.com'].CertificateArn"
-)
-
 aws cloudformation deploy \
   --region "$REGION" \
   --stack-name liquidity-infrastructure-"$ENVIRONMENT" \
@@ -65,8 +56,7 @@ aws cloudformation deploy \
   --no-fail-on-empty-changeset \
   --parameter-overrides \
       RDSUsername="$MYSQL_USERNAME" \
-      RDSPassword="$MYSQL_PASSWORD" \
-      NLBListenerCertificate="$NLB_LISTENER_CERTIFICATE"
+      RDSPassword="$MYSQL_PASSWORD"
 
 if [ "$ACTION" = "create" ]
   then

@@ -85,6 +85,8 @@ lazy val service = project
       "org.tpolecat" %% "doobie-hikari" % "0.6.0",
       "mysql" % "mysql-connector-java" % "8.0.15",
       "com.typesafe.akka" %% "akka-http" % "10.1.7",
+      "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.0-RC1",
+      "org.bouncycastle" % "bcpkix-jdk15on" % "1.61",
       "com.typesafe.akka" %% "akka-http2-support" % "10.1.7",
       "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.7",
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.21",
@@ -124,5 +126,5 @@ lazy val service = project
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     Docker / packageName := "liquidity",
     dockerBaseImage := "openjdk:11-jre-slim",
-    dockerExposedPorts := Seq(8080)
+    dockerExposedPorts := Seq(8080, 8443)
   )

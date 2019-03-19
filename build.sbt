@@ -99,7 +99,7 @@ lazy val service = project
     "com.h2database" % "h2" % "1.4.199" % Test,
     "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.21" % Test,
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
-    "org.scalatest" %% "scalatest" % "3.0.6" % Test,
+    "org.scalatest" %% "scalatest" % "3.0.7" % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.7" % Test,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.21" % Test
   ))
@@ -108,7 +108,7 @@ lazy val service = project
   .settings(inConfig(IntegrationTest)(ScalafmtPlugin.scalafmtConfigSettings))
   .settings(IntegrationTest / logBuffered := false)
   .settings(libraryDependencies ++= Seq(
-    "org.scalatest" %% "scalatest" % "3.0.6" % IntegrationTest,
+    "org.scalatest" %% "scalatest" % "3.0.7" % IntegrationTest,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.7" % IntegrationTest,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.21" % IntegrationTest
   ))

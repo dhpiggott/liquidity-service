@@ -84,11 +84,11 @@ lazy val service = project
       "org.tpolecat" %% "doobie-core" % "0.6.0",
       "org.tpolecat" %% "doobie-hikari" % "0.6.0",
       "mysql" % "mysql-connector-java" % "8.0.15",
-      "com.typesafe.akka" %% "akka-http" % "10.1.7",
+      "com.typesafe.akka" %% "akka-http" % "10.1.8",
       "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.0-RC1",
       "org.bouncycastle" % "bcpkix-jdk15on" % "1.61",
-      "com.typesafe.akka" %% "akka-http2-support" % "10.1.7",
-      "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.7",
+      "com.typesafe.akka" %% "akka-http2-support" % "10.1.8",
+      "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.8",
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.21",
       "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.2",
       "com.typesafe.play" %% "play-json" % "2.7.2",
@@ -102,7 +102,7 @@ lazy val service = project
     "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.21" % Test,
     "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
     "org.scalatest" %% "scalatest" % "3.0.7" % Test,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.7" % Test,
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8" % Test,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.21" % Test
   ))
   .configs(IntegrationTest)
@@ -111,7 +111,7 @@ lazy val service = project
   .settings(IntegrationTest / logBuffered := false)
   .settings(libraryDependencies ++= Seq(
     "org.scalatest" %% "scalatest" % "3.0.7" % IntegrationTest,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.7" % IntegrationTest,
+    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8" % IntegrationTest,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.21" % IntegrationTest
   ))
   .enablePlugins(

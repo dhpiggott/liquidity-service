@@ -144,7 +144,7 @@ Resources:
       Protocol: TCP
       Port: 8443
       HealthCheckProtocol: HTTP
-      HealthCheckPort: 8080
+      HealthCheckPort: "8080"
       HealthCheckPath: "/ready"
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds

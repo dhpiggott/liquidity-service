@@ -48,6 +48,7 @@ import org.bouncycastle.openssl.PEMParser
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
+import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -216,9 +217,23 @@ object LiquidityServer {
                 trustManagerFactory.getTrustManagers,
                 new SecureRandom
               )
-              // TODO: Refine protocols and cipher suites
               val http2Binding =
-                server.bindHttp2(ConnectionContext.https(sslContext))
+                server.bindHttp2(
+                  ConnectionContext.https(
+                    sslContext = sslContext,
+                    enabledCipherSuites = Some(Seq(
+                      "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+                      "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+                      "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+                      "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                    )),
+                    enabledProtocols = Some(
+                      Seq(
+                        "TLSv1.3",
+                        "TLSv1.2"
+                      ))
+                  )
+                )
               CoordinatedShutdown(system).addTask(
                 CoordinatedShutdown.PhaseServiceUnbind,
                 "liquidityServerUnbind")(() =>

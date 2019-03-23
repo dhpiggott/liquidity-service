@@ -22,6 +22,15 @@ HOSTED_ZONE_ID=$(
       | [0].Id"
 )
 
+if ! aws cloudformation describe-stacks \
+       --region "$REGION" \
+       --stack-name liquidity-certbot-runner-"$SUBDOMAIN"
+then
+  ACTION="create"
+else
+  ACTION="update"
+fi
+
 sam build \
   --template "$DIR"/liquidity-certbot-runner.yaml \
   --use-container
@@ -30,6 +39,14 @@ sam package \
   --region "$REGION" \
   --s3-bucket "$REGION".liquidity-certbot-runner \
   --output-template-file "$DIR"/../.aws-sam/certbot-runner-"$SUBDOMAIN".yaml
+
+if [ "$ACTION" = "create" ]
+  then
+    aws s3 cp \
+      --region "$REGION" \
+      "$DIR/empty.tar" \
+      "s3://$REGION.liquidity-certbot-runner-$SUBDOMAIN.liquidityapp.com/certbot-runner-state.tar"
+fi
 
 sam deploy \
   --region "$REGION" \

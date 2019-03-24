@@ -1,19 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 Parameters:
+  Subdomain:
+    Type: String
   HostedZoneId:
     Type: String
-  Domain:
-    Type: String
 Resources:
-  S3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub "${AWS::Region}.liquidity-certbot-runner-${Domain}"
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-        - ServerSideEncryptionByDefault:
-            SSEAlgorithm: AES256
   SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -31,7 +23,7 @@ Resources:
               Action:
                 - s3:GetObject
               Resource:
-                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Domain}/certbot-runner-state.tar"
+                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-infrastructure-${Subdomain}/state.tar"
             - Effect: Allow
               Action:
                 - route53:ListHostedZones
@@ -49,8 +41,8 @@ Resources:
               Action:
                 - s3:PutObject
               Resource:
-                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Domain}/certbot-runner-state.tar"
-                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Domain}/certbot-runner-data.zip"
+                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-infrastructure-${Subdomain}/state.tar"
+                - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-infrastructure-${Subdomain}/certbundle.zip"
         - SNSPublishMessagePolicy:
             TopicName: !Ref SNSTopic
       Runtime: python3.7
@@ -58,8 +50,7 @@ Resources:
       Handler: certbot_runner.handler
       Environment:
         Variables:
-          LETSENCRYPT_DOMAIN: !Ref Domain
-          LETSENCRYPT_EMAIL: "admin@liquidityapp.com"
+          SUBDOMAIN: !Ref Subdomain
           NOTIFICATION_SNS_ARN: !Ref SNSTopic
       ReservedConcurrentExecutions: 1
       Timeout: 900

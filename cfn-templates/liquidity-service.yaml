@@ -56,7 +56,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Subdomain}.liquidityapp.com/live/${Subdomain}.liquidityapp.com/certbot-runner-data.zip"
+                  - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-infrastructure-${Subdomain}/certbundle.zip"
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:

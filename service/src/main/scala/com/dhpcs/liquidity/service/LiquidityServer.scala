@@ -289,15 +289,14 @@ object LiquidityServer {
     for {
       dataAndMetadata <- S3
         .download(
-          bucket =
-            s"$region.liquidity-certbot-runner-$subdomain.liquidityapp.com",
-          "certbot-runner-data.zip"
+          bucket = s"$region.liquidity-certbot-runner-infrastructure-$subdomain",
+          "certbundle.zip"
         )
         .runWith(Sink.head)
       zipByteString <- dataAndMetadata match {
         case None =>
           Future.failed(
-            new IllegalArgumentException("certbot-runner-data.zip not found"))
+            new IllegalArgumentException("certbundle.zip not found"))
 
         case Some((data, _)) =>
           data.fold(ByteString.empty)(_ ++ _).runWith(Sink.head)

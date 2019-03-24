@@ -56,8 +56,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Subdomain}.liquidityapp.com/live/${Subdomain}.liquidityapp.com/privkey.pem"
-                  - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Subdomain}.liquidityapp.com/live/${Subdomain}.liquidityapp.com/fullchain.pem"
+                  - !Sub "arn:aws:s3:::${AWS::Region}.liquidity-certbot-runner-${Subdomain}.liquidityapp.com/live/${Subdomain}.liquidityapp.com/certbot-runner-data.zip"
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:

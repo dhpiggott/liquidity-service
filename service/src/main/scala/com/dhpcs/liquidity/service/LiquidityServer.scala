@@ -1,9 +1,10 @@
 package com.dhpcs.liquidity.service
 
-import java.io.{ByteArrayInputStream, InputStreamReader}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStreamReader}
 import java.security.{KeyFactory, KeyStore, SecureRandom}
 import java.security.cert.CertificateFactory
 import java.security.spec.PKCS8EncodedKeySpec
+import java.util.zip.ZipInputStream
 
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
@@ -47,6 +48,7 @@ import javax.net.ssl._
 import org.bouncycastle.openssl.PEMParser
 import org.slf4j.LoggerFactory
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
@@ -259,42 +261,63 @@ object LiquidityServer {
       implicit system: ActorSystem,
       mat: Materializer): Future[KeyManagerFactory] = {
     import system.dispatcher
-    def load(key: String): Future[ByteString] =
-      for {
-        dataAndMetadata <- S3
-          .download(
-            bucket =
-              s"$region.liquidity-certbot-runner-$subdomain.liquidityapp.com",
-            key
-          )
-          .runWith(Sink.head)
-        data <- dataAndMetadata match {
-          case None =>
-            Future.failed(
-              new IllegalArgumentException(s"Object $key cannot be found"))
-
-          case Some((data, _)) =>
-            data.fold(ByteString.empty)(_ ++ _).runWith(Sink.head)
+    def unzip(zipBytes: Array[Byte]): Map[String, Array[Byte]] = {
+      val zip = new ZipInputStream(new ByteArrayInputStream(zipBytes))
+      val buffer = new Array[Byte](4096)
+      @tailrec def unzip(entries: Map[String, Array[Byte]] = Map.empty)
+        : Map[String, Array[Byte]] = {
+        val entry = zip.getNextEntry
+        if (entry == null) {
+          entries
+        } else {
+          @tailrec def readEntry(
+              bytes: ByteArrayOutputStream = new ByteArrayOutputStream(
+                buffer.length)): Array[Byte] = {
+            val read = zip.read(buffer)
+            if (read == -1) {
+              bytes.toByteArray
+            } else {
+              bytes.write(buffer, 0, read)
+              readEntry(bytes)
+            }
+          }
+          unzip(entries + (entry.getName -> readEntry()))
         }
-      } yield data
+      }
+      unzip()
+    }
     for {
-      privateKeyBytes <- load(s"live/$subdomain.liquidityapp.com/privkey.pem")
-      fullChainBytes <- load(s"live/$subdomain.liquidityapp.com/fullchain.pem")
+      dataAndMetadata <- S3
+        .download(
+          bucket =
+            s"$region.liquidity-certbot-runner-$subdomain.liquidityapp.com",
+          "certbot-runner-data.zip"
+        )
+        .runWith(Sink.head)
+      zipByteString <- dataAndMetadata match {
+        case None =>
+          Future.failed(
+            new IllegalArgumentException("certbot-runner-data.zip not found"))
+
+        case Some((data, _)) =>
+          data.fold(ByteString.empty)(_ ++ _).runWith(Sink.head)
+      }
+      zipEntries = unzip(zipByteString.toArray)
+      privateKeyBytes = zipEntries("privkey.pem")
+      fullChainBytes = zipEntries("fullchain.pem")
       keyFactory = KeyFactory.getInstance("RSA")
       certificateFactory = CertificateFactory.getInstance("X.509")
       privateKey = keyFactory.generatePrivate(
         new PKCS8EncodedKeySpec(
           new PEMParser(
             new InputStreamReader(
-              new ByteArrayInputStream(
-                privateKeyBytes.toArray
-              )
+              new ByteArrayInputStream(privateKeyBytes)
             )
           ).readPemObject().getContent
         )
       )
       fullChain = certificateFactory.generateCertificates(
-        new ByteArrayInputStream(fullChainBytes.toArray)
+        new ByteArrayInputStream(fullChainBytes)
       )
       keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
       _ = keyStore.load(null, Array.emptyCharArray)

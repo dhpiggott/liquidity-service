@@ -1,8 +1,8 @@
 import boto3
 import certbot.main
-import glob
 import os
 import tarfile
+import zipfile
 
 def handler(event, context):
     domain = os.environ['LETSENCRYPT_DOMAIN']
@@ -33,13 +33,11 @@ def handler(event, context):
         f"{os.environ['AWS_REGION']}.liquidity-certbot-runner-{domain}",
         'certbot-runner-state.tar'
     )
-    # FIXME: Make LiquidityServer load from the tar using
-    # http://commons.apache.org/proper/commons-vfs/filesystems.html#Zip_Jar_and_Tar,
-    # (to get atomicity to avoid race conditions betweeb renewals and deploys)
-    # then remove this part.
-    for file in glob.glob(f'/tmp/config-dir/live/{domain}/*.pem'):
-        s3.upload_file(
-            file,
-            f"{os.environ['AWS_REGION']}.liquidity-certbot-runner-{domain}",
-            os.path.relpath(file, '/tmp/config-dir')
-        )
+    with zipfile.ZipFile('/tmp/certbot-runner-data.zip', 'x') as zip:
+        zip.write(f'/tmp/config-dir/live/{domain}/privkey.pem', arcname = 'privkey.pem')
+        zip.write(f'/tmp/config-dir/live/{domain}/fullchain.pem', arcname = 'fullchain.pem')
+    s3.upload_file(
+        '/tmp/certbot-runner-data.zip',
+        f"{os.environ['AWS_REGION']}.liquidity-certbot-runner-{domain}",
+        'certbot-runner-data.zip'
+    )

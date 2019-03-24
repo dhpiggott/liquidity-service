@@ -32,7 +32,7 @@ else
 fi
 
 sam build \
-  --template "$DIR"/liquidity-certbot-runner-lambda.yaml \
+  --template "$DIR"/../cfn-templates/liquidity-certbot-runner-lambda.yaml \
   --use-container
 
 sam package \
@@ -44,7 +44,7 @@ if [ "$ACTION" = "create" ]
   then
     aws s3 cp \
       --region "$REGION" \
-      "$DIR/empty.tar" \
+      "$DIR/../certbot-runner/empty.tar" \
       "s3://$REGION.liquidity-certbot-runner-infrastructure-$SUBDOMAIN/state.tar"
 fi
 

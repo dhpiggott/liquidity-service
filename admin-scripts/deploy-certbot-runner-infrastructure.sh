@@ -16,5 +16,5 @@ SUBDOMAIN=$2
 aws cloudformation deploy \
   --region "$REGION" \
   --stack-name liquidity-certbot-runner-infrastructure-"$SUBDOMAIN" \
-  --template-file "$DIR"/liquidity-certbot-runner-infrastructure.yaml \
+  --template-file "$DIR"/../cfn-templates/liquidity-certbot-runner-infrastructure.yaml \
   --no-fail-on-empty-changeset

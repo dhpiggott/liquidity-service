@@ -89,6 +89,7 @@ lazy val service = project
       "org.bouncycastle" % "bcpkix-jdk15on" % "1.61",
       "com.typesafe.akka" %% "akka-http2-support" % "10.1.8",
       "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.8",
+      "com.typesafe.akka" %% "akka-http-xml" % "10.1.8",
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.21",
       "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.2",
       "com.typesafe.play" %% "play-json" % "2.7.2",

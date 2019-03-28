@@ -6,7 +6,6 @@
                 <timestamp>
                     <timeZone>UTC</timeZone>
                 </timestamp>
-                <logstashMarkers/>
                 <pattern>
                     <pattern>
                         {
@@ -21,8 +20,14 @@
         </encoder>
     </appender>
 
+    <appender name="ASYNC" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
+        <appender-ref ref="STDOUT" />
+    </appender>
+
     <root level="INFO">
-        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="ASYNC"/>
     </root>
+
+    <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 
 </configuration>

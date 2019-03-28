@@ -1,32 +1,31 @@
 package com.dhpcs.liquidity.service
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStreamReader}
-import java.security.{KeyFactory, KeyStore, SecureRandom}
 import java.security.cert.CertificateFactory
 import java.security.spec.PKCS8EncodedKeySpec
+import java.security.{KeyFactory, KeyStore, SecureRandom}
 import java.util.zip.ZipInputStream
 
+import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.ActorRefResolver
 import akka.actor.{ActorSystem, CoordinatedShutdown, Scheduler}
 import akka.cluster.sharding.typed.ClusterShardingSettings
-import akka.cluster.sharding.typed.scaladsl.Entity
-import akka.cluster.sharding.typed.scaladsl.ClusterSharding
+import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
 import akka.cluster.typed._
 import akka.discovery.awsapi.ecs.AsyncEcsServiceDiscovery
-import akka.http.scaladsl.{ConnectionContext, Http, Http2}
+import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.{ConnectionContext, Http, Http2}
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query._
-import akka.stream.scaladsl.Sink
-import akka.stream.{ActorMaterializer, Materializer}
-import akka.util.{ByteString, Timeout}
-import akka.Done
-import akka.http.scaladsl.model.Uri
 import akka.stream.alpakka.s3.scaladsl.S3
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.stream.{ActorMaterializer, KillSwitches, Materializer}
+import akka.util.{ByteString, Timeout}
+import akka.{Done, NotUsed}
 import cats.effect.{ContextShift, IO, Resource}
 import cats.implicits._
 import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
@@ -193,9 +192,12 @@ object LiquidityServer {
           )
           CoordinatedShutdown(system).addTask(
             CoordinatedShutdown.PhaseClusterExitingDone,
-            "akkaManagementStop")(() =>
-            akkaManagementHttpBinding.flatMap(_.terminate(5.seconds).map(_ =>
-              Done)))
+            "akkaManagementStop")(
+            () =>
+              akkaManagementHttpBinding.flatMap(
+                _.terminate(5.seconds).map(_ => Done)
+            )
+          )
           ClusterBootstrap(system).start()
           val server = new LiquidityServer(
             administratorsTransactor,
@@ -213,19 +215,46 @@ object LiquidityServer {
 
             case Some(subdomain) =>
               val region = sys.env("AWS_REGION")
-              val keyManagerFactory = IO
-                .fromFuture(IO(loadCertificate(region, subdomain)))
-                .unsafeRunSync()
               val trustManagerFactory = TrustManagerFactory
                 .getInstance(TrustManagerFactory.getDefaultAlgorithm)
               trustManagerFactory.init(null: KeyStore)
-              val sslContext = SSLContext.getInstance("TLS")
-              sslContext.init(
-                keyManagerFactory.getKeyManagers,
-                trustManagerFactory.getTrustManagers,
-                new SecureRandom
-              )
-              val http2Binding =
+              def bind(certBundle: CertBundle): Future[Http.ServerBinding] = {
+                val keyFactory = KeyFactory.getInstance("RSA")
+                val certificateFactory = CertificateFactory.getInstance("X.509")
+                val privateKey = keyFactory.generatePrivate(
+                  new PKCS8EncodedKeySpec(
+                    new PEMParser(
+                      new InputStreamReader(
+                        new ByteArrayInputStream(
+                          certBundle.privateKeyPem.toArray)
+                      )
+                    ).readPemObject().getContent
+                  )
+                )
+                val fullChain = certificateFactory.generateCertificates(
+                  new ByteArrayInputStream(certBundle.fullChainPem.toArray)
+                )
+                val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
+                keyStore.load(null, Array.emptyCharArray)
+                keyStore.setKeyEntry(
+                  "identity",
+                  privateKey,
+                  Array.emptyCharArray,
+                  fullChain.asScala.toArray
+                )
+                val keyManagerFactory =
+                  KeyManagerFactory.getInstance(
+                    KeyManagerFactory.getDefaultAlgorithm)
+                keyManagerFactory.init(
+                  keyStore,
+                  Array.emptyCharArray
+                )
+                val sslContext = SSLContext.getInstance("TLS")
+                sslContext.init(
+                  keyManagerFactory.getKeyManagers,
+                  trustManagerFactory.getTrustManagers,
+                  new SecureRandom
+                )
                 server.bindHttp2(
                   ConnectionContext.https(
                     sslContext = sslContext,
@@ -244,10 +273,45 @@ object LiquidityServer {
                     )
                   )
                 )
+              }
+              val (killSwitch, binding) =
+                pollCertBundle(region, subdomain, 12.hours)
+                  .viaMat(KillSwitches.single)(Keep.right)
+                  .foldAsync[Option[Http.ServerBinding]](None) {
+                    case (maybePreviousBinding, currentCertBundle) =>
+                      for {
+                        _ <- maybePreviousBinding match {
+                          case None =>
+                            Future.successful(Done)
+
+                          case Some(previousBinding) =>
+                            for {
+                              _ <- Future.successful(Done)
+                              _ = log.info(s"Unbinding $previousBinding.")
+                              _ <- previousBinding.terminate(5.seconds)
+                              _ = log.info("Unbound.")
+                            } yield ()
+                        }
+                        currentBinding <- for {
+                          _ <- Future.successful(Done)
+                          _ = log.info(s"Binding with $currentCertBundle.")
+                          currentBinding <- bind(currentCertBundle)
+                          _ = log.info("Bound.")
+                        } yield currentBinding
+                      } yield Some(currentBinding)
+                  }
+                  .toMat(Sink.last)(Keep.both)
+                  .run()
               CoordinatedShutdown(system).addTask(
                 CoordinatedShutdown.PhaseServiceUnbind,
-                "liquidityServerUnbind")(() =>
-                http2Binding.flatMap(_.terminate(5.seconds).map(_ => Done)))
+                "liquidityServerUnbind") { () =>
+                killSwitch.shutdown()
+                binding.flatMap(
+                  _.fold(Future.successful(Done))(
+                    _.terminate(5.seconds).map(_ => Done)
+                  )
+                )
+              }
           }
           IO.fromFuture(IO(system.whenTerminated.map(_ => ())))
         }
@@ -265,82 +329,94 @@ object LiquidityServer {
       "useLocalSessionState=true&" +
       "useServerPrepStmts=true"
 
-  private[this] def loadCertificate(region: String, subdomain: String)(
-      implicit system: ActorSystem,
-      mat: Materializer): Future[KeyManagerFactory] = {
-    import system.dispatcher
-    def unzip(zipBytes: Array[Byte]): Map[String, Array[Byte]] = {
-      val zip = new ZipInputStream(new ByteArrayInputStream(zipBytes))
-      val buffer = new Array[Byte](4096)
-      @tailrec def unzip(entries: Map[String, Array[Byte]] = Map.empty)
-        : Map[String, Array[Byte]] = {
-        val entry = zip.getNextEntry
-        if (entry == null) {
-          entries
-        } else {
-          @tailrec def readEntry(
-              bytes: ByteArrayOutputStream = new ByteArrayOutputStream(
-                buffer.length)): Array[Byte] = {
-            val read = zip.read(buffer)
-            if (read == -1) {
-              bytes.toByteArray
-            } else {
-              bytes.write(buffer, 0, read)
-              readEntry(bytes)
-            }
-          }
-          unzip(entries + (entry.getName -> readEntry()))
-        }
-      }
-      unzip()
-    }
-    for {
-      dataAndMetadata <- S3
-        .download(
-          bucket = s"$region.liquidity-certbot-runner-infrastructure-$subdomain",
-          "certbundle.zip"
-        )
-        .runWith(Sink.head)
-      zipByteString <- dataAndMetadata match {
-        case None =>
-          Future.failed(
-            new IllegalArgumentException("certbundle.zip not found"))
+  private[this] final case class CertBundle(privateKeyPem: ByteString,
+                                            fullChainPem: ByteString)
 
-        case Some((data, _)) =>
-          data.fold(ByteString.empty)(_ ++ _).runWith(Sink.head)
+  private[this] def pollCertBundle(region: String,
+                                   subdomain: String,
+                                   interval: FiniteDuration)(
+      implicit system: ActorSystem,
+      mat: Materializer): Source[CertBundle, NotUsed] = {
+    def loadCertBundle(): Future[CertBundle] = {
+      import system.dispatcher
+      def unzip(zipBytes: Array[Byte]): Map[String, ByteString] = {
+        val zip = new ZipInputStream(new ByteArrayInputStream(zipBytes))
+        val buffer = new Array[Byte](4096)
+        @tailrec def unzip(entries: Map[String, ByteString] = Map.empty)
+          : Map[String, ByteString] = {
+          val entry = zip.getNextEntry
+          if (entry == null) {
+            entries
+          } else {
+            @tailrec def readEntry(
+                bytes: ByteArrayOutputStream = new ByteArrayOutputStream(
+                  buffer.length)): ByteString = {
+              val read = zip.read(buffer)
+              if (read == -1) {
+                ByteString(bytes.toByteArray)
+              } else {
+                bytes.write(buffer, 0, read)
+                readEntry(bytes)
+              }
+            }
+            unzip(entries + (entry.getName -> readEntry()))
+          }
+        }
+        unzip()
       }
-      zipEntries = unzip(zipByteString.toArray)
-      privateKeyBytes = zipEntries("privkey.pem")
-      fullChainBytes = zipEntries("fullchain.pem")
-      keyFactory = KeyFactory.getInstance("RSA")
-      certificateFactory = CertificateFactory.getInstance("X.509")
-      privateKey = keyFactory.generatePrivate(
-        new PKCS8EncodedKeySpec(
-          new PEMParser(
-            new InputStreamReader(
-              new ByteArrayInputStream(privateKeyBytes)
-            )
-          ).readPemObject().getContent
-        )
-      )
-      fullChain = certificateFactory.generateCertificates(
-        new ByteArrayInputStream(fullChainBytes)
-      )
-      keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
-      _ = keyStore.load(null, Array.emptyCharArray)
-      _ = keyStore.setKeyEntry(
-        "identity",
-        privateKey,
-        Array.emptyCharArray,
-        fullChain.asScala.toArray
-      )
-      keyManagerFactory = KeyManagerFactory.getInstance(
-        KeyManagerFactory.getDefaultAlgorithm)
-      _ = keyManagerFactory.init(
-        keyStore,
-        Array.emptyCharArray
-      )
-    } yield keyManagerFactory
+      for {
+        dataAndMetadata <- S3
+          .download(
+            bucket =
+              s"$region.liquidity-certbot-runner-infrastructure-$subdomain",
+            "certbundle.zip"
+          )
+          .runWith(Sink.head)
+        zipByteString <- dataAndMetadata match {
+          case None =>
+            Future.failed(
+              new IllegalArgumentException("certbundle.zip not found"))
+
+          case Some((data, _)) =>
+            data.fold(ByteString.empty)(_ ++ _).runWith(Sink.head)
+        }
+        zipEntries = unzip(zipByteString.toArray)
+      } yield
+        CertBundle(privateKeyPem = zipEntries("privkey.pem"),
+                   fullChainPem = zipEntries("fullchain.pem"))
+    }
+    Source
+      .fromFuture(loadCertBundle())
+      .flatMapConcat(
+        initialCertBundle =>
+          Source
+            .single(initialCertBundle)
+            .concat(
+              Source
+                .single(initialCertBundle)
+                .concat(
+                  Source
+                    .tick(interval, interval, ())
+                    .mapAsync(1)(_ => loadCertBundle())
+                )
+                .via(
+                  // Filter identical certbundles so we don't emit a new
+                  // element in the common case - thus not triggering an HTTP
+                  // rebind (which drops client connections, and so shouldn't
+                  // be done except where genuinely necessary because the cert
+                  // has changed).
+                  Flow[CertBundle]
+                    .sliding(2, 1)
+                    .mapConcat {
+                      case Seq(previousCertBundle, currentCertBundle) =>
+                        if (currentCertBundle == previousCertBundle) Seq.empty
+                        else Seq(currentCertBundle)
+
+                      case Seq(_) =>
+                        Seq.empty
+                    }
+                )
+          ))
   }
 }
 

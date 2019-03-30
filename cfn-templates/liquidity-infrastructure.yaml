@@ -143,8 +143,7 @@ Resources:
       TargetType: ip
       Protocol: TCP
       Port: 8443
-      HealthCheckProtocol: HTTP
-      HealthCheckPort: "8080"
+      HealthCheckProtocol: HTTPS
       HealthCheckPath: "/ready"
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds

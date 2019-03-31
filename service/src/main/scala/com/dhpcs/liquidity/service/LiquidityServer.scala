@@ -231,7 +231,6 @@ object LiquidityServer {
                     )),
                     enabledProtocols = Some(
                       Seq(
-                        "TLSv1.3",
                         "TLSv1.2"
                       ))
                   )

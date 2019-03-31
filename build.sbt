@@ -127,6 +127,6 @@ lazy val service = project
     buildInfoOptions ++= Seq(BuildInfoOption.BuildTime, BuildInfoOption.ToMap),
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048",
     Docker / packageName := "liquidity",
-    dockerBaseImage := "openjdk:11-jre-slim",
+    dockerBaseImage := "openjdk:12-jdk-oracle",
     dockerExposedPorts := Seq(8080, 8443)
   )

@@ -3,6 +3,7 @@ package com.dhpcs.liquidity.service.actor
 import java.net.InetAddress
 import java.security.KeyPairGenerator
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.actor.typed.ActorRefResolver
@@ -163,7 +164,7 @@ class ZoneAnalyticsActorSpec
 
   private[this] def zoneCreated(fixture: FixtureParam): Zone = {
     val (transactor, zoneId, _) = fixture
-    val created = Instant.now()
+    val created = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     val equityAccountId = AccountId(0.toString)
     val equityAccountOwnerId = MemberId(0.toString)
     val zone = Zone(
@@ -217,7 +218,7 @@ class ZoneAnalyticsActorSpec
     val (transactor, zoneId, _) = fixture
     val actorRef =
       ActorRefResolver(system.toTyped).toSerializationFormat(clientConnection)
-    val timestamp = Instant.now()
+    val timestamp = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     writeEvent(fixture, ClientJoinedEvent(Some(actorRef)), timestamp)
     eventually {
       val (_, clientSession) =
@@ -244,7 +245,7 @@ class ZoneAnalyticsActorSpec
     val (transactor, zoneId, _) = fixture
     val actorRef =
       ActorRefResolver(system.toTyped).toSerializationFormat(clientConnection)
-    val timestamp = Instant.now()
+    val timestamp = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     writeEvent(fixture, ClientQuitEvent(Some(actorRef)), timestamp)
     eventually {
       val (_, clientSession) =
@@ -383,13 +384,14 @@ class ZoneAnalyticsActorSpec
                                      zone: Zone,
                                      to: AccountId): Unit = {
     val (transactor, zoneId, _) = fixture
+    val created = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     val transaction = Transaction(
       id = TransactionId(0.toString),
       from = zone.equityAccountId,
       to = to,
       value = BigDecimal("5000000000000000000000"),
       creator = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
-      created = Instant.now(),
+      created = created,
       description = Some("Jenny's Lottery Win"),
       metadata = None
     )

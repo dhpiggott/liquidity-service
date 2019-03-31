@@ -1,6 +1,6 @@
 language: scala
 jdk:
-  - openjdk8
+  - openjdk12
 sudo: required
 services:
   - docker

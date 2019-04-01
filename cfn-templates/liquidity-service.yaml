@@ -110,10 +110,6 @@ Resources:
         Fn::ImportValue: !Sub "${InfrastructureStack}-VPCId"
       SecurityGroupIngress:
         - IpProtocol: "tcp"
-          FromPort: 8080
-          ToPort: 8080
-          CidrIp: "0.0.0.0/0"
-        - IpProtocol: "tcp"
           FromPort: 8443
           ToPort: 8443
           CidrIp: "0.0.0.0/0"

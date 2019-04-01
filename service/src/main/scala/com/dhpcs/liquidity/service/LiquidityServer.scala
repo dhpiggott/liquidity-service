@@ -196,14 +196,13 @@ object LiquidityServer {
             analyticsTransactor,
             httpInterface = privateAddress.getHostAddress
           )
-          val httpBinding = server.bindHttp()
-          CoordinatedShutdown(system).addTask(
-            CoordinatedShutdown.PhaseServiceUnbind,
-            "liquidityServerUnbind")(() =>
-            httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
           maybeSubdomain match {
             case None =>
-              ()
+              val httpBinding = server.bindHttp()
+              CoordinatedShutdown(system).addTask(
+                CoordinatedShutdown.PhaseServiceUnbind,
+                "liquidityServerUnbind")(() =>
+                httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
 
             case Some(subdomain) =>
               val region = sys.env("AWS_REGION")

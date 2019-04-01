@@ -45,10 +45,10 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 class HttpController(
-    ready: StandardRoute,
-    alive: StandardRoute,
+    ready: Route,
+    alive: Route,
+    akkaManagement: Route,
     isAdministrator: PublicKey => Future[Boolean],
-    akkaManagement: StandardRoute,
     events: (String, Long, Long) => Source[EventEnvelope, NotUsed],
     zoneState: ZoneId => Future[proto.persistence.zone.ZoneState],
     execZoneCommand: (InetAddress,
@@ -67,21 +67,21 @@ class HttpController(
           pathPrefix("akka-management")(administratorRealm(akkaManagement)) ~
           pathPrefix("diagnostics")(administratorRealm(diagnostics)) ~
           (if (enableClientRelay)
-             extractClientIP(_.toOption match {
-               case None =>
-                 complete(
-                   (InternalServerError, "Couldn't extract client IP.")
-                 )
+             pathPrefix("zone")(
+               extractClientIP(_.toOption match {
+                 case None =>
+                   complete(
+                     (InternalServerError, "Couldn't extract client IP.")
+                   )
 
-               case Some(remoteAddress) =>
-                 pathPrefix("zone")(
+                 case Some(remoteAddress) =>
                    authenticateSelfSignedJwt(
                      publicKey =>
                        zoneCommand(remoteAddress, publicKey) ~
                          zoneNotifications(remoteAddress, publicKey)
                    )
-                 )
-             })
+               })
+             )
            else reject)
       )
 

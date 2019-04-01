@@ -16,16 +16,16 @@ import akka.cluster.sharding.typed.scaladsl.ClusterSharding
 import akka.cluster.typed._
 import akka.discovery.awsapi.ecs.AsyncEcsServiceDiscovery
 import akka.http.scaladsl.{ConnectionContext, Http, Http2}
-import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.server.{Route, StandardRoute}
+import akka.http.scaladsl.server.Route
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
 import akka.persistence.query._
-import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.scaladsl.Sink
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.{ByteString, Timeout}
 import akka.Done
+import akka.http.scaladsl.model.Uri
 import akka.stream.alpakka.s3.scaladsl.S3
 import cats.effect.{ContextShift, IO, Resource}
 import cats.implicits._
@@ -103,7 +103,6 @@ object LiquidityServer {
                |  }
                |  management.http {
                |    hostname = "${privateAddress.getHostAddress}"
-               |    base-path = "akka-management"
                |    route-providers-read-only = false
                |  }
                |  remote.artery {
@@ -185,16 +184,24 @@ object LiquidityServer {
           implicit val system: ActorSystem = ActorSystem("liquidity", config)
           implicit val mat: Materializer = ActorMaterializer()
           implicit val ec: ExecutionContext = ExecutionContext.global
-          val akkaManagement = AkkaManagement(system)
-          akkaManagement.start()
+          val httpInterface = privateAddress.getHostAddress
+          val akkaManagement = AkkaManagement(system).routes
+          val akkaManagementHttpBinding = Http().bindAndHandleAsync(
+            Route.asyncHandler(akkaManagement),
+            httpInterface,
+            port = 8558
+          )
           CoordinatedShutdown(system).addTask(
             CoordinatedShutdown.PhaseClusterExitingDone,
-            "akkaManagementStop")(() => akkaManagement.stop())
+            "akkaManagementStop")(() =>
+            akkaManagementHttpBinding.flatMap(_.terminate(5.seconds).map(_ =>
+              Done)))
           ClusterBootstrap(system).start()
           val server = new LiquidityServer(
             administratorsTransactor,
             analyticsTransactor,
-            httpInterface = privateAddress.getHostAddress
+            akkaManagement,
+            httpInterface
           )
           maybeSubdomain match {
             case None =>
@@ -222,16 +229,19 @@ object LiquidityServer {
                 server.bindHttp2(
                   ConnectionContext.https(
                     sslContext = sslContext,
-                    enabledCipherSuites = Some(Seq(
-                      "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
-                      "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-                      "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
-                      "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-                    )),
+                    enabledCipherSuites = Some(
+                      Seq(
+                        "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+                        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+                        "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+                        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                      )
+                    ),
                     enabledProtocols = Some(
                       Seq(
                         "TLSv1.2"
-                      ))
+                      )
+                    )
                   )
                 )
               CoordinatedShutdown(system).addTask(
@@ -337,6 +347,7 @@ object LiquidityServer {
 class LiquidityServer(
     administratorsTransactor: Transactor[IO],
     analyticsTransactor: Transactor[IO],
+    akkaManagement: Route,
     httpInterface: String)(implicit system: ActorSystem, mat: Materializer) {
 
   private[this] val readJournal = PersistenceQuery(system)
@@ -369,26 +380,13 @@ class LiquidityServer(
       .withStopMessage(StopZoneAnalytics)
   )
 
-  private[this] val akkaManagement: StandardRoute =
-    requestContext =>
-      Source
-        .single(requestContext.request)
-        .via(Http().outgoingConnection(httpInterface, 8558))
-        .runWith(Sink.head)
-        .flatMap(requestContext.complete(_))
-
   private[this] val handler = Route.asyncHandler(
     new HttpController(
       ready = requestContext =>
-        akkaManagement(
-          requestContext.withRequest(
-            requestContext.request.withUri(Uri("/akka-management/ready")))
-      ),
+        akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/ready"))),
       alive = requestContext =>
-        akkaManagement(
-          requestContext.withRequest(
-            requestContext.request.withUri(Uri("/akka-management/alive")))
-      ),
+        akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/alive"))),
+      akkaManagement = akkaManagement,
       isAdministrator = publicKey =>
         sql"""
        SELECT 1
@@ -399,7 +397,6 @@ class LiquidityServer(
           .map(_.isDefined)
           .transact(administratorsTransactor)
           .unsafeToFuture(),
-      akkaManagement = akkaManagement,
       events =
         (persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) =>
           readJournal

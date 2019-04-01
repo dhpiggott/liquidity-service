@@ -11,7 +11,6 @@ import java.util.Date
 import akka.actor.typed.ActorRefResolver
 import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.client.RequestBuilding
-import akka.http.scaladsl.marshalling.PredefinedToEntityMarshallers
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
@@ -26,14 +25,13 @@ import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.service.HttpController.EventEnvelope
-import com.dhpcs.liquidity.service.HttpControllerSpec.{publicKey, _}
+import com.dhpcs.liquidity.service.HttpControllerSpec._
 import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
 import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jose.util.Base64
 import com.nimbusds.jose.{JWSAlgorithm, JWSHeader, JWSObject, Payload}
 import com.nimbusds.jwt.{JWTClaimsSet, SignedJWT}
-import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
 import org.scalatest.FreeSpec
 import play.api.libs.json.{JsObject, JsValue, Json}
 
@@ -423,6 +421,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
         implicit val timeout: RouteTestTimeout = RouteTestTimeout(5.seconds)
         getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
+          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
           assert(entityAs[JsValue] === Json.parse(s"""
                |[{
                |  "sequenceNr" : 0,
@@ -523,6 +522,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
         getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
+          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
           assert(entityAs[JsValue] === Json.parse(s"""
                |{
                |  "zone" : {
@@ -566,6 +566,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
       val getRequest = RequestBuilding.Get("/version")
       getRequest ~> httpController.route(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
+        import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
         val buildInfo = entityAs[JsObject]
         assert((buildInfo \ "version").as[String] == BuildInfo.version)
         assert(
@@ -595,6 +596,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           )
         putRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
+          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
           assert(entityAs[JsValue] === Json.parse(s"""
                |{
                |  "createZoneResponse": {
@@ -696,6 +698,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           )
         putRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
+          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
           assert(entityAs[JsValue] === Json.parse(s"""
                |{
                |  "changeZoneNameResponse": {
@@ -763,6 +766,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           )
         getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
+          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
           assert(entityAs[JsValue] === Json.parse(s"""
                |[{
                |  "zoneStateNotification" : {
@@ -860,21 +864,13 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
   }
 
   private[this] val httpController = new HttpController(
-    ready = requestContext => {
-      import PredefinedToEntityMarshallers.StringMarshaller
-      requestContext.complete("OK")
-    },
-    alive = requestContext => {
-      import PredefinedToEntityMarshallers.StringMarshaller
-      requestContext.complete("OK")
-    },
+    ready = _.complete("OK"),
+    alive = _.complete("OK"),
+    akkaManagement = _.complete("akka-management"),
     isAdministrator = publicKey =>
       Future.successful(
-        publicKey.value.toByteArray.sameElements(rsaPublicKey.getEncoded)),
-    akkaManagement = requestContext => {
-      import PredefinedToEntityMarshallers.StringMarshaller
-      requestContext.complete("akka-management")
-    },
+        publicKey.value.toByteArray.sameElements(rsaPublicKey.getEncoded)
+    ),
     events = (persistenceId: String, _: Long, _: Long) =>
       if (persistenceId != zone.id.persistenceId)
         Source.empty

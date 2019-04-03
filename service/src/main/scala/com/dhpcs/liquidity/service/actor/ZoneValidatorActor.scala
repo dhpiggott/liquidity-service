@@ -61,7 +61,6 @@ object ZoneValidatorActor {
     }
 
   private[this] final val PassivationTimeout = 2.minutes
-  private[this] final val SnapshotInterval = 100
 
   def shardingBehavior(
       entityId: String): Behavior[SerializableZoneValidatorMessage] =
@@ -213,7 +212,12 @@ object ZoneValidatorActor {
                 }
           },
           eventHandler(notificationSequenceNumbers, context)
-        ).snapshotEvery(SnapshotInterval)
+        ).withRetention(
+            RetentionCriteria.snapshotEvery(
+              numberOfEvents = 100,
+              keepNSnapshots = 1
+            )
+          )
           .withTagger(_ => Set(EventTags.ZoneEventTag))
       }
       .narrow[SerializableZoneValidatorMessage]

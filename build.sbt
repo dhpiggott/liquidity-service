@@ -85,7 +85,7 @@ lazy val service = project
       "org.tpolecat" %% "doobie-hikari" % "0.6.0",
       "mysql" % "mysql-connector-java" % "8.0.15",
       "com.typesafe.akka" %% "akka-http" % "10.1.8",
-      "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.0-RC1",
+      "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.0.0",
       "org.bouncycastle" % "bcpkix-jdk15on" % "1.61",
       "com.typesafe.akka" %% "akka-http2-support" % "10.1.8",
       "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.8",

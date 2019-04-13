@@ -128,5 +128,5 @@ lazy val service = project
     bashScriptExtraDefines += "addJava -Djdk.tls.ephemeralDHKeySize=2048",
     Docker / packageName := "liquidity",
     dockerBaseImage := "openjdk:12-jdk-oracle",
-    dockerExposedPorts := Seq(8080, 8443)
+    dockerExposedPorts := Seq(8443)
   )

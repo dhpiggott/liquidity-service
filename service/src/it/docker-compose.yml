@@ -1,5 +1,11 @@
 version: '3'
 services:
+  certgen:
+    build:
+      context: .
+      dockerfile: certgen.Dockerfile
+    ports:
+      - "80"
   mysql:
     image: "mysql:8.0"
     ports:
@@ -12,7 +18,7 @@ services:
   zone-host:
     image: "liquidity:${TAG}"
     ports:
-     - "8080"
+     - "8443"
     environment:
       JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=zone-host
         -Dakka.management.http.hostname=zone-host
@@ -29,7 +35,7 @@ services:
   client-relay:
     image: "liquidity:${TAG}"
     ports:
-     - "8080"
+     - "8443"
     environment:
       JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=client-relay
         -Dakka.management.http.hostname=client-relay
@@ -47,7 +53,7 @@ services:
   analytics:
     image: "liquidity:${TAG}"
     ports:
-     - "8080"
+     - "8443"
     environment:
       JAVA_OPTS: "-Dakka.remote.artery.canonical.hostname=analytics
         -Dakka.management.http.hostname=analytics

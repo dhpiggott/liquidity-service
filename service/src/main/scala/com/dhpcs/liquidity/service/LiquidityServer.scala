@@ -14,9 +14,14 @@ import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
 import akka.cluster.typed._
 import akka.discovery.awsapi.ecs.AsyncEcsServiceDiscovery
-import akka.http.scaladsl.model.Uri
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, Uri}
 import akka.http.scaladsl.server.Route
-import akka.http.scaladsl.{ConnectionContext, Http, Http2}
+import akka.http.scaladsl.{
+  ConnectionContext,
+  Http,
+  Http2,
+  HttpsConnectionContext
+}
 import akka.management.cluster.bootstrap.ClusterBootstrap
 import akka.management.scaladsl.AkkaManagement
 import akka.persistence.jdbc.query.scaladsl.JdbcReadJournal
@@ -55,11 +60,51 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object LiquidityServer {
 
+  final case class CertBundle(privateKeyPem: ByteString,
+                              fullChainPem: ByteString)
+
   private final val ZoneHostRole = "zone-host"
   private final val ClientRelayRole = "client-relay"
   private final val AnalyticsRole = "analytics"
 
   private[this] val log = LoggerFactory.getLogger(getClass)
+
+  def loadHttpCertBundle(uri: Uri)(implicit system: ActorSystem,
+                                   mat: Materializer,
+                                   ec: ExecutionContext): Future[CertBundle] =
+    for {
+      response <- Http().singleRequest(
+        HttpRequest(uri = uri)
+      )
+      certbundle <- readCertBundle(response.entity.dataBytes)
+    } yield certbundle
+
+  def httpsConnectionContext(
+      keyManagerFactory: KeyManagerFactory,
+      trustManagerFactory: TrustManagerFactory): HttpsConnectionContext = {
+    val sslContext = SSLContext.getInstance("TLS")
+    sslContext.init(
+      keyManagerFactory.getKeyManagers,
+      trustManagerFactory.getTrustManagers,
+      new SecureRandom
+    )
+    ConnectionContext.https(
+      sslContext,
+      enabledCipherSuites = Some(
+        Seq(
+          "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+          "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+          "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+          "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        )
+      ),
+      enabledProtocols = Some(
+        Seq(
+          "TLSv1.2"
+        )
+      )
+    )
+  }
 
   def main(args: Array[String]): Unit = {
     val mysqlHostname = sys.env("MYSQL_HOSTNAME")
@@ -183,11 +228,10 @@ object LiquidityServer {
           implicit val system: ActorSystem = ActorSystem("liquidity", config)
           implicit val mat: Materializer = ActorMaterializer()
           implicit val ec: ExecutionContext = ExecutionContext.global
-          val httpInterface = privateAddress.getHostAddress
           val akkaManagement = AkkaManagement(system).routes
           val akkaManagementHttpBinding = Http().bindAndHandleAsync(
-            Route.asyncHandler(akkaManagement),
-            httpInterface,
+            handler = Route.asyncHandler(akkaManagement),
+            interface = "0.0.0.0",
             port = 8558
           )
           CoordinatedShutdown(system).addTask(
@@ -202,116 +246,55 @@ object LiquidityServer {
           val server = new LiquidityServer(
             administratorsTransactor,
             analyticsTransactor,
-            akkaManagement,
-            httpInterface
+            akkaManagement
           )
-          maybeSubdomain match {
+          val loadCertBundle = maybeSubdomain match {
             case None =>
-              val httpBinding = server.bindHttp()
-              CoordinatedShutdown(system).addTask(
-                CoordinatedShutdown.PhaseServiceUnbind,
-                "liquidityServerUnbind")(() =>
-                httpBinding.flatMap(_.terminate(5.seconds).map(_ => Done)))
+              () =>
+                loadHttpCertBundle(Uri("http://certgen/certbundle.zip"))
 
             case Some(subdomain) =>
               val region = sys.env("AWS_REGION")
-              val trustManagerFactory = TrustManagerFactory
-                .getInstance(TrustManagerFactory.getDefaultAlgorithm)
-              trustManagerFactory.init(null: KeyStore)
-              def bind(certBundle: CertBundle): Future[Http.ServerBinding] = {
-                val keyFactory = KeyFactory.getInstance("RSA")
-                val certificateFactory = CertificateFactory.getInstance("X.509")
-                val privateKey = keyFactory.generatePrivate(
-                  new PKCS8EncodedKeySpec(
-                    new PEMParser(
-                      new InputStreamReader(
-                        new ByteArrayInputStream(
-                          certBundle.privateKeyPem.toArray)
-                      )
-                    ).readPemObject().getContent
-                  )
-                )
-                val fullChain = certificateFactory.generateCertificates(
-                  new ByteArrayInputStream(certBundle.fullChainPem.toArray)
-                )
-                val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
-                keyStore.load(null, Array.emptyCharArray)
-                keyStore.setKeyEntry(
-                  "identity",
-                  privateKey,
-                  Array.emptyCharArray,
-                  fullChain.asScala.toArray
-                )
-                val keyManagerFactory =
-                  KeyManagerFactory.getInstance(
-                    KeyManagerFactory.getDefaultAlgorithm)
-                keyManagerFactory.init(
-                  keyStore,
-                  Array.emptyCharArray
-                )
-                val sslContext = SSLContext.getInstance("TLS")
-                sslContext.init(
-                  keyManagerFactory.getKeyManagers,
-                  trustManagerFactory.getTrustManagers,
-                  new SecureRandom
-                )
-                server.bindHttp2(
-                  ConnectionContext.https(
-                    sslContext = sslContext,
-                    enabledCipherSuites = Some(
-                      Seq(
-                        "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
-                        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-                        "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
-                        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-                      )
-                    ),
-                    enabledProtocols = Some(
-                      Seq(
-                        "TLSv1.2"
-                      )
-                    )
-                  )
-                )
-              }
-              val (killSwitch, binding) =
-                pollCertBundle(region, subdomain, 12.hours)
-                  .viaMat(KillSwitches.single)(Keep.right)
-                  .foldAsync[Option[Http.ServerBinding]](None) {
-                    case (maybePreviousBinding, currentCertBundle) =>
-                      for {
-                        _ <- maybePreviousBinding match {
-                          case None =>
-                            Future.successful(Done)
+              () =>
+                loadS3CertBundle(subdomain, region)
+          }
+          val (killSwitch, binding) =
+            pollCertBundle(loadCertBundle, 12.hours)
+              .viaMat(KillSwitches.single)(Keep.right)
+              .foldAsync[Option[Http.ServerBinding]](None) {
+                case (maybePreviousBinding, currentCertBundle) =>
+                  for {
+                    _ <- maybePreviousBinding match {
+                      case None =>
+                        Future.successful(Done)
 
-                          case Some(previousBinding) =>
-                            for {
-                              _ <- Future.successful(Done)
-                              _ = log.info(s"Unbinding $previousBinding.")
-                              _ <- previousBinding.terminate(5.seconds)
-                              _ = log.info("Unbound.")
-                            } yield ()
-                        }
-                        currentBinding <- for {
+                      case Some(previousBinding) =>
+                        for {
                           _ <- Future.successful(Done)
-                          _ = log.info(s"Binding with $currentCertBundle.")
-                          currentBinding <- bind(currentCertBundle)
-                          _ = log.info("Bound.")
-                        } yield currentBinding
-                      } yield Some(currentBinding)
-                  }
-                  .toMat(Sink.last)(Keep.both)
-                  .run()
-              CoordinatedShutdown(system).addTask(
-                CoordinatedShutdown.PhaseServiceUnbind,
-                "liquidityServerUnbind") { () =>
-                killSwitch.shutdown()
-                binding.flatMap(
-                  _.fold(Future.successful(Done))(
-                    _.terminate(5.seconds).map(_ => Done)
-                  )
-                )
+                          _ = log.info(s"Unbinding $previousBinding.")
+                          _ <- previousBinding.terminate(5.seconds)
+                          _ = log.info("Unbound.")
+                        } yield ()
+                    }
+                    currentBinding <- for {
+                      _ <- Future.successful(Done)
+                      _ = log.info(s"Binding with $currentCertBundle.")
+                      currentBinding <- bind(server.handler, currentCertBundle)
+                      _ = log.info("Bound.")
+                    } yield currentBinding
+                  } yield Some(currentBinding)
               }
+              .toMat(Sink.last)(Keep.both)
+              .run()
+          CoordinatedShutdown(system).addTask(
+            CoordinatedShutdown.PhaseServiceUnbind,
+            "liquidityServerUnbind") { () =>
+            killSwitch.shutdown()
+            binding.flatMap(
+              _.fold(Future.successful(Done))(
+                _.terminate(5.seconds).map(_ => Done)
+              )
+            )
           }
           IO.fromFuture(IO(system.whenTerminated.map(_ => ())))
         }
@@ -329,62 +312,69 @@ object LiquidityServer {
       "useLocalSessionState=true&" +
       "useServerPrepStmts=true"
 
-  private[this] final case class CertBundle(privateKeyPem: ByteString,
-                                            fullChainPem: ByteString)
+  private[this] def loadS3CertBundle(subdomain: String, region: String)(
+      implicit mat: Materializer,
+      ec: ExecutionContext): Future[CertBundle] =
+    for {
+      dataAndMetadata <- S3
+        .download(
+          bucket = s"$region.liquidity-certbot-runner-infrastructure-$subdomain",
+          "certbundle.zip"
+        )
+        .runWith(Sink.head)
+      zipBytesSource <- dataAndMetadata match {
+        case None =>
+          Future.failed(
+            new IllegalArgumentException("certbundle.zip not found"))
 
-  private[this] def pollCertBundle(region: String,
-                                   subdomain: String,
-                                   interval: FiniteDuration)(
-      implicit system: ActorSystem,
-      mat: Materializer): Source[CertBundle, NotUsed] = {
-    def loadCertBundle(): Future[CertBundle] = {
-      import system.dispatcher
-      def unzip(zipBytes: Array[Byte]): Map[String, ByteString] = {
-        val zip = new ZipInputStream(new ByteArrayInputStream(zipBytes))
-        val buffer = new Array[Byte](4096)
-        @tailrec def unzip(entries: Map[String, ByteString] = Map.empty)
-          : Map[String, ByteString] = {
-          val entry = zip.getNextEntry
-          if (entry == null) {
-            entries
+        case Some((data, _)) =>
+          Future.successful(data)
+      }
+      certbundle <- readCertBundle(zipBytesSource)
+    } yield certbundle
+
+  private[this] def readCertBundle(zipBytesSource: Source[ByteString, Any])(
+      implicit mat: Materializer,
+      ec: ExecutionContext): Future[CertBundle] = {
+    @tailrec def unzip(zip: ZipInputStream,
+                       buffer: Array[Byte] = new Array[Byte](4096),
+                       entries: Map[String, ByteString] = Map.empty)
+      : Map[String, ByteString] = {
+      val entry = zip.getNextEntry
+      if (entry == null) {
+        entries
+      } else {
+        @tailrec def readEntry(
+            bytes: ByteArrayOutputStream = new ByteArrayOutputStream(
+              buffer.length)): ByteString = {
+          val read = zip.read(buffer)
+          if (read == -1) {
+            ByteString(bytes.toByteArray)
           } else {
-            @tailrec def readEntry(
-                bytes: ByteArrayOutputStream = new ByteArrayOutputStream(
-                  buffer.length)): ByteString = {
-              val read = zip.read(buffer)
-              if (read == -1) {
-                ByteString(bytes.toByteArray)
-              } else {
-                bytes.write(buffer, 0, read)
-                readEntry(bytes)
-              }
-            }
-            unzip(entries + (entry.getName -> readEntry()))
+            bytes.write(buffer, 0, read)
+            readEntry(bytes)
           }
         }
-        unzip()
+        unzip(zip, buffer, entries + (entry.getName -> readEntry()))
       }
-      for {
-        dataAndMetadata <- S3
-          .download(
-            bucket =
-              s"$region.liquidity-certbot-runner-infrastructure-$subdomain",
-            "certbundle.zip"
-          )
-          .runWith(Sink.head)
-        zipByteString <- dataAndMetadata match {
-          case None =>
-            Future.failed(
-              new IllegalArgumentException("certbundle.zip not found"))
-
-          case Some((data, _)) =>
-            data.fold(ByteString.empty)(_ ++ _).runWith(Sink.head)
-        }
-        zipEntries = unzip(zipByteString.toArray)
-      } yield
-        CertBundle(privateKeyPem = zipEntries("privkey.pem"),
-                   fullChainPem = zipEntries("fullchain.pem"))
     }
+    for {
+      zipBytes <- zipBytesSource
+        .fold(ByteString.empty)(_ ++ _)
+        .runWith(Sink.head)
+      zipEntries = unzip(
+        new ZipInputStream(new ByteArrayInputStream(zipBytes.toArray))
+      )
+    } yield
+      CertBundle(
+        privateKeyPem = zipEntries("privkey.pem"),
+        fullChainPem = zipEntries("fullchain.pem")
+      )
+  }
+
+  private[this] def pollCertBundle(
+      loadCertBundle: () => Future[CertBundle],
+      interval: FiniteDuration): Source[CertBundle, NotUsed] = {
     Source
       .fromFuture(loadCertBundle())
       .flatMapConcat(
@@ -418,13 +408,65 @@ object LiquidityServer {
                 )
           ))
   }
+
+  private[this] def bind(handler: HttpRequest => Future[HttpResponse],
+                         certBundle: CertBundle)(
+      implicit system: ActorSystem,
+      mat: Materializer): Future[Http.ServerBinding] = {
+    val trustManagerFactory = TrustManagerFactory
+      .getInstance(TrustManagerFactory.getDefaultAlgorithm)
+    trustManagerFactory.init(
+      null: KeyStore
+    )
+    Http2().bindAndHandleAsync(
+      handler,
+      interface = "0.0.0.0",
+      port = 8443,
+      httpsConnectionContext(
+        keyManagerFactory(certBundle),
+        trustManagerFactory
+      )
+    )
+  }
+
+  private[this] def keyManagerFactory(
+      certBundle: CertBundle): KeyManagerFactory = {
+    val keyFactory = KeyFactory.getInstance("RSA")
+    val privateKey = keyFactory.generatePrivate(
+      new PKCS8EncodedKeySpec(
+        new PEMParser(
+          new InputStreamReader(
+            new ByteArrayInputStream(certBundle.privateKeyPem.toArray)
+          )
+        ).readPemObject().getContent
+      )
+    )
+    val certificateFactory = CertificateFactory.getInstance("X.509")
+    val fullChain = certificateFactory.generateCertificates(
+      new ByteArrayInputStream(certBundle.fullChainPem.toArray)
+    )
+    val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
+    keyStore.load(null, Array.emptyCharArray)
+    keyStore.setKeyEntry(
+      "identity",
+      privateKey,
+      Array.emptyCharArray,
+      fullChain.asScala.toArray
+    )
+    val keyManagerFactory =
+      KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
+    keyManagerFactory.init(
+      keyStore,
+      Array.emptyCharArray
+    )
+    keyManagerFactory
+  }
 }
 
 class LiquidityServer(
     administratorsTransactor: Transactor[IO],
     analyticsTransactor: Transactor[IO],
-    akkaManagement: Route,
-    httpInterface: String)(implicit system: ActorSystem, mat: Materializer) {
+    akkaManagement: Route)(implicit system: ActorSystem, mat: Materializer) {
 
   private[this] val readJournal = PersistenceQuery(system)
     .readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
@@ -456,7 +498,7 @@ class LiquidityServer(
       .withStopMessage(StopZoneAnalytics)
   )
 
-  private[this] val handler = Route.asyncHandler(
+  private val handler = Route.asyncHandler(
     new HttpController(
       ready = requestContext =>
         akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/ready"))),
@@ -465,10 +507,11 @@ class LiquidityServer(
       akkaManagement = akkaManagement,
       isAdministrator = publicKey =>
         sql"""
-       SELECT 1
-         FROM administrators
-         WHERE public_key = $publicKey
-      """.query[Int]
+         SELECT 1
+           FROM administrators
+           WHERE public_key = $publicKey
+        """
+          .query[Int]
           .option
           .map(_.isDefined)
           .transact(administratorsTransactor)
@@ -527,21 +570,5 @@ class LiquidityServer(
         Cluster(system.toTyped).selfMember.roles.contains(ClientRelayRole)
     )
   )
-
-  private def bindHttp(): Future[Http.ServerBinding] =
-    Http().bindAndHandleAsync(
-      handler,
-      httpInterface,
-      port = 8080
-    )
-
-  private def bindHttp2(
-      connectionContext: ConnectionContext): Future[Http.ServerBinding] =
-    Http2().bindAndHandleAsync(
-      handler,
-      httpInterface,
-      port = 8443,
-      connectionContext
-    )
 
 }

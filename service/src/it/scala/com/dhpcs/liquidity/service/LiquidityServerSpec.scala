@@ -1,14 +1,15 @@
 package com.dhpcs.liquidity.service
 
 import java.io.{ByteArrayInputStream, File}
-import java.security.KeyPairGenerator
+import java.security.{KeyPairGenerator, KeyStore}
+import java.security.cert.CertificateFactory
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.time.Instant
 import java.util.UUID
 
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{Http, HttpsConnectionContext}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.unmarshalling.Unmarshal
@@ -36,6 +37,7 @@ import com.nimbusds.jose.{JWSAlgorithm, JWSHeader, JWSObject, Payload}
 import com.nimbusds.jose.crypto.RSASSASigner
 import doobie._
 import doobie.implicits._
+import javax.net.ssl.{KeyManagerFactory, TrustManagerFactory}
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.Inside._
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
@@ -43,6 +45,7 @@ import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 import play.api.libs.json.Json
 
+import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -52,10 +55,29 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
 
   private[this] val projectName = UUID.randomUUID().toString
 
+  protected[this] override lazy val httpsConnectionContext
+    : HttpsConnectionContext = {
+    val (_, certgenPort) =
+      externalDockerComposeServicePorts(projectName, "certgen", 80).head
+    val certbundle = LiquidityServer
+      .loadHttpCertBundle(Uri(s"http://localhost:$certgenPort/certbundle.zip"))
+      .futureValue
+    val keyManagerFactory = KeyManagerFactory
+      .getInstance(KeyManagerFactory.getDefaultAlgorithm)
+    keyManagerFactory.init(
+      null,
+      Array.emptyCharArray
+    )
+    LiquidityServer.httpsConnectionContext(
+      keyManagerFactory,
+      trustManagerFactory(certbundle)
+    )
+  }
+
   protected[this] override lazy val baseUri: Uri = {
     val (_, akkaHttpPort) =
-      externalDockerComposeServicePorts(projectName, "client-relay", 8080).head
-    Uri(s"http://localhost:$akkaHttpPort")
+      externalDockerComposeServicePorts(projectName, "client-relay", 8443).head
+    Uri(s"https://localhost:$akkaHttpPort")
   }
 
   protected[this] override lazy val analyticsTransactor: Transactor[IO] = {
@@ -71,7 +93,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    assert(dockerCompose(projectName, "up", "-d", "--remove-orphans").! === 0)
+    assert(dockerCompose(projectName, "up", "--build", "-d").! === 0)
     val connectionTest = for (_ <- sql"SELECT 1".query[Int].unique) yield ()
     val (_, mysqlPort) =
       externalDockerComposeServicePorts(projectName, "mysql", 3306).head
@@ -98,15 +120,28 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     addAdministrator(PublicKey(rsaPublicKey.getEncoded))
       .transact(transactor)
       .unsafeRunSync()
+    eventually(Timeout(5.seconds)) {
+      val (_, certgenPort) =
+        externalDockerComposeServicePorts(projectName, "certgen", 80).head
+      val response = Http()
+        .singleRequest(
+          HttpRequest(
+            uri = Uri(s"http://localhost:$certgenPort/certbundle.zip")
+          )
+        )
+        .futureValue
+      assert(response.status === StatusCodes.OK)
+    }
     eventually(Timeout(60.seconds)) {
       def statusIsOk(serviceName: String): Unit = {
         val (_, akkaHttpPort) =
-          externalDockerComposeServicePorts(projectName, serviceName, 8080).head
+          externalDockerComposeServicePorts(projectName, serviceName, 8443).head
         val response = Http()
           .singleRequest(
             HttpRequest(
-              uri = Uri(s"http://localhost:$akkaHttpPort/ready")
-            )
+              uri = Uri(s"https://localhost:$akkaHttpPort/ready")
+            ),
+            httpsConnectionContext
           )
           .futureValue
         assert(response.status === StatusCodes.OK)
@@ -123,7 +158,9 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     assert(dockerCompose(projectName, "logs", "zone-host").! === 0)
     assert(dockerCompose(projectName, "logs", "client-relay").! === 0)
     assert(dockerCompose(projectName, "logs", "analytics").! === 0)
-    assert(dockerCompose(projectName, "down", "--volumes").! === 0)
+    assert(
+      dockerCompose(projectName, "down", "--rmi", "local", "--volumes").! === 0
+    )
     super.afterAll()
   }
 }
@@ -165,9 +202,10 @@ object LiquidityServerComponentSpec {
       extraEnv = "TAG" -> BuildInfo.version
     )
 
-  private def execSqlFile(path: String): ConnectionIO[Unit] =
-    scala.io.Source
+  private def execSqlFile(path: String): ConnectionIO[Unit] = {
+    val source = scala.io.Source
       .fromFile(path)
+    try source
       .mkString("")
       .split(';')
       .filter(!_.trim.isEmpty)
@@ -175,6 +213,8 @@ object LiquidityServerComponentSpec {
       .toList
       .sequence
       .map(_ => ())
+    finally source.close()
+  }
 
   private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] =
     for (_ <- sql"""
@@ -183,6 +223,25 @@ object LiquidityServerComponentSpec {
            """.update.run)
       yield ()
 
+  private def trustManagerFactory(
+      certBundle: LiquidityServer.CertBundle): TrustManagerFactory = {
+    val certificateFactory = CertificateFactory.getInstance("X.509")
+    val fullChain = certificateFactory.generateCertificates(
+      new ByteArrayInputStream(certBundle.fullChainPem.toArray)
+    )
+    val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
+    keyStore.load(null, Array.emptyCharArray)
+    keyStore.setCertificateEntry(
+      "identity",
+      fullChain.asScala.last
+    )
+    val trustManagerFactory =
+      TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm)
+    trustManagerFactory.init(
+      keyStore
+    )
+    trustManagerFactory
+  }
 }
 
 class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
@@ -194,12 +253,32 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
         .singleRequest(
           HttpRequest(
             uri = baseUri.withPath(Uri.Path("/ready"))
-          )
+          ),
+          httpsConnectionContext
         )
         .futureValue
       assert(response.status === StatusCodes.OK)
       ()
     }
+  }
+
+  protected[this] override val httpsConnectionContext
+    : HttpsConnectionContext = {
+    val keyManagerFactory = KeyManagerFactory
+      .getInstance(KeyManagerFactory.getDefaultAlgorithm)
+    keyManagerFactory.init(
+      null,
+      Array.emptyCharArray
+    )
+    val trustManagerFactory = TrustManagerFactory
+      .getInstance(TrustManagerFactory.getDefaultAlgorithm)
+    trustManagerFactory.init(
+      null: KeyStore
+    )
+    LiquidityServer.httpsConnectionContext(
+      keyManagerFactory,
+      trustManagerFactory
+    )
   }
 
   protected[this] override val baseUri: Uri =
@@ -318,8 +397,7 @@ abstract class LiquidityServerSpec
 
   protected[this] implicit val system: ActorSystem = ActorSystem()
   protected[this] implicit val mat: Materializer = ActorMaterializer()
-
-  private[this] implicit val ec: ExecutionContext = system.dispatcher
+  protected[this] implicit val ec: ExecutionContext = system.dispatcher
 
   private[this] def createZone()(implicit ec: ExecutionContext)
     : Future[(Zone, Map[AccountId, BigDecimal])] =
@@ -422,7 +500,8 @@ abstract class LiquidityServerSpec
                   )
                 )
               )
-            )
+            ),
+            httpsConnectionContext
           )
       )
       .flatMapConcat { response =>
@@ -710,7 +789,8 @@ abstract class LiquidityServerSpec
             ),
             entity
           )
-        )
+        ),
+        httpsConnectionContext
       )
       _ = assert(httpResponse.status === StatusCodes.OK)
       byteString <- Unmarshal(httpResponse.entity).to[ByteString]
@@ -916,6 +996,8 @@ abstract class LiquidityServerSpec
     }
     balances
   }
+
+  protected[this] def httpsConnectionContext: HttpsConnectionContext
 
   protected[this] def baseUri: Uri
 

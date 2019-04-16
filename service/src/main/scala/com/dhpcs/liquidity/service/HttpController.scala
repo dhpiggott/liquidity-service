@@ -391,16 +391,6 @@ object HttpController {
           generatedMessageCompanion.parseFrom(byteString.toArray))
     )
 
-  implicit def optionResponseMarshaller[A](
-      implicit entityMarshaller: ToEntityMarshaller[Option[A]])
-    : ToResponseMarshaller[Option[A]] =
-    Marshaller[Option[A], HttpResponse](
-      implicit ec =>
-        entity =>
-          Marshaller.fromToEntityMarshaller(status =
-            if (entity.isEmpty) NotFound else OK)(entityMarshaller)(entity)
-    )
-
   private val zoneIdMatcher = JavaUUID.map(uuid => ZoneId(uuid.toString))
 
 }

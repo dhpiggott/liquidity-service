@@ -38,12 +38,13 @@ import com.nimbusds.jose.crypto.RSASSASigner
 import doobie._
 import doobie.implicits._
 import javax.net.ssl.{KeyManagerFactory, TrustManagerFactory}
+import org.json4s._
+import org.json4s.native.JsonMethods
 import org.scalactic.TripleEqualsSupport.Spread
 import org.scalatest.Inside._
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
-import play.api.libs.json.Json
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
@@ -1033,9 +1034,12 @@ object LiquidityServerSpec {
     val jws = new JWSObject(
       new JWSHeader.Builder(JWSAlgorithm.RS256).build(),
       new Payload(
-        Json.stringify(
-          Json.obj(
-            "sub" -> okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64()
+        JsonMethods.compact(
+          JsonMethods.render(
+            JObject(
+              "sub" -> JString(
+                okio.ByteString.of(rsaPublicKey.getEncoded: _*).base64())
+            )
           )
         )
       )

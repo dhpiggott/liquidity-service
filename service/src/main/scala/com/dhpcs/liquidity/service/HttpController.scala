@@ -19,6 +19,7 @@ import akka.http.scaladsl.unmarshalling._
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
@@ -32,9 +33,7 @@ import com.nimbusds.jose.jwk.source.ImmutableJWKSet
 import com.nimbusds.jose.proc.{JWSVerificationKeySelector, SecurityContext}
 import com.nimbusds.jwt.SignedJWT
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
-import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-import play.api.libs.json.Json
-import play.api.libs.json.Json.toJsFieldJsValueWrapper
+import org.json4s._
 import scalapb.json4s.JsonFormat
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion, Message}
 
@@ -151,17 +150,6 @@ class HttpController(
       else forbidden
     }
 
-  private[this] def version: Route =
-    get(
-      complete(
-        Json.obj(
-          BuildInfo.toMap
-            .mapValues(value => toJsFieldJsValueWrapper(value.toString))
-            .toSeq: _*
-        )
-      )
-    )
-
   private[this] def diagnostics: Route =
     path("events" / Segment)(
       persistenceId =>
@@ -268,6 +256,22 @@ class HttpController(
 
 object HttpController {
 
+  private[this] implicit val serialization: Serialization = native.Serialization
+  private[this] implicit val formats: Formats = DefaultFormats
+  private[this] implicit val shouldWritePretty: ShouldWritePretty =
+    ShouldWritePretty.True
+
+  private def version: Route =
+    get(
+      complete(
+        JObject(
+          BuildInfo.toMap
+            .mapValues(value => JString(value.toString))
+            .toSeq: _*
+        )
+      )
+    )
+
   private def unauthorized[A](error: String): Directive1[A] =
     complete(
       (
@@ -289,24 +293,12 @@ object HttpController {
 
   implicit val eventEnvelopeEntityMarshaller
     : ToEntityMarshaller[EventEnvelope] =
-    Marshaller
-      .stringMarshaller(MediaTypes.`application/json`)
+    marshaller[JValue]
       .compose(
         eventEnvelope =>
-          Json.prettyPrint(
-            Json.obj(
-              "sequenceNr" -> eventEnvelope.sequenceNr,
-              // ScalaPB gives us a way to get a json4s representation of
-              // messages, but not play-json. So we parse the string form as a
-              // play-json JsValue (doing this, as opposed to just passing it
-              // through as a string means that it will get marshaled by
-              // akka-http-play-json, which by default will _pretty_ print it -
-              // and we really want that, given this is purely a diagnostics
-              // endpoint and should thus be developer-readable).
-              "event" -> Json.parse(
-                JsonFormat.toJsonString(eventEnvelope.event)
-              )
-            )
+          JObject(
+            "sequenceNr" -> JLong(eventEnvelope.sequenceNr),
+            "event" -> JsonFormat.toJson(eventEnvelope.event)
         )
       )
 

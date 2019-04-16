@@ -32,14 +32,18 @@ import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jose.util.Base64
 import com.nimbusds.jose.{JWSAlgorithm, JWSHeader, JWSObject, Payload}
 import com.nimbusds.jwt.{JWTClaimsSet, SignedJWT}
+import org.json4s._
+import org.json4s.native.JsonMethods
 import org.scalatest.FreeSpec
-import play.api.libs.json.{JsObject, JsValue, Json}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
+
+  private[this] implicit val serialization: Serialization = native.Serialization
+  private[this] implicit val formats: Formats = DefaultFormats
 
   "HttpController" - {
     "rejects access" - {
@@ -421,8 +425,8 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
         implicit val timeout: RouteTestTimeout = RouteTestTimeout(5.seconds)
         getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-          assert(entityAs[JsValue] === Json.parse(s"""
+          import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+          assert(entityAs[JValue] === JsonMethods.parse(s"""
                |[{
                |  "sequenceNr" : 0,
                |  "event" : {
@@ -437,9 +441,9 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
                |          "members" : [ {
                |              "id" : "0",
                |              "ownerPublicKeys" : [ "${publicKey.value
-                                                       .base64()}" ],
+                                                             .base64()}" ],
                |              "ownerPublicKeys" : [ "${publicKey.value
-                                                       .base64()}" ],
+                                                             .base64()}" ],
                |              "name" : "Dave"
                |          } ],
                |          "accounts" : [ {
@@ -522,8 +526,8 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           .withHeaders(Authorization(OAuth2BearerToken(selfSignedJwt)))
         getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-          assert(entityAs[JsValue] === Json.parse(s"""
+          import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+          assert(entityAs[JValue] === JsonMethods.parse(s"""
                |{
                |  "zone" : {
                |    "id" : "32824da3-094f-45f0-9b35-23b7827547c6",
@@ -551,7 +555,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
       getRequest ~> httpController.route(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
         import PredefinedFromEntityUnmarshallers.stringUnmarshaller
-        assert(entityAs[String] == "OK")
+        assert(entityAs[String] === "OK")
       }
     }
     "provides alive information" in {
@@ -559,21 +563,22 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
       getRequest ~> httpController.route(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
         import PredefinedFromEntityUnmarshallers.stringUnmarshaller
-        assert(entityAs[String] == "OK")
+        assert(entityAs[String] === "OK")
       }
     }
     "provides version information" in {
       val getRequest = RequestBuilding.Get("/version")
       getRequest ~> httpController.route(enableClientRelay = true) ~> check {
         assert(status === StatusCodes.OK)
-        import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-        val buildInfo = entityAs[JsObject]
-        assert((buildInfo \ "version").as[String] == BuildInfo.version)
+        import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+        val buildInfo = entityAs[JObject]
+        assert(buildInfo.values.get("version") === Some(BuildInfo.version))
         assert(
-          (buildInfo \ "builtAtString").as[String] == BuildInfo.builtAtString)
+          buildInfo.values.get("builtAtString") === Some(
+            BuildInfo.builtAtString))
         assert(
-          (buildInfo \ "builtAtMillis")
-            .as[String] == BuildInfo.builtAtMillis.toString)
+          buildInfo.values.get("builtAtMillis") === Some(
+            BuildInfo.builtAtMillis.toString))
       }
     }
     "accepts CreateZoneCommands" - {
@@ -596,8 +601,8 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           )
         putRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-          assert(entityAs[JsValue] === Json.parse(s"""
+          import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+          assert(entityAs[JValue] === JsonMethods.parse(s"""
                |{
                |  "createZoneResponse": {
                |    "success": {
@@ -698,8 +703,8 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           )
         putRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-          assert(entityAs[JsValue] === Json.parse(s"""
+          import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+          assert(entityAs[JValue] === JsonMethods.parse(s"""
                |{
                |  "changeZoneNameResponse": {
                |    "success": {}
@@ -766,8 +771,8 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           )
         getRequest ~> httpController.route(enableClientRelay = true) ~> check {
           assert(status === StatusCodes.OK)
-          import de.heikoseeberger.akkahttpplayjson.PlayJsonSupport._
-          assert(entityAs[JsValue] === Json.parse(s"""
+          import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+          assert(entityAs[JValue] === JsonMethods.parse(s"""
                |[{
                |  "zoneStateNotification" : {
                |    "zone" : {

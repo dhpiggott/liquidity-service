@@ -19,6 +19,8 @@ import com.dhpcs.liquidity.ws.protocol._
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
+import scala.concurrent.Future
+
 class ClientConnectionActorSpec extends FreeSpec with BeforeAndAfterAll {
 
   private[this] val testKit = ActorTestKit(
@@ -54,7 +56,7 @@ class ClientConnectionActorSpec extends FreeSpec with BeforeAndAfterAll {
           remoteAddress,
           publicKey,
           zoneId,
-          testKit.spawn(_)
+          behavior => Future.successful(testKit.spawn(behavior))
         )
         .runWith(TestSink.probe[ZoneNotification](testKit.system.toUntyped))
     val created = Instant.now()

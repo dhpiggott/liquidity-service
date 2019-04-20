@@ -8,7 +8,9 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.NotUsed
-import akka.actor.ActorSystem
+import akka.actor.typed.ActorSystem
+import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.adapter._
 import akka.http.scaladsl.{Http, HttpsConnectionContext}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
@@ -124,7 +126,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     eventually(Timeout(5.seconds)) {
       val (_, certgenPort) =
         externalDockerComposeServicePorts(projectName, "certgen", 80).head
-      val response = Http()
+      val response = Http(system.toUntyped)
         .singleRequest(
           HttpRequest(
             uri = Uri(s"http://localhost:$certgenPort/certbundle.zip")
@@ -137,7 +139,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
       def statusIsOk(serviceName: String): Unit = {
         val (_, akkaHttpPort) =
           externalDockerComposeServicePorts(projectName, serviceName, 8443).head
-        val response = Http()
+        val response = Http(system.toUntyped)
           .singleRequest(
             HttpRequest(
               uri = Uri(s"https://localhost:$akkaHttpPort/ready")
@@ -250,7 +252,7 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
   override protected def beforeAll(): Unit = {
     super.beforeAll()
     eventually {
-      val response = Http()
+      val response = Http(system.toUntyped)
         .singleRequest(
           HttpRequest(
             uri = baseUri.withPath(Uri.Path("/ready"))
@@ -377,7 +379,7 @@ abstract class LiquidityServerSpec
       zoneCreated(createdZone, createdBalances)
       val zoneNotificationTestProbe =
         zoneNotificationSource(createdZone.id, selfSignedJwt)
-          .runWith(TestSink.probe[ZoneNotification])
+          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
       inside(zoneNotificationTestProbe.requestNext()) {
         case ZoneStateNotification(_, _) => ()
       }
@@ -396,9 +398,11 @@ abstract class LiquidityServerSpec
   protected[this] implicit val contextShift: ContextShift[IO] =
     IO.contextShift(ExecutionContext.global)
 
-  protected[this] implicit val system: ActorSystem = ActorSystem()
-  protected[this] implicit val mat: Materializer = ActorMaterializer()
-  protected[this] implicit val ec: ExecutionContext = system.dispatcher
+  protected[this] implicit val system: ActorSystem[Nothing] =
+    ActorSystem(Behaviors.empty, "liquiditySpec")
+  protected[this] implicit val mat: Materializer =
+    ActorMaterializer()(system.toUntyped)
+  protected[this] implicit val ec: ExecutionContext = system.executionContext
 
   private[this] def createZone()(implicit ec: ExecutionContext)
     : Future[(Zone, Map[AccountId, BigDecimal])] =
@@ -485,7 +489,7 @@ abstract class LiquidityServerSpec
       selfSignedJwt: String): Source[ZoneNotification, NotUsed] = {
     val byteSource = Source
       .fromFuture(
-        Http()
+        Http(system.toUntyped)
           .singleRequest(
             HttpRequest(
               uri = baseUri.withPath(
@@ -768,7 +772,7 @@ abstract class LiquidityServerSpec
   private[this] def execZoneCommand(zoneSubPath: Uri.Path, entity: Array[Byte])(
       implicit ec: ExecutionContext): Future[ZoneResponse] =
     for {
-      httpResponse <- Http().singleRequest(
+      httpResponse <- Http(system.toUntyped).singleRequest(
         HttpRequest(
           method = HttpMethods.PUT,
           uri = baseUri.withPath(Uri.Path("/zone") ++ zoneSubPath),
@@ -1016,7 +1020,7 @@ abstract class LiquidityServerSpec
       "useServerPrepStmts=true"
 
   override protected def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
+    TestKit.shutdownActorSystem(system.toUntyped)
     super.afterAll()
   }
 }

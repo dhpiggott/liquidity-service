@@ -13,6 +13,8 @@ import com.dhpcs.liquidity.actor.protocol.zonevalidator._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.ws.protocol._
 
+import scala.concurrent.Future
+
 object ClientConnectionActor {
 
   sealed abstract class ActorSourceMessage
@@ -25,8 +27,8 @@ object ClientConnectionActor {
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       zoneId: ZoneId,
-      actorRefFactory: Behavior[ClientConnectionMessage] => ActorRef[
-        ClientConnectionMessage]
+      createActor: Behavior[ClientConnectionMessage] => Future[
+        ActorRef[ClientConnectionMessage]]
   )(implicit mat: Materializer): Source[ZoneNotification, NotUsed] = {
     val (outActor, source) = ActorSource
       .actorRef[ActorSourceMessage](
@@ -38,18 +40,22 @@ object ClientConnectionActor {
         overflowStrategy = OverflowStrategy.fail
       )
       .preMaterialize()
-    actorRefFactory(
-      ClientConnectionActor.zoneNotificationBehavior(
-        zoneValidatorShardRegion,
-        remoteAddress,
-        publicKey,
-        zoneId,
-        outActor
+    Source
+      .fromFuture(
+        createActor(
+          ClientConnectionActor.zoneNotificationBehavior(
+            zoneValidatorShardRegion,
+            remoteAddress,
+            publicKey,
+            zoneId,
+            outActor
+          )
+        )
       )
-    )
-    source.collect {
-      case ForwardZoneNotification(zoneNotification) => zoneNotification
-    }
+      .flatMapConcat(_ =>
+        source.collect {
+          case ForwardZoneNotification(zoneNotification) => zoneNotification
+      })
   }
 
   private def zoneNotificationBehavior(

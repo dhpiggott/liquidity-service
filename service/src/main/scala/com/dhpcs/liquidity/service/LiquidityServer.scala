@@ -81,37 +81,6 @@ object LiquidityServer {
       certbundle <- readCertBundle(response.entity.dataBytes)
     } yield certbundle
 
-  def httpsConnectionContext(
-      keyManagerFactory: KeyManagerFactory,
-      trustManagerFactory: TrustManagerFactory): HttpsConnectionContext = {
-    val sslContext = SSLContext.getInstance("TLS")
-    sslContext.init(
-      keyManagerFactory.getKeyManagers,
-      trustManagerFactory.getTrustManagers,
-      new SecureRandom
-    )
-    ConnectionContext.https(
-      sslContext,
-      enabledCipherSuites = Some(
-        Seq(
-          "TLS_CHACHA20_POLY1305_SHA256",
-          "TLS_AES_256_GCM_SHA384",
-          "TLS_AES_128_GCM_SHA256",
-          "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-          "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
-          "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-          "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
-        )
-      ),
-      enabledProtocols = Some(
-        Seq(
-          "TLSv1.3",
-          "TLSv1.2"
-        )
-      )
-    )
-  }
-
   def main(args: Array[String]): Unit = {
     val mysqlHostname = sys.env("MYSQL_HOSTNAME")
     val mysqlUsername = sys.env("MYSQL_USERNAME")
@@ -455,6 +424,37 @@ object LiquidityServer {
       httpsConnectionContext(
         keyManagerFactory(certBundle),
         trustManagerFactory
+      )
+    )
+  }
+
+  private[this] def httpsConnectionContext(
+      keyManagerFactory: KeyManagerFactory,
+      trustManagerFactory: TrustManagerFactory): HttpsConnectionContext = {
+    val sslContext = SSLContext.getInstance("TLS")
+    sslContext.init(
+      keyManagerFactory.getKeyManagers,
+      trustManagerFactory.getTrustManagers,
+      new SecureRandom
+    )
+    ConnectionContext.https(
+      sslContext,
+      enabledCipherSuites = Some(
+        Seq(
+          "TLS_CHACHA20_POLY1305_SHA256",
+          "TLS_AES_256_GCM_SHA384",
+          "TLS_AES_128_GCM_SHA256",
+          "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+          "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+          "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+          "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+        )
+      ),
+      enabledProtocols = Some(
+        Seq(
+          "TLSv1.3",
+          "TLSv1.2"
+        )
       )
     )
   }

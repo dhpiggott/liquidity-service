@@ -1,7 +1,7 @@
 package com.dhpcs.liquidity.service
 
 import java.io.{ByteArrayInputStream, File}
-import java.security.{KeyPairGenerator, KeyStore}
+import java.security.{KeyPairGenerator, KeyStore, SecureRandom}
 import java.security.cert.CertificateFactory
 import java.security.interfaces.{RSAPrivateKey, RSAPublicKey}
 import java.time.Instant
@@ -11,7 +11,7 @@ import akka.NotUsed
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
-import akka.http.scaladsl.{Http, HttpsConnectionContext}
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.unmarshalling.Unmarshal
@@ -39,7 +39,7 @@ import com.nimbusds.jose.{JWSAlgorithm, JWSHeader, JWSObject, Payload}
 import com.nimbusds.jose.crypto.RSASSASigner
 import doobie._
 import doobie.implicits._
-import javax.net.ssl.{KeyManagerFactory, TrustManagerFactory}
+import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import org.json4s._
 import org.json4s.native.JsonMethods
 import org.scalactic.TripleEqualsSupport.Spread
@@ -71,7 +71,7 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
       null,
       Array.emptyCharArray
     )
-    LiquidityServer.httpsConnectionContext(
+    LiquidityServerSpec.httpsConnectionContext(
       keyManagerFactory,
       trustManagerFactory(certbundle)
     )
@@ -278,7 +278,7 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
     trustManagerFactory.init(
       null: KeyStore
     )
-    LiquidityServer.httpsConnectionContext(
+    LiquidityServerSpec.httpsConnectionContext(
       keyManagerFactory,
       trustManagerFactory
     )
@@ -1026,6 +1026,33 @@ abstract class LiquidityServerSpec
 }
 
 object LiquidityServerSpec {
+
+  def httpsConnectionContext(
+      keyManagerFactory: KeyManagerFactory,
+      trustManagerFactory: TrustManagerFactory): HttpsConnectionContext = {
+    val sslContext = SSLContext.getInstance("TLS")
+    sslContext.init(
+      keyManagerFactory.getKeyManagers,
+      trustManagerFactory.getTrustManagers,
+      new SecureRandom
+    )
+    ConnectionContext.https(
+      sslContext,
+      enabledCipherSuites = Some(
+        Seq(
+          "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+          "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
+          "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+          "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+        )
+      ),
+      enabledProtocols = Some(
+        Seq(
+          "TLSv1.2"
+        )
+      )
+    )
+  }
 
   val (rsaPrivateKey: RSAPrivateKey, rsaPublicKey: RSAPublicKey) = {
     val keyPairGenerator = KeyPairGenerator.getInstance("RSA")

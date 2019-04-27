@@ -21,7 +21,6 @@ import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.TestKit
 import akka.util.ByteString
 import cats.data.Validated
-import cats.effect.{ContextShift, IO}
 import cats.instances.list._
 import cats.syntax.applicative._
 import cats.syntax.traverse._
@@ -47,6 +46,8 @@ import org.scalatest.Inside._
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
+import scalaz.zio.{DefaultRuntime, Task}
+import scalaz.zio.interop.catz._
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq
@@ -83,10 +84,10 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     Uri(s"https://localhost:$akkaHttpPort")
   }
 
-  protected[this] override lazy val analyticsTransactor: Transactor[IO] = {
+  protected[this] override lazy val analyticsTransactor: Transactor[Task] = {
     val (_, mysqlPort) =
       externalDockerComposeServicePorts(projectName, "mysql", 3306).head
-    Transactor.fromDriverManager[IO](
+    Transactor.fromDriverManager[Task](
       driver = "com.mysql.cj.jdbc.Driver",
       url = urlFor(s"localhost:$mysqlPort", Some("liquidity_analytics")),
       user = "root",
@@ -100,29 +101,35 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
     val connectionTest = for (_ <- sql"SELECT 1".query[Int].unique) yield ()
     val (_, mysqlPort) =
       externalDockerComposeServicePorts(projectName, "mysql", 3306).head
-    val transactor = Transactor.fromDriverManager[IO](
+    val transactor = Transactor.fromDriverManager[Task](
       driver = "com.mysql.cj.jdbc.Driver",
       url = urlFor(s"localhost:$mysqlPort"),
       user = "root",
       pass = ""
     )
     eventually(Timeout(60.seconds))(
-      connectionTest
-        .transact(transactor)
-        .unsafeRunSync()
+      runtime.unsafeRun(
+        connectionTest
+          .transact(transactor)
+      )
     )
-    execSqlFile("schemas/journal.sql")
-      .transact(transactor)
-      .unsafeRunSync()
-    execSqlFile("schemas/analytics.sql")
-      .transact(transactor)
-      .unsafeRunSync()
-    execSqlFile("schemas/administrators.sql")
-      .transact(transactor)
-      .unsafeRunSync()
-    addAdministrator(PublicKey(rsaPublicKey.getEncoded))
-      .transact(transactor)
-      .unsafeRunSync()
+    runtime.unsafeRun(
+      execSqlFile("schemas/journal.sql")
+        .transact(transactor)
+    )
+    runtime.unsafeRun(
+      execSqlFile("schemas/analytics.sql")
+        .transact(transactor)
+    )
+
+    runtime.unsafeRun(
+      execSqlFile("schemas/administrators.sql")
+        .transact(transactor)
+    )
+    runtime.unsafeRun(
+      addAdministrator(PublicKey(rsaPublicKey.getEncoded))
+        .transact(transactor)
+    )
     eventually(Timeout(5.seconds)) {
       val (_, certgenPort) =
         externalDockerComposeServicePorts(projectName, "certgen", 80).head
@@ -287,8 +294,8 @@ class LiquidityServerIntegrationSpec extends LiquidityServerSpec {
   protected[this] override val baseUri: Uri =
     Uri(s"https://${sys.env("SUBDOMAIN")}.liquidityapp.com")
 
-  protected[this] override val analyticsTransactor: Transactor[IO] =
-    Transactor.fromDriverManager[IO](
+  protected[this] override val analyticsTransactor: Transactor[Task] =
+    Transactor.fromDriverManager[Task](
       driver = "com.mysql.cj.jdbc.Driver",
       url = urlFor(sys.env("MYSQL_HOSTNAME"), Some("liquidity_analytics")),
       user = sys.env("MYSQL_USERNAME"),
@@ -395,8 +402,7 @@ abstract class LiquidityServerSpec
     }
   }
 
-  protected[this] implicit val contextShift: ContextShift[IO] =
-    IO.contextShift(ExecutionContext.global)
+  protected[this] val runtime: DefaultRuntime = new DefaultRuntime {}
 
   protected[this] implicit val system: ActorSystem[Nothing] =
     ActorSystem(Behaviors.empty, "liquiditySpec")
@@ -972,9 +978,10 @@ abstract class LiquidityServerSpec
       } yield maybeZone
     eventually {
       assert(
-        retrieveOption
-          .transact(analyticsTransactor)
-          .unsafeRunSync() === Some(zone)
+        runtime.unsafeRun(
+          retrieveOption
+            .transact(analyticsTransactor)
+        ) === Some(zone)
       )
     }
     zone
@@ -993,9 +1000,11 @@ abstract class LiquidityServerSpec
         .to[Vector]
     eventually {
       assert(
-        retrieveAll
-          .transact(analyticsTransactor)
-          .unsafeRunSync()
+        runtime
+          .unsafeRun(
+            retrieveAll
+              .transact(analyticsTransactor)
+          )
           .toMap === balances
       )
     }
@@ -1006,7 +1015,7 @@ abstract class LiquidityServerSpec
 
   protected[this] def baseUri: Uri
 
-  protected[this] def analyticsTransactor: Transactor[IO]
+  protected[this] def analyticsTransactor: Transactor[Task]
 
   protected[this] def urlFor(authority: String,
                              database: Option[String] = None): String =

@@ -18,7 +18,6 @@ import akka.persistence.query.PersistenceQuery
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.{TestKit, TestProbe}
 import akka.util.Timeout
-import cats.effect.{ContextShift, IO}
 import cats.instances.list._
 import cats.syntax.applicative._
 import cats.syntax.traverse._
@@ -33,9 +32,11 @@ import doobie.implicits._
 import org.h2.tools.Server
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
+import scalaz.zio.{DefaultRuntime, Task}
+import scalaz.zio.interop.catz._
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.Await
 
 class ZoneAnalyticsActorSpec
     extends fixture.FreeSpec
@@ -110,8 +111,7 @@ class ZoneAnalyticsActorSpec
        |}
      """.stripMargin)
 
-  private[this] implicit val contextShift: ContextShift[IO] =
-    IO.contextShift(ExecutionContext.global)
+  private[this] val runtime = new DefaultRuntime {}
 
   private[this] implicit val system: ActorSystem =
     ActorSystem("zoneAnalyticsActorSpec", config)
@@ -131,7 +131,7 @@ class ZoneAnalyticsActorSpec
   override protected type FixtureParam = ZoneAnalyticsActorSpec.FixtureParam
 
   override protected def withFixture(test: OneArgTest): Outcome = {
-    val transactor = Transactor.fromDriverManager[IO](
+    val transactor = Transactor.fromDriverManager[Task](
       driver = "org.h2.Driver",
       url =
         s"jdbc:h2:mem:liquidity_analytics_${UUID.randomUUID()};" +
@@ -139,9 +139,9 @@ class ZoneAnalyticsActorSpec
       user = "sa",
       pass = ""
     )
-    initAnalytics.transact(transactor).unsafeRunSync()
+    runtime.unsafeRun(initAnalytics.transact(transactor))
     val analytics = system.spawn(
-      ZoneAnalyticsActor.singletonBehavior(readJournal, transactor),
+      ZoneAnalyticsActor.singletonBehavior(readJournal, transactor, runtime),
       name = "zoneAnalytics"
     )
     val zoneId = ZoneId(UUID.randomUUID().toString)
@@ -194,7 +194,7 @@ class ZoneAnalyticsActorSpec
     )
     writeEvent(fixture, ZoneCreatedEvent(zone))
     eventually {
-      val zoneCount =
+      val zoneCount = runtime.unsafeRun(
         sql"""
            SELECT COUNT(*)
              FROM zones
@@ -202,12 +202,12 @@ class ZoneAnalyticsActorSpec
           .query[Long]
           .unique
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(zoneCount === 1)
-      val maybeZone =
+      val maybeZone = runtime.unsafeRun(
         retrieveZoneOption(zoneId)
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(maybeZone === Some(zone))
     }
     zone
@@ -221,11 +221,12 @@ class ZoneAnalyticsActorSpec
     val timestamp = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     writeEvent(fixture, ClientJoinedEvent(Some(actorRef)), timestamp)
     eventually {
-      val (_, clientSession) =
-        retrieveAllClientSessions(zoneId)
-          .transact(transactor)
-          .unsafeRunSync()
-          .head
+      val (_, clientSession) = runtime
+        .unsafeRun(
+          retrieveAllClientSessions(zoneId)
+            .transact(transactor)
+        )
+        .head
       assert(
         clientSession === ClientSession(
           id = clientSession.id,
@@ -248,11 +249,12 @@ class ZoneAnalyticsActorSpec
     val timestamp = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     writeEvent(fixture, ClientQuitEvent(Some(actorRef)), timestamp)
     eventually {
-      val (_, clientSession) =
-        retrieveAllClientSessions(zoneId)
-          .transact(transactor)
-          .unsafeRunSync()
-          .head
+      val (_, clientSession) = runtime
+        .unsafeRun(
+          retrieveAllClientSessions(zoneId)
+            .transact(transactor)
+        )
+        .head
       assert(
         clientSession === ClientSession(
           id = clientSession.id,
@@ -270,8 +272,9 @@ class ZoneAnalyticsActorSpec
     val (transactor, zoneId, _) = fixture
     writeEvent(fixture, ZoneNameChangedEvent(name = None))
     eventually {
-      val maybeZone =
-        retrieveZoneOption(zoneId).transact(transactor).unsafeRunSync()
+      val maybeZone = runtime.unsafeRun(
+        retrieveZoneOption(zoneId).transact(transactor)
+      )
       assert(maybeZone.exists(_.name.isEmpty))
     }
     ()
@@ -287,7 +290,7 @@ class ZoneAnalyticsActorSpec
     )
     writeEvent(fixture, MemberCreatedEvent(member))
     eventually {
-      val membersCount =
+      val membersCount = runtime.unsafeRun(
         sql"""
            SELECT COUNT(*)
              FROM members
@@ -295,23 +298,23 @@ class ZoneAnalyticsActorSpec
           .query[Long]
           .unique
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(membersCount === 2)
-      val memberOwnersCount =
+      val memberOwnersCount = runtime.unsafeRun(
         sql"""
-             SELECT COUNT(DISTINCT fingerprint)
-               FROM member_owners
-           """
+           SELECT COUNT(DISTINCT fingerprint)
+             FROM member_owners
+         """
           .query[Long]
           .unique
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(memberOwnersCount === 1)
-      val members =
+      val members = runtime.unsafeRun(
         retrieveAllMembers(zoneId)
           .map(_.toMap)
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(members(member.id) === member)
     }
     member
@@ -322,11 +325,11 @@ class ZoneAnalyticsActorSpec
     val (transactor, zoneId, _) = fixture
     writeEvent(fixture, MemberUpdatedEvent(member.copy(name = None)))
     eventually {
-      val members =
+      val members = runtime.unsafeRun(
         retrieveAllMembers(zoneId)
           .map(_.toMap)
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(members(member.id) === member.copy(name = None))
     }
     ()
@@ -343,7 +346,7 @@ class ZoneAnalyticsActorSpec
     )
     writeEvent(fixture, AccountCreatedEvent(account))
     eventually {
-      val accountsCount =
+      val accountsCount = runtime.unsafeRun(
         sql"""
            SELECT COUNT(*)
              FROM accounts
@@ -351,13 +354,13 @@ class ZoneAnalyticsActorSpec
           .query[Long]
           .unique
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(accountsCount === 2)
-      val accounts =
+      val accounts = runtime.unsafeRun(
         retrieveAllAccounts(zoneId)
           .map(_.toMap)
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(accounts(account.id) === account)
     }
     account
@@ -370,11 +373,11 @@ class ZoneAnalyticsActorSpec
                AccountUpdatedEvent(actingAs = Some(account.ownerMemberIds.head),
                                    account.copy(name = None)))
     eventually {
-      val accounts =
+      val accounts = runtime.unsafeRun(
         retrieveAllAccounts(zoneId)
           .map(_.toMap)
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(accounts(account.id) === account.copy(name = None))
     }
     ()
@@ -397,7 +400,7 @@ class ZoneAnalyticsActorSpec
     )
     writeEvent(fixture, TransactionAddedEvent(transaction))
     eventually {
-      val transactionCount =
+      val transactionCount = runtime.unsafeRun(
         sql"""
            SELECT COUNT(*)
              FROM transactions
@@ -405,31 +408,33 @@ class ZoneAnalyticsActorSpec
           .query[Long]
           .unique
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(transactionCount === 1)
-      val transactions =
+      val transactions = runtime.unsafeRun(
         retrieveAllTransactions(zoneId)
           .map(_.toMap)
           .transact(transactor)
-          .unsafeRunSync()
+      )
       assert(transactions(transaction.id) === transaction)
-      val sourceBalance = sql"""
-         SELECT balance FROM accounts
-           WHERE zone_id = $zoneId AND account_id = ${zone.equityAccountId}
-        """
-        .query[BigDecimal]
-        .unique
-        .transact(transactor)
-        .unsafeRunSync()
+      val sourceBalance = runtime.unsafeRun(
+        sql"""
+           SELECT balance FROM accounts
+             WHERE zone_id = $zoneId AND account_id = ${zone.equityAccountId}
+         """
+          .query[BigDecimal]
+          .unique
+          .transact(transactor)
+      )
       assert(sourceBalance === BigDecimal("-5000000000000000000000"))
-      val destinationBalance = sql"""
-         SELECT balance FROM accounts
-           WHERE zone_id = $zoneId AND account_id = $to
-        """
-        .query[BigDecimal]
-        .unique
-        .transact(transactor)
-        .unsafeRunSync()
+      val destinationBalance = runtime.unsafeRun(
+        sql"""
+           SELECT balance FROM accounts
+             WHERE zone_id = $zoneId AND account_id = $to
+         """
+          .query[BigDecimal]
+          .unique
+          .transact(transactor)
+      )
       assert(destinationBalance === BigDecimal("5000000000000000000000"))
     }
     ()
@@ -444,7 +449,7 @@ class ZoneAnalyticsActorSpec
 
 object ZoneAnalyticsActorSpec {
 
-  private type FixtureParam = (Transactor[IO], ZoneId, ActorRef)
+  private type FixtureParam = (Transactor[Task], ZoneId, ActorRef)
 
   private val remoteAddress = InetAddress.getLoopbackAddress
   private val publicKey = {
@@ -483,7 +488,7 @@ object ZoneAnalyticsActorSpec {
              PRIMARY KEY (change_id),
              FOREIGN KEY (zone_id) REFERENCES zones(zone_id)
            );
-    """.update.run
+         """.update.run
     _ <- sql"""
            CREATE TABLE members (
              zone_id CHAR(36) NOT NULL,

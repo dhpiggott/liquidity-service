@@ -9,7 +9,6 @@ import akka.persistence.query.Sequence
 import akka.persistence.query.scaladsl.{EventsByTagQuery, ReadJournal}
 import akka.stream.scaladsl.{Keep, RestartSource, Sink, Source}
 import akka.stream.{KillSwitches, Materializer}
-import cats.effect.IO
 import cats.instances.list._
 import cats.syntax.applicative._
 import cats.syntax.traverse._
@@ -19,6 +18,8 @@ import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.service.SqlBindings._
 import doobie._
 import doobie.implicits._
+import scalaz.zio.{Runtime, Task}
+import scalaz.zio.interop.catz._
 
 import scala.concurrent.duration._
 
@@ -28,7 +29,8 @@ object ZoneAnalyticsActor {
   case object StopZoneAnalytics extends ZoneAnalyticsMessage
 
   def singletonBehavior(readJournal: ReadJournal with EventsByTagQuery,
-                        analyticsTransactor: Transactor[IO])(
+                        analyticsTransactor: Transactor[Task],
+                        runtime: Runtime[Any])(
       implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Behaviors.setup { context =>
       val killSwitch = RestartSource
@@ -37,7 +39,7 @@ object ZoneAnalyticsActor {
                                randomFactor = 0.2)(
           () =>
             Source
-              .fromFuture(
+              .fromFuture(runtime.unsafeRunToFuture(
                 (for {
                   maybePreviousOffset <- TagOffsetsStore.retrieve(
                     EventTags.ZoneEventTag)
@@ -52,8 +54,7 @@ object ZoneAnalyticsActor {
                   }
                 } yield previousOffset)
                   .transact(analyticsTransactor)
-                  .unsafeToFuture()
-              )
+              ))
               .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
               .mapAsync(1) { eventEnvelope =>
                 val zoneId =
@@ -61,13 +62,12 @@ object ZoneAnalyticsActor {
                 val zoneEventEnvelope =
                   eventEnvelope.event.asInstanceOf[ZoneEventEnvelope]
                 val eventOffset = eventEnvelope.offset.asInstanceOf[Sequence]
-                (for {
+                runtime.unsafeRunToFuture((for {
                   _ <- projectEvent(zoneId, zoneEventEnvelope)
                   _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
                                               eventOffset)
                 } yield eventOffset)
-                  .transact(analyticsTransactor)
-                  .unsafeToFuture()
+                  .transact(analyticsTransactor))
               }
               .zipWithIndex
               .groupedWithin(n = 1000, d = 30.seconds)

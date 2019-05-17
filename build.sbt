@@ -98,7 +98,7 @@ lazy val service = project
       "org.scalaz" %% "scalaz-zio" % "1.0-RC4",
       "org.scalaz" %% "scalaz-zio-interop-cats" % "1.0-RC4",
       "com.typesafe.akka" %% "akka-http" % "10.1.8",
-      "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.0.0",
+      "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.0.1",
       "org.bouncycastle" % "bcpkix-jdk15on" % "1.61",
       "com.typesafe.akka" %% "akka-http2-support" % "10.1.8",
       "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.8",

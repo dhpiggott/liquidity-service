@@ -4,11 +4,11 @@ package dhpcs.liquidity.actor.protocol.clientconnection;
 
 option java_package = "com.dhpcs.liquidity.proto.actor.protocol.clientconnection";
 
-import "dhpcs/liquidity/ws-protocol.proto";
+import "dhpcs/liquidity/rest-protocol.proto";
 
 message ZoneNotificationEnvelope {
     string zone_validator = 1;
     string zone_id = 2;
     int64 sequence_number = 3;
-    dhpcs.liquidity.ws.protocol.ZoneNotification notification = 4;
+    dhpcs.liquidity.rest.protocol.ZoneNotification notification = 4;
 }

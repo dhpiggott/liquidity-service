@@ -1058,9 +1058,12 @@ abstract class LiquidityServerSpec
     }
     delimitedByteArraySource.map { delimitedByteArray =>
       val protoZoneNotificationMessage =
-        proto.ws.protocol.ZoneNotificationMessage.parseFrom(delimitedByteArray)
+        proto.rest.protocol.ZoneNotificationMessage
+          .parseFrom(delimitedByteArray)
       val zoneNotification =
-        ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any]
+        ProtoBinding[ZoneNotification,
+                     proto.rest.protocol.ZoneNotification,
+                     Any]
           .asScala(protoZoneNotificationMessage.toZoneNotification)(())
       zoneNotification
     }
@@ -1421,7 +1424,9 @@ abstract class LiquidityServerSpec
       implicit ec: ExecutionContext): Future[CreateZoneResponse] =
     execZoneCommand(
       Uri.Path.Empty,
-      ProtoBinding[CreateZoneCommand, proto.ws.protocol.CreateZoneCommand, Any]
+      ProtoBinding[CreateZoneCommand,
+                   proto.rest.protocol.CreateZoneCommand,
+                   Any]
         .asProto(createZoneCommand)(())
         .toByteArray
     ).mapTo[CreateZoneResponse]
@@ -1482,7 +1487,7 @@ abstract class LiquidityServerSpec
       implicit ec: ExecutionContext): Future[ZoneResponse] =
     execZoneCommand(
       Uri.Path / zoneId.value,
-      ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
+      ProtoBinding[ZoneCommand, proto.rest.protocol.ZoneCommand, Any]
         .asProto(zoneCommand)(())
         .asMessage
         .toByteArray
@@ -1518,12 +1523,12 @@ abstract class LiquidityServerSpec
       )
       _ = assert(httpResponse.status === StatusCodes.OK)
       byteString <- Unmarshal(httpResponse.entity).to[ByteString]
-      protoZoneResponseMessage = proto.ws.protocol.ZoneResponseMessage
+      protoZoneResponseMessage = proto.rest.protocol.ZoneResponseMessage
         .parseFrom(
           byteString.toArray
         )
     } yield
-      ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any].asScala(
+      ProtoBinding[ZoneResponse, proto.rest.protocol.ZoneResponse, Any].asScala(
         protoZoneResponseMessage.toZoneResponse
       )(())
 

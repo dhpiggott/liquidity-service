@@ -763,11 +763,11 @@ class HttpController(
       publicKey: PublicKey)(implicit ec: ExecutionContext): Route =
     put(
       pathEnd(
-        entity(as[proto.ws.protocol.CreateZoneCommand]) {
+        entity(as[proto.rest.protocol.CreateZoneCommand]) {
           protoCreateZoneCommand =>
             val createZoneCommand =
               ProtoBinding[CreateZoneCommand,
-                           proto.ws.protocol.CreateZoneCommand,
+                           proto.rest.protocol.CreateZoneCommand,
                            Any].asScala(
                 protoCreateZoneCommand
               )(())
@@ -779,7 +779,7 @@ class HttpController(
                 .map(
                   zoneResponse =>
                     ProtoBinding[ZoneResponse,
-                                 proto.ws.protocol.ZoneResponse,
+                                 proto.rest.protocol.ZoneResponse,
                                  Any]
                       .asProto(
                         zoneResponse
@@ -790,10 +790,12 @@ class HttpController(
       ) ~
         path(zoneIdMatcher)(
           zoneId =>
-            entity(as[proto.ws.protocol.ZoneCommandMessage]) {
+            entity(as[proto.rest.protocol.ZoneCommandMessage]) {
               protoZoneCommandMessage =>
                 val zoneCommand =
-                  ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
+                  ProtoBinding[ZoneCommand,
+                               proto.rest.protocol.ZoneCommand,
+                               Any]
                     .asScala(
                       protoZoneCommandMessage.toZoneCommand
                     )(())
@@ -814,7 +816,7 @@ class HttpController(
                         .map(
                           zoneResponse =>
                             ProtoBinding[ZoneResponse,
-                                         proto.ws.protocol.ZoneResponse,
+                                         proto.rest.protocol.ZoneResponse,
                                          Any]
                               .asProto(
                                 zoneResponse
@@ -836,14 +838,14 @@ class HttpController(
               .map(
                 zoneNotification =>
                   ProtoBinding[ZoneNotification,
-                               proto.ws.protocol.ZoneNotification,
+                               proto.rest.protocol.ZoneNotification,
                                Any].asProto(zoneNotification)(()).asMessage
               )
               .keepAlive(
                 5.seconds,
                 () =>
                   ProtoBinding[ZoneNotification,
-                               proto.ws.protocol.ZoneNotification,
+                               proto.rest.protocol.ZoneNotification,
                                Any].asProto(PingNotification())(()).asMessage
               )
         )

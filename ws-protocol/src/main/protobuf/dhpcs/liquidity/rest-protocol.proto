@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package dhpcs.liquidity.ws.protocol;
+package dhpcs.liquidity.rest.protocol;
 
-option java_package = "com.dhpcs.liquidity.proto.ws.protocol";
+option java_package = "com.dhpcs.liquidity.proto.rest.protocol";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";

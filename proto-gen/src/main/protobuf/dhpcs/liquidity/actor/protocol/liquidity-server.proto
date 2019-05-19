@@ -4,8 +4,8 @@ package dhpcs.liquidity.actor.protocol.liquidityserver;
 
 option java_package = "com.dhpcs.liquidity.proto.actor.protocol.liquidityserver";
 
-import "dhpcs/liquidity/ws-protocol.proto";
+import "dhpcs/liquidity/rest-protocol.proto";
 
 message ZoneResponseEnvelope {
-    dhpcs.liquidity.ws.protocol.ZoneResponse response = 1;
+    dhpcs.liquidity.rest.protocol.ZoneResponse response = 1;
 }

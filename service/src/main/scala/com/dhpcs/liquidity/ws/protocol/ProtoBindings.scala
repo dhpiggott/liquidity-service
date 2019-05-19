@@ -17,20 +17,22 @@ object ProtoBindings {
 
   implicit final val CreateZoneCommandProtoBinding
     : ProtoBinding[CreateZoneCommand,
-                   proto.ws.protocol.CreateZoneCommand,
+                   proto.rest.protocol.CreateZoneCommand,
                    Any] =
     cachedImplicit
 
   implicit final val ZoneCommandProtoBinding
-    : ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any] =
+    : ProtoBinding[ZoneCommand, proto.rest.protocol.ZoneCommand, Any] =
     cachedImplicit
 
   implicit final val ZoneResponseProtoBinding
-    : ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any] =
+    : ProtoBinding[ZoneResponse, proto.rest.protocol.ZoneResponse, Any] =
     cachedImplicit
 
   implicit final val ZoneNotificationProtoBinding
-    : ProtoBinding[ZoneNotification, proto.ws.protocol.ZoneNotification, Any] =
+    : ProtoBinding[ZoneNotification,
+                   proto.rest.protocol.ZoneNotification,
+                   Any] =
     cachedImplicit
 
 }

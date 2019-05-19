@@ -650,7 +650,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
                                      comp = MediaType.NotCompressible)
             ),
             ProtoBinding[CreateZoneCommand,
-                         proto.ws.protocol.CreateZoneCommand,
+                         proto.rest.protocol.CreateZoneCommand,
                          Any]
               .asProto(
                 CreateZoneCommand(
@@ -673,7 +673,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           import PredefinedFromEntityUnmarshallers.byteArrayUnmarshaller
           assert(
             entityAs[Array[Byte]] ===
-              ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
+              ProtoBinding[ZoneResponse, proto.rest.protocol.ZoneResponse, Any]
                 .asProto(CreateZoneResponse(zone.valid))(())
                 .asMessage
                 .toByteArray
@@ -738,7 +738,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
                                      subType = "x-protobuf",
                                      comp = MediaType.NotCompressible)
             ),
-            ProtoBinding[ZoneCommand, proto.ws.protocol.ZoneCommand, Any]
+            ProtoBinding[ZoneCommand, proto.rest.protocol.ZoneCommand, Any]
               .asProto(
                 ChangeZoneNameCommand(name = None)
               )(())
@@ -750,7 +750,7 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           import PredefinedFromEntityUnmarshallers.byteArrayUnmarshaller
           assert(
             entityAs[Array[Byte]] ===
-              ProtoBinding[ZoneResponse, proto.ws.protocol.ZoneResponse, Any]
+              ProtoBinding[ZoneResponse, proto.rest.protocol.ZoneResponse, Any]
                 .asProto(ChangeZoneNameResponse(().valid))(())
                 .asMessage
                 .toByteArray
@@ -855,12 +855,13 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
           assert(status === StatusCodes.OK)
           import PredefinedFromEntityUnmarshallers.byteStringUnmarshaller
           assert(
-            proto.ws.protocol.ZoneNotificationMessage.streamFromDelimitedInput(
-              new ByteArrayInputStream(entityAs[ByteString].toArray)
-            ) === zoneNotifications.map(
+            proto.rest.protocol.ZoneNotificationMessage
+              .streamFromDelimitedInput(
+                new ByteArrayInputStream(entityAs[ByteString].toArray)
+              ) === zoneNotifications.map(
               zoneNotification =>
                 ProtoBinding[ZoneNotification,
-                             proto.ws.protocol.ZoneNotification,
+                             proto.rest.protocol.ZoneNotification,
                              Any].asProto(zoneNotification)(()).asMessage
             )
           )

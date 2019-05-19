@@ -189,7 +189,7 @@ class HttpController(
           _ =>
             proto.grpc.protocol.ChangeZoneNameResponse(
               proto.grpc.protocol.ChangeZoneNameResponse.Result.Success(
-                com.google.protobuf.ByteString.EMPTY
+                com.google.protobuf.empty.Empty.defaultInstance
               )
           )
         ))
@@ -284,7 +284,7 @@ class HttpController(
           _ =>
             proto.grpc.protocol.UpdateMemberResponse(
               proto.grpc.protocol.UpdateMemberResponse.Result.Success(
-                com.google.protobuf.ByteString.EMPTY
+                com.google.protobuf.empty.Empty.defaultInstance
               )
           )
         )
@@ -381,7 +381,7 @@ class HttpController(
           _ =>
             proto.grpc.protocol.UpdateAccountResponse(
               proto.grpc.protocol.UpdateAccountResponse.Result.Success(
-                com.google.protobuf.ByteString.EMPTY
+                com.google.protobuf.empty.Empty.defaultInstance
               )
           )
         )

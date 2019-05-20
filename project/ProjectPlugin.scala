@@ -17,7 +17,12 @@ object ProjectPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Setting[_]] =
     dynVerSettings ++
+      scalaProjectSettings ++
       testProjectSettings
+
+  private lazy val scalaProjectSettings = Seq(
+    scalaVersion := "2.12.8"
+  )
 
   private lazy val dynVerSettings = Seq(
     dynver in ThisBuild ~= (_.replace('+', '-')),

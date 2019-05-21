@@ -873,7 +873,7 @@ abstract class LiquidityServerSpec
       zoneNotificationTestProbe.cancel()
       ()
     }
-    "sends REST subscribers PingCommands when left idle" in {
+    "sends REST subscribers Ping notifications when left idle" in {
       val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
       val zoneNotificationTestProbe =
@@ -885,9 +885,28 @@ abstract class LiquidityServerSpec
       inside(zoneNotificationTestProbe.requestNext()) {
         case ClientJoinedNotification(_, _) => ()
       }
-      zoneNotificationTestProbe.within(10.seconds)(
+      zoneNotificationTestProbe.within(15.seconds)(
         inside(zoneNotificationTestProbe.requestNext()) {
           case PingNotification() => ()
+        }
+      )
+      zoneNotificationTestProbe.cancel()
+    }
+    "sends GRPC subscribers Empty notifications when left idle" in {
+      val (createdZone, createdBalances) = createZone().futureValue
+      zoneCreated(createdZone, createdBalances)
+      val zoneNotificationTestProbe =
+        zoneNotificationSourceGrpc(createdZone.id)
+          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
+      inside(zoneNotificationTestProbe.requestNext()) {
+        case ZoneStateNotification(_, _) => ()
+      }
+      inside(zoneNotificationTestProbe.requestNext()) {
+        case ClientJoinedNotification(_, _) => ()
+      }
+      zoneNotificationTestProbe.within(15.seconds)(
+        inside(zoneNotificationTestProbe.requestNext()) {
+          case ZoneNotification.Empty => ()
         }
       )
       zoneNotificationTestProbe.cancel()

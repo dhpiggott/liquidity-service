@@ -449,101 +449,103 @@ class HttpController(
           NonEmptyList.one)
         zoneNotifications = zoneNotificationSource(remoteAddress,
                                                    publicKey,
-                                                   ZoneId(in.zoneId)).map {
-          case ZoneNotification.Empty =>
-            proto.grpc.protocol.ZoneNotification.Empty.asMessage
+                                                   ZoneId(in.zoneId))
+          .keepAlive(10.seconds, () => ZoneNotification.Empty)
+          .map {
+            case ZoneNotification.Empty =>
+              proto.grpc.protocol.ZoneNotification.Empty.asMessage
 
-          case PingNotification() =>
-            throw new Error
+            case PingNotification() =>
+              throw new Error
 
-          case zoneStateNotification: ZoneStateNotification =>
-            protocol
-              .ZoneStateNotification(
-                zoneStateNotification.zone.map(
-                  ProtoBinding[Zone, proto.model.Zone, Any]
-                    .asProto(_)(())
-                ),
-                zoneStateNotification.connectedClients.mapValues(
+            case zoneStateNotification: ZoneStateNotification =>
+              protocol
+                .ZoneStateNotification(
+                  zoneStateNotification.zone.map(
+                    ProtoBinding[Zone, proto.model.Zone, Any]
+                      .asProto(_)(())
+                  ),
+                  zoneStateNotification.connectedClients.mapValues(
+                    ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any]
+                      .asProto(_)(())
+                  )
+                )
+                .asMessage
+
+            case clientJoinedNotification: ClientJoinedNotification =>
+              protocol
+                .ClientJoinedZoneNotification(
+                  clientJoinedNotification.connectionId,
                   ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any]
-                    .asProto(_)(())
+                    .asProto(publicKey)(())
                 )
-              )
-              .asMessage
+                .asMessage
 
-          case clientJoinedNotification: ClientJoinedNotification =>
-            protocol
-              .ClientJoinedZoneNotification(
-                clientJoinedNotification.connectionId,
-                ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any]
-                  .asProto(publicKey)(())
-              )
-              .asMessage
-
-          case clientQuitNotification: ClientQuitNotification =>
-            protocol
-              .ClientQuitZoneNotification(
-                clientQuitNotification.connectionId,
-                ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any]
-                  .asProto(clientQuitNotification.publicKey)(())
-              )
-              .asMessage
-
-          case zoneNameChangedNotification: ZoneNameChangedNotification =>
-            protocol
-              .ZoneNameChangedNotification(zoneNameChangedNotification.name)
-              .asMessage
-
-          case memberCreatedNotification: MemberCreatedNotification =>
-            protocol
-              .MemberCreatedNotification(
-                Some(
-                  ProtoBinding[Member, proto.model.Member, Any]
-                    .asProto(memberCreatedNotification.member)(())
+            case clientQuitNotification: ClientQuitNotification =>
+              protocol
+                .ClientQuitZoneNotification(
+                  clientQuitNotification.connectionId,
+                  ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any]
+                    .asProto(clientQuitNotification.publicKey)(())
                 )
-              )
-              .asMessage
+                .asMessage
 
-          case memberUpdatedNotification: MemberUpdatedNotification =>
-            protocol
-              .MemberUpdatedNotification(
-                Some(
-                  ProtoBinding[Member, proto.model.Member, Any]
-                    .asProto(memberUpdatedNotification.member)(())
-                )
-              )
-              .asMessage
+            case zoneNameChangedNotification: ZoneNameChangedNotification =>
+              protocol
+                .ZoneNameChangedNotification(zoneNameChangedNotification.name)
+                .asMessage
 
-          case accountCreatedNotification: AccountCreatedNotification =>
-            protocol
-              .AccountCreatedNotification(
-                Some(
-                  ProtoBinding[Account, proto.model.Account, Any]
-                    .asProto(accountCreatedNotification.account)(())
+            case memberCreatedNotification: MemberCreatedNotification =>
+              protocol
+                .MemberCreatedNotification(
+                  Some(
+                    ProtoBinding[Member, proto.model.Member, Any]
+                      .asProto(memberCreatedNotification.member)(())
+                  )
                 )
-              )
-              .asMessage
+                .asMessage
 
-          case accountUpdatedNotification: AccountUpdatedNotification =>
-            protocol
-              .AccountUpdatedNotification(
-                accountUpdatedNotification.actingAs.value,
-                Some(
-                  ProtoBinding[Account, proto.model.Account, Any]
-                    .asProto(accountUpdatedNotification.account)(())
+            case memberUpdatedNotification: MemberUpdatedNotification =>
+              protocol
+                .MemberUpdatedNotification(
+                  Some(
+                    ProtoBinding[Member, proto.model.Member, Any]
+                      .asProto(memberUpdatedNotification.member)(())
+                  )
                 )
-              )
-              .asMessage
+                .asMessage
 
-          case transactionAddedNotification: TransactionAddedNotification =>
-            protocol
-              .TransactionAddedNotification(
-                Some(
-                  ProtoBinding[Transaction, proto.model.Transaction, Any]
-                    .asProto(transactionAddedNotification.transaction)(())
+            case accountCreatedNotification: AccountCreatedNotification =>
+              protocol
+                .AccountCreatedNotification(
+                  Some(
+                    ProtoBinding[Account, proto.model.Account, Any]
+                      .asProto(accountCreatedNotification.account)(())
+                  )
                 )
-              )
-              .asMessage
-        }
+                .asMessage
+
+            case accountUpdatedNotification: AccountUpdatedNotification =>
+              protocol
+                .AccountUpdatedNotification(
+                  accountUpdatedNotification.actingAs.value,
+                  Some(
+                    ProtoBinding[Account, proto.model.Account, Any]
+                      .asProto(accountUpdatedNotification.account)(())
+                  )
+                )
+                .asMessage
+
+            case transactionAddedNotification: TransactionAddedNotification =>
+              protocol
+                .TransactionAddedNotification(
+                  Some(
+                    ProtoBinding[Transaction, proto.model.Transaction, Any]
+                      .asProto(transactionAddedNotification.transaction)(())
+                  )
+                )
+                .asMessage
+          }
       } yield zoneNotifications
       runtime.unsafeRun(
         zoneNotifications.fold(
@@ -842,7 +844,7 @@ class HttpController(
                                Any].asProto(zoneNotification)(()).asMessage
               )
               .keepAlive(
-                5.seconds,
+                10.seconds,
                 () =>
                   ProtoBinding[ZoneNotification,
                                proto.rest.protocol.ZoneNotification,

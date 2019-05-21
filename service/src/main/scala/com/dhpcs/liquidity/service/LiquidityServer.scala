@@ -173,7 +173,7 @@ object LiquidityServer extends App {
                  |  }
                  |  http.server {
                  |    remote-address-header = on
-                 |    idle-timeout = 10s
+                 |    idle-timeout = 15s
                  |  }
                  |}
                  |jdbc-journal.slick = $${slick}

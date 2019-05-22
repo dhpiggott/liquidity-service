@@ -4,14 +4,13 @@ import java.net.InetAddress
 
 import com.dhpcs.liquidity.model._
 import doobie._
-import okio.ByteString
 import scalapb.json4s.JsonFormat
 
 object SqlBindings {
 
   implicit val PublicKeyMeta: Meta[PublicKey] =
     Meta[Array[Byte]]
-      .timap(bytes => PublicKey(ByteString.of(bytes: _*)))(_.value.toByteArray)
+      .timap(PublicKey(_))(_.value.toByteArray)
 
   implicit val InetAddressMeta: Meta[InetAddress] =
     Meta[String].timap(InetAddress.getByName)(_.getHostAddress)

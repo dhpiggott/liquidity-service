@@ -104,7 +104,7 @@ lazy val service = project
       "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.8",
       "com.typesafe.akka" %% "akka-http-xml" % "10.1.8",
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.23",
-      "com.thesamet.scalapb" %% "scalapb-json4s" % "0.7.2",
+      "com.thesamet.scalapb" %% "scalapb-json4s" % "0.9.0",
       "org.json4s" %% "json4s-native" % "3.6.6",
       "de.heikoseeberger" %% "akka-http-json4s" % "1.25.2",
       "com.nimbusds" % "nimbus-jose-jwt" % "7.2.1"

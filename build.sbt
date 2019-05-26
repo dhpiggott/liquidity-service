@@ -94,7 +94,7 @@ lazy val service = project
       "org.tpolecat" %% "doobie-core" % "0.6.0",
       "org.tpolecat" %% "doobie-hikari" % "0.6.0",
       "mysql" % "mysql-connector-java" % "8.0.16",
-      "org.typelevel" %% "cats-effect" % "1.3.0",
+      "org.typelevel" %% "cats-effect" % "1.3.1",
       "org.scalaz" %% "scalaz-zio" % "1.0-RC4",
       "org.scalaz" %% "scalaz-zio-interop-cats" % "1.0-RC4",
       "com.typesafe.akka" %% "akka-http" % "10.1.8",

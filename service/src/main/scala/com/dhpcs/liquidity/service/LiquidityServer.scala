@@ -104,26 +104,26 @@ object LiquidityServer extends App {
             .allocated
           (transactor, release) = pair
         } yield
-          Reservation(ZIO.succeed(transactor), release.orDie)).uninterruptible
+          Reservation(IO.succeed(transactor), release.orDie)).uninterruptible
       )
     val server = for {
       maybeMysqlHostname <- system.env("MYSQL_HOSTNAME")
-      mysqlHostname <- ZIO
+      mysqlHostname <- IO
         .fromOption(maybeMysqlHostname)
         .mapError(_ => "MYSQL_HOSTNAME must be set.")
       maybeMysqlUsername <- system.env("MYSQL_USERNAME")
-      mysqlUsername <- ZIO
+      mysqlUsername <- IO
         .fromOption(maybeMysqlUsername)
         .mapError(_ => "MYSQL_USERNAME must be set.")
       maybeMysqlPassword <- system.env("MYSQL_PASSWORD")
-      mysqlPassword <- ZIO
+      mysqlPassword <- IO
         .fromOption(maybeMysqlPassword)
         .mapError(_ => "MYSQL_PASSWORD must be set.")
       maybeSubdomain <- system.env("SUBDOMAIN")
-      privateAddress <- ZIO.fromEither(
+      privateAddress <- IO.fromEither(
         AsyncEcsServiceDiscovery.getContainerAddress
       )
-      config <- ZIO
+      config <- Task
         .effect(
           ConfigFactory
             .systemProperties()
@@ -301,12 +301,12 @@ object LiquidityServer extends App {
                 )
               )
             }
-            ZIO.fromFuture(_ => system.whenTerminated)
+            IO.fromFuture(_ => system.whenTerminated)
         }
     } yield ()
     server.foldM(
-      err => putStrLn(s"Execution failed with: $err") *> ZIO.succeed(1),
-      _ => ZIO.succeed(0))
+      err => putStrLn(s"Execution failed with: $err") *> IO.succeed(1),
+      _ => IO.succeed(0))
   }
 
   private[this] def urlForDatabase(hostname: String, database: String): String =

@@ -53,7 +53,7 @@ import com.nimbusds.jwt.proc.DefaultJWTProcessor
 import org.json4s._
 import scalapb.json4s.JsonFormat
 import scalapb.{GeneratedMessage, GeneratedMessageCompanion, Message}
-import scalaz.zio.{Runtime, UIO, ZIO}
+import scalaz.zio._
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
@@ -113,7 +113,7 @@ class HttpController(
           metadata = in.metadata
         )
         zoneId = ZoneId(UUID.randomUUID().toString)
-        createZoneResponse <- ZIO
+        createZoneResponse <- IO
           .fromFuture(
             _ =>
               execZoneCommand(remoteAddress,
@@ -123,7 +123,7 @@ class HttpController(
                 .mapTo[CreateZoneResponse]
           )
           .orDie
-        zone <- ZIO.fromEither(createZoneResponse.result.toEither)
+        zone <- IO.fromEither(createZoneResponse.result.toEither)
       } yield zone
       runtime.unsafeRunToFuture(
         zone.fold(
@@ -162,7 +162,7 @@ class HttpController(
         changeZoneNameCommand = ChangeZoneNameCommand(
           name = in.name
         )
-        changeZoneNameResponse <- ZIO
+        changeZoneNameResponse <- IO
           .fromFuture(
             _ =>
               execZoneCommand(remoteAddress,
@@ -171,7 +171,7 @@ class HttpController(
                               changeZoneNameCommand)
                 .mapTo[ChangeZoneNameResponse])
           .orDie
-        _ <- ZIO.fromEither(changeZoneNameResponse.result.toEither)
+        _ <- IO.fromEither(changeZoneNameResponse.result.toEither)
       } yield ()
       runtime.unsafeRunToFuture(
         done.fold(
@@ -209,7 +209,7 @@ class HttpController(
           in.name,
           in.metadata
         )
-        createMemberResponse <- ZIO
+        createMemberResponse <- IO
           .fromFuture(
             _ =>
               execZoneCommand(remoteAddress,
@@ -218,7 +218,7 @@ class HttpController(
                               createMemberCommand)
                 .mapTo[CreateMemberResponse])
           .orDie
-        member <- ZIO.fromEither(createMemberResponse.result.toEither)
+        member <- IO.fromEither(createMemberResponse.result.toEither)
       } yield member
       runtime.unsafeRunToFuture(
         member.fold(
@@ -257,7 +257,7 @@ class HttpController(
           member = ProtoBinding[Member, Option[proto.model.Member], Any]
             .asScala(in.member)(())
         )
-        updateMemberResponse <- ZIO
+        updateMemberResponse <- IO
           .fromFuture(
             _ =>
               execZoneCommand(remoteAddress,
@@ -266,7 +266,7 @@ class HttpController(
                               updateMemberCommand)
                 .mapTo[UpdateMemberResponse])
           .orDie
-        _ <- ZIO.fromEither(updateMemberResponse.result.toEither)
+        _ <- IO.fromEither(updateMemberResponse.result.toEither)
       } yield ()
       runtime.unsafeRunToFuture(
         done.fold(
@@ -305,7 +305,7 @@ class HttpController(
           in.name,
           in.metadata
         )
-        createAccountResponse <- ZIO
+        createAccountResponse <- IO
           .fromFuture(
             _ =>
               execZoneCommand(remoteAddress,
@@ -314,7 +314,7 @@ class HttpController(
                               createAccountCommand)
                 .mapTo[CreateAccountResponse])
           .orDie
-        member <- ZIO.fromEither(createAccountResponse.result.toEither)
+        member <- IO.fromEither(createAccountResponse.result.toEither)
       } yield member
       runtime.unsafeRunToFuture(
         member.fold(
@@ -354,7 +354,7 @@ class HttpController(
           account = ProtoBinding[Account, Option[proto.model.Account], Any]
             .asScala(in.account)(())
         )
-        updateAccountResponse <- ZIO
+        updateAccountResponse <- IO
           .fromFuture(
             _ =>
               execZoneCommand(remoteAddress,
@@ -363,7 +363,7 @@ class HttpController(
                               updateAccountCommand)
                 .mapTo[UpdateAccountResponse])
           .orDie
-        _ <- ZIO.fromEither(updateAccountResponse.result.toEither)
+        _ <- IO.fromEither(updateAccountResponse.result.toEither)
       } yield ()
       runtime.unsafeRunToFuture(
         done.fold(
@@ -403,7 +403,7 @@ class HttpController(
           in.description,
           in.metadata
         )
-        addTransactionResponse <- ZIO
+        addTransactionResponse <- IO
           .fromFuture(
             _ =>
               execZoneCommand(remoteAddress,
@@ -412,7 +412,7 @@ class HttpController(
                               addTransactionCommand)
                 .mapTo[AddTransactionResponse])
           .orDie
-        transaction <- ZIO.fromEither(addTransactionResponse.result.toEither)
+        transaction <- IO.fromEither(addTransactionResponse.result.toEither)
       } yield transaction
       runtime.unsafeRunToFuture(
         transaction.fold(
@@ -566,7 +566,7 @@ class HttpController(
     }
 
     private[this] def readRemoteAddress(metadata: Metadata): UIO[InetAddress] =
-      for (remoteAddress <- ZIO
+      for (remoteAddress <- IO
              .fromOption(metadata.getText("Remote-Address"))
              .orDieWith(_ => new Error))
         yield
@@ -574,9 +574,9 @@ class HttpController(
             Uri.Authority.parse(remoteAddress).host.address())
 
     private[this] def authenticateSelfSignedJwt(
-        metadata: Metadata): ZIO[Any, ZoneResponse.Error, PublicKey] =
+        metadata: Metadata): IO[ZoneResponse.Error, PublicKey] =
       for {
-        authorization <- ZIO
+        authorization <- IO
           .fromOption(
             metadata
               .getText("Authorization"))
@@ -584,35 +584,35 @@ class HttpController(
           .map(HttpHeader.parse("Authorization", _))
         token <- authorization match {
           case ParsingResult.Error(error) =>
-            ZIO.fail(ZoneResponse.Error.authorizationNotValid(error))
+            IO.fail(ZoneResponse.Error.authorizationNotValid(error))
 
           case ParsingResult.Ok(header, _) =>
             header match {
               case Authorization(credentials) =>
                 credentials match {
                   case OAuth2BearerToken(token) =>
-                    ZIO.succeed(token)
+                    IO.succeed(token)
 
                   case other =>
-                    ZIO.fail(
+                    IO.fail(
                       ZoneResponse.Error.authorizationNotAnOAuth2BearerToken(
                         other)
                     )
                 }
             }
         }
-        signedJwt <- ZIO.effect(SignedJWT.parse(token)).refineOrDie {
+        signedJwt <- Task.effect(SignedJWT.parse(token)).refineOrDie {
           case _: ParseException =>
             ZoneResponse.Error.tokenNotASignedJwt
         }
-        claims <- ZIO.effect(signedJwt.getJWTClaimsSet).refineOrDie {
+        claims <- Task.effect(signedJwt.getJWTClaimsSet).refineOrDie {
           case _: ParseException =>
             ZoneResponse.Error.tokenPayloadMustBeJson
         }
-        subject <- ZIO
+        subject <- IO
           .fromOption(Option(claims.getSubject))
           .mapError(_ => ZoneResponse.Error.tokenClaimsMustContainASubject)
-        rsaPublicKey <- ZIO
+        rsaPublicKey <- Task
           .effect(
             KeyFactory
               .getInstance("RSA")
@@ -627,7 +627,7 @@ class HttpController(
             case _: InvalidKeySpecException =>
               ZoneResponse.Error.tokenSubjectMustBeAnRsaPublicKey
           }
-        _ <- ZIO
+        _ <- Task
           .effect {
             val jwtProcessor = new DefaultJWTProcessor[SecurityContext]()
             jwtProcessor.setJWSKeySelector(

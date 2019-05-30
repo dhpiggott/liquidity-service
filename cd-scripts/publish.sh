@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [ $# -ne 2 ]
+if [[ $# -ne 2 ]]
   then
     echo "Usage: region environment"
     exit 1
@@ -29,7 +29,7 @@ ECR_LOGIN_COMMAND=$(
     --region "$REGION" \
     --no-include-email
 )
-$ECR_LOGIN_COMMAND
+${ECR_LOGIN_COMMAND}
 
 sbt service/docker:publishLocal
 

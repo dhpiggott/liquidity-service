@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [ $# -ne 3 ]
+if [[ $# -ne 3 ]]
   then
     echo "Usage: $0 region subdomain infrastructure-stack-environment"
     exit 1

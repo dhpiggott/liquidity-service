@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [ $# -ne 2 ]
+if [[ $# -ne 2 ]]
   then
     echo "Usage: $0 region subdomain"
     exit 1
@@ -40,7 +40,7 @@ sam package \
   --s3-bucket "$REGION".liquidity-certbot-runner-infrastructure-"$SUBDOMAIN" \
   --output-template-file "$DIR"/../.aws-sam/certbot-runner-lambda-"$SUBDOMAIN".yaml
 
-if [ "$ACTION" = "create" ]
+if [[ "$ACTION" = "create" ]]
   then
     aws s3 cp \
       --region "$REGION" \

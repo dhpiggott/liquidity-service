@@ -2,15 +2,15 @@
 
 set -euo pipefail
 
-if [ $# -ne 3 ]
+if [[ $# -ne 3 ]]
   then
-    echo "Usage: $0 region subdomain infrastructure-stack-environment"
+    echo "Usage: $0 region infrastructure-stack-environment subdomain"
     exit 1
 fi
 
 REGION=$1
-SUBDOMAIN=$2
-INFRASTRUCTURE_STACK_ENVIRONMENT=$3
+INFRASTRUCTURE_STACK_ENVIRONMENT=$2
+SUBDOMAIN=$3
 
 MYSQL_HOSTNAME=$(
   aws cloudformation describe-stacks \

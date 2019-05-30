@@ -2,18 +2,18 @@
 
 set -euo pipefail
 
-if [ $# -ne 4 ]
+if [[ $# -ne 4 ]]
   then
-    echo "Usage: $0 region subdomain environment infrastructure-stack-environment"
+    echo "Usage: $0 region infrastructure-stack-environment environment subdomain"
     exit 1
 fi
 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 REGION=$1
-SUBDOMAIN=$2
+INFRASTRUCTURE_STACK_ENVIRONMENT=$2
 ENVIRONMENT=$3
-INFRASTRUCTURE_STACK_ENVIRONMENT=$4
+SUBDOMAIN=$4
 
 TAG=$(
   sbt -Dsbt.log.noformat=true version \

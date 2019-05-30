@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [ $# -ne 2 ]
+if [[ $# -ne 2 ]]
   then
     echo "Usage: $0 region environment"
     exit 1
@@ -22,7 +22,7 @@ else
   ACTION="update"
 fi
 
-case $ACTION in
+case ${ACTION} in
   create)
     MYSQL_USERNAME=liquidity
     MYSQL_PASSWORD=$(uuidgen)
@@ -58,7 +58,7 @@ aws cloudformation deploy \
       RDSUsername="$MYSQL_USERNAME" \
       RDSPassword="$MYSQL_PASSWORD"
 
-if [ "$ACTION" = "create" ]
+if [[ "$ACTION" = "create" ]]
   then
     "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" administrators
     "$DIR"/init-database.sh "$REGION" "$ENVIRONMENT" journal

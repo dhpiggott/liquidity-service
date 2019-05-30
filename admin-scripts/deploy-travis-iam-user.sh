@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [ $# -ne 1 ]
+if [[ $# -ne 1 ]]
   then
     echo "Usage: $0 region"
     exit 1

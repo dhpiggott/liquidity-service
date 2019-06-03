@@ -67,7 +67,7 @@ lazy val model = project
   .dependsOn(`proto-gen`)
   .settings(
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-core" % "1.6.0",
+      "org.typelevel" %% "cats-core" % "1.6.1",
       "com.squareup.okio" % "okio" % "2.2.2",
       "com.typesafe.akka" %% "akka-actor-typed" % "2.5.23"
     )

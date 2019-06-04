@@ -90,7 +90,7 @@ lazy val service = project
       "com.lightbend.akka.discovery" %% "akka-discovery-aws-api-async" % "1.0.1",
       "com.lightbend.akka.management" %% "akka-management-cluster-http" % "1.0.1",
       "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % "1.0.1",
-      "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.5.0",
+      "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.5.1",
       "org.tpolecat" %% "doobie-core" % "0.7.0",
       "org.tpolecat" %% "doobie-hikari" % "0.7.0",
       "mysql" % "mysql-connector-java" % "8.0.16",

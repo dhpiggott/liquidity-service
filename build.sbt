@@ -106,7 +106,7 @@ lazy val service = project
       "com.typesafe.akka" %% "akka-stream-typed" % "2.5.23",
       "com.thesamet.scalapb" %% "scalapb-json4s" % "0.9.0",
       "org.json4s" %% "json4s-native" % "3.6.6",
-      "de.heikoseeberger" %% "akka-http-json4s" % "1.25.2",
+      "de.heikoseeberger" %% "akka-http-json4s" % "1.26.0",
       "com.nimbusds" % "nimbus-jose-jwt" % "7.2.1"
     ),
     dependencyOverrides += "com.zaxxer" % "HikariCP" % "2.7.8"

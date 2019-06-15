@@ -81,7 +81,7 @@ lazy val service = project
       "com.chuusai" %% "shapeless" % "2.3.3",
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.23",
       "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "net.logstash.logback" % "logstash-logback-encoder" % "6.0",
+      "net.logstash.logback" % "logstash-logback-encoder" % "6.1",
       "com.typesafe.akka" %% "akka-discovery" % "2.5.23",
       "com.typesafe.akka" %% "akka-cluster-typed" % "2.5.23",
       "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.5.23",

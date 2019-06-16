@@ -1,7 +1,7 @@
 # liquidity
 
-[![Build Status](https://travis-ci.org/dhpiggott/liquidity.svg?branch=master)](https://travis-ci.org/dhpiggott/liquidity)
-[![codecov](https://codecov.io/gh/dhpiggott/liquidity/branch/master/graph/badge.svg)](https://codecov.io/gh/dhpiggott/liquidity)
+[![Build Status](https://travis-ci.org/dhpiggott/liquidity-service.svg?branch=master)](https://travis-ci.org/dhpiggott/liquidity-service)
+[![codecov](https://codecov.io/gh/dhpiggott/liquidity-service/branch/master/graph/badge.svg)](https://codecov.io/gh/dhpiggott/liquidity-service)
 
 
 ## What

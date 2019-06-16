@@ -3,11 +3,9 @@
 [![Build Status](https://travis-ci.org/dhpiggott/liquidity-service.svg?branch=master)](https://travis-ci.org/dhpiggott/liquidity-service)
 [![codecov](https://codecov.io/gh/dhpiggott/liquidity-service/branch/master/graph/badge.svg)](https://codecov.io/gh/dhpiggott/liquidity-service)
 
-
 ## What
 
 Virtual currencies for Monopoly and other board and tabletop games.
-
 
 ## Why
 
@@ -15,7 +13,6 @@ I wanted to create something entirely of my own. It needed to be
 something that people would want to use, and it needed to be something
 that would serve as a bridge from the skillset I had to the skillset I
 wanted to develop.
-
 
 ## Events
 
@@ -29,6 +26,7 @@ The following is a partial summary.
 Inception and "MVP" launch.
 
 Timeline:
+
 * February
   * Finished working for Cellepathy.
   * Decided to take a break, to recover from what had been, and to learn
@@ -69,27 +67,29 @@ Timeline:
 * November
   * Client v1.0.2.
 
-
 ### 2016
 
 Paid off some tech debt:
- * Converted from Play to akka-http.
- * Removed dependence on NGINX for TLS termination, instead doing so
-   with akka-http itself.
- * Switched from Java persistence serialization to JSON persistence
-   serialization.
- * Moved from Linode/Digital Ocean (can't remember for sure I launched
-   it on) to AWS (EC2 but still just using docker-compose and rsync...)
-   - initially in eu-west-1, and then eu-west-2 (when it opened).
+
+* Converted from Play to akka-http.
+* Removed dependence on NGINX for TLS termination, instead doing so
+  with akka-http itself.
+* Switched from Java persistence serialization to JSON persistence
+  serialization.
+* Moved from Linode/Digital Ocean (can't remember for sure I launched
+  it on) to AWS (EC2 but still just using docker-compose and rsync...)
+  \- initially in eu-west-1, and then eu-west-2 (when it opened).
 
 New functionality:
- * Created analytics mechanism using persistence query API projecting
-   events into Cassandra tables (chosen not because it was the most
-   appropriate database for analytics, but because this allowed me to
-   put theory into practice, thus gaining competence in Cassandra data
-   modelling etc.).
+
+* Created analytics mechanism using persistence query API projecting
+  events into Cassandra tables (chosen not because it was the most
+  appropriate database for analytics, but because this allowed me to
+  put theory into practice, thus gaining competence in Cassandra data
+  modelling etc.).
 
 Timeline:
+
 * January
   * Client v1.0.3.
 * July
@@ -100,10 +100,10 @@ Timeline:
   * Client v1.1.1.
   * Client v1.1.2.
 
-
 ### 2017
 
 Paid off more tech debt:
+
 * Switched from JSON persistence serialization to Protobuf.
   * Developed and used the `ProtoBinding` mechanism, using Shapeless to
     semi-automate the conversion between ScalaPB generated types and
@@ -120,16 +120,16 @@ Paid off more tech debt:
 * Leveraged new freedom from requiring TLS client authentication by
   switching to doing TLS termination via AWS ALB, with certificate
   provided and mananged by AWS ACM.
-   * This eliminates the concern of certificate renewal.
-   * It also eliminates the concern of secrets management (the
-     private key for the original self-signed-and-pinned certificate was
-     and is stored in Git, which was a barrier to open sourcing it).
-   * Once the first client release using the v2.0 wire protocol launched
-     and the v1.0 wire protocol support was subsequently disabled (after
-     the vast majority of active users had upgraded), this meant that
-     the Git repo could be pushed to GitHub and made open without this
-     potentially compromising the authenticity, confidentiality and
-     integrity of client <> server messages.
+  * This eliminates the concern of certificate renewal.
+  * It also eliminates the concern of secrets management (the
+    private key for the original self-signed-and-pinned certificate was
+    and is stored in Git, which was a barrier to open sourcing it).
+  * Once the first client release using the v2.0 wire protocol launched
+    and the v1.0 wire protocol support was subsequently disabled (after
+    the vast majority of active users had upgraded), this meant that
+    the Git repo could be pushed to GitHub and made open without this
+    potentially compromising the authenticity, confidentiality and
+    integrity of client <> server messages.
 * Introduced event envelopes for retention of metadata (client remote IP
   and public key).
 * Eliminated use of AtLeastOnceDelivery between `ClientConnectionActor`
@@ -173,6 +173,7 @@ Paid off more tech debt:
   to publishing images and launching containers instead.
 
 Timeline:
+
 * February
   * Client v1.1.3.
 * September
@@ -180,7 +181,6 @@ Timeline:
 * December
   * Client v2.0.1.
   * Client v2.0.2.
-
 
 ### 2018
 
@@ -198,10 +198,10 @@ Timeline:
   diagnostics and analytics endpoints.
 
 Timeline:
+
 * January
   * Client v2.0.3.
   * Client v2.0.4.
-
 
 ## Themes
 
@@ -209,7 +209,6 @@ Timeline:
 
 * Wire protocol
 * Shared libraries
-
 
 ### Server
 
@@ -222,14 +221,12 @@ Timeline:
 * CI/CD
 * AWS - convenience and peace of mind, but at a cost
 
-
 ### Client
 
 * Java starts to be quite frustrating
 * Scala on Android
 * Java 8 support (or lack of)
 * Legacy support
-
 
 ## Future
 

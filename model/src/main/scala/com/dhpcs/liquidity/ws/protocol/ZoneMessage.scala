@@ -2,7 +2,7 @@ package com.dhpcs.liquidity.ws.protocol
 
 import akka.http.scaladsl.model.ErrorInfo
 import akka.http.scaladsl.model.headers.HttpCredentials
-import cats.data.ValidatedNel
+import cats.data.{NonEmptyList, ValidatedNel}
 import com.dhpcs.liquidity.model._
 
 sealed abstract class ZoneMessage
@@ -27,21 +27,28 @@ final case class CreateZoneCommand(
     name: Option[String],
     metadata: Option[com.google.protobuf.struct.Struct])
     extends ZoneCommand
-final case class ChangeZoneNameCommand(name: Option[String]) extends ZoneCommand
+final case class ChangeZoneNameCommand(zoneId: ZoneId, name: Option[String])
+    extends ZoneCommand
 final case class CreateMemberCommand(
+    zoneId: ZoneId,
     ownerPublicKeys: Set[PublicKey],
     name: Option[String],
     metadata: Option[com.google.protobuf.struct.Struct])
     extends ZoneCommand
-final case class UpdateMemberCommand(member: Member) extends ZoneCommand
+final case class UpdateMemberCommand(zoneId: ZoneId, member: Member)
+    extends ZoneCommand
 final case class CreateAccountCommand(
+    zoneId: ZoneId,
     ownerMemberIds: Set[MemberId],
     name: Option[String],
     metadata: Option[com.google.protobuf.struct.Struct])
     extends ZoneCommand
-final case class UpdateAccountCommand(actingAs: MemberId, account: Account)
+final case class UpdateAccountCommand(zoneId: ZoneId,
+                                      actingAs: MemberId,
+                                      account: Account)
     extends ZoneCommand
 final case class AddTransactionCommand(
+    zoneId: ZoneId,
     actingAs: MemberId,
     from: AccountId,
     to: AccountId,
@@ -180,7 +187,13 @@ final case class AddTransactionResponse(
 sealed abstract class ZoneNotification extends ZoneMessage
 object ZoneNotification {
   case object Empty extends ZoneNotification
+  final case class Error(code: Int, description: String)
 }
+final case class Errors(errors: NonEmptyList[ZoneNotification.Error])
+    extends ZoneNotification
+final case class ZoneStateNotification(zone: Option[Zone],
+                                       connectedClients: Map[String, PublicKey])
+    extends ZoneNotification
 final case class ClientJoinedNotification(connectionId: String,
                                           publicKey: PublicKey)
     extends ZoneNotification
@@ -200,7 +213,3 @@ final case class AccountUpdatedNotification(actingAs: MemberId,
     extends ZoneNotification
 final case class TransactionAddedNotification(transaction: Transaction)
     extends ZoneNotification
-final case class ZoneStateNotification(zone: Option[Zone],
-                                       connectedClients: Map[String, PublicKey])
-    extends ZoneNotification
-final case class PingNotification() extends ZoneNotification

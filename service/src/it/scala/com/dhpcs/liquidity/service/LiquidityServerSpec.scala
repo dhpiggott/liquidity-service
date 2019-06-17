@@ -13,15 +13,12 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
 import akka.grpc.GrpcClientSettings
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.scaladsl.Source
 import akka.stream.testkit.TestSubscriber
 import akka.stream.testkit.scaladsl.TestSink
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.testkit.TestKit
-import akka.util.ByteString
 import cats.data.{NonEmptyList, Validated}
 import cats.instances.list._
 import cats.syntax.applicative._
@@ -35,9 +32,7 @@ import com.dhpcs.liquidity.proto.grpc.protocol.LiquidityServiceClient
 import com.dhpcs.liquidity.service.LiquidityServerComponentSpec._
 import com.dhpcs.liquidity.service.LiquidityServerSpec._
 import com.dhpcs.liquidity.service.SqlBindings._
-import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.dhpcs.liquidity.ws.protocol._
-import com.google.protobuf.CodedInputStream
 import com.google.protobuf.struct.{Struct, Value}
 import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jose.{JWSAlgorithm, JWSHeader, JWSObject, Payload}
@@ -127,14 +122,6 @@ class LiquidityServerComponentSpec extends LiquidityServerSpec {
         .transact(transactor)
     )
 
-    runtime.unsafeRun(
-      execSqlFile("schemas/administrators.sql")
-        .transact(transactor)
-    )
-    runtime.unsafeRun(
-      addAdministrator(PublicKey(rsaPublicKey.getEncoded))
-        .transact(transactor)
-    )
     eventually(Timeout(5.seconds)) {
       val (_, certgenPort) =
         externalDockerComposeServicePorts(projectName, "certgen", 80).head
@@ -231,13 +218,6 @@ object LiquidityServerComponentSpec {
     finally source.close()
   }
 
-  private def addAdministrator(publicKey: PublicKey): ConnectionIO[Unit] =
-    for (_ <- sql"""
-             INSERT INTO liquidity_administrators.administrators (public_key)
-               VALUES ($publicKey)
-           """.update.run)
-      yield ()
-
   private def trustManagerFactory(
       certBundle: LiquidityServer.CertBundle): TrustManagerFactory = {
     val certificateFactory = CertificateFactory.getInstance("X.509")
@@ -328,71 +308,9 @@ abstract class LiquidityServerSpec
   )
 
   "LiquidityServer" - {
-    "accepts, broadcasts and projects create zone REST commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      ()
-    }
     "accepts, broadcasts and projects create zone GRPC commands" in {
-      val (createdZone, createdBalances) = createZone(
-        createZone = createZoneCommand =>
-          grpcClient
-            .createZone()
-            .addHeader("Authorization", s"Bearer $selfSignedJwt")
-            .invoke(
-              proto.grpc.protocol.CreateZoneCommand(
-                equityOwnerPublicKey = com.google.protobuf.ByteString.copyFrom(
-                  createZoneCommand.equityOwnerPublicKey.value.toByteArray),
-                equityOwnerName = createZoneCommand.equityOwnerName,
-                equityOwnerMetadata = createZoneCommand.equityOwnerMetadata,
-                equityAccountName = createZoneCommand.equityAccountName,
-                equityAccountMetadata = createZoneCommand.equityAccountMetadata,
-                name = createZoneCommand.name,
-                metadata = createZoneCommand.metadata
-              )
-            )
-            .map(createZoneResponse =>
-              CreateZoneResponse(
-                createZoneResponse.result match {
-                  case proto.grpc.protocol.CreateZoneResponse.Result.Empty =>
-                    throw new Error
-
-                  case proto.grpc.protocol.CreateZoneResponse.Result.Errors(
-                      proto.grpc.protocol.Errors(errors)
-                      ) =>
-                    Validated.invalid(
-                      NonEmptyList.fromListUnsafe(
-                        errors
-                          .map(error =>
-                            ZoneResponse.Error(error.code, error.description))
-                          .toList
-                      )
-                    )
-
-                  case proto.grpc.protocol.CreateZoneResponse.Result.Success(
-                      proto.grpc.protocol.CreateZoneResponse.Success(zone)
-                      ) =>
-                    Validated.valid(
-                      ProtoBinding[Zone, Option[proto.model.Zone], Any]
-                        .asScala(zone)(())
-                    )
-                }
-            ))
-      ).futureValue
-      zoneCreated(createdZone, createdBalances)
-      ()
-    }
-    "accepts, broadcasts and projects change zone name REST commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
-      val zoneNotificationTestProbe =
-        zoneNotificationSourceRest(createdZone.id)
-          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
-      zoneNotificationTestProbe.requestNext()
-      zoneNotificationTestProbe.requestNext()
-      val changedName = changeZoneName(createdZone.id).futureValue
-      zoneNameChanged(createdZone, changedName, zoneNotificationTestProbe)
-      zoneNotificationTestProbe.cancel()
       ()
     }
     "accepts, broadcasts and projects change zone name GRPC commands" in {
@@ -403,56 +321,8 @@ abstract class LiquidityServerSpec
           .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
       zoneNotificationTestProbe.requestNext()
       zoneNotificationTestProbe.requestNext()
-      val changedName = changeZoneName(
-        createdZone.id,
-        changeZoneName = (zoneId, changeZoneNameCommand) =>
-          grpcClient
-            .changeZoneName()
-            .addHeader("Authorization", s"Bearer $selfSignedJwt")
-            .invoke(
-              proto.grpc.protocol.ChangeZoneNameCommand(
-                zoneId = zoneId.value,
-                name = changeZoneNameCommand.name
-              )
-            )
-            .map(changeZoneNameResponse =>
-              ChangeZoneNameResponse(
-                changeZoneNameResponse.result match {
-                  case proto.grpc.protocol.ChangeZoneNameResponse.Result.Empty =>
-                    throw new Error
-
-                  case proto.grpc.protocol.ChangeZoneNameResponse.Result.Errors(
-                      proto.grpc.protocol.Errors(errors)
-                      ) =>
-                    Validated.invalid(
-                      NonEmptyList.fromListUnsafe(
-                        errors
-                          .map(error =>
-                            ZoneResponse.Error(error.code, error.description))
-                          .toList
-                      )
-                    )
-
-                  case proto.grpc.protocol.ChangeZoneNameResponse.Result
-                        .Success(_) =>
-                    Validated.valid(())
-                }
-            ))
-      ).futureValue
+      val changedName = changeZoneName(createdZone.id).futureValue
       zoneNameChanged(createdZone, changedName, zoneNotificationTestProbe)
-      zoneNotificationTestProbe.cancel()
-      ()
-    }
-    "accepts, broadcasts and projects create member REST commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val zoneNotificationTestProbe =
-        zoneNotificationSourceGrpc(createdZone.id)
-          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
-      zoneNotificationTestProbe.requestNext()
-      zoneNotificationTestProbe.requestNext()
-      val createdMember = createMember(createdZone.id).futureValue
-      memberCreated(createdZone, createdMember, zoneNotificationTestProbe)
       zoneNotificationTestProbe.cancel()
       ()
     }
@@ -464,58 +334,12 @@ abstract class LiquidityServerSpec
           .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
       zoneNotificationTestProbe.requestNext()
       zoneNotificationTestProbe.requestNext()
-      val createdMember = createMember(
-        createdZone.id,
-        createMember = (zoneId, createMemberCommand) =>
-          grpcClient
-            .createMember()
-            .addHeader("Authorization", s"Bearer $selfSignedJwt")
-            .invoke(
-              proto.grpc.protocol.CreateMemberCommand(
-                zoneId = zoneId.value,
-                ownerPublicKeys = createMemberCommand.ownerPublicKeys
-                  .map(ownerPublicKey =>
-                    com.google.protobuf.ByteString.copyFrom(
-                      ownerPublicKey.value.toByteArray
-                  ))
-                  .toSeq,
-                name = createMemberCommand.name,
-                metadata = createMemberCommand.metadata
-              )
-            )
-            .map(createMemberResponse =>
-              CreateMemberResponse(
-                createMemberResponse.result match {
-                  case proto.grpc.protocol.CreateMemberResponse.Result.Empty =>
-                    throw new Error
-
-                  case proto.grpc.protocol.CreateMemberResponse.Result.Errors(
-                      proto.grpc.protocol.Errors(errors)
-                      ) =>
-                    Validated.invalid(
-                      NonEmptyList.fromListUnsafe(
-                        errors
-                          .map(error =>
-                            ZoneResponse.Error(error.code, error.description))
-                          .toList
-                      )
-                    )
-
-                  case proto.grpc.protocol.CreateMemberResponse.Result.Success(
-                      proto.grpc.protocol.CreateMemberResponse.Success(member)
-                      ) =>
-                    Validated.valid(
-                      ProtoBinding[Member, Option[proto.model.Member], Any]
-                        .asScala(member)(())
-                    )
-                }
-            ))
-      ).futureValue
+      val createdMember = createMember(createdZone.id).futureValue
       memberCreated(createdZone, createdMember, zoneNotificationTestProbe)
       zoneNotificationTestProbe.cancel
       ()
     }
-    "accepts, broadcasts and projects update member REST commands" in {
+    "accepts, broadcasts and projects update member GRPC commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
       val zoneNotificationTestProbe =
@@ -534,63 +358,7 @@ abstract class LiquidityServerSpec
       zoneNotificationTestProbe.cancel()
       ()
     }
-    "accepts, broadcasts and projects update member GRPC commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val zoneNotificationTestProbe =
-        zoneNotificationSourceGrpc(createdZone.id)
-          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
-      zoneNotificationTestProbe.requestNext()
-      zoneNotificationTestProbe.requestNext()
-      val createdMember = createMember(createdZone.id).futureValue
-      val zoneWithCreatedMember =
-        memberCreated(createdZone, createdMember, zoneNotificationTestProbe)
-      val updatedMember =
-        updateMember(
-          createdZone.id,
-          createdMember,
-          updateMember = (zoneId, updateMemberCommand) =>
-            grpcClient
-              .updateMember()
-              .addHeader("Authorization", s"Bearer $selfSignedJwt")
-              .invoke(
-                proto.grpc.protocol.UpdateMemberCommand(
-                  zoneId = zoneId.value,
-                  member = ProtoBinding[Member, Option[proto.model.Member], Any]
-                    .asProto(updateMemberCommand.member)(())
-                )
-              )
-              .map(updateMemberResponse =>
-                UpdateMemberResponse(
-                  updateMemberResponse.result match {
-                    case proto.grpc.protocol.UpdateMemberResponse.Result.Empty =>
-                      throw new Error
-
-                    case proto.grpc.protocol.UpdateMemberResponse.Result.Errors(
-                        proto.grpc.protocol.Errors(errors)
-                        ) =>
-                      Validated.invalid(
-                        NonEmptyList.fromListUnsafe(
-                          errors
-                            .map(error =>
-                              ZoneResponse.Error(error.code, error.description))
-                            .toList
-                        )
-                      )
-
-                    case proto.grpc.protocol.UpdateMemberResponse.Result
-                          .Success(_) =>
-                      Validated.valid(())
-                  }
-              ))
-        ).futureValue
-      memberUpdated(zoneWithCreatedMember,
-                    updatedMember,
-                    zoneNotificationTestProbe)
-      zoneNotificationTestProbe.cancel()
-      ()
-    }
-    "accepts, broadcasts and projects create account REST commands" in {
+    "accepts, broadcasts and projects create account GRPC commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
       val zoneNotificationTestProbe =
@@ -610,73 +378,7 @@ abstract class LiquidityServerSpec
       zoneNotificationTestProbe.cancel()
       ()
     }
-    "accepts, broadcasts and projects create account GRPC commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val zoneNotificationTestProbe =
-        zoneNotificationSourceGrpc(createdZone.id)
-          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
-      zoneNotificationTestProbe.requestNext()
-      zoneNotificationTestProbe.requestNext()
-      val createdMember = createMember(createdZone.id).futureValue
-      val zoneWithCreatedMember =
-        memberCreated(createdZone, createdMember, zoneNotificationTestProbe)
-      val (createdAccount, _) =
-        createAccount(
-          createdZone.id,
-          owner = createdMember.id,
-          createAccount = (zoneId, createAccountCommand) =>
-            grpcClient
-              .createAccount()
-              .addHeader("Authorization", s"Bearer $selfSignedJwt")
-              .invoke(
-                proto.grpc.protocol.CreateAccountCommand(
-                  zoneId = zoneId.value,
-                  ownerMemberIds =
-                    createAccountCommand.ownerMemberIds.map(_.value).toSeq,
-                  name = createAccountCommand.name,
-                  metadata = createAccountCommand.metadata
-                )
-              )
-              .map(createAccountResponse =>
-                CreateAccountResponse(
-                  createAccountResponse.result match {
-                    case proto.grpc.protocol.CreateAccountResponse.Result.Empty =>
-                      throw new Error
-
-                    case proto.grpc.protocol.CreateAccountResponse.Result
-                          .Errors(
-                          proto.grpc.protocol.Errors(errors)
-                          ) =>
-                      Validated.invalid(
-                        NonEmptyList.fromListUnsafe(
-                          errors
-                            .map(error =>
-                              ZoneResponse.Error(error.code, error.description))
-                            .toList
-                        )
-                      )
-
-                    case proto.grpc.protocol.CreateAccountResponse.Result
-                          .Success(
-                          proto.grpc.protocol.CreateAccountResponse
-                            .Success(account)
-                          ) =>
-                      Validated.valid(
-                        ProtoBinding[Account, Option[proto.model.Account], Any]
-                          .asScala(account)(())
-                      )
-                  }
-              ))
-        ).futureValue
-      accountCreated(zoneWithCreatedMember,
-                     createdBalances,
-                     createdAccount,
-                     zoneNotificationTestProbe)
-      zoneNotificationTestProbe.cancel()
-      ()
-    }
-    "accepts, broadcasts and projects update account REST commands" in {
+    "accepts, broadcasts and projects update account GRPC commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
       val zoneNotificationTestProbe =
@@ -702,99 +404,6 @@ abstract class LiquidityServerSpec
       zoneNotificationTestProbe.cancel()
       ()
     }
-    "accepts, broadcasts and projects update account GRPC commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val zoneNotificationTestProbe =
-        zoneNotificationSourceGrpc(createdZone.id)
-          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
-      zoneNotificationTestProbe.requestNext()
-      zoneNotificationTestProbe.requestNext()
-      val createdMember = createMember(createdZone.id).futureValue
-      val zoneWithCreatedMember =
-        memberCreated(createdZone, createdMember, zoneNotificationTestProbe)
-      val (createdAccount, _) =
-        createAccount(createdZone.id, owner = createdMember.id).futureValue
-      val (zoneWithCreatedAccount, _) =
-        accountCreated(zoneWithCreatedMember,
-                       createdBalances,
-                       createdAccount,
-                       zoneNotificationTestProbe)
-      val updatedAccount =
-        updateAccount(
-          createdZone.id,
-          createdAccount,
-          updateAccount = (zoneId, updateAccountCommand) =>
-            grpcClient
-              .updateAccount()
-              .addHeader("Authorization", s"Bearer $selfSignedJwt")
-              .invoke(
-                proto.grpc.protocol.UpdateAccountCommand(
-                  zoneId = zoneId.value,
-                  actingAs = updateAccountCommand.actingAs.value,
-                  account =
-                    ProtoBinding[Account, Option[proto.model.Account], Any]
-                      .asProto(updateAccountCommand.account)(())
-                )
-              )
-              .map(updateAccountResponse =>
-                UpdateAccountResponse(
-                  updateAccountResponse.result match {
-                    case proto.grpc.protocol.UpdateAccountResponse.Result.Empty =>
-                      throw new Error
-
-                    case proto.grpc.protocol.UpdateAccountResponse.Result
-                          .Errors(
-                          proto.grpc.protocol.Errors(errors)
-                          ) =>
-                      Validated.invalid(
-                        NonEmptyList.fromListUnsafe(
-                          errors
-                            .map(error =>
-                              ZoneResponse.Error(error.code, error.description))
-                            .toList
-                        )
-                      )
-
-                    case proto.grpc.protocol.UpdateAccountResponse.Result
-                          .Success(_) =>
-                      Validated.valid(())
-                  }
-              ))
-        ).futureValue
-      accountUpdated(zoneWithCreatedAccount,
-                     updatedAccount,
-                     zoneNotificationTestProbe)
-      zoneNotificationTestProbe.cancel()
-      ()
-    }
-    "accepts, broadcasts and projects add transaction REST commands" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val zoneNotificationTestProbe =
-        zoneNotificationSourceGrpc(createdZone.id)
-          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
-      zoneNotificationTestProbe.requestNext()
-      zoneNotificationTestProbe.requestNext()
-      val createdMember = createMember(createdZone.id).futureValue
-      val zoneWithCreatedMember =
-        memberCreated(createdZone, createdMember, zoneNotificationTestProbe)
-      val (createdAccount, _) =
-        createAccount(createdZone.id, owner = createdMember.id).futureValue
-      val (zoneWithCreatedAccount, updatedBalances) =
-        accountCreated(zoneWithCreatedMember,
-                       createdBalances,
-                       createdAccount,
-                       zoneNotificationTestProbe)
-      val addedTransaction =
-        addTransaction(createdZone.id, createdZone, to = createdAccount.id).futureValue
-      transactionAdded(zoneWithCreatedAccount,
-                       updatedBalances,
-                       addedTransaction,
-                       zoneNotificationTestProbe)
-      zoneNotificationTestProbe.cancel()
-      ()
-    }
     "accepts, broadcasts and projects add transaction GRPC commands" in {
       val (createdZone, createdBalances) = createZone().futureValue
       zoneCreated(createdZone, createdBalances)
@@ -813,84 +422,17 @@ abstract class LiquidityServerSpec
                        createdBalances,
                        createdAccount,
                        zoneNotificationTestProbe)
-      val addedTransaction =
-        addTransaction(
-          createdZone.id,
-          createdZone,
-          to = createdAccount.id,
-          addTransaction = (zoneId, addTransactionCommand) =>
-            grpcClient
-              .addTransaction()
-              .addHeader("Authorization", s"Bearer $selfSignedJwt")
-              .invoke(
-                proto.grpc.protocol.AddTransactionCommand(
-                  zoneId = zoneId.value,
-                  actingAs = addTransactionCommand.actingAs.value,
-                  from = addTransactionCommand.from.value,
-                  to = addTransactionCommand.to.value,
-                  value = addTransactionCommand.value.toString(),
-                  description = addTransactionCommand.description,
-                  metadata = addTransactionCommand.metadata
-                )
-              )
-              .map(addTransactionResponse =>
-                AddTransactionResponse(
-                  addTransactionResponse.result match {
-                    case proto.grpc.protocol.AddTransactionResponse.Result.Empty =>
-                      throw new Error
-
-                    case proto.grpc.protocol.AddTransactionResponse.Result
-                          .Errors(
-                          proto.grpc.protocol.Errors(errors)
-                          ) =>
-                      Validated.invalid(
-                        NonEmptyList.fromListUnsafe(
-                          errors
-                            .map(error =>
-                              ZoneResponse.Error(error.code, error.description))
-                            .toList
-                        )
-                      )
-
-                    case proto.grpc.protocol.AddTransactionResponse.Result
-                          .Success(
-                          proto.grpc.protocol.AddTransactionResponse
-                            .Success(transaction)
-                          ) =>
-                      Validated.valid(
-                        ProtoBinding[Transaction,
-                                     Option[proto.model.Transaction],
-                                     Any]
-                          .asScala(transaction)(())
-                      )
-                  }
-              ))
-        ).futureValue
+      val addedTransaction = addTransaction(
+        createdZone.id,
+        createdZone,
+        to = createdAccount.id
+      ).futureValue
       transactionAdded(zoneWithCreatedAccount,
                        updatedBalances,
                        addedTransaction,
                        zoneNotificationTestProbe)
       zoneNotificationTestProbe.cancel()
       ()
-    }
-    "sends REST subscribers Ping notifications when left idle" in {
-      val (createdZone, createdBalances) = createZone().futureValue
-      zoneCreated(createdZone, createdBalances)
-      val zoneNotificationTestProbe =
-        zoneNotificationSourceRest(createdZone.id)
-          .runWith(TestSink.probe[ZoneNotification](system.toUntyped))
-      inside(zoneNotificationTestProbe.requestNext()) {
-        case ZoneStateNotification(_, _) => ()
-      }
-      inside(zoneNotificationTestProbe.requestNext()) {
-        case ClientJoinedNotification(_, _) => ()
-      }
-      zoneNotificationTestProbe.within(15.seconds)(
-        inside(zoneNotificationTestProbe.requestNext()) {
-          case PingNotification() => ()
-        }
-      )
-      zoneNotificationTestProbe.cancel()
     }
     "sends GRPC subscribers Empty notifications when left idle" in {
       val (createdZone, createdBalances) = createZone().futureValue
@@ -921,27 +463,65 @@ abstract class LiquidityServerSpec
     ActorMaterializer()(system.toUntyped)
   protected[this] implicit val ec: ExecutionContext = system.executionContext
 
-  private[this] def createZone(
-      createZone: CreateZoneCommand => Future[CreateZoneResponse] =
-        createZoneRest)(implicit ec: ExecutionContext)
-    : Future[(Zone, Map[AccountId, BigDecimal])] =
-    for (zoneResponse <- createZone(
-           CreateZoneCommand(
-             equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
-             equityOwnerName = Some("Dave"),
-             equityOwnerMetadata = None,
-             equityAccountName = None,
-             equityAccountMetadata = None,
-             name = Some("Dave's Game"),
-             metadata = Some(
-               Struct(
-                 Map(
-                   "isTest" -> Value.defaultInstance.withBoolValue(true)
-                 )
-               )
+  private[this] def createZone()(implicit ec: ExecutionContext)
+    : Future[(Zone, Map[AccountId, BigDecimal])] = {
+    val createZoneCommand = CreateZoneCommand(
+      equityOwnerPublicKey = PublicKey(rsaPublicKey.getEncoded),
+      equityOwnerName = Some("Dave"),
+      equityOwnerMetadata = None,
+      equityAccountName = None,
+      equityAccountMetadata = None,
+      name = Some("Dave's Game"),
+      metadata = Some(
+        Struct(
+          Map(
+            "isTest" -> Value.defaultInstance.withBoolValue(true)
+          )
+        )
+      )
+    )
+    for (zoneResponse <- grpcClient
+           .createZone()
+           .addHeader("Authorization", s"Bearer $selfSignedJwt")
+           .invoke(
+             proto.grpc.protocol.CreateZoneCommand(
+               equityOwnerPublicKey = com.google.protobuf.ByteString.copyFrom(
+                 createZoneCommand.equityOwnerPublicKey.value.toByteArray),
+               equityOwnerName = createZoneCommand.equityOwnerName,
+               equityOwnerMetadata = createZoneCommand.equityOwnerMetadata,
+               equityAccountName = createZoneCommand.equityAccountName,
+               equityAccountMetadata = createZoneCommand.equityAccountMetadata,
+               name = createZoneCommand.name,
+               metadata = createZoneCommand.metadata
              )
            )
-         ))
+           .map(createZoneResponse =>
+             CreateZoneResponse(
+               createZoneResponse.result match {
+                 case proto.grpc.protocol.CreateZoneResponse.Result.Empty =>
+                   throw new Error
+
+                 case proto.grpc.protocol.CreateZoneResponse.Result.Errors(
+                     proto.grpc.protocol.Errors(errors)
+                     ) =>
+                   Validated.invalid(
+                     NonEmptyList.fromListUnsafe(
+                       errors
+                         .map(error =>
+                           ZoneResponse.Error(error.code, error.description))
+                         .toList
+                     )
+                   )
+
+                 case proto.grpc.protocol.CreateZoneResponse.Result.Success(
+                     proto.grpc.protocol.CreateZoneResponse.Success(zone)
+                     ) =>
+                   Validated.valid(
+                     ProtoBinding[Zone, Option[proto.model.Zone], Any]
+                       .asScala(zone)(())
+                   )
+               }
+           )))
       yield
         zoneResponse match {
           case CreateZoneResponse(Validated.Valid(zone)) =>
@@ -994,6 +574,7 @@ abstract class LiquidityServerSpec
           case _ =>
             fail()
         }
+  }
 
   private[this] def zoneCreated(zone: Zone,
                                 balances: Map[AccountId, BigDecimal])
@@ -1002,91 +583,6 @@ abstract class LiquidityServerSpec
       awaitZoneProjection(zone),
       awaitZoneBalancesProjection(zone.id, balances)
     )
-
-  private[this] def zoneNotificationSourceRest(
-      zoneId: ZoneId): Source[ZoneNotification, NotUsed] = {
-    val byteSource = Source
-      .fromFuture(
-        Http(system.toUntyped)
-          .singleRequest(
-            HttpRequest(
-              uri = baseUri.withPath(
-                Uri.Path("/zone") / zoneId.value
-              ),
-              headers = Seq(
-                Authorization(OAuth2BearerToken(selfSignedJwt)),
-                Accept(
-                  MediaRange(
-                    MediaType.customBinary(mainType = "application",
-                                           subType = "x-protobuf",
-                                           comp = MediaType.NotCompressible)
-                  )
-                )
-              )
-            ),
-            httpsConnectionContext
-          )
-      )
-      .flatMapConcat { response =>
-        assert(response.status === StatusCodes.OK)
-        assert(
-          response.entity.contentType === ContentType(
-            MediaType.customBinary(mainType = "application",
-                                   subType = "x-protobuf",
-                                   comp = MediaType.NotCompressible,
-                                   params = Map("delimited" -> "true"))
-          )
-        )
-        response.entity.dataBytes
-      }
-      .flatMapConcat(Source(_))
-    val delimitedByteArraySource = byteSource.statefulMapConcat { () =>
-      // Messages are length-delimited by varints where the MSB is set for all
-      // but the last byte. (See
-      // https://developers.google.com/protocol-buffers/docs/encoding#varints).
-      sealed abstract class State
-      final case class ReadingSize(sizeBytes: Array[Byte]) extends State
-      final case class ReadingData(dataBytes: Array[Byte], position: Int)
-          extends State
-      var state: State = ReadingSize(Array.emptyByteArray)
-      byte =>
-        state match {
-          case ReadingSize(sizeBytes) =>
-            val updatedSizeBytes = sizeBytes :+ byte
-            if ((byte & 0x80) == 0) {
-              val size = CodedInputStream.readRawVarint32(
-                updatedSizeBytes.head.toInt,
-                new ByteArrayInputStream(updatedSizeBytes.tail)
-              )
-              state = ReadingData(Array.fill(size)(0), position = 0)
-            } else {
-              state = ReadingSize(updatedSizeBytes)
-            }
-            Seq.empty
-
-          case ReadingData(dataBytes, position) =>
-            dataBytes(position) = byte
-            if (position == dataBytes.length - 1) {
-              state = ReadingSize(Array.emptyByteArray)
-              Seq(dataBytes)
-            } else {
-              state = ReadingData(dataBytes, position + 1)
-              Seq.empty
-            }
-        }
-    }
-    delimitedByteArraySource.map { delimitedByteArray =>
-      val protoZoneNotificationMessage =
-        proto.rest.protocol.ZoneNotificationMessage
-          .parseFrom(delimitedByteArray)
-      val zoneNotification =
-        ProtoBinding[ZoneNotification,
-                     proto.rest.protocol.ZoneNotification,
-                     Any]
-          .asScala(protoZoneNotificationMessage.toZoneNotification)(())
-      zoneNotification
-    }
-  }
 
   private[this] def zoneNotificationSourceGrpc(
       zoneId: ZoneId): Source[ZoneNotification, NotUsed] =
@@ -1178,18 +674,43 @@ abstract class LiquidityServerSpec
         }
       }
 
-  private[this] def changeZoneName(
-      zoneId: ZoneId,
-      changeZoneName: (
-          ZoneId,
-          ChangeZoneNameCommand) => Future[ChangeZoneNameResponse] =
-        changeZoneNameRest)(
+  private[this] def changeZoneName(zoneId: ZoneId)(
       implicit ec: ExecutionContext): Future[Option[String]] = {
     val changedName = None
-    for (zoneResponse <- changeZoneName(
-           zoneId,
-           ChangeZoneNameCommand(name = changedName)
-         )) yield {
+    val changeZoneNameCommand =
+      ChangeZoneNameCommand(zoneId = zoneId, name = changedName)
+    for (zoneResponse <- grpcClient
+           .changeZoneName()
+           .addHeader("Authorization", s"Bearer $selfSignedJwt")
+           .invoke(
+             proto.grpc.protocol.ChangeZoneNameCommand(
+               zoneId = zoneId.value,
+               name = changeZoneNameCommand.name
+             )
+           )
+           .map(changeZoneNameResponse =>
+             ChangeZoneNameResponse(
+               changeZoneNameResponse.result match {
+                 case proto.grpc.protocol.ChangeZoneNameResponse.Result.Empty =>
+                   throw new Error
+
+                 case proto.grpc.protocol.ChangeZoneNameResponse.Result.Errors(
+                     proto.grpc.protocol.Errors(errors)
+                     ) =>
+                   Validated.invalid(
+                     NonEmptyList.fromListUnsafe(
+                       errors
+                         .map(error =>
+                           ZoneResponse.Error(error.code, error.description))
+                         .toList
+                     )
+                   )
+
+                 case proto.grpc.protocol.ChangeZoneNameResponse.Result
+                       .Success(_) =>
+                   Validated.valid(())
+               }
+           ))) yield {
       assert(zoneResponse === ChangeZoneNameResponse(Validated.valid(())))
       changedName
     }
@@ -1207,19 +728,57 @@ abstract class LiquidityServerSpec
     awaitZoneProjection(zone.copy(name = name))
   }
 
-  private[this] def createMember(
-      zoneId: ZoneId,
-      createMember: (ZoneId,
-                     CreateMemberCommand) => Future[CreateMemberResponse] =
-        createMemberRest)(implicit ec: ExecutionContext): Future[Member] =
-    for (zoneResponse <- createMember(
-           zoneId,
-           CreateMemberCommand(
-             ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)),
-             name = Some("Jenny"),
-             metadata = None
+  private[this] def createMember(zoneId: ZoneId)(
+      implicit ec: ExecutionContext): Future[Member] = {
+    val createMemberCommand = CreateMemberCommand(
+      zoneId = zoneId,
+      ownerPublicKeys = Set(PublicKey(rsaPublicKey.getEncoded)),
+      name = Some("Jenny"),
+      metadata = None
+    )
+    for (zoneResponse <- grpcClient
+           .createMember()
+           .addHeader("Authorization", s"Bearer $selfSignedJwt")
+           .invoke(
+             proto.grpc.protocol.CreateMemberCommand(
+               zoneId = zoneId.value,
+               ownerPublicKeys = createMemberCommand.ownerPublicKeys
+                 .map(ownerPublicKey =>
+                   com.google.protobuf.ByteString.copyFrom(
+                     ownerPublicKey.value.toByteArray
+                 ))
+                 .toSeq,
+               name = createMemberCommand.name,
+               metadata = createMemberCommand.metadata
+             )
            )
-         ))
+           .map(createMemberResponse =>
+             CreateMemberResponse(
+               createMemberResponse.result match {
+                 case proto.grpc.protocol.CreateMemberResponse.Result.Empty =>
+                   throw new Error
+
+                 case proto.grpc.protocol.CreateMemberResponse.Result.Errors(
+                     proto.grpc.protocol.Errors(errors)
+                     ) =>
+                   Validated.invalid(
+                     NonEmptyList.fromListUnsafe(
+                       errors
+                         .map(error =>
+                           ZoneResponse.Error(error.code, error.description))
+                         .toList
+                     )
+                   )
+
+                 case proto.grpc.protocol.CreateMemberResponse.Result.Success(
+                     proto.grpc.protocol.CreateMemberResponse.Success(member)
+                     ) =>
+                   Validated.valid(
+                     ProtoBinding[Member, Option[proto.model.Member], Any]
+                       .asScala(member)(())
+                   )
+               }
+           )))
       yield
         zoneResponse match {
           case CreateMemberResponse(Validated.Valid(member)) =>
@@ -1233,6 +792,7 @@ abstract class LiquidityServerSpec
           case _ =>
             fail()
         }
+  }
 
   private[this] def memberCreated(
       zone: Zone,
@@ -1250,19 +810,46 @@ abstract class LiquidityServerSpec
     )
   }
 
-  private[this] def updateMember(
-      zoneId: ZoneId,
-      member: Member,
-      updateMember: (ZoneId,
-                     UpdateMemberCommand) => Future[UpdateMemberResponse] =
-        updateMemberRest)(implicit ec: ExecutionContext): Future[Member] = {
+  private[this] def updateMember(zoneId: ZoneId, member: Member)(
+      implicit ec: ExecutionContext): Future[Member] = {
     val updatedMember = member.copy(name = None)
-    for (zoneResponse <- updateMember(
-           zoneId,
-           UpdateMemberCommand(
-             updatedMember
+    val updateMemberCommand = UpdateMemberCommand(
+      zoneId = zoneId,
+      updatedMember
+    )
+    for (zoneResponse <- grpcClient
+           .updateMember()
+           .addHeader("Authorization", s"Bearer $selfSignedJwt")
+           .invoke(
+             proto.grpc.protocol.UpdateMemberCommand(
+               zoneId = zoneId.value,
+               member = ProtoBinding[Member, Option[proto.model.Member], Any]
+                 .asProto(updateMemberCommand.member)(())
+             )
            )
-         )) yield {
+           .map(updateMemberResponse =>
+             UpdateMemberResponse(
+               updateMemberResponse.result match {
+                 case proto.grpc.protocol.UpdateMemberResponse.Result.Empty =>
+                   throw new Error
+
+                 case proto.grpc.protocol.UpdateMemberResponse.Result.Errors(
+                     proto.grpc.protocol.Errors(errors)
+                     ) =>
+                   Validated.invalid(
+                     NonEmptyList.fromListUnsafe(
+                       errors
+                         .map(error =>
+                           ZoneResponse.Error(error.code, error.description))
+                         .toList
+                     )
+                   )
+
+                 case proto.grpc.protocol.UpdateMemberResponse.Result
+                       .Success(_) =>
+                   Validated.valid(())
+               }
+           ))) yield {
       assert(zoneResponse === UpdateMemberResponse(Validated.valid(())))
       updatedMember
     }
@@ -1284,21 +871,56 @@ abstract class LiquidityServerSpec
     )
   }
 
-  private[this] def createAccount(
-      zoneId: ZoneId,
-      owner: MemberId,
-      createAccount: (ZoneId,
-                      CreateAccountCommand) => Future[CreateAccountResponse] =
-        createAccountRest)(
-      implicit ec: ExecutionContext): Future[(Account, BigDecimal)] =
-    for (zoneResponse <- createAccount(
-           zoneId,
-           CreateAccountCommand(
-             ownerMemberIds = Set(owner),
-             name = Some("Jenny's Account"),
-             metadata = None
+  private[this] def createAccount(zoneId: ZoneId, owner: MemberId)(
+      implicit ec: ExecutionContext): Future[(Account, BigDecimal)] = {
+    val createAccountCommand = CreateAccountCommand(
+      zoneId = zoneId,
+      ownerMemberIds = Set(owner),
+      name = Some("Jenny's Account"),
+      metadata = None
+    )
+    for (zoneResponse <- grpcClient
+           .createAccount()
+           .addHeader("Authorization", s"Bearer $selfSignedJwt")
+           .invoke(
+             proto.grpc.protocol.CreateAccountCommand(
+               zoneId = zoneId.value,
+               ownerMemberIds =
+                 createAccountCommand.ownerMemberIds.map(_.value).toSeq,
+               name = createAccountCommand.name,
+               metadata = createAccountCommand.metadata
+             )
            )
-         ))
+           .map(createAccountResponse =>
+             CreateAccountResponse(
+               createAccountResponse.result match {
+                 case proto.grpc.protocol.CreateAccountResponse.Result.Empty =>
+                   throw new Error
+
+                 case proto.grpc.protocol.CreateAccountResponse.Result
+                       .Errors(
+                       proto.grpc.protocol.Errors(errors)
+                       ) =>
+                   Validated.invalid(
+                     NonEmptyList.fromListUnsafe(
+                       errors
+                         .map(error =>
+                           ZoneResponse.Error(error.code, error.description))
+                         .toList
+                     )
+                   )
+
+                 case proto.grpc.protocol.CreateAccountResponse.Result
+                       .Success(
+                       proto.grpc.protocol.CreateAccountResponse
+                         .Success(account)
+                       ) =>
+                   Validated.valid(
+                     ProtoBinding[Account, Option[proto.model.Account], Any]
+                       .asScala(account)(())
+                   )
+               }
+           )))
       yield
         zoneResponse match {
           case CreateAccountResponse(Validated.Valid(account)) =>
@@ -1310,6 +932,7 @@ abstract class LiquidityServerSpec
           case _ =>
             fail()
         }
+  }
 
   private[this] def accountCreated(
       zone: Zone,
@@ -1334,20 +957,49 @@ abstract class LiquidityServerSpec
     )
   }
 
-  private[this] def updateAccount(
-      zoneId: ZoneId,
-      account: Account,
-      updateAccount: (ZoneId,
-                      UpdateAccountCommand) => Future[UpdateAccountResponse] =
-        updateAccountRest)(implicit ec: ExecutionContext): Future[Account] = {
+  private[this] def updateAccount(zoneId: ZoneId, account: Account)(
+      implicit ec: ExecutionContext): Future[Account] = {
     val updatedAccount = account.copy(name = None)
-    for (zoneResponse <- updateAccount(
-           zoneId,
-           UpdateAccountCommand(
-             actingAs = account.ownerMemberIds.head,
-             updatedAccount
+    val updateAccountCommand = UpdateAccountCommand(
+      zoneId = zoneId,
+      actingAs = account.ownerMemberIds.head,
+      updatedAccount
+    )
+    for (zoneResponse <- grpcClient
+           .updateAccount()
+           .addHeader("Authorization", s"Bearer $selfSignedJwt")
+           .invoke(
+             proto.grpc.protocol.UpdateAccountCommand(
+               zoneId = zoneId.value,
+               actingAs = updateAccountCommand.actingAs.value,
+               account = ProtoBinding[Account, Option[proto.model.Account], Any]
+                 .asProto(updateAccountCommand.account)(())
+             )
            )
-         )) yield {
+           .map(updateAccountResponse =>
+             UpdateAccountResponse(
+               updateAccountResponse.result match {
+                 case proto.grpc.protocol.UpdateAccountResponse.Result.Empty =>
+                   throw new Error
+
+                 case proto.grpc.protocol.UpdateAccountResponse.Result
+                       .Errors(
+                       proto.grpc.protocol.Errors(errors)
+                       ) =>
+                   Validated.invalid(
+                     NonEmptyList.fromListUnsafe(
+                       errors
+                         .map(error =>
+                           ZoneResponse.Error(error.code, error.description))
+                         .toList
+                     )
+                   )
+
+                 case proto.grpc.protocol.UpdateAccountResponse.Result
+                       .Success(_) =>
+                   Validated.valid(())
+               }
+           ))) yield {
       assert(zoneResponse === UpdateAccountResponse(Validated.valid(())))
       updatedAccount
     }
@@ -1369,26 +1021,63 @@ abstract class LiquidityServerSpec
     )
   }
 
-  private[this] def addTransaction(
-      zoneId: ZoneId,
-      zone: Zone,
-      to: AccountId,
-      addTransaction: (
-          ZoneId,
-          AddTransactionCommand) => Future[AddTransactionResponse] =
-        addTransactionRest)(
-      implicit ec: ExecutionContext): Future[Transaction] =
-    for (zoneResponse <- addTransaction(
-           zoneId,
-           AddTransactionCommand(
-             actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
-             from = zone.equityAccountId,
-             to = to,
-             value = BigDecimal("5000000000000000000000"),
-             description = Some("Jenny's Lottery Win"),
-             metadata = None
+  private[this] def addTransaction(zoneId: ZoneId, zone: Zone, to: AccountId)(
+      implicit ec: ExecutionContext): Future[Transaction] = {
+    val addTransactionCommand = AddTransactionCommand(
+      zoneId = zoneId,
+      actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
+      from = zone.equityAccountId,
+      to = to,
+      value = BigDecimal("5000000000000000000000"),
+      description = Some("Jenny's Lottery Win"),
+      metadata = None
+    )
+    for (zoneResponse <- grpcClient
+           .addTransaction()
+           .addHeader("Authorization", s"Bearer $selfSignedJwt")
+           .invoke(
+             proto.grpc.protocol.AddTransactionCommand(
+               zoneId = zoneId.value,
+               actingAs = addTransactionCommand.actingAs.value,
+               from = addTransactionCommand.from.value,
+               to = addTransactionCommand.to.value,
+               value = addTransactionCommand.value.toString(),
+               description = addTransactionCommand.description,
+               metadata = addTransactionCommand.metadata
+             )
            )
-         ))
+           .map(addTransactionResponse =>
+             AddTransactionResponse(
+               addTransactionResponse.result match {
+                 case proto.grpc.protocol.AddTransactionResponse.Result.Empty =>
+                   throw new Error
+
+                 case proto.grpc.protocol.AddTransactionResponse.Result
+                       .Errors(
+                       proto.grpc.protocol.Errors(errors)
+                       ) =>
+                   Validated.invalid(
+                     NonEmptyList.fromListUnsafe(
+                       errors
+                         .map(error =>
+                           ZoneResponse.Error(error.code, error.description))
+                         .toList
+                     )
+                   )
+
+                 case proto.grpc.protocol.AddTransactionResponse.Result
+                       .Success(
+                       proto.grpc.protocol.AddTransactionResponse
+                         .Success(transaction)
+                       ) =>
+                   Validated.valid(
+                     ProtoBinding[Transaction,
+                                  Option[proto.model.Transaction],
+                                  Any]
+                       .asScala(transaction)(())
+                   )
+               }
+           )))
       yield
         zoneResponse match {
           case AddTransactionResponse(Validated.Valid(transaction)) =>
@@ -1413,6 +1102,7 @@ abstract class LiquidityServerSpec
           case _ =>
             fail()
         }
+  }
 
   private[this] def transactionAdded(
       zone: Zone,
@@ -1438,118 +1128,6 @@ abstract class LiquidityServerSpec
       )
     )
   }
-
-  private[this] def createZoneRest(createZoneCommand: CreateZoneCommand)(
-      implicit ec: ExecutionContext): Future[CreateZoneResponse] =
-    execZoneCommand(
-      Uri.Path.Empty,
-      ProtoBinding[CreateZoneCommand,
-                   proto.rest.protocol.CreateZoneCommand,
-                   Any]
-        .asProto(createZoneCommand)(())
-        .toByteArray
-    ).mapTo[CreateZoneResponse]
-
-  private[this] def changeZoneNameRest(
-      zoneId: ZoneId,
-      changeZoneNameCommand: ChangeZoneNameCommand)(
-      implicit ec: ExecutionContext): Future[ChangeZoneNameResponse] =
-    execZoneCommand(
-      zoneId,
-      changeZoneNameCommand
-    ).mapTo[ChangeZoneNameResponse]
-
-  private[this] def createMemberRest(zoneId: ZoneId,
-                                     createMemberCommand: CreateMemberCommand)(
-      implicit ec: ExecutionContext): Future[CreateMemberResponse] =
-    execZoneCommand(
-      zoneId,
-      createMemberCommand
-    ).mapTo[CreateMemberResponse]
-
-  private[this] def updateMemberRest(zoneId: ZoneId,
-                                     updateMemberCommand: UpdateMemberCommand)(
-      implicit ec: ExecutionContext): Future[UpdateMemberResponse] =
-    execZoneCommand(
-      zoneId,
-      updateMemberCommand
-    ).mapTo[UpdateMemberResponse]
-
-  private[this] def createAccountRest(
-      zoneId: ZoneId,
-      createAccountCommand: CreateAccountCommand)(
-      implicit ec: ExecutionContext): Future[CreateAccountResponse] =
-    execZoneCommand(
-      zoneId,
-      createAccountCommand
-    ).mapTo[CreateAccountResponse]
-
-  private[this] def updateAccountRest(
-      zoneId: ZoneId,
-      updateAccountCommand: UpdateAccountCommand)(
-      implicit ec: ExecutionContext): Future[UpdateAccountResponse] =
-    execZoneCommand(
-      zoneId,
-      updateAccountCommand
-    ).mapTo[UpdateAccountResponse]
-
-  private[this] def addTransactionRest(
-      zoneId: ZoneId,
-      addTransactionCommand: AddTransactionCommand)(
-      implicit ec: ExecutionContext): Future[AddTransactionResponse] =
-    execZoneCommand(
-      zoneId,
-      addTransactionCommand
-    ).mapTo[AddTransactionResponse]
-
-  private[this] def execZoneCommand(zoneId: ZoneId, zoneCommand: ZoneCommand)(
-      implicit ec: ExecutionContext): Future[ZoneResponse] =
-    execZoneCommand(
-      Uri.Path / zoneId.value,
-      ProtoBinding[ZoneCommand, proto.rest.protocol.ZoneCommand, Any]
-        .asProto(zoneCommand)(())
-        .asMessage
-        .toByteArray
-    )
-
-  private[this] def execZoneCommand(zoneSubPath: Uri.Path, entity: Array[Byte])(
-      implicit ec: ExecutionContext): Future[ZoneResponse] =
-    for {
-      httpResponse <- Http(system.toUntyped).singleRequest(
-        HttpRequest(
-          method = HttpMethods.PUT,
-          uri = baseUri.withPath(Uri.Path("/zone") ++ zoneSubPath),
-          headers = Seq(
-            Authorization(OAuth2BearerToken(selfSignedJwt)),
-            Accept(
-              MediaRange(
-                MediaType.customBinary(mainType = "application",
-                                       subType = "x-protobuf",
-                                       comp = MediaType.NotCompressible)
-              )
-            )
-          ),
-          entity = HttpEntity(
-            ContentType(
-              MediaType.customBinary(mainType = "application",
-                                     subType = "x-protobuf",
-                                     comp = MediaType.NotCompressible)
-            ),
-            entity
-          )
-        ),
-        httpsConnectionContext
-      )
-      _ = assert(httpResponse.status === StatusCodes.OK)
-      byteString <- Unmarshal(httpResponse.entity).to[ByteString]
-      protoZoneResponseMessage = proto.rest.protocol.ZoneResponseMessage
-        .parseFrom(
-          byteString.toArray
-        )
-    } yield
-      ProtoBinding[ZoneResponse, proto.rest.protocol.ZoneResponse, Any].asScala(
-        protoZoneResponseMessage.toZoneResponse
-      )(())
 
   private[this] def awaitZoneProjection(zone: Zone): Zone = {
     val retrieveAllMembers: ConnectionIO[Seq[(MemberId, Member)]] = {

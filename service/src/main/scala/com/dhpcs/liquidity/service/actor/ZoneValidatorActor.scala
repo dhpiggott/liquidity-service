@@ -320,7 +320,7 @@ object ZoneValidatorActor {
             }
         }
 
-      case ChangeZoneNameCommand(name) =>
+      case ChangeZoneNameCommand(_, name) =>
         state.zone match {
           case None =>
             deliverResponse(
@@ -361,7 +361,7 @@ object ZoneValidatorActor {
             }
         }
 
-      case CreateMemberCommand(ownerPublicKeys, name, metadata) =>
+      case CreateMemberCommand(_, ownerPublicKeys, name, metadata) =>
         state.zone match {
           case None =>
             deliverResponse(
@@ -403,7 +403,7 @@ object ZoneValidatorActor {
             }
         }
 
-      case UpdateMemberCommand(member) =>
+      case UpdateMemberCommand(_, member) =>
         state.zone match {
           case None =>
             deliverResponse(
@@ -454,7 +454,7 @@ object ZoneValidatorActor {
             }
         }
 
-      case CreateAccountCommand(owners, name, metadata) =>
+      case CreateAccountCommand(_, owners, name, metadata) =>
         state.zone match {
           case None =>
             deliverResponse(
@@ -496,7 +496,7 @@ object ZoneValidatorActor {
             }
         }
 
-      case UpdateAccountCommand(actingAs, account) =>
+      case UpdateAccountCommand(_, actingAs, account) =>
         state.zone match {
           case None =>
             deliverResponse(
@@ -547,7 +547,8 @@ object ZoneValidatorActor {
             }
         }
 
-      case AddTransactionCommand(actingAs,
+      case AddTransactionCommand(_,
+                                 actingAs,
                                  from,
                                  to,
                                  value,

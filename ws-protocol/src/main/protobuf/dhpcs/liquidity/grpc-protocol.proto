@@ -24,6 +24,18 @@ service LiquidityService {
 
 }
 
+message ZoneCommand {
+    oneof sealed_value {
+        CreateZoneCommand create_zone_command = 1;
+        ChangeZoneNameCommand change_zone_name_command = 2;
+        CreateMemberCommand create_member_command = 3;
+        UpdateMemberCommand update_member_command = 4;
+        CreateAccountCommand create_account_command = 5;
+        UpdateAccountCommand update_account_command = 6;
+        AddTransactionCommand add_transaction_command = 7;
+    }
+}
+
 message CreateZoneCommand {
     bytes equity_owner_public_key = 1;
     google.protobuf.StringValue equity_owner_name = 2;
@@ -80,6 +92,18 @@ message Errors {
         string description = 2;
     }
     repeated Error errors = 1;
+}
+
+message ZoneResponse {
+    oneof sealed_value {
+        CreateZoneResponse create_zone_response = 1;
+        ChangeZoneNameResponse change_zone_name_response = 2;
+        CreateMemberResponse create_member_response = 3;
+        UpdateMemberResponse update_member_response = 4;
+        CreateAccountResponse create_account_response = 5;
+        UpdateAccountResponse update_account_response = 6;
+        AddTransactionResponse add_transaction_response = 7;
+    }
 }
 
 message CreateZoneResponse {

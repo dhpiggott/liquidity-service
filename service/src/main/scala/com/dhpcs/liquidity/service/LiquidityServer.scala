@@ -9,7 +9,7 @@ import java.util.zip.ZipInputStream
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.scaladsl.adapter._
-import akka.actor.typed.{ActorRef, ActorRefResolver, ActorSystem, Behavior}
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.actor.{CoordinatedShutdown, Scheduler}
 import akka.cluster.sharding.typed.ClusterShardingSettings
 import akka.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity}
@@ -32,19 +32,13 @@ import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, KillSwitches, Materializer}
 import akka.util.{ByteString, Timeout}
 import akka.{Done, NotUsed}
-import com.dhpcs.liquidity.actor.protocol.ProtoBindings._
 import com.dhpcs.liquidity.actor.protocol.clientconnection.ClientConnectionMessage
 import com.dhpcs.liquidity.actor.protocol.liquidityserver.ZoneResponseEnvelope
 import com.dhpcs.liquidity.actor.protocol.zonevalidator._
-import com.dhpcs.liquidity.persistence.zone._
-import com.dhpcs.liquidity.proto
-import com.dhpcs.liquidity.proto.binding.ProtoBinding
-import com.dhpcs.liquidity.service.SqlBindings._
 import com.dhpcs.liquidity.service.actor.ZoneAnalyticsActor.StopZoneAnalytics
 import com.dhpcs.liquidity.service.actor._
 import com.typesafe.config.{ConfigException, ConfigFactory}
 import doobie.hikari._
-import doobie.implicits._
 import doobie.util.transactor.Transactor
 import javax.net.ssl._
 import org.bouncycastle.openssl.PEMParser
@@ -52,7 +46,6 @@ import org.slf4j.LoggerFactory
 import scalaz.zio._
 import scalaz.zio.blocking.Blocking
 import scalaz.zio.console._
-import scalaz.zio.internal.Executor
 import scalaz.zio.interop.catz._
 
 import scala.annotation.tailrec
@@ -83,29 +76,6 @@ object LiquidityServer extends App {
     } yield certbundle
 
   override def run(args: List[String]): ZIO[Environment, Nothing, Int] = {
-    def managedTransactor(
-        mysqlHostname: String,
-        mysqlUsername: String,
-        mysqlPassword: String,
-        database: String,
-        connectExecutor: Executor,
-        transactExecutor: Executor): Managed[Throwable, Transactor[Task]] =
-      Managed(
-        (for {
-          pair <- HikariTransactor
-            .newHikariTransactor[Task](
-              "com.mysql.cj.jdbc.Driver",
-              urlForDatabase(mysqlHostname, database),
-              mysqlUsername,
-              mysqlPassword,
-              connectExecutor.asEC,
-              transactExecutor.asEC
-            )
-            .allocated
-          (transactor, release) = pair
-        } yield
-          Reservation(IO.succeed(transactor), release.orDie)).uninterruptible
-      )
     val server = for {
       maybeMysqlHostname <- system.env("MYSQL_HOSTNAME")
       mysqlHostname <- IO
@@ -150,10 +120,7 @@ object LiquidityServer extends App {
                  |    }
                  |    allow-java-serialization = off
                  |  }
-                 |  management.http {
-                 |    hostname = "${privateAddress.getHostAddress}"
-                 |    route-providers-read-only = false
-                 |  }
+                 |  management.http.hostname = "${privateAddress.getHostAddress}"
                  |  remote.artery {
                  |    enabled = on
                  |    transport = tcp
@@ -202,107 +169,103 @@ object LiquidityServer extends App {
         }
       connectExecutor <- ZIO.accessM[Blocking](_.blocking.blockingExecutor)
       transactExecutor = Platform.executor
-      managedAdministratorsTransactor = managedTransactor(
-        mysqlHostname,
-        mysqlUsername,
-        mysqlPassword,
-        "liquidity_administrators",
-        connectExecutor,
-        transactExecutor
-      )
-      managedAnalyticsTransactor = managedTransactor(
-        mysqlHostname,
-        mysqlUsername,
-        mysqlPassword,
-        "liquidity_analytics",
-        connectExecutor,
-        transactExecutor
-      )
-      _ <- (managedAdministratorsTransactor zip managedAnalyticsTransactor)
-        .use {
-          case (administratorsTransactor, analyticsTransactor) =>
-            implicit val system: ActorSystem[Guardian.CreateClientConnection] =
-              ActorSystem(Guardian.guardianBehavior, "liquidity", config)
-            implicit val mat: Materializer =
-              ActorMaterializer()(system.toUntyped)
-            implicit val ec: ExecutionContext = ExecutionContext.global
-            val akkaManagement = AkkaManagement(system.toUntyped).routes
-            val akkaManagementHttpBinding =
-              Http(system.toUntyped).bindAndHandleAsync(
-                handler = {
-                  implicit val untypedSystem: akka.actor.ActorSystem =
-                    system.toUntyped
-                  Route.asyncHandler(akkaManagement)
-                },
-                interface = "0.0.0.0",
-                port = 8558
-              )
-            CoordinatedShutdown(system.toUntyped).addTask(
-              CoordinatedShutdown.PhaseClusterExitingDone,
-              "akkaManagementStop")(
-              () =>
-                akkaManagementHttpBinding.flatMap(
-                  _.terminate(5.seconds).map(_ => Done)
-              )
+      managedAnalyticsTransactor = Managed(
+        (for {
+          pair <- HikariTransactor
+            .newHikariTransactor[Task](
+              "com.mysql.cj.jdbc.Driver",
+              urlForDatabase(mysqlHostname, "liquidity_analytics"),
+              mysqlUsername,
+              mysqlPassword,
+              connectExecutor.asEC,
+              transactExecutor.asEC
             )
-            ClusterBootstrap(system.toUntyped).start()
-            val server = new LiquidityServer(
-              administratorsTransactor,
-              analyticsTransactor,
-              this,
-              akkaManagement
-            )
-            val loadCertBundle = maybeSubdomain match {
-              case None =>
-                () =>
-                  loadHttpCertBundle(Uri("http://certgen/certbundle.zip"))
+            .allocated
+          (transactor, release) = pair
+        } yield
+          Reservation(IO.succeed(transactor), release.orDie)).uninterruptible
+      )
+      _ <- managedAnalyticsTransactor.use { analyticsTransactor =>
+        implicit val system: ActorSystem[Guardian.CreateClientConnection] =
+          ActorSystem(Guardian.guardianBehavior, "liquidity", config)
+        implicit val mat: Materializer =
+          ActorMaterializer()(system.toUntyped)
+        implicit val ec: ExecutionContext = ExecutionContext.global
+        val akkaManagement = AkkaManagement(system.toUntyped).routes
+        val akkaManagementHttpBinding =
+          Http(system.toUntyped).bindAndHandleAsync(
+            handler = {
+              implicit val untypedSystem: akka.actor.ActorSystem =
+                system.toUntyped
+              Route.asyncHandler(akkaManagement)
+            },
+            interface = "0.0.0.0",
+            port = 8558
+          )
+        CoordinatedShutdown(system.toUntyped).addTask(
+          CoordinatedShutdown.PhaseClusterExitingDone,
+          "akkaManagementStop")(
+          () =>
+            akkaManagementHttpBinding.flatMap(
+              _.terminate(5.seconds).map(_ => Done)
+          )
+        )
+        ClusterBootstrap(system.toUntyped).start()
+        val server = new LiquidityServer(
+          analyticsTransactor,
+          this,
+          akkaManagement
+        )
+        val loadCertBundle = maybeSubdomain match {
+          case None =>
+            () =>
+              loadHttpCertBundle(Uri("http://certgen/certbundle.zip"))
 
-              case Some(subdomain) =>
-                val region = sys.env("AWS_REGION")
-                () =>
-                  loadS3CertBundle(subdomain, region)
-            }
-            val (killSwitch, binding) =
-              pollCertBundle(loadCertBundle, 12.hours)
-                .viaMat(KillSwitches.single)(Keep.right)
-                .foldAsync[Option[Http.ServerBinding]](None) {
-                  case (maybePreviousBinding, currentCertBundle) =>
-                    for {
-                      _ <- maybePreviousBinding match {
-                        case None =>
-                          Future.successful(Done)
-
-                        case Some(previousBinding) =>
-                          for {
-                            _ <- Future.successful(Done)
-                            _ = log.info(s"Unbinding $previousBinding.")
-                            _ <- previousBinding.terminate(5.seconds)
-                            _ = log.info("Unbound.")
-                          } yield ()
-                      }
-                      currentBinding <- for {
-                        _ <- Future.successful(Done)
-                        _ = log.info(s"Binding with $currentCertBundle.")
-                        currentBinding <- bind(server.handler,
-                                               currentCertBundle)
-                        _ = log.info("Bound.")
-                      } yield currentBinding
-                    } yield Some(currentBinding)
-                }
-                .toMat(Sink.last)(Keep.both)
-                .run()
-            CoordinatedShutdown(system.toUntyped).addTask(
-              CoordinatedShutdown.PhaseServiceUnbind,
-              "liquidityServerUnbind") { () =>
-              killSwitch.shutdown()
-              binding.flatMap(
-                _.fold(Future.successful(Done))(
-                  _.terminate(5.seconds).map(_ => Done)
-                )
-              )
-            }
-            IO.fromFuture(_ => system.whenTerminated)
+          case Some(subdomain) =>
+            val region = sys.env("AWS_REGION")
+            () =>
+              loadS3CertBundle(subdomain, region)
         }
+        val (killSwitch, binding) =
+          pollCertBundle(loadCertBundle, 12.hours)
+            .viaMat(KillSwitches.single)(Keep.right)
+            .foldAsync[Option[Http.ServerBinding]](None) {
+              case (maybePreviousBinding, currentCertBundle) =>
+                for {
+                  _ <- maybePreviousBinding match {
+                    case None =>
+                      Future.successful(Done)
+
+                    case Some(previousBinding) =>
+                      for {
+                        _ <- Future.successful(Done)
+                        _ = log.info(s"Unbinding $previousBinding.")
+                        _ <- previousBinding.terminate(5.seconds)
+                        _ = log.info("Unbound.")
+                      } yield ()
+                  }
+                  currentBinding <- for {
+                    _ <- Future.successful(Done)
+                    _ = log.info(s"Binding with $currentCertBundle.")
+                    currentBinding <- bind(server.handler, currentCertBundle)
+                    _ = log.info("Bound.")
+                  } yield currentBinding
+                } yield Some(currentBinding)
+            }
+            .toMat(Sink.last)(Keep.both)
+            .run()
+        CoordinatedShutdown(system.toUntyped).addTask(
+          CoordinatedShutdown.PhaseServiceUnbind,
+          "liquidityServerUnbind") { () =>
+          killSwitch.shutdown()
+          binding.flatMap(
+            _.fold(Future.successful(Done))(
+              _.terminate(5.seconds).map(_ => Done)
+            )
+          )
+        }
+        IO.fromFuture(_ => system.whenTerminated)
+      }
     } yield ()
     server.foldM(
       err => putStrLn(s"Execution failed with: $err") *> IO.succeed(1),
@@ -519,8 +482,7 @@ object LiquidityServer extends App {
   }
 }
 
-class LiquidityServer(administratorsTransactor: Transactor[Task],
-                      analyticsTransactor: Transactor[Task],
+class LiquidityServer(analyticsTransactor: Transactor[Task],
                       runtime: Runtime[Any],
                       akkaManagement: Route)(
     implicit system: ActorSystem[
@@ -563,46 +525,6 @@ class LiquidityServer(administratorsTransactor: Transactor[Task],
     new HttpController(
       ready = requestContext =>
         akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/ready"))),
-      alive = requestContext =>
-        akkaManagement(requestContext.withUnmatchedPath(Uri.Path("/alive"))),
-      akkaManagement = akkaManagement,
-      isAdministrator = publicKey =>
-        runtime.unsafeRunToFuture(
-          sql"""
-         SELECT 1
-           FROM administrators
-           WHERE public_key = $publicKey
-        """.query[Int]
-            .option
-            .map(_.isDefined)
-            .transact(administratorsTransactor)
-      ),
-      events =
-        (persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) =>
-          readJournal
-            .eventsByPersistenceId(persistenceId, fromSequenceNr, toSequenceNr)
-            .map {
-              case EventEnvelope(_, _, sequenceNr, event) =>
-                val protoEvent = event match {
-                  case zoneEventEnvelope: ZoneEventEnvelope =>
-                    ProtoBinding[ZoneEventEnvelope,
-                                 proto.persistence.zone.ZoneEventEnvelope,
-                                 ActorRefResolver]
-                      .asProto(zoneEventEnvelope)(ActorRefResolver(system))
-                }
-                HttpController.EventEnvelope(sequenceNr, protoEvent)
-          },
-      zoneState = zoneId => {
-        implicit val timeout: Timeout = Timeout(5.seconds)
-        zoneValidatorShardRegion
-          .ask[ZoneState](GetZoneStateCommand(_, zoneId))
-          .map(
-            ProtoBinding[ZoneState,
-                         proto.persistence.zone.ZoneState,
-                         ActorRefResolver]
-              .asProto(_)(ActorRefResolver(system))
-          )
-      },
       execZoneCommand = (remoteAddress, publicKey, zoneId, zoneCommand) => {
         implicit val timeout: Timeout = Timeout(5.seconds)
         for {

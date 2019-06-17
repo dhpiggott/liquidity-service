@@ -99,7 +99,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     "receiving change zone name commands" - {
       "rejects it if the zone has not been created" in { fixture =>
         sendCommand(fixture)(
-          ChangeZoneNameCommand(None)
+          ChangeZoneNameCommand(fixture.zoneId, None)
         )
         assert(
           expectResponse(fixture) === ChangeZoneNameResponse(
@@ -108,7 +108,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "rejects it if the name is too long" in { fixture =>
         createZone(fixture)
         sendCommand(fixture)(
-          ChangeZoneNameCommand(Some(Random.alphanumeric.take(161).mkString))
+          ChangeZoneNameCommand(fixture.zoneId,
+                                Some(Random.alphanumeric.take(161).mkString))
         )
         assert(
           expectResponse(fixture) === ChangeZoneNameResponse(
@@ -128,6 +129,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "rejects it if the zone has not been created" in { fixture =>
         sendCommand(fixture)(
           CreateMemberCommand(
+            zoneId = fixture.zoneId,
             ownerPublicKeys = Set(publicKey),
             name = Some("Jenny"),
             metadata = None
@@ -143,6 +145,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         keyPairGenerator.initialize(2048)
         sendCommand(fixture)(
           CreateMemberCommand(
+            zoneId = fixture.zoneId,
             ownerPublicKeys = Set(
               PublicKey(keyPairGenerator.generateKeyPair().getPublic.getEncoded)
             ),
@@ -160,6 +163,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         keyPairGenerator.initialize(4096)
         sendCommand(fixture)(
           CreateMemberCommand(
+            zoneId = fixture.zoneId,
             ownerPublicKeys = Set(
               PublicKey(keyPairGenerator.generateKeyPair().getPublic.getEncoded)
             ),
@@ -175,6 +179,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         createZone(fixture)
         sendCommand(fixture)(
           CreateMemberCommand(
+            zoneId = fixture.zoneId,
             ownerPublicKeys = Set.empty,
             name = Some("Jenny"),
             metadata = None
@@ -193,7 +198,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "rejects it if the zone has not been created" in { fixture =>
         sendCommand(fixture)(
           UpdateMemberCommand(
-            Member(
+            zoneId = fixture.zoneId,
+            member = Member(
               id = MemberId("1"),
               ownerPublicKeys = Set(publicKey),
               name = Some("Jenny"),
@@ -209,7 +215,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         createZone(fixture)
         sendCommand(fixture)(
           UpdateMemberCommand(
-            Member(
+            zoneId = fixture.zoneId,
+            member = Member(
               id = MemberId("1"),
               ownerPublicKeys = Set(publicKey),
               name = Some("Jenny"),
@@ -224,16 +231,15 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
         val member = createMember(fixture)
-        val (liquidityServerTestProbe, _, zoneId, zoneValidator) = fixture
-        liquidityServerTestProbe.send(
-          zoneValidator.toUntyped,
+        fixture.liquidityServerTestProbe.send(
+          fixture.zoneValidator.toUntyped,
           ZoneCommandEnvelope(
-            liquidityServerTestProbe.ref,
-            zoneId,
+            fixture.liquidityServerTestProbe.ref,
+            fixture.zoneId,
             remoteAddress,
             publicKey = PublicKey(Array.emptyByteArray),
             correlationId = 0,
-            UpdateMemberCommand(member.copy(name = None))
+            UpdateMemberCommand(fixture.zoneId, member.copy(name = None))
           )
         )
         assert(
@@ -247,7 +253,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         keyPairGenerator.initialize(2048)
         sendCommand(fixture)(
           UpdateMemberCommand(
-            member.copy(
+            zoneId = fixture.zoneId,
+            member = member.copy(
               ownerPublicKeys = Set(
                 PublicKey(
                   keyPairGenerator.generateKeyPair().getPublic.getEncoded)
@@ -266,7 +273,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         keyPairGenerator.initialize(4096)
         sendCommand(fixture)(
           UpdateMemberCommand(
-            member.copy(
+            zoneId = fixture.zoneId,
+            member = member.copy(
               ownerPublicKeys = Set(
                 PublicKey(
                   keyPairGenerator.generateKeyPair().getPublic.getEncoded)
@@ -294,6 +302,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "rejects it if the zone has not been created" in { fixture =>
         sendCommand(fixture)(
           CreateAccountCommand(
+            zoneId = fixture.zoneId,
             ownerMemberIds = Set(MemberId("1")),
             name = Some("Jenny's Account"),
             metadata = None
@@ -308,6 +317,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         createMember(fixture)
         sendCommand(fixture)(
           CreateAccountCommand(
+            zoneId = fixture.zoneId,
             ownerMemberIds = Set(MemberId("non-existent")),
             name = Some("Jenny's Account"),
             metadata = None
@@ -323,6 +333,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         createMember(fixture)
         sendCommand(fixture)(
           CreateAccountCommand(
+            zoneId = fixture.zoneId,
             ownerMemberIds = Set.empty,
             name = Some("Jenny's Account"),
             metadata = None
@@ -342,6 +353,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "rejects it if the zone has not been created" in { fixture =>
         sendCommand(fixture)(
           UpdateAccountCommand(
+            zoneId = fixture.zoneId,
             actingAs = MemberId("1"),
             Account(
               id = AccountId("1"),
@@ -360,6 +372,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         val member = createMember(fixture)
         sendCommand(fixture)(
           UpdateAccountCommand(
+            zoneId = fixture.zoneId,
             actingAs = member.id,
             Account(
               id = AccountId("1"),
@@ -379,6 +392,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           UpdateAccountCommand(
+            zoneId = fixture.zoneId,
             actingAs = MemberId("non-existent"),
             account.copy(name = None)
           )
@@ -392,16 +406,16 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           createZone(fixture)
           val member = createMember(fixture)
           val account = createAccount(fixture, owner = member.id)
-          val (liquidityServerTestProbe, _, zoneId, zoneValidator) = fixture
-          liquidityServerTestProbe.send(
-            zoneValidator.toUntyped,
+          fixture.liquidityServerTestProbe.send(
+            fixture.zoneValidator.toUntyped,
             ZoneCommandEnvelope(
-              liquidityServerTestProbe.ref,
-              zoneId,
+              fixture.liquidityServerTestProbe.ref,
+              fixture.zoneId,
               remoteAddress,
               publicKey = PublicKey(Array.emptyByteArray),
               correlationId = 0,
               UpdateAccountCommand(
+                zoneId = fixture.zoneId,
                 actingAs = member.id,
                 account.copy(name = None)
               )
@@ -417,6 +431,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           UpdateAccountCommand(
+            zoneId = fixture.zoneId,
             actingAs = member.id,
             account.copy(ownerMemberIds = Set(MemberId("non-existent")))
           )
@@ -432,6 +447,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           UpdateAccountCommand(
+            zoneId = fixture.zoneId,
             actingAs = member.id,
             account.copy(ownerMemberIds = Set.empty)
           )
@@ -458,6 +474,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       "rejects it if the zone has not been created" in { fixture =>
         sendCommand(fixture)(
           AddTransactionCommand(
+            zoneId = fixture.zoneId,
             actingAs = MemberId("0"),
             from = AccountId("0"),
             to = AccountId("1"),
@@ -476,6 +493,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           AddTransactionCommand(
+            zoneId = fixture.zoneId,
             actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
             from = AccountId("non-existent"),
             to = account.id,
@@ -495,6 +513,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           val account = createAccount(fixture, owner = member.id)
           sendCommand(fixture)(
             AddTransactionCommand(
+              zoneId = fixture.zoneId,
               actingAs = member.id,
               from = zone.equityAccountId,
               to = account.id,
@@ -512,16 +531,16 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           val zone = createZone(fixture)
           val member = createMember(fixture)
           val account = createAccount(fixture, owner = member.id)
-          val (liquidityServerTestProbe, _, zoneId, zoneValidator) = fixture
-          liquidityServerTestProbe.send(
-            zoneValidator.toUntyped,
+          fixture.liquidityServerTestProbe.send(
+            fixture.zoneValidator.toUntyped,
             ZoneCommandEnvelope(
-              liquidityServerTestProbe.ref,
-              zoneId,
+              fixture.liquidityServerTestProbe.ref,
+              fixture.zoneId,
               remoteAddress,
               publicKey = PublicKey(Array.emptyByteArray),
               correlationId = 0,
               AddTransactionCommand(
+                zoneId = fixture.zoneId,
                 actingAs =
                   zone.accounts(zone.equityAccountId).ownerMemberIds.head,
                 from = zone.equityAccountId,
@@ -540,6 +559,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         val zone = createZone(fixture)
         sendCommand(fixture)(
           AddTransactionCommand(
+            zoneId = fixture.zoneId,
             actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
             from = zone.equityAccountId,
             to = AccountId("non-existent"),
@@ -557,6 +577,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           val zone = createZone(fixture)
           sendCommand(fixture)(
             AddTransactionCommand(
+              zoneId = fixture.zoneId,
               actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
               from = zone.equityAccountId,
               to = zone.equityAccountId,
@@ -575,6 +596,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         val account = createAccount(fixture, owner = member.id)
         sendCommand(fixture)(
           AddTransactionCommand(
+            zoneId = fixture.zoneId,
             actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
             from = zone.equityAccountId,
             to = account.id,
@@ -594,6 +616,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           val account = createAccount(fixture, owner = member.id)
           sendCommand(fixture)(
             AddTransactionCommand(
+              zoneId = fixture.zoneId,
               actingAs = member.id,
               from = account.id,
               to = zone.equityAccountId,
@@ -615,12 +638,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     }
     "receiving zone notification subscriptions" - {
       "rejects it if the zone has not been created" in { fixture =>
-        val (_, clientConnectionTestProbe, zoneId, zoneValidator) = fixture
-        clientConnectionTestProbe.send(
-          zoneValidator.toUntyped,
+        fixture.clientConnectionTestProbe.send(
+          fixture.zoneValidator.toUntyped,
           ZoneNotificationSubscription(
-            clientConnectionTestProbe.ref,
-            zoneId,
+            fixture.clientConnectionTestProbe.ref,
+            fixture.zoneId,
             remoteAddress,
             publicKey
           )
@@ -653,10 +675,13 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       ZoneValidatorActor.shardingBehavior(entityId = zoneId.persistenceId))
     try withFixture(
       test.toNoArgTest(
-        (liquidityServerTestProbe,
-         clientConnectionTestProbe,
-         zoneId,
-         zoneValidator))
+        ZoneValidatorActorSpec.FixtureParam(
+          liquidityServerTestProbe,
+          clientConnectionTestProbe,
+          zoneId,
+          zoneValidator
+        )
+      )
     )
     finally system.stop(zoneValidator.toUntyped)
   }
@@ -755,7 +780,10 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
 
   private[this] def changeZoneName(fixture: FixtureParam): Unit = {
     sendCommand(fixture)(
-      ChangeZoneNameCommand(None)
+      ChangeZoneNameCommand(
+        zoneId = fixture.zoneId,
+        name = None
+      )
     )
     assert(
       expectResponse(fixture) === ChangeZoneNameResponse(Validated.Valid(())))
@@ -765,6 +793,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
   private[this] def createMember(fixture: FixtureParam): Member = {
     sendCommand(fixture)(
       CreateMemberCommand(
+        zoneId = fixture.zoneId,
         ownerPublicKeys = Set(publicKey),
         name = Some("Jenny"),
         metadata = None
@@ -781,7 +810,10 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
   private[this] def updateMember(fixture: FixtureParam,
                                  member: Member): Unit = {
     sendCommand(fixture)(
-      UpdateMemberCommand(member.copy(name = None))
+      UpdateMemberCommand(
+        zoneId = fixture.zoneId,
+        member = member.copy(name = None)
+      )
     )
     assert(
       expectResponse(fixture) === UpdateMemberResponse(Validated.Valid(())))
@@ -792,6 +824,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
                                   owner: MemberId): Account = {
     sendCommand(fixture)(
       CreateAccountCommand(
+        zoneId = fixture.zoneId,
         ownerMemberIds = Set(owner),
         name = Some("Jenny's Account"),
         metadata = None
@@ -809,6 +842,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
                                   account: Account): Unit = {
     sendCommand(fixture)(
       UpdateAccountCommand(
+        zoneId = fixture.zoneId,
         actingAs = account.ownerMemberIds.head,
         account.copy(name = None)
       )
@@ -823,6 +857,7 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
                                    to: AccountId): Unit = {
     sendCommand(fixture)(
       AddTransactionCommand(
+        zoneId = zone.id,
         actingAs = zone.accounts(zone.equityAccountId).ownerMemberIds.head,
         from = zone.equityAccountId,
         to = to,
@@ -855,12 +890,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
 
   private[this] def subscribe(fixture: FixtureParam,
                               redelivery: Boolean = false): Unit = {
-    val (_, clientConnectionTestProbe, zoneId, zoneValidator) = fixture
-    clientConnectionTestProbe.send(
-      zoneValidator.toUntyped,
+    fixture.clientConnectionTestProbe.send(
+      fixture.zoneValidator.toUntyped,
       ZoneNotificationSubscription(
-        clientConnectionTestProbe.ref,
-        zoneId,
+        fixture.clientConnectionTestProbe.ref,
+        fixture.zoneId,
         remoteAddress,
         publicKey
       )
@@ -899,15 +933,14 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))
         assert(zone.metadata === None)
-        assert(
-          connectedClients === Map(ActorRefResolver(system.toTyped)
-            .toSerializationFormat(clientConnectionTestProbe.ref) -> publicKey))
+        assert(connectedClients === Map(ActorRefResolver(system.toTyped)
+          .toSerializationFormat(fixture.clientConnectionTestProbe.ref) -> publicKey))
     }
     if (!redelivery)
       assert(
         expectNotification(fixture) === ClientJoinedNotification(
           connectionId = ActorRefResolver(system.toTyped)
-            .toSerializationFormat(clientConnectionTestProbe.ref),
+            .toSerializationFormat(fixture.clientConnectionTestProbe.ref),
           publicKey
         )
       )
@@ -922,8 +955,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
 
 object ZoneValidatorActorSpec {
 
-  private type FixtureParam =
-    (TestProbe, TestProbe, ZoneId, ActorRef[SerializableZoneValidatorMessage])
+  final case class FixtureParam(
+      liquidityServerTestProbe: TestProbe,
+      clientConnectionTestProbe: TestProbe,
+      zoneId: ZoneId,
+      zoneValidator: ActorRef[SerializableZoneValidatorMessage])
 
   private val remoteAddress = InetAddress.getLoopbackAddress
   private val publicKey = {
@@ -935,12 +971,11 @@ object ZoneValidatorActorSpec {
 
   private def sendCommand(fixture: FixtureParam)(
       zoneCommand: ZoneCommand): Unit = {
-    val (liquidityServerTestProbe, _, zoneId, zoneValidator) = fixture
-    liquidityServerTestProbe.send(
-      zoneValidator.toUntyped,
+    fixture.liquidityServerTestProbe.send(
+      fixture.zoneValidator.toUntyped,
       ZoneCommandEnvelope(
-        liquidityServerTestProbe.ref,
-        zoneId,
+        fixture.liquidityServerTestProbe.ref,
+        fixture.zoneId,
         remoteAddress,
         publicKey,
         correlationId = 0,
@@ -949,15 +984,14 @@ object ZoneValidatorActorSpec {
     )
   }
 
-  private def expectResponse(fixture: FixtureParam): ZoneResponse = {
-    val (liquidityServerTestProbe, _, _, _) = fixture
-    liquidityServerTestProbe.expectMsgType[ZoneResponseEnvelope].zoneResponse
-  }
+  private def expectResponse(fixture: FixtureParam): ZoneResponse =
+    fixture.liquidityServerTestProbe
+      .expectMsgType[ZoneResponseEnvelope]
+      .zoneResponse
 
-  private def expectNotification(fixture: FixtureParam): ZoneNotification = {
-    val (_, clientConnectionTestProbe, _, _) = fixture
-    clientConnectionTestProbe
+  private def expectNotification(fixture: FixtureParam): ZoneNotification =
+    fixture.clientConnectionTestProbe
       .expectMsgType[ZoneNotificationEnvelope]
       .zoneNotification
-  }
+
 }

@@ -25,8 +25,7 @@ object ProjectPlugin extends AutoPlugin {
   )
 
   private lazy val dynVerSettings = Seq(
-    dynver in ThisBuild ~= (_.replace('+', '-')),
-    version in ThisBuild ~= (_.replace('+', '-'))
+    dynverSeparator in ThisBuild := "-"
   )
 
   private lazy val testProjectSettings = Seq(

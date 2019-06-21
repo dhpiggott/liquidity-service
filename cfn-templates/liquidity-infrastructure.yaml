@@ -120,7 +120,7 @@ Resources:
       DBInstanceClass: db.t3.micro
       StorageType: gp2
       AllocatedStorage: "20"
-      BackupRetentionPeriod: "30"
+      BackupRetentionPeriod: 30
       DBSubnetGroupName: !Ref RDSSubnetGroup
       PubliclyAccessible: true
       VPCSecurityGroups:

@@ -17,11 +17,10 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import cats.data.NonEmptyList
+import cats.data.{NonEmptyList, Validated}
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
 import com.dhpcs.liquidity.model._
 import com.dhpcs.liquidity.model.ProtoBindings._
-import com.dhpcs.liquidity.proto
 import com.dhpcs.liquidity.proto.binding.ProtoBinding
 import com.dhpcs.liquidity.proto.binding.ProtoBindings._
 import com.dhpcs.liquidity.proto.grpc.protocol
@@ -31,6 +30,7 @@ import com.dhpcs.liquidity.proto.grpc.protocol.{
 }
 import com.dhpcs.liquidity.service.HttpController._
 import com.dhpcs.liquidity.ws.protocol._
+import com.dhpcs.liquidity.ws.protocol.ProtoBindings._
 import com.nimbusds.jose.{JOSEException, JWSAlgorithm}
 import com.nimbusds.jose.jwk.{JWKSet, KeyUse, RSAKey}
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet
@@ -46,6 +46,7 @@ import scalaz.zio._
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
+import scala.reflect.ClassTag
 
 class HttpController(
     ready: Route,
@@ -77,489 +78,120 @@ class HttpController(
 
     override def createZone(
         in: protocol.CreateZoneCommand,
-        metadata: Metadata): Future[protocol.CreateZoneResponse] = {
-      val zone = for {
-        remoteAddress <- readRemoteAddress(metadata)
-        publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-          NonEmptyList.one)
-        createZoneCommand = CreateZoneCommand(
-          equityOwnerPublicKey = PublicKey(in.equityOwnerPublicKey.toByteArray),
-          equityOwnerName = in.equityOwnerName,
-          equityOwnerMetadata = in.equityOwnerMetadata,
-          equityAccountName = in.equityAccountName,
-          equityAccountMetadata = in.equityAccountMetadata,
-          name = in.name,
-          metadata = in.metadata
-        )
-        zoneId = ZoneId(UUID.randomUUID().toString)
-        createZoneResponse <- IO
-          .fromFuture(
-            _ =>
-              execZoneCommand(remoteAddress,
-                              publicKey,
-                              zoneId,
-                              createZoneCommand)
-                .mapTo[CreateZoneResponse]
-          )
-          .orDie
-        zone <- IO.fromEither(createZoneResponse.result.toEither)
-      } yield zone
-      runtime.unsafeRunToFuture(
-        zone.fold(
-          err =>
-            proto.grpc.protocol.CreateZoneResponse(
-              proto.grpc.protocol.CreateZoneResponse.Result.Errors(
-                proto.grpc.protocol.Errors(
-                  err
-                    .map(error =>
-                      proto.grpc.protocol.Errors
-                        .Error(error.code, error.description))
-                    .toList)
-              )
-          ),
-          zone =>
-            proto.grpc.protocol.CreateZoneResponse(
-              proto.grpc.protocol.CreateZoneResponse.Result.Success(
-                proto.grpc.protocol.CreateZoneResponse.Success(
-                  Some(
-                    ProtoBinding[Zone, proto.model.Zone, Any]
-                      .asProto(zone)(())
-                  ))
-              )
-          )
-        )
-      )
-    }
+        metadata: Metadata): Future[protocol.CreateZoneResponse] =
+      exec[CreateZoneCommand,
+           protocol.CreateZoneCommand,
+           CreateZoneResponse,
+           protocol.CreateZoneResponse](
+        zoneId = UUID.randomUUID().toString,
+        in,
+        metadata
+      )(errors => CreateZoneResponse(Validated.invalid(errors)))
 
     override def changeZoneName(
         in: protocol.ChangeZoneNameCommand,
-        metadata: Metadata): Future[protocol.ChangeZoneNameResponse] = {
-      val done = for {
-        remoteAddress <- readRemoteAddress(metadata)
-        publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-          NonEmptyList.one)
-        changeZoneNameCommand = ChangeZoneNameCommand(
-          zoneId = ZoneId(in.zoneId),
-          name = in.name
-        )
-        changeZoneNameResponse <- IO
-          .fromFuture(
-            _ =>
-              execZoneCommand(remoteAddress,
-                              publicKey,
-                              ZoneId(in.zoneId),
-                              changeZoneNameCommand)
-                .mapTo[ChangeZoneNameResponse])
-          .orDie
-        _ <- IO.fromEither(changeZoneNameResponse.result.toEither)
-      } yield ()
-      runtime.unsafeRunToFuture(
-        done.fold(
-          err =>
-            proto.grpc.protocol.ChangeZoneNameResponse(
-              proto.grpc.protocol.ChangeZoneNameResponse.Result.Errors(
-                proto.grpc.protocol.Errors(
-                  err
-                    .map(error =>
-                      proto.grpc.protocol.Errors
-                        .Error(error.code, error.description))
-                    .toList)
-              )
-          ),
-          _ =>
-            proto.grpc.protocol.ChangeZoneNameResponse(
-              proto.grpc.protocol.ChangeZoneNameResponse.Result.Success(
-                com.google.protobuf.empty.Empty.defaultInstance
-              )
-          )
-        ))
-    }
+        metadata: Metadata): Future[protocol.ChangeZoneNameResponse] =
+      exec[ChangeZoneNameCommand,
+           protocol.ChangeZoneNameCommand,
+           ChangeZoneNameResponse,
+           protocol.ChangeZoneNameResponse](in.zoneId, in, metadata)(errors =>
+        ChangeZoneNameResponse(Validated.invalid(errors)))
 
     override def createMember(
         in: protocol.CreateMemberCommand,
-        metadata: Metadata): Future[protocol.CreateMemberResponse] = {
-      val member = for {
-        remoteAddress <- readRemoteAddress(metadata)
-        publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-          NonEmptyList.one)
-        createMemberCommand = CreateMemberCommand(
-          zoneId = ZoneId(in.zoneId),
-          in.ownerPublicKeys
-            .map(ownerPublicKey => PublicKey(ownerPublicKey.toByteArray))
-            .toSet,
-          in.name,
-          in.metadata
-        )
-        createMemberResponse <- IO
-          .fromFuture(
-            _ =>
-              execZoneCommand(remoteAddress,
-                              publicKey,
-                              ZoneId(in.zoneId),
-                              createMemberCommand)
-                .mapTo[CreateMemberResponse])
-          .orDie
-        member <- IO.fromEither(createMemberResponse.result.toEither)
-      } yield member
-      runtime.unsafeRunToFuture(
-        member.fold(
-          err =>
-            proto.grpc.protocol.CreateMemberResponse(
-              proto.grpc.protocol.CreateMemberResponse.Result.Errors(
-                proto.grpc.protocol.Errors(
-                  err
-                    .map(error =>
-                      proto.grpc.protocol.Errors
-                        .Error(error.code, error.description))
-                    .toList)
-              )
-          ),
-          member =>
-            proto.grpc.protocol.CreateMemberResponse(
-              proto.grpc.protocol.CreateMemberResponse.Result.Success(
-                proto.grpc.protocol.CreateMemberResponse.Success(
-                  Some(
-                    ProtoBinding[Member, proto.model.Member, Any]
-                      .asProto(member)(())
-                  )))
-          )
-        )
-      )
-    }
+        metadata: Metadata): Future[protocol.CreateMemberResponse] =
+      exec[CreateMemberCommand,
+           protocol.CreateMemberCommand,
+           CreateMemberResponse,
+           protocol.CreateMemberResponse](in.zoneId, in, metadata)(errors =>
+        CreateMemberResponse(Validated.invalid(errors)))
 
     override def updateMember(
         in: protocol.UpdateMemberCommand,
-        metadata: Metadata): Future[protocol.UpdateMemberResponse] = {
-      val done = for {
-        remoteAddress <- readRemoteAddress(metadata)
-        publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-          NonEmptyList.one)
-        updateMemberCommand = UpdateMemberCommand(
-          zoneId = ZoneId(in.zoneId),
-          member = ProtoBinding[Member, Option[proto.model.Member], Any]
-            .asScala(in.member)(())
-        )
-        updateMemberResponse <- IO
-          .fromFuture(
-            _ =>
-              execZoneCommand(remoteAddress,
-                              publicKey,
-                              ZoneId(in.zoneId),
-                              updateMemberCommand)
-                .mapTo[UpdateMemberResponse])
-          .orDie
-        _ <- IO.fromEither(updateMemberResponse.result.toEither)
-      } yield ()
-      runtime.unsafeRunToFuture(
-        done.fold(
-          err =>
-            proto.grpc.protocol.UpdateMemberResponse(
-              proto.grpc.protocol.UpdateMemberResponse.Result.Errors(
-                proto.grpc.protocol.Errors(
-                  err
-                    .map(error =>
-                      proto.grpc.protocol.Errors
-                        .Error(error.code, error.description))
-                    .toList)
-              )
-          ),
-          _ =>
-            proto.grpc.protocol.UpdateMemberResponse(
-              proto.grpc.protocol.UpdateMemberResponse.Result.Success(
-                com.google.protobuf.empty.Empty.defaultInstance
-              )
-          )
-        )
-      )
-    }
+        metadata: Metadata): Future[protocol.UpdateMemberResponse] =
+      exec[UpdateMemberCommand,
+           protocol.UpdateMemberCommand,
+           UpdateMemberResponse,
+           protocol.UpdateMemberResponse](in.zoneId, in, metadata)(errors =>
+        UpdateMemberResponse(Validated.invalid(errors)))
 
     override def createAccount(
         in: protocol.CreateAccountCommand,
-        metadata: Metadata): Future[protocol.CreateAccountResponse] = {
-      val member = for {
-        remoteAddress <- readRemoteAddress(metadata)
-        publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-          NonEmptyList.one)
-        createAccountCommand = CreateAccountCommand(
-          zoneId = ZoneId(in.zoneId),
-          in.ownerMemberIds
-            .map(ownerMemberId => MemberId(ownerMemberId))
-            .toSet,
-          in.name,
-          in.metadata
-        )
-        createAccountResponse <- IO
-          .fromFuture(
-            _ =>
-              execZoneCommand(remoteAddress,
-                              publicKey,
-                              ZoneId(in.zoneId),
-                              createAccountCommand)
-                .mapTo[CreateAccountResponse])
-          .orDie
-        member <- IO.fromEither(createAccountResponse.result.toEither)
-      } yield member
-      runtime.unsafeRunToFuture(
-        member.fold(
-          err =>
-            proto.grpc.protocol.CreateAccountResponse(
-              proto.grpc.protocol.CreateAccountResponse.Result.Errors(
-                proto.grpc.protocol.Errors(
-                  err
-                    .map(error =>
-                      proto.grpc.protocol.Errors
-                        .Error(error.code, error.description))
-                    .toList)
-              )
-          ),
-          member =>
-            proto.grpc.protocol.CreateAccountResponse(
-              proto.grpc.protocol.CreateAccountResponse.Result.Success(
-                proto.grpc.protocol.CreateAccountResponse.Success(
-                  Some(
-                    ProtoBinding[Account, proto.model.Account, Any]
-                      .asProto(member)(())
-                  )))
-          )
-        )
-      )
-    }
+        metadata: Metadata): Future[protocol.CreateAccountResponse] =
+      exec[CreateAccountCommand,
+           protocol.CreateAccountCommand,
+           CreateAccountResponse,
+           protocol.CreateAccountResponse](in.zoneId, in, metadata)(errors =>
+        CreateAccountResponse(Validated.invalid(errors)))
 
     override def updateAccount(
         in: protocol.UpdateAccountCommand,
-        metadata: Metadata): Future[protocol.UpdateAccountResponse] = {
-      val done = for {
-        remoteAddress <- readRemoteAddress(metadata)
-        publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-          NonEmptyList.one)
-        updateAccountCommand = UpdateAccountCommand(
-          zoneId = ZoneId(in.zoneId),
-          actingAs = MemberId(in.actingAs),
-          account = ProtoBinding[Account, Option[proto.model.Account], Any]
-            .asScala(in.account)(())
-        )
-        updateAccountResponse <- IO
-          .fromFuture(
-            _ =>
-              execZoneCommand(remoteAddress,
-                              publicKey,
-                              ZoneId(in.zoneId),
-                              updateAccountCommand)
-                .mapTo[UpdateAccountResponse])
-          .orDie
-        _ <- IO.fromEither(updateAccountResponse.result.toEither)
-      } yield ()
-      runtime.unsafeRunToFuture(
-        done.fold(
-          err =>
-            proto.grpc.protocol.UpdateAccountResponse(
-              proto.grpc.protocol.UpdateAccountResponse.Result.Errors(
-                proto.grpc.protocol.Errors(
-                  err
-                    .map(error =>
-                      proto.grpc.protocol.Errors
-                        .Error(error.code, error.description))
-                    .toList)
-              )
-          ),
-          _ =>
-            proto.grpc.protocol.UpdateAccountResponse(
-              proto.grpc.protocol.UpdateAccountResponse.Result.Success(
-                com.google.protobuf.empty.Empty.defaultInstance
-              )
-          )
-        )
-      )
-    }
+        metadata: Metadata): Future[protocol.UpdateAccountResponse] =
+      exec[UpdateAccountCommand,
+           protocol.UpdateAccountCommand,
+           UpdateAccountResponse,
+           protocol.UpdateAccountResponse](in.zoneId, in, metadata)(errors =>
+        UpdateAccountResponse(Validated.invalid(errors)))
 
     override def addTransaction(
         in: protocol.AddTransactionCommand,
-        metadata: Metadata): Future[protocol.AddTransactionResponse] = {
-      val transaction = for {
-        remoteAddress <- readRemoteAddress(metadata)
-        publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-          NonEmptyList.one)
-        addTransactionCommand = AddTransactionCommand(
-          zoneId = ZoneId(in.zoneId),
-          MemberId(in.actingAs),
-          AccountId(in.from),
-          AccountId(in.to),
-          BigDecimal(in.value),
-          in.description,
-          in.metadata
-        )
-        addTransactionResponse <- IO
-          .fromFuture(
-            _ =>
-              execZoneCommand(remoteAddress,
-                              publicKey,
-                              ZoneId(in.zoneId),
-                              addTransactionCommand)
-                .mapTo[AddTransactionResponse])
-          .orDie
-        transaction <- IO.fromEither(addTransactionResponse.result.toEither)
-      } yield transaction
-      runtime.unsafeRunToFuture(
-        transaction.fold(
-          err =>
-            proto.grpc.protocol.AddTransactionResponse(
-              proto.grpc.protocol.AddTransactionResponse.Result.Errors(
-                proto.grpc.protocol.Errors(
-                  err
-                    .map(error =>
-                      proto.grpc.protocol.Errors
-                        .Error(error.code, error.description))
-                    .toList)
-              )
-          ),
-          transaction =>
-            proto.grpc.protocol.AddTransactionResponse(
-              proto.grpc.protocol.AddTransactionResponse.Result.Success(
-                proto.grpc.protocol.AddTransactionResponse.Success(
-                  Some(
-                    ProtoBinding[Transaction, proto.model.Transaction, Any]
-                      .asProto(transaction)(())
-                  )))
-          )
-        )
-      )
-    }
+        metadata: Metadata): Future[protocol.AddTransactionResponse] =
+      exec[AddTransactionCommand,
+           protocol.AddTransactionCommand,
+           AddTransactionResponse,
+           protocol.AddTransactionResponse](in.zoneId, in, metadata)(errors =>
+        AddTransactionResponse(Validated.invalid(errors)))
 
-    override def zoneNotifications(in: protocol.ZoneSubscription,
-                                   metadata: Metadata)
-      : Source[protocol.ZoneNotificationMessage, NotUsed] = {
-      val zoneNotifications = for {
-        remoteAddress <- readRemoteAddress(metadata)
-        publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-          NonEmptyList.one)
-        zoneNotifications = zoneNotificationSource(remoteAddress,
-                                                   publicKey,
-                                                   ZoneId(in.zoneId))
-          .keepAlive(10.seconds, () => ZoneNotification.Empty)
-          .map {
-            case ZoneNotification.Empty =>
-              proto.grpc.protocol.ZoneNotification.Empty.asMessage
-
-            case errors: Errors =>
-              protocol
-                .Errors(
-                  errors.errors
-                    .map(
-                      ProtoBinding[ZoneNotification.Error,
-                                   protocol.Errors.Error,
-                                   Any]
-                        .asProto(_)(())
-                    )
-                    .toList
-                )
-                .asMessage
-
-            case zoneStateNotification: ZoneStateNotification =>
-              protocol
-                .ZoneStateNotification(
-                  zoneStateNotification.zone.map(
-                    ProtoBinding[Zone, proto.model.Zone, Any]
-                      .asProto(_)(())
-                  ),
-                  zoneStateNotification.connectedClients.mapValues(
-                    ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any]
-                      .asProto(_)(())
-                  )
-                )
-                .asMessage
-
-            case clientJoinedNotification: ClientJoinedNotification =>
-              protocol
-                .ClientJoinedZoneNotification(
-                  clientJoinedNotification.connectionId,
-                  ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any]
-                    .asProto(publicKey)(())
-                )
-                .asMessage
-
-            case clientQuitNotification: ClientQuitNotification =>
-              protocol
-                .ClientQuitZoneNotification(
-                  clientQuitNotification.connectionId,
-                  ProtoBinding[PublicKey, com.google.protobuf.ByteString, Any]
-                    .asProto(clientQuitNotification.publicKey)(())
-                )
-                .asMessage
-
-            case zoneNameChangedNotification: ZoneNameChangedNotification =>
-              protocol
-                .ZoneNameChangedNotification(zoneNameChangedNotification.name)
-                .asMessage
-
-            case memberCreatedNotification: MemberCreatedNotification =>
-              protocol
-                .MemberCreatedNotification(
-                  Some(
-                    ProtoBinding[Member, proto.model.Member, Any]
-                      .asProto(memberCreatedNotification.member)(())
-                  )
-                )
-                .asMessage
-
-            case memberUpdatedNotification: MemberUpdatedNotification =>
-              protocol
-                .MemberUpdatedNotification(
-                  Some(
-                    ProtoBinding[Member, proto.model.Member, Any]
-                      .asProto(memberUpdatedNotification.member)(())
-                  )
-                )
-                .asMessage
-
-            case accountCreatedNotification: AccountCreatedNotification =>
-              protocol
-                .AccountCreatedNotification(
-                  Some(
-                    ProtoBinding[Account, proto.model.Account, Any]
-                      .asProto(accountCreatedNotification.account)(())
-                  )
-                )
-                .asMessage
-
-            case accountUpdatedNotification: AccountUpdatedNotification =>
-              protocol
-                .AccountUpdatedNotification(
-                  accountUpdatedNotification.actingAs.value,
-                  Some(
-                    ProtoBinding[Account, proto.model.Account, Any]
-                      .asProto(accountUpdatedNotification.account)(())
-                  )
-                )
-                .asMessage
-
-            case transactionAddedNotification: TransactionAddedNotification =>
-              protocol
-                .TransactionAddedNotification(
-                  Some(
-                    ProtoBinding[Transaction, proto.model.Transaction, Any]
-                      .asProto(transactionAddedNotification.transaction)(())
-                  )
-                )
-                .asMessage
-          }
-      } yield zoneNotifications
+    override def zoneNotifications(
+        in: protocol.ZoneSubscription,
+        metadata: Metadata): Source[protocol.ZoneNotificationMessage, NotUsed] =
       runtime.unsafeRun(
-        zoneNotifications.fold(
-          err =>
-            Source.single(
-              proto.grpc.protocol
-                .Errors(
-                  err
-                    .map(error =>
-                      proto.grpc.protocol.Errors
-                        .Error(error.code, error.description))
-                    .toList)
+        (for {
+          remoteAddress <- readRemoteAddress(metadata)
+          publicKey <- authenticateSelfSignedJwt(metadata).mapError(
+            NonEmptyList.one)
+          zoneNotifications = zoneNotificationSource(
+            remoteAddress,
+            publicKey,
+            ZoneId(in.zoneId)
+          ).keepAlive(10.seconds, () => ZoneNotification.Empty)
+        } yield zoneNotifications)
+          .fold(
+            errors =>
+              Source.single(Errors(errors.map(error =>
+                ZoneNotification.Error(error.code, error.description)))),
+            identity
+          )
+          .map(
+            _.map(
+              ProtoBinding[ZoneNotification, protocol.ZoneNotification, Any]
+                .asProto(_)(())
                 .asMessage
-          ),
-          zoneNotifications => zoneNotifications
-        )
+            )
+          )
       )
-    }
+
+    private[this] def exec[SC <: ZoneCommand, PC, SR: ClassTag, PR](
+        zoneId: String,
+        in: PC,
+        metadata: Metadata)(
+        presentErrors: NonEmptyList[ZoneResponse.Error] => SR)(
+        implicit cpb: ProtoBinding[SC, PC, Any],
+        rpb: ProtoBinding[SR, PR, Any]
+    ): Future[PR] =
+      runtime.unsafeRunToFuture(
+        (for {
+          remoteAddress <- readRemoteAddress(metadata)
+          publicKey <- authenticateSelfSignedJwt(metadata).mapError(
+            NonEmptyList.one)
+          sc = cpb.asScala(in)(())
+          sr <- IO
+            .fromFuture(_ =>
+              execZoneCommand(remoteAddress, publicKey, ZoneId(zoneId), sc)
+                .mapTo[SR])
+            .orDie
+        } yield sr).fold(presentErrors, identity).map(rpb.asProto(_)(()))
+      )
 
     private[this] def readRemoteAddress(metadata: Metadata): UIO[InetAddress] =
       for (remoteAddress <- IO

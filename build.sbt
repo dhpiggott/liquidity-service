@@ -114,7 +114,7 @@ lazy val service = project
   .settings(libraryDependencies ++= Seq(
     "com.h2database" % "h2" % "1.4.199" % Test,
     "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.23" % Test,
-    "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.1.1" % Test,
+    "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.15.2" % Test,
     "org.scalatest" %% "scalatest" % "3.0.8" % Test,
     "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8" % Test,
     "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.23" % Test

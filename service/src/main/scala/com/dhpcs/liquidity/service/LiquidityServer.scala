@@ -43,10 +43,10 @@ import doobie.util.transactor.Transactor
 import javax.net.ssl._
 import org.bouncycastle.openssl.PEMParser
 import org.slf4j.LoggerFactory
-import scalaz.zio._
-import scalaz.zio.blocking.Blocking
-import scalaz.zio.console._
-import scalaz.zio.interop.catz._
+import zio._
+import zio.blocking.Blocking
+import zio.console._
+import zio.interop.catz._
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._

@@ -15,7 +15,7 @@ import com.dhpcs.liquidity.service.HttpControllerSpec._
 import com.dhpcs.liquidity.ws.protocol._
 import org.json4s._
 import org.scalatest.FreeSpec
-import scalaz.zio.DefaultRuntime
+import zio.DefaultRuntime
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future

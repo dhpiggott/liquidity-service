@@ -40,8 +40,8 @@ import org.scalatest.Inside._
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
-import scalaz.zio.interop.catz._
-import scalaz.zio.{DefaultRuntime, Task}
+import zio.interop.catz._
+import zio.{DefaultRuntime, Task}
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.Seq

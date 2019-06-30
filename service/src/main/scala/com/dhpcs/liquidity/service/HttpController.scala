@@ -42,7 +42,7 @@ import com.nimbusds.jose.proc.{
 import com.nimbusds.jwt.SignedJWT
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
 import org.json4s._
-import scalaz.zio._
+import zio._
 
 import scala.concurrent.duration._
 import scala.concurrent.Future

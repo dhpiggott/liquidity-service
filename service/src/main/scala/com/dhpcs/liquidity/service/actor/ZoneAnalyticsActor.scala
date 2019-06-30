@@ -18,8 +18,8 @@ import com.dhpcs.liquidity.persistence.zone._
 import com.dhpcs.liquidity.service.SqlBindings._
 import doobie._
 import doobie.implicits._
-import scalaz.zio.{Runtime, Task}
-import scalaz.zio.interop.catz._
+import zio.{Runtime, Task}
+import zio.interop.catz._
 
 import scala.concurrent.duration._
 

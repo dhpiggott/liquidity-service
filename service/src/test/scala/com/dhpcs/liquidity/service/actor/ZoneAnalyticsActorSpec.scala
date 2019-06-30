@@ -32,8 +32,8 @@ import doobie.implicits._
 import org.h2.tools.Server
 import org.scalatest.concurrent.{Eventually, IntegrationPatience, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
-import scalaz.zio.{DefaultRuntime, Task}
-import scalaz.zio.interop.catz._
+import zio.{DefaultRuntime, Task}
+import zio.interop.catz._
 
 import scala.concurrent.duration._
 import scala.concurrent.Await

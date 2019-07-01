@@ -10,7 +10,8 @@ sealed abstract class LowerPriorityImplicits {
 
   implicit def wrappedOneofProtoBinding[S, PV, PW, C](
       implicit pwGen: Lazy[Generic.Aux[PW, PV :: HNil]],
-      vBinding: Lazy[ProtoBinding[S, PV, C]]): ProtoBinding[S, PW, C] =
+      vBinding: Lazy[ProtoBinding[S, PV, C]]
+  ): ProtoBinding[S, PW, C] =
     new ProtoBinding[S, PW, C] {
       override def asProto(s: S)(implicit c: C): PW =
         pwGen.value.from(vBinding.value.asProto(s) :: HNil)
@@ -50,7 +51,9 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
       protoBinding.asScala(
         maybeP.getOrElse(
           throw new IllegalArgumentException(
-            s"Empty ${protoClassTag.runtimeClass.getName}"))
+            s"Empty ${protoClassTag.runtimeClass.getName}"
+          )
+        )
       )
   }
 
@@ -71,11 +74,13 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
       }
     }
 
-  implicit def coproductProtoBinding[SL,
-                                     PL,
-                                     SRRepr <: Coproduct,
-                                     PRRepr <: Coproduct,
-                                     C](
+  implicit def coproductProtoBinding[
+      SL,
+      PL,
+      SRRepr <: Coproduct,
+      PRRepr <: Coproduct,
+      C
+  ](
       implicit lBinding: Lazy[ProtoBinding[SL, PL, C]],
       rBinding: Lazy[ProtoBinding[SRRepr, PRRepr, C]]
   ): ProtoBinding[SL :+: SRRepr, PL :+: PRRepr, C] =
@@ -106,10 +111,12 @@ object ProtoBindings extends LowPriorityImplicits {
     new ProtoBinding[NonEmptyList[S], PW, C] {
       override def asProto(nonEmptyList: NonEmptyList[S])(implicit c: C): PW =
         pwGen.value.from(
-          nonEmptyList.toList.map(vBinding.value.asProto) :: HNil)
+          nonEmptyList.toList.map(vBinding.value.asProto) :: HNil
+        )
       override def asScala(p: PW)(implicit c: C): NonEmptyList[S] =
         NonEmptyList.fromListUnsafe(
-          pwGen.value.to(p).head.toList.map(vBinding.value.asScala))
+          pwGen.value.to(p).head.toList.map(vBinding.value.asScala)
+        )
     }
 
   implicit def validatedNelProtoBinding[SE, SA, PEW, PA, PW, PEmpty, C](

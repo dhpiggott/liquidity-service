@@ -17,42 +17,48 @@ import shapeless.cachedImplicit
 object ProtoBindings {
 
   implicit def actorRefProtoBinding[A]
-    : ProtoBinding[ActorRef[A], String, ActorRefResolver] =
+      : ProtoBinding[ActorRef[A], String, ActorRefResolver] =
     ProtoBinding.instance(
       (actorRef, resolver) => resolver.toSerializationFormat(actorRef),
-      (actorRefString, resolver) => resolver.resolveActorRef(actorRefString))
+      (actorRefString, resolver) => resolver.resolveActorRef(actorRefString)
+    )
 
-  implicit final val GetZoneStateCommandProtoBinding
-    : ProtoBinding[GetZoneStateCommand,
-                   proto.actor.protocol.zonevalidator.GetZoneStateCommand,
-                   ActorRefResolver] =
+  implicit final val GetZoneStateCommandProtoBinding: ProtoBinding[
+    GetZoneStateCommand,
+    proto.actor.protocol.zonevalidator.GetZoneStateCommand,
+    ActorRefResolver
+  ] =
     cachedImplicit
 
-  implicit final val ZoneCommandEnvelopeProtoBinding
-    : ProtoBinding[ZoneCommandEnvelope,
-                   proto.actor.protocol.zonevalidator.ZoneCommandEnvelope,
-                   ActorRefResolver] =
+  implicit final val ZoneCommandEnvelopeProtoBinding: ProtoBinding[
+    ZoneCommandEnvelope,
+    proto.actor.protocol.zonevalidator.ZoneCommandEnvelope,
+    ActorRefResolver
+  ] =
     cachedImplicit
 
-  implicit final val ZoneResponseEnvelopeProtoBinding
-    : ProtoBinding[ZoneResponseEnvelope,
-                   proto.actor.protocol.liquidityserver.ZoneResponseEnvelope,
-                   ActorRefResolver] =
+  implicit final val ZoneResponseEnvelopeProtoBinding: ProtoBinding[
+    ZoneResponseEnvelope,
+    proto.actor.protocol.liquidityserver.ZoneResponseEnvelope,
+    ActorRefResolver
+  ] =
     cachedImplicit
 
   implicit final val ZoneNotificationSubscriptionProtoBinding: ProtoBinding[
     ZoneNotificationSubscription,
     proto.actor.protocol.zonevalidator.ZoneNotificationSubscription,
-    ActorRefResolver] =
+    ActorRefResolver
+  ] =
     cachedImplicit
 
   implicit final val ZoneNotificationEnvelopeProtoBinding: ProtoBinding[
     ZoneNotificationEnvelope,
     proto.actor.protocol.clientconnection.ZoneNotificationEnvelope,
-    ActorRefResolver] = cachedImplicit
+    ActorRefResolver
+  ] = cachedImplicit
 
   implicit final val InetAddressProtoBinding
-    : ProtoBinding[InetAddress, com.google.protobuf.ByteString, Any] =
+      : ProtoBinding[InetAddress, com.google.protobuf.ByteString, Any] =
     ProtoBinding.instance(
       (inetAddress, _) =>
         com.google.protobuf.ByteString.copyFrom(inetAddress.getAddress),
@@ -60,20 +66,23 @@ object ProtoBindings {
         InetAddress.getByAddress(inetAddressBytes.toByteArray)
     )
 
-  implicit final val ZoneEventEnvelopeProtoBinding
-    : ProtoBinding[ZoneEventEnvelope,
-                   proto.persistence.zone.ZoneEventEnvelope,
-                   ActorRefResolver] = cachedImplicit
+  implicit final val ZoneEventEnvelopeProtoBinding: ProtoBinding[
+    ZoneEventEnvelope,
+    proto.persistence.zone.ZoneEventEnvelope,
+    ActorRefResolver
+  ] = cachedImplicit
 
   implicit final val ConnectionIdExtractor
-    : EntityIdExtractor[ConnectedClient, ActorRef[ZoneNotificationEnvelope]] =
+      : EntityIdExtractor[ConnectedClient, ActorRef[ZoneNotificationEnvelope]] =
     EntityIdExtractor
       .instance[ConnectedClient, ActorRef[ZoneNotificationEnvelope]](
-        _.connectionId)
+        _.connectionId
+      )
 
-  implicit final val ZoneStateProtoBinding
-    : ProtoBinding[ZoneState,
-                   proto.persistence.zone.ZoneState,
-                   ActorRefResolver] = cachedImplicit
+  implicit final val ZoneStateProtoBinding: ProtoBinding[
+    ZoneState,
+    proto.persistence.zone.ZoneState,
+    ActorRefResolver
+  ] = cachedImplicit
 
 }

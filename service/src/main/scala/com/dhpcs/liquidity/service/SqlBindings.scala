@@ -28,8 +28,8 @@ object SqlBindings {
 
   implicit val StructMeta: Meta[com.google.protobuf.struct.Struct] =
     Meta[String].timap(
-      JsonFormat.fromJsonString[com.google.protobuf.struct.Struct])(
-      JsonFormat.toJsonString[com.google.protobuf.struct.Struct])
+      JsonFormat.fromJsonString[com.google.protobuf.struct.Struct]
+    )(JsonFormat.toJsonString[com.google.protobuf.struct.Struct])
 
   implicit val BigDecimalMeta: Meta[BigDecimal] =
     Meta[String].timap(BigDecimal(_))(_.toString())

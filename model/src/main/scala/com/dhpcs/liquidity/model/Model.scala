@@ -14,17 +14,21 @@ object PublicKey {
 
 final case class MemberId(value: String) extends AnyVal
 
-final case class Member(id: MemberId,
-                        ownerPublicKeys: Set[PublicKey],
-                        name: Option[String],
-                        metadata: Option[com.google.protobuf.struct.Struct])
+final case class Member(
+    id: MemberId,
+    ownerPublicKeys: Set[PublicKey],
+    name: Option[String],
+    metadata: Option[com.google.protobuf.struct.Struct]
+)
 
 final case class AccountId(value: String) extends AnyVal
 
-final case class Account(id: AccountId,
-                         ownerMemberIds: Set[MemberId],
-                         name: Option[String],
-                         metadata: Option[com.google.protobuf.struct.Struct])
+final case class Account(
+    id: AccountId,
+    ownerMemberIds: Set[MemberId],
+    name: Option[String],
+    metadata: Option[com.google.protobuf.struct.Struct]
+)
 
 final case class TransactionId(value: String) extends AnyVal
 
@@ -36,7 +40,8 @@ final case class Transaction(
     creator: MemberId,
     created: Instant,
     description: Option[String],
-    metadata: Option[com.google.protobuf.struct.Struct])
+    metadata: Option[com.google.protobuf.struct.Struct]
+)
 
 final case class ZoneId(value: String) extends AnyVal {
   def persistenceId: String = s"${ZoneId.PersistenceIdPrefix}$value"
@@ -51,12 +56,14 @@ object ZoneId {
 
 }
 
-final case class Zone(id: ZoneId,
-                      equityAccountId: AccountId,
-                      members: Map[MemberId, Member],
-                      accounts: Map[AccountId, Account],
-                      transactions: Map[TransactionId, Transaction],
-                      created: Instant,
-                      expires: Instant,
-                      name: Option[String],
-                      metadata: Option[com.google.protobuf.struct.Struct])
+final case class Zone(
+    id: ZoneId,
+    equityAccountId: AccountId,
+    members: Map[MemberId, Member],
+    accounts: Map[AccountId, Account],
+    transactions: Map[TransactionId, Transaction],
+    created: Instant,
+    expires: Instant,
+    name: Option[String],
+    metadata: Option[com.google.protobuf.struct.Struct]
+)

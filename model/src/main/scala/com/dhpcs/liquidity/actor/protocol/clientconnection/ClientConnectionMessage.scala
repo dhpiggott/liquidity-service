@@ -16,5 +16,5 @@ final case class ZoneNotificationEnvelope(
     zoneValidator: ActorRef[ZoneValidatorMessage],
     zoneId: ZoneId,
     sequenceNumber: Long,
-    zoneNotification: ZoneNotification)
-    extends SerializableClientConnectionMessage
+    zoneNotification: ZoneNotification
+) extends SerializableClientConnectionMessage

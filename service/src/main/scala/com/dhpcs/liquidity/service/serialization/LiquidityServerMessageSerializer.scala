@@ -15,7 +15,8 @@ class LiquidityServerMessageSerializer(system: ExtendedActorSystem)
       protoBindings = Seq(
         AnyRefProtoBinding[
           ZoneResponseEnvelope,
-          proto.actor.protocol.liquidityserver.ZoneResponseEnvelope]
+          proto.actor.protocol.liquidityserver.ZoneResponseEnvelope
+        ]
       ),
       identifier = 960694028
     )

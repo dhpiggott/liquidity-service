@@ -213,8 +213,10 @@ class ZoneAnalyticsActorSpec
     zone
   }
 
-  private[this] def clientJoined(fixture: FixtureParam,
-                                 clientConnection: ActorRef): Instant = {
+  private[this] def clientJoined(
+      fixture: FixtureParam,
+      clientConnection: ActorRef
+  ): Instant = {
     val (transactor, zoneId, _) = fixture
     val actorRef =
       ActorRefResolver(system.toTyped).toSerializationFormat(clientConnection)
@@ -235,14 +237,17 @@ class ZoneAnalyticsActorSpec
           publicKey = publicKey,
           joined = timestamp,
           quit = None
-        ))
+        )
+      )
     }
     timestamp
   }
 
-  private[this] def clientQuit(fixture: FixtureParam,
-                               clientConnection: ActorRef,
-                               joined: Instant): Unit = {
+  private[this] def clientQuit(
+      fixture: FixtureParam,
+      clientConnection: ActorRef,
+      joined: Instant
+  ): Unit = {
     val (transactor, zoneId, _) = fixture
     val actorRef =
       ActorRefResolver(system.toTyped).toSerializationFormat(clientConnection)
@@ -263,7 +268,8 @@ class ZoneAnalyticsActorSpec
           publicKey = publicKey,
           joined = joined,
           quit = Some(timestamp)
-        ))
+        )
+      )
     }
     ()
   }
@@ -320,8 +326,10 @@ class ZoneAnalyticsActorSpec
     member
   }
 
-  private[this] def memberUpdated(fixture: FixtureParam,
-                                  member: Member): Unit = {
+  private[this] def memberUpdated(
+      fixture: FixtureParam,
+      member: Member
+  ): Unit = {
     val (transactor, zoneId, _) = fixture
     writeEvent(fixture, MemberUpdatedEvent(member.copy(name = None)))
     eventually {
@@ -335,8 +343,10 @@ class ZoneAnalyticsActorSpec
     ()
   }
 
-  private[this] def accountCreated(fixture: FixtureParam,
-                                   owner: MemberId): Account = {
+  private[this] def accountCreated(
+      fixture: FixtureParam,
+      owner: MemberId
+  ): Account = {
     val (transactor, zoneId, _) = fixture
     val account = Account(
       id = AccountId(1.toString),
@@ -366,12 +376,18 @@ class ZoneAnalyticsActorSpec
     account
   }
 
-  private[this] def accountUpdated(fixture: FixtureParam,
-                                   account: Account): Unit = {
+  private[this] def accountUpdated(
+      fixture: FixtureParam,
+      account: Account
+  ): Unit = {
     val (transactor, zoneId, _) = fixture
-    writeEvent(fixture,
-               AccountUpdatedEvent(actingAs = Some(account.ownerMemberIds.head),
-                                   account.copy(name = None)))
+    writeEvent(
+      fixture,
+      AccountUpdatedEvent(
+        actingAs = Some(account.ownerMemberIds.head),
+        account.copy(name = None)
+      )
+    )
     eventually {
       val accounts = runtime.unsafeRun(
         retrieveAllAccounts(zoneId)
@@ -383,9 +399,11 @@ class ZoneAnalyticsActorSpec
     ()
   }
 
-  private[this] def transactionAdded(fixture: FixtureParam,
-                                     zone: Zone,
-                                     to: AccountId): Unit = {
+  private[this] def transactionAdded(
+      fixture: FixtureParam,
+      zone: Zone,
+      to: AccountId
+  ): Unit = {
     val (transactor, zoneId, _) = fixture
     val created = Instant.now().truncatedTo(ChronoUnit.MILLIS)
     val transaction = Transaction(
@@ -602,9 +620,11 @@ object ZoneAnalyticsActorSpec {
     }
   }
 
-  private def writeEvent(fixture: FixtureParam,
-                         event: ZoneEvent,
-                         timestamp: Instant = Instant.now()): Unit = {
+  private def writeEvent(
+      fixture: FixtureParam,
+      event: ZoneEvent,
+      timestamp: Instant = Instant.now()
+  ): Unit = {
     val (_, _, writer) = fixture
     writer ! ZoneEventEnvelope(
       remoteAddress = Some(remoteAddress),
@@ -630,11 +650,15 @@ object ZoneAnalyticsActorSpec {
            )
            WHERE zones.zone_id = $zoneId
         """
-        .query[(Option[String],
-                AccountId,
-                Instant,
-                Instant,
-                Option[com.google.protobuf.struct.Struct])]
+        .query[
+          (
+              Option[String],
+              AccountId,
+              Instant,
+              Instant,
+              Option[com.google.protobuf.struct.Struct]
+          )
+        ]
         .option
       maybeZone <- maybeZoneMetadata match {
         case None =>
@@ -645,25 +669,25 @@ object ZoneAnalyticsActorSpec {
             members <- retrieveAllMembers(zoneId).map(_.toMap)
             accounts <- retrieveAllAccounts(zoneId).map(_.toMap)
             transactions <- retrieveAllTransactions(zoneId).map(_.toMap)
-          } yield
-            Some(
-              Zone(
-                zoneId,
-                equityAccountId,
-                members,
-                accounts,
-                transactions,
-                created,
-                expires,
-                name,
-                metadata
-              )
+          } yield Some(
+            Zone(
+              zoneId,
+              equityAccountId,
+              members,
+              accounts,
+              transactions,
+              created,
+              expires,
+              name,
+              metadata
             )
+          )
       }
     } yield maybeZone
 
   private def retrieveAllMembers(
-      zoneId: ZoneId): ConnectionIO[Seq[(MemberId, Member)]] = {
+      zoneId: ZoneId
+  ): ConnectionIO[Seq[(MemberId, Member)]] = {
     def retrieve(memberId: MemberId): ConnectionIO[(MemberId, Member)] = {
       for {
         ownerPublicKeys <- sql"""
@@ -714,7 +738,8 @@ object ZoneAnalyticsActorSpec {
   }
 
   private def retrieveAllAccounts(
-      zoneId: ZoneId): ConnectionIO[Seq[(AccountId, Account)]] = {
+      zoneId: ZoneId
+  ): ConnectionIO[Seq[(AccountId, Account)]] = {
     def retrieve(accountId: AccountId): ConnectionIO[(AccountId, Account)] = {
       for {
         ownerMemberIds <- sql"""
@@ -763,20 +788,25 @@ object ZoneAnalyticsActorSpec {
   }
 
   private def retrieveAllTransactions(
-      zoneId: ZoneId): ConnectionIO[Seq[(TransactionId, Transaction)]] =
+      zoneId: ZoneId
+  ): ConnectionIO[Seq[(TransactionId, Transaction)]] =
     sql"""
        SELECT transaction_id, `from`, `to`, `value`, creator, created, description, metadata
          FROM transactions
          WHERE zone_id = $zoneId
       """
-      .query[(TransactionId,
-              AccountId,
-              AccountId,
-              BigDecimal,
-              MemberId,
-              Instant,
-              Option[String],
-              Option[com.google.protobuf.struct.Struct])]
+      .query[
+        (
+            TransactionId,
+            AccountId,
+            AccountId,
+            BigDecimal,
+            MemberId,
+            Instant,
+            Option[String],
+            Option[com.google.protobuf.struct.Struct]
+        )
+      ]
       .to[Vector]
       .map(_.map {
         case values @ (id, _, _, _, _, _, _, _) =>
@@ -795,7 +825,8 @@ object ZoneAnalyticsActorSpec {
   )
 
   private def retrieveAllClientSessions(
-      zoneId: ZoneId): ConnectionIO[Seq[(ClientSessionId, ClientSession)]] =
+      zoneId: ZoneId
+  ): ConnectionIO[Seq[(ClientSessionId, ClientSession)]] =
     sql"""
        SELECT client_sessions.session_id, client_sessions.remote_address, client_sessions.actor_ref, devices.public_key, client_sessions.joined, client_sessions.quit
          FROM client_sessions
@@ -803,12 +834,16 @@ object ZoneAnalyticsActorSpec {
          ON devices.fingerprint = client_sessions.fingerprint
          WHERE zone_id = $zoneId
       """
-      .query[(ClientSessionId,
-              Option[InetAddress],
-              String,
-              PublicKey,
-              Instant,
-              Option[Instant])]
+      .query[
+        (
+            ClientSessionId,
+            Option[InetAddress],
+            String,
+            PublicKey,
+            Instant,
+            Option[Instant]
+        )
+      ]
       .to[Vector]
       .map(_.map {
         case values @ (id, _, _, _, _, _) =>

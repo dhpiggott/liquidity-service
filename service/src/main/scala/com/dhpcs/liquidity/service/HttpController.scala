@@ -50,25 +50,32 @@ import scala.reflect.ClassTag
 
 class HttpController(
     ready: Route,
-    execZoneCommand: (InetAddress,
-                      PublicKey,
-                      ZoneId,
-                      ZoneCommand) => Future[ZoneResponse],
-    zoneNotificationSource: (InetAddress,
-                             PublicKey,
-                             ZoneId) => Source[ZoneNotification, NotUsed],
-    runtime: Runtime[Any])(implicit system: ActorSystem, mat: Materializer) {
+    execZoneCommand: (
+        InetAddress,
+        PublicKey,
+        ZoneId,
+        ZoneCommand
+    ) => Future[ZoneResponse],
+    zoneNotificationSource: (
+        InetAddress,
+        PublicKey,
+        ZoneId
+    ) => Source[ZoneNotification, NotUsed],
+    runtime: Runtime[Any]
+)(implicit system: ActorSystem, mat: Materializer) {
 
   def handler(
-      enableClientRelay: Boolean): HttpRequest => Future[HttpResponse] = {
+      enableClientRelay: Boolean
+  ): HttpRequest => Future[HttpResponse] = {
     ServiceHandler.concatOrNotFound(
       grpcHandler(enableClientRelay),
       { case request => restHandler(request) }
     )
   }
 
-  private[this] def grpcHandler(enableClientRelay: Boolean)
-    : PartialFunction[HttpRequest, Future[HttpResponse]] =
+  private[this] def grpcHandler(
+      enableClientRelay: Boolean
+  ): PartialFunction[HttpRequest, Future[HttpResponse]] =
     if (enableClientRelay)
       LiquidityServicePowerApiHandler.partial(liquidityService)
     else
@@ -78,11 +85,14 @@ class HttpController(
 
     override def createZone(
         in: protocol.CreateZoneCommand,
-        metadata: Metadata): Future[protocol.CreateZoneResponse] =
-      exec[CreateZoneCommand,
-           protocol.CreateZoneCommand,
-           CreateZoneResponse,
-           protocol.CreateZoneResponse](
+        metadata: Metadata
+    ): Future[protocol.CreateZoneResponse] =
+      exec[
+        CreateZoneCommand,
+        protocol.CreateZoneCommand,
+        CreateZoneResponse,
+        protocol.CreateZoneResponse
+      ](
         zoneId = UUID.randomUUID().toString,
         in,
         metadata
@@ -90,66 +100,92 @@ class HttpController(
 
     override def changeZoneName(
         in: protocol.ChangeZoneNameCommand,
-        metadata: Metadata): Future[protocol.ChangeZoneNameResponse] =
-      exec[ChangeZoneNameCommand,
-           protocol.ChangeZoneNameCommand,
-           ChangeZoneNameResponse,
-           protocol.ChangeZoneNameResponse](in.zoneId, in, metadata)(errors =>
-        ChangeZoneNameResponse(Validated.invalid(errors)))
+        metadata: Metadata
+    ): Future[protocol.ChangeZoneNameResponse] =
+      exec[
+        ChangeZoneNameCommand,
+        protocol.ChangeZoneNameCommand,
+        ChangeZoneNameResponse,
+        protocol.ChangeZoneNameResponse
+      ](in.zoneId, in, metadata)(
+        errors => ChangeZoneNameResponse(Validated.invalid(errors))
+      )
 
     override def createMember(
         in: protocol.CreateMemberCommand,
-        metadata: Metadata): Future[protocol.CreateMemberResponse] =
-      exec[CreateMemberCommand,
-           protocol.CreateMemberCommand,
-           CreateMemberResponse,
-           protocol.CreateMemberResponse](in.zoneId, in, metadata)(errors =>
-        CreateMemberResponse(Validated.invalid(errors)))
+        metadata: Metadata
+    ): Future[protocol.CreateMemberResponse] =
+      exec[
+        CreateMemberCommand,
+        protocol.CreateMemberCommand,
+        CreateMemberResponse,
+        protocol.CreateMemberResponse
+      ](in.zoneId, in, metadata)(
+        errors => CreateMemberResponse(Validated.invalid(errors))
+      )
 
     override def updateMember(
         in: protocol.UpdateMemberCommand,
-        metadata: Metadata): Future[protocol.UpdateMemberResponse] =
-      exec[UpdateMemberCommand,
-           protocol.UpdateMemberCommand,
-           UpdateMemberResponse,
-           protocol.UpdateMemberResponse](in.zoneId, in, metadata)(errors =>
-        UpdateMemberResponse(Validated.invalid(errors)))
+        metadata: Metadata
+    ): Future[protocol.UpdateMemberResponse] =
+      exec[
+        UpdateMemberCommand,
+        protocol.UpdateMemberCommand,
+        UpdateMemberResponse,
+        protocol.UpdateMemberResponse
+      ](in.zoneId, in, metadata)(
+        errors => UpdateMemberResponse(Validated.invalid(errors))
+      )
 
     override def createAccount(
         in: protocol.CreateAccountCommand,
-        metadata: Metadata): Future[protocol.CreateAccountResponse] =
-      exec[CreateAccountCommand,
-           protocol.CreateAccountCommand,
-           CreateAccountResponse,
-           protocol.CreateAccountResponse](in.zoneId, in, metadata)(errors =>
-        CreateAccountResponse(Validated.invalid(errors)))
+        metadata: Metadata
+    ): Future[protocol.CreateAccountResponse] =
+      exec[
+        CreateAccountCommand,
+        protocol.CreateAccountCommand,
+        CreateAccountResponse,
+        protocol.CreateAccountResponse
+      ](in.zoneId, in, metadata)(
+        errors => CreateAccountResponse(Validated.invalid(errors))
+      )
 
     override def updateAccount(
         in: protocol.UpdateAccountCommand,
-        metadata: Metadata): Future[protocol.UpdateAccountResponse] =
-      exec[UpdateAccountCommand,
-           protocol.UpdateAccountCommand,
-           UpdateAccountResponse,
-           protocol.UpdateAccountResponse](in.zoneId, in, metadata)(errors =>
-        UpdateAccountResponse(Validated.invalid(errors)))
+        metadata: Metadata
+    ): Future[protocol.UpdateAccountResponse] =
+      exec[
+        UpdateAccountCommand,
+        protocol.UpdateAccountCommand,
+        UpdateAccountResponse,
+        protocol.UpdateAccountResponse
+      ](in.zoneId, in, metadata)(
+        errors => UpdateAccountResponse(Validated.invalid(errors))
+      )
 
     override def addTransaction(
         in: protocol.AddTransactionCommand,
-        metadata: Metadata): Future[protocol.AddTransactionResponse] =
-      exec[AddTransactionCommand,
-           protocol.AddTransactionCommand,
-           AddTransactionResponse,
-           protocol.AddTransactionResponse](in.zoneId, in, metadata)(errors =>
-        AddTransactionResponse(Validated.invalid(errors)))
+        metadata: Metadata
+    ): Future[protocol.AddTransactionResponse] =
+      exec[
+        AddTransactionCommand,
+        protocol.AddTransactionCommand,
+        AddTransactionResponse,
+        protocol.AddTransactionResponse
+      ](in.zoneId, in, metadata)(
+        errors => AddTransactionResponse(Validated.invalid(errors))
+      )
 
     override def zoneNotifications(
         in: protocol.ZoneSubscription,
-        metadata: Metadata): Source[protocol.ZoneNotificationMessage, NotUsed] =
+        metadata: Metadata
+    ): Source[protocol.ZoneNotificationMessage, NotUsed] =
       runtime.unsafeRun(
         (for {
           remoteAddress <- readRemoteAddress(metadata)
           publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-            NonEmptyList.one)
+            NonEmptyList.one
+          )
           zoneNotifications = zoneNotificationSource(
             remoteAddress,
             publicKey,
@@ -158,8 +194,14 @@ class HttpController(
         } yield zoneNotifications)
           .fold(
             errors =>
-              Source.single(Errors(errors.map(error =>
-                ZoneNotification.Error(error.code, error.description)))),
+              Source.single(
+                Errors(
+                  errors.map(
+                    error =>
+                      ZoneNotification.Error(error.code, error.description)
+                  )
+                )
+              ),
             identity
           )
           .map(
@@ -174,8 +216,8 @@ class HttpController(
     private[this] def exec[SC <: ZoneCommand, PC, SR: ClassTag, PR](
         zoneId: String,
         in: PC,
-        metadata: Metadata)(
-        presentErrors: NonEmptyList[ZoneResponse.Error] => SR)(
+        metadata: Metadata
+    )(presentErrors: NonEmptyList[ZoneResponse.Error] => SR)(
         implicit cpb: ProtoBinding[SC, PC, Any],
         rpb: ProtoBinding[SR, PR, Any]
     ): Future[PR] =
@@ -183,12 +225,15 @@ class HttpController(
         (for {
           remoteAddress <- readRemoteAddress(metadata)
           publicKey <- authenticateSelfSignedJwt(metadata).mapError(
-            NonEmptyList.one)
+            NonEmptyList.one
+          )
           sc = cpb.asScala(in)(())
           sr <- IO
-            .fromFuture(_ =>
-              execZoneCommand(remoteAddress, publicKey, ZoneId(zoneId), sc)
-                .mapTo[SR])
+            .fromFuture(
+              _ =>
+                execZoneCommand(remoteAddress, publicKey, ZoneId(zoneId), sc)
+                  .mapTo[SR]
+            )
             .orDie
         } yield sr).fold(presentErrors, identity).map(rpb.asProto(_)(()))
       )
@@ -197,17 +242,19 @@ class HttpController(
       for (remoteAddress <- IO
              .fromOption(metadata.getText("Remote-Address"))
              .orDieWith(_ => new Error))
-        yield
-          InetAddress.getByName(
-            Uri.Authority.parse(remoteAddress).host.address())
+        yield InetAddress.getByName(
+          Uri.Authority.parse(remoteAddress).host.address()
+        )
 
     private[this] def authenticateSelfSignedJwt(
-        metadata: Metadata): IO[ZoneResponse.Error, PublicKey] =
+        metadata: Metadata
+    ): IO[ZoneResponse.Error, PublicKey] =
       for {
         authorization <- IO
           .fromOption(
             metadata
-              .getText("Authorization"))
+              .getText("Authorization")
+          )
           .mapError(_ => ZoneResponse.Error.authorizationNotPresentInMetadata)
           .map(HttpHeader.parse("Authorization", _))
         token <- authorization match {
@@ -224,7 +271,8 @@ class HttpController(
                   case other =>
                     IO.fail(
                       ZoneResponse.Error.authorizationNotAnOAuth2BearerToken(
-                        other)
+                        other
+                      )
                     )
                 }
             }

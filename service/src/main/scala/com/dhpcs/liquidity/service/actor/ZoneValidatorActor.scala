@@ -36,12 +36,14 @@ object ZoneValidatorActor {
 
   private[this] final val MaxNumberOfShards = 10
 
-  val messageExtractor
-    : ShardingMessageExtractor[SerializableZoneValidatorMessage,
-                               SerializableZoneValidatorMessage] =
+  val messageExtractor: ShardingMessageExtractor[
+    SerializableZoneValidatorMessage,
+    SerializableZoneValidatorMessage
+  ] =
     ShardingMessageExtractor.noEnvelope[SerializableZoneValidatorMessage](
       MaxNumberOfShards,
-      stopMessage = StopZone) {
+      stopMessage = StopZone
+    ) {
       // This has to be part of SerializableZoneValidatorMessage because the
       // akka-typed sharding API requires that the hand-off stop-message is a
       // subtype of the ShardingMessageExtractor Envelope type. Of course,
@@ -63,14 +65,16 @@ object ZoneValidatorActor {
   private[this] final val PassivationTimeout = 2.minutes
 
   def shardingBehavior(
-      entityId: String): Behavior[SerializableZoneValidatorMessage] =
+      entityId: String
+  ): Behavior[SerializableZoneValidatorMessage] =
     Behaviors
       .setup[ZoneValidatorMessage] { context =>
         context.log
           .withMdc(
             Map(
               "zone" -> entityId
-            ))
+            )
+          )
           .info("Starting")
         context.setReceiveTimeout(PassivationTimeout, StopZone)
         val notificationSequenceNumbers =
@@ -78,13 +82,17 @@ object ZoneValidatorActor {
         implicit val resolver: ActorRefResolver =
           ActorRefResolver(context.system)
         val id = ZoneId.fromPersistentEntityId(entityId)
-        EventSourcedBehavior[ZoneValidatorMessage,
-                             ZoneEventEnvelope,
-                             ZoneState](
+        EventSourcedBehavior[
+          ZoneValidatorMessage,
+          ZoneEventEnvelope,
+          ZoneState
+        ](
           persistenceId = PersistenceId(id.persistenceId),
-          emptyState = ZoneState(zone = None,
-                                 balances = Map.empty,
-                                 connectedClients = Map.empty),
+          emptyState = ZoneState(
+            zone = None,
+            balances = Map.empty,
+            connectedClients = Map.empty
+          ),
           commandHandler = (state, command) =>
             command match {
               case StopZone =>
@@ -92,7 +100,8 @@ object ZoneValidatorActor {
                   .withMdc(
                     Map(
                       "zone" -> entityId
-                    ))
+                    )
+                  )
                   .info("Stopping")
                 Effect.stop()
 
@@ -101,30 +110,37 @@ object ZoneValidatorActor {
                 Effect.none
 
               case zoneCommandEnvelope: ZoneCommandEnvelope =>
-                handleCommand(context,
-                              id,
-                              notificationSequenceNumbers,
-                              state,
-                              zoneCommandEnvelope)
+                handleCommand(
+                  context,
+                  id,
+                  notificationSequenceNumbers,
+                  state,
+                  zoneCommandEnvelope
+                )
 
-              case ZoneNotificationSubscription(subscriber,
-                                                _,
-                                                remoteAddress,
-                                                publicKey) =>
+              case ZoneNotificationSubscription(
+                  subscriber,
+                  _,
+                  remoteAddress,
+                  publicKey
+                  ) =>
                 state.zone match {
                   case None =>
                     subscriber ! ZoneNotificationEnvelope(
                       context.self,
                       id,
                       sequenceNumber = 0,
-                      ZoneStateNotification(zone = None,
-                                            connectedClients = Map.empty)
+                      ZoneStateNotification(
+                        zone = None,
+                        connectedClients = Map.empty
+                      )
                     )
                     Effect.none
 
                   case Some(zone) =>
                     def connectedClients(
-                        state: ZoneState): Map[String, PublicKey] =
+                        state: ZoneState
+                    ): Map[String, PublicKey] =
                       state.connectedClients.map {
                         case (connectionId, connectedClient) =>
                           resolver
@@ -138,8 +154,10 @@ object ZoneValidatorActor {
                         id,
                         Iterable(subscriber),
                         notificationSequenceNumbers,
-                        ZoneStateNotification(Some(zone),
-                                              connectedClients(state))
+                        ZoneStateNotification(
+                          Some(zone),
+                          connectedClients(state)
+                        )
                       )
                       Effect.none
                     } else
@@ -161,8 +179,10 @@ object ZoneValidatorActor {
                               id,
                               Iterable(subscriber),
                               notificationSequenceNumbers,
-                              ZoneStateNotification(Some(zone),
-                                                    connectedClients(state))
+                              ZoneStateNotification(
+                                Some(zone),
+                                connectedClients(state)
+                              )
                             )
                             deliverNotification(
                               context.self,
@@ -192,7 +212,8 @@ object ZoneValidatorActor {
                           timestamp = Instant.now(),
                           ClientQuitEvent(
                             Some(
-                              resolver.toSerializationFormat(clientConnection))
+                              resolver.toSerializationFormat(clientConnection)
+                            )
                           )
                         )
                       )
@@ -210,7 +231,7 @@ object ZoneValidatorActor {
                         )
                       }
                 }
-          },
+            },
           eventHandler(notificationSequenceNumbers, context)
         ).withRetention(
             RetentionCriteria.snapshotEvery(
@@ -227,8 +248,8 @@ object ZoneValidatorActor {
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       state: ZoneState,
-      zoneCommandEnvelope: ZoneCommandEnvelope)
-    : Effect[ZoneEventEnvelope, ZoneState] =
+      zoneCommandEnvelope: ZoneCommandEnvelope
+  ): Effect[ZoneEventEnvelope, ZoneState] =
     zoneCommandEnvelope.zoneCommand match {
       case ZoneCommand.Empty =>
         Effect.none
@@ -243,23 +264,28 @@ object ZoneValidatorActor {
           metadata
           ) =>
         val validatedEquityOwnerPublicKey = validatePublicKey(
-          equityOwnerPublicKey)
+          equityOwnerPublicKey
+        )
         val validatedEquityOwnerName = validateTag(equityOwnerName)
         val validatedParams = {
           val validatedEquityOwnerMetadata = validateMetadata(
-            equityOwnerMetadata)
+            equityOwnerMetadata
+          )
           val validatedEquityAccountName = validateTag(equityAccountName)
           val validatedEquityAccountMetadata = validateMetadata(
-            equityAccountMetadata)
+            equityAccountMetadata
+          )
           val validatedName = validateTag(name)
           val validatedMetadata = validateMetadata(metadata)
-          (validatedEquityOwnerPublicKey,
-           validatedEquityOwnerName,
-           validatedEquityOwnerMetadata,
-           validatedEquityAccountName,
-           validatedEquityAccountMetadata,
-           validatedName,
-           validatedMetadata).tupled
+          (
+            validatedEquityOwnerPublicKey,
+            validatedEquityOwnerName,
+            validatedEquityOwnerMetadata,
+            validatedEquityAccountName,
+            validatedEquityAccountMetadata,
+            validatedName,
+            validatedMetadata
+          ).tupled
         }
         validatedParams match {
           case Invalid(errors) =>
@@ -269,13 +295,16 @@ object ZoneValidatorActor {
             )
             Effect.none
           case Valid(
-              (validEquityOwnerPublicKey,
-               validEquityOwnerName,
-               validEquityOwnerMetadata,
-               validEquityAccountName,
-               vaildEquityAccountMetadata,
-               validName,
-               validMetadata)) =>
+              (
+                validEquityOwnerPublicKey,
+                validEquityOwnerName,
+                validEquityOwnerMetadata,
+                validEquityAccountName,
+                vaildEquityAccountMetadata,
+                validName,
+                validMetadata
+              )
+              ) =>
             state.zone match {
               case Some(zone) =>
                 // We already accepted the command; this was just a redelivery
@@ -326,7 +355,8 @@ object ZoneValidatorActor {
             deliverResponse(
               zoneCommandEnvelope.replyTo,
               ChangeZoneNameResponse(
-                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
+                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+              )
             )
             Effect.none
           case Some(zone) =>
@@ -367,7 +397,8 @@ object ZoneValidatorActor {
             deliverResponse(
               zoneCommandEnvelope.replyTo,
               CreateMemberResponse(
-                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
+                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+              )
             )
             Effect.none
           case Some(zone) =>
@@ -378,10 +409,12 @@ object ZoneValidatorActor {
               val validatedOwnerPublicKeys = validatePublicKeys(ownerPublicKeys)
               val validatedName = validateTag(name)
               val validatedMetadata = validateMetadata(metadata)
-              (validatedMemberId,
-               validatedOwnerPublicKeys,
-               validatedName,
-               validatedMetadata).tupled
+              (
+                validatedMemberId,
+                validatedOwnerPublicKeys,
+                validatedName,
+                validatedMetadata
+              ).tupled
             }
             validatedParams match {
               case Invalid(errors) =>
@@ -409,20 +442,22 @@ object ZoneValidatorActor {
             deliverResponse(
               zoneCommandEnvelope.replyTo,
               UpdateMemberResponse(
-                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
+                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+              )
             )
             Effect.none
           case Some(zone) =>
             val validatedParams =
-              validateCanUpdateMember(zone,
-                                      member.id,
-                                      zoneCommandEnvelope.publicKey).andThen {
-                _ =>
-                  val validatedOwnerPublicKeys =
-                    validatePublicKeys(member.ownerPublicKeys)
-                  val validatedTag = validateTag(member.name)
-                  val validatedMetadata = validateMetadata(member.metadata)
-                  (validatedOwnerPublicKeys, validatedTag, validatedMetadata).tupled
+              validateCanUpdateMember(
+                zone,
+                member.id,
+                zoneCommandEnvelope.publicKey
+              ).andThen { _ =>
+                val validatedOwnerPublicKeys =
+                  validatePublicKeys(member.ownerPublicKeys)
+                val validatedTag = validateTag(member.name)
+                val validatedMetadata = validateMetadata(member.metadata)
+                (validatedOwnerPublicKeys, validatedTag, validatedMetadata).tupled
               }
             validatedParams match {
               case Invalid(errors) =>
@@ -460,7 +495,8 @@ object ZoneValidatorActor {
             deliverResponse(
               zoneCommandEnvelope.replyTo,
               CreateAccountResponse(
-                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
+                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+              )
             )
             Effect.none
           case Some(zone) =>
@@ -471,10 +507,12 @@ object ZoneValidatorActor {
               val validatedOwnerMemberIds = validateMemberIds(zone, owners)
               val validatedTag = validateTag(name)
               val validatedMetadata = validateMetadata(metadata)
-              (validatedAccountId,
-               validatedOwnerMemberIds,
-               validatedTag,
-               validatedMetadata).tupled
+              (
+                validatedAccountId,
+                validatedOwnerMemberIds,
+                validatedTag,
+                validatedMetadata
+              ).tupled
             }
             validatedParams match {
               case Invalid(errors) =>
@@ -502,15 +540,18 @@ object ZoneValidatorActor {
             deliverResponse(
               zoneCommandEnvelope.replyTo,
               UpdateAccountResponse(
-                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
+                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+              )
             )
             Effect.none
           case Some(zone) =>
             val validatedParams =
-              validateCanUpdateAccount(zone,
-                                       zoneCommandEnvelope.publicKey,
-                                       actingAs,
-                                       account.id).andThen { _ =>
+              validateCanUpdateAccount(
+                zone,
+                zoneCommandEnvelope.publicKey,
+                actingAs,
+                account.id
+              ).andThen { _ =>
                 val validatedOwnerMemberIds =
                   validateMemberIds(zone, account.ownerMemberIds)
                 val validatedTag = validateTag(account.name)
@@ -547,19 +588,22 @@ object ZoneValidatorActor {
             }
         }
 
-      case AddTransactionCommand(_,
-                                 actingAs,
-                                 from,
-                                 to,
-                                 value,
-                                 description,
-                                 metadata) =>
+      case AddTransactionCommand(
+          _,
+          actingAs,
+          from,
+          to,
+          value,
+          description,
+          metadata
+          ) =>
         state.zone match {
           case None =>
             deliverResponse(
               zoneCommandEnvelope.replyTo,
               AddTransactionResponse(
-                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist))
+                Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+              )
             )
             Effect.none
           case Some(zone) =>
@@ -572,9 +616,11 @@ object ZoneValidatorActor {
                   val validatedValue =
                     validateTransactionValue(from, value, zone, state.balances)
                   val validatedActingAs =
-                    validateActingAs(zone,
-                                     zoneCommandEnvelope.publicKey,
-                                     actingAs)
+                    validateActingAs(
+                      zone,
+                      zoneCommandEnvelope.publicKey,
+                      actingAs
+                    )
                   (validatedValue, validatedActingAs).tupled
                 }
               val validatedTo = validateToAccount(zone, from, to)
@@ -583,21 +629,25 @@ object ZoneValidatorActor {
                 .valid[NonEmptyList[ZoneResponse.Error]]
               val validatedDescription = validateTag(description)
               val validatedMetadata = validateMetadata(metadata)
-              (validatedTransactionId,
-               validatedFromValueAndActingAs,
-               validatedTo,
-               validatedCreated,
-               validatedDescription,
-               validatedMetadata).tupled.map {
+              (
+                validatedTransactionId,
+                validatedFromValueAndActingAs,
+                validatedTo,
+                validatedCreated,
+                validatedDescription,
+                validatedMetadata
+              ).tupled.map {
                 case (transactionId, _, _, created, _, _) =>
-                  (transactionId,
-                   from,
-                   to,
-                   value,
-                   actingAs,
-                   created,
-                   description,
-                   metadata)
+                  (
+                    transactionId,
+                    from,
+                    to,
+                    value,
+                    actingAs,
+                    created,
+                    description,
+                    metadata
+                  )
               }
             }
             validatedParams match {
@@ -622,12 +672,14 @@ object ZoneValidatorActor {
   private[this] final val ZoneLifetime = java.time.Duration.ofDays(30)
 
   private[this] def validatePublicKey(
-      publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, PublicKey] =
+      publicKey: PublicKey
+  ): ValidatedNel[ZoneResponse.Error, PublicKey] =
     Try(
       KeyFactory
         .getInstance("RSA")
         .generatePublic(new X509EncodedKeySpec(publicKey.value.toByteArray))
-        .asInstanceOf[RSAPublicKey]) match {
+        .asInstanceOf[RSAPublicKey]
+    ) match {
       case Failure(_: InvalidKeySpecException) =>
         Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
       case Failure(_) =>
@@ -639,8 +691,9 @@ object ZoneValidatorActor {
         Validated.valid(publicKey)
     }
 
-  private[this] def validatePublicKeys(publicKeys: Set[PublicKey])
-    : ValidatedNel[ZoneResponse.Error, Set[PublicKey]] = {
+  private[this] def validatePublicKeys(
+      publicKeys: Set[PublicKey]
+  ): ValidatedNel[ZoneResponse.Error, Set[PublicKey]] = {
     if (publicKeys.isEmpty)
       Validated.invalidNel(ZoneResponse.Error.noPublicKeys)
     else
@@ -648,13 +701,17 @@ object ZoneValidatorActor {
         .map(validatePublicKey)
         .foldLeft(Set.empty[PublicKey].valid[NonEmptyList[ZoneResponse.Error]])(
           (validatedPublicKeys, validatedPublicKey) =>
-            validatedPublicKeys.combine(validatedPublicKey.map(Set(_))))
+            validatedPublicKeys.combine(validatedPublicKey.map(Set(_)))
+        )
   }
 
-  private[this] def validateMemberIds(zone: Zone, memberIds: Set[MemberId])
-    : ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
+  private[this] def validateMemberIds(
+      zone: Zone,
+      memberIds: Set[MemberId]
+  ): ValidatedNel[ZoneResponse.Error, Set[MemberId]] = {
     def validateMemberId(
-        memberId: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
+        memberId: MemberId
+    ): ValidatedNel[ZoneResponse.Error, MemberId] =
       if (!zone.members.contains(memberId))
         Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist(memberId))
       else
@@ -665,13 +722,15 @@ object ZoneValidatorActor {
         .map(validateMemberId)
         .foldLeft(Set.empty[MemberId].valid[NonEmptyList[ZoneResponse.Error]])(
           (validatedMemberIds, validatedMemberId) =>
-            validatedMemberIds.combine(validatedMemberId.map(Set(_))))
+            validatedMemberIds.combine(validatedMemberId.map(Set(_)))
+        )
   }
 
   private[this] def validateCanUpdateMember(
       zone: Zone,
       memberId: MemberId,
-      publicKey: PublicKey): ValidatedNel[ZoneResponse.Error, Unit] =
+      publicKey: PublicKey
+  ): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.members.get(memberId) match {
       case None =>
         Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
@@ -685,7 +744,8 @@ object ZoneValidatorActor {
       zone: Zone,
       publicKey: PublicKey,
       actingAs: MemberId,
-      accountId: AccountId): ValidatedNel[ZoneResponse.Error, Unit] =
+      accountId: AccountId
+  ): ValidatedNel[ZoneResponse.Error, Unit] =
     zone.accounts.get(accountId) match {
       case None =>
         Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)
@@ -703,7 +763,8 @@ object ZoneValidatorActor {
   private[this] def validateFromAccount(
       zone: Zone,
       actingAs: MemberId,
-      accountId: AccountId): ValidatedNel[ZoneResponse.Error, AccountId] =
+      accountId: AccountId
+  ): ValidatedNel[ZoneResponse.Error, AccountId] =
     zone.accounts.get(accountId) match {
       case None =>
         Validated.invalidNel(ZoneResponse.Error.sourceAccountDoesNotExist)
@@ -716,7 +777,8 @@ object ZoneValidatorActor {
   private[this] def validateToAccount(
       zone: Zone,
       from: AccountId,
-      accountId: AccountId): ValidatedNel[ZoneResponse.Error, AccountId] =
+      accountId: AccountId
+  ): ValidatedNel[ZoneResponse.Error, AccountId] =
     zone.accounts.get(accountId) match {
       case None =>
         Validated.invalidNel(ZoneResponse.Error.destinationAccountDoesNotExist)
@@ -729,7 +791,8 @@ object ZoneValidatorActor {
   private[this] def validateActingAs(
       zone: Zone,
       publicKey: PublicKey,
-      actingAs: MemberId): ValidatedNel[ZoneResponse.Error, MemberId] =
+      actingAs: MemberId
+  ): ValidatedNel[ZoneResponse.Error, MemberId] =
     zone.members(actingAs) match {
       case member if !member.ownerPublicKeys.contains(publicKey) =>
         Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
@@ -741,8 +804,8 @@ object ZoneValidatorActor {
       from: AccountId,
       value: BigDecimal,
       zone: Zone,
-      balances: Map[AccountId, BigDecimal])
-    : ValidatedNel[ZoneResponse.Error, BigDecimal] =
+      balances: Map[AccountId, BigDecimal]
+  ): ValidatedNel[ZoneResponse.Error, BigDecimal] =
     (if (value.compare(0) == -1)
        Validated.invalidNel(ZoneResponse.Error.negativeTransactionValue)
      else Validated.valid(value)).andThen(
@@ -754,7 +817,8 @@ object ZoneValidatorActor {
     )
 
   private[this] def validateTag(
-      tag: Option[String]): ValidatedNel[ZoneResponse.Error, Option[String]] =
+      tag: Option[String]
+  ): ValidatedNel[ZoneResponse.Error, Option[String]] =
     tag.map(_.length) match {
       case Some(tagLength) if tagLength > ZoneCommand.MaximumTagLength =>
         Validated.invalidNel(ZoneResponse.Error.tagLengthExceeded)
@@ -763,9 +827,10 @@ object ZoneValidatorActor {
     }
 
   private[this] def validateMetadata(
-      metadata: Option[com.google.protobuf.struct.Struct])
-    : ValidatedNel[ZoneResponse.Error,
-                   Option[com.google.protobuf.struct.Struct]] =
+      metadata: Option[com.google.protobuf.struct.Struct]
+  ): ValidatedNel[ZoneResponse.Error, Option[
+    com.google.protobuf.struct.Struct
+  ]] =
     metadata.map(_.toByteArray.length) match {
       case Some(metadataSize)
           if metadataSize > ZoneCommand.MaximumMetadataSize =>
@@ -779,7 +844,8 @@ object ZoneValidatorActor {
       id: ZoneId,
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
       zoneCommandEnvelope: ZoneCommandEnvelope,
-      event: ZoneEvent): Effect[ZoneEventEnvelope, ZoneState] =
+      event: ZoneEvent
+  ): Effect[ZoneEventEnvelope, ZoneState] =
     Effect
       .persist[ZoneEventEnvelope, ZoneState](
         ZoneEventEnvelope(
@@ -787,7 +853,8 @@ object ZoneValidatorActor {
           Some(zoneCommandEnvelope.publicKey),
           timestamp = Instant.now(),
           event
-        ))
+        )
+      )
       .thenRun { state =>
         (event match {
           case ZoneEvent.Empty =>
@@ -833,14 +900,22 @@ object ZoneValidatorActor {
             None
 
           case ClientJoinedEvent(maybeActorRefString) =>
-            maybeActorRefString.map(actorRefString =>
-              ClientJoinedNotification(connectionId = actorRefString,
-                                       zoneCommandEnvelope.publicKey))
+            maybeActorRefString.map(
+              actorRefString =>
+                ClientJoinedNotification(
+                  connectionId = actorRefString,
+                  zoneCommandEnvelope.publicKey
+                )
+            )
 
           case ClientQuitEvent(maybeActorRefString) =>
-            maybeActorRefString.map(actorRefString =>
-              ClientQuitNotification(connectionId = actorRefString,
-                                     zoneCommandEnvelope.publicKey))
+            maybeActorRefString.map(
+              actorRefString =>
+                ClientQuitNotification(
+                  connectionId = actorRefString,
+                  zoneCommandEnvelope.publicKey
+                )
+            )
 
           case ZoneNameChangedEvent(name) =>
             Some(ZoneNameChangedNotification(name))
@@ -856,7 +931,8 @@ object ZoneValidatorActor {
 
           case AccountUpdatedEvent(None, account) =>
             Some(
-              AccountUpdatedNotification(account.ownerMemberIds.head, account))
+              AccountUpdatedNotification(account.ownerMemberIds.head, account)
+            )
 
           case AccountUpdatedEvent(Some(actingAs), account) =>
             Some(AccountUpdatedNotification(actingAs, account))
@@ -876,7 +952,8 @@ object ZoneValidatorActor {
 
   private[this] def deliverResponse(
       clientConnection: ActorRef[ZoneResponseEnvelope],
-      response: ZoneResponse): Unit =
+      response: ZoneResponse
+  ): Unit =
     clientConnection ! ZoneResponseEnvelope(response)
 
   private[this] def deliverNotification(
@@ -884,22 +961,26 @@ object ZoneValidatorActor {
       id: ZoneId,
       clientConnections: Iterable[ActorRef[ZoneNotificationEnvelope]],
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
-      notification: ZoneNotification): Unit =
+      notification: ZoneNotification
+  ): Unit =
     clientConnections.foreach { clientConnection =>
       val sequenceNumber = notificationSequenceNumbers(clientConnection)
-      clientConnection ! ZoneNotificationEnvelope(self,
-                                                  id,
-                                                  sequenceNumber,
-                                                  notification)
+      clientConnection ! ZoneNotificationEnvelope(
+        self,
+        id,
+        sequenceNumber,
+        notification
+      )
       val nextSequenceNumber = sequenceNumber + 1
       notificationSequenceNumbers += clientConnection -> nextSequenceNumber
     }
 
   private[this] def eventHandler(
       notificationSequenceNumbers: mutable.Map[ActorRef[Nothing], Long],
-      context: ActorContext[ZoneValidatorMessage])(state: ZoneState,
-                                                   event: ZoneEventEnvelope)(
-      implicit resolver: ActorRefResolver): ZoneState =
+      context: ActorContext[ZoneValidatorMessage]
+  )(state: ZoneState, event: ZoneEventEnvelope)(
+      implicit resolver: ActorRefResolver
+  ): ZoneState =
     event.zoneEvent match {
       case ZoneEvent.Empty =>
         state
@@ -952,7 +1033,8 @@ object ZoneValidatorActor {
           zone = state.zone.map(
             _.copy(
               name = name
-            ))
+            )
+          )
         )
 
       case MemberCreatedEvent(member) =>
@@ -962,7 +1044,8 @@ object ZoneValidatorActor {
               members = state.zone
                 .map(_.members)
                 .getOrElse(Map.empty) + (member.id -> member)
-            ))
+            )
+          )
         )
 
       case MemberUpdatedEvent(member) =>
@@ -972,7 +1055,8 @@ object ZoneValidatorActor {
               members = state.zone
                 .map(_.members)
                 .getOrElse(Map.empty) + (member.id -> member)
-            ))
+            )
+          )
         )
 
       case AccountCreatedEvent(account) =>
@@ -982,7 +1066,8 @@ object ZoneValidatorActor {
               accounts = state.zone
                 .map(_.accounts)
                 .getOrElse(Map.empty) + (account.id -> account)
-            )),
+            )
+          ),
           balances = state.balances + (account.id -> BigDecimal(0))
         )
 
@@ -993,7 +1078,8 @@ object ZoneValidatorActor {
               accounts = state.zone
                 .map(_.accounts)
                 .getOrElse(Map.empty) + (account.id -> account)
-            ))
+            )
+          )
         )
 
       case TransactionAddedEvent(transaction) =>
@@ -1008,7 +1094,8 @@ object ZoneValidatorActor {
               transactions = state.zone
                 .map(_.transactions)
                 .getOrElse(Map.empty) + (transaction.id -> transaction)
-            ))
+            )
+          )
         )
     }
 

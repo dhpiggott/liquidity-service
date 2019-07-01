@@ -15,7 +15,8 @@ class ClientConnectionMessageSerializer(system: ExtendedActorSystem)
       protoBindings = Seq(
         AnyRefProtoBinding[
           ZoneNotificationEnvelope,
-          proto.actor.protocol.clientconnection.ZoneNotificationEnvelope]
+          proto.actor.protocol.clientconnection.ZoneNotificationEnvelope
+        ]
       ),
       identifier = 1909424086
     )

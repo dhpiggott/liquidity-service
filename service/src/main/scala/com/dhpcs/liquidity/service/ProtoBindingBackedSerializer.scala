@@ -19,25 +19,29 @@ import scala.util.{Failure, Success}
 abstract class ProtoBindingBackedSerializer(
     system: ExtendedActorSystem,
     protoBindings: Seq[AnyRefProtoBinding[_, _]],
-    override val identifier: Int)
-    extends SerializerWithStringManifest {
+    override val identifier: Int
+) extends SerializerWithStringManifest {
 
   private[this] val resolver = ActorRefResolver(system.toTyped)
 
   private[this] val scalaClassToProtoBinding
-    : Map[Class[_], AnyRefProtoBinding[_, _]] = {
+      : Map[Class[_], AnyRefProtoBinding[_, _]] = {
     val scalaClasses = protoBindings.map(_.scalaClassTag.runtimeClass)
-    require(scalaClasses == scalaClasses.distinct,
-            "Duplicate Scala classes: " + scalaClasses.mkString(", "))
+    require(
+      scalaClasses == scalaClasses.distinct,
+      "Duplicate Scala classes: " + scalaClasses.mkString(", ")
+    )
     (for (protoBinding <- protoBindings)
       yield protoBinding.scalaClassTag.runtimeClass -> protoBinding).toMap
   }
 
   private[this] val protoClassToProtoBinding
-    : Map[Class[_], AnyRefProtoBinding[_, _]] = {
+      : Map[Class[_], AnyRefProtoBinding[_, _]] = {
     val protoClasses = protoBindings.map(_.protoClassTag.runtimeClass)
-    require(protoClasses == protoClasses.distinct,
-            "Duplicate Proto classes: " + protoClasses.mkString(", "))
+    require(
+      protoClasses == protoClasses.distinct,
+      "Duplicate Proto classes: " + protoClasses.mkString(", ")
+    )
     (for (protoBinding <- protoBindings)
       yield protoBinding.protoClassTag.runtimeClass -> protoBinding).toMap
   }
@@ -48,9 +52,12 @@ abstract class ProtoBindingBackedSerializer(
 
   override def manifest(o: AnyRef): String =
     scalaClassToProtoBinding
-      .getOrElse(o.getClass,
-                 throw new IllegalArgumentException(
-                   s"No ProtoBinding registered for [${o.getClass}]"))
+      .getOrElse(
+        o.getClass,
+        throw new IllegalArgumentException(
+          s"No ProtoBinding registered for [${o.getClass}]"
+        )
+      )
       .protoClassTag
       .runtimeClass
       .getName
@@ -58,27 +65,34 @@ abstract class ProtoBindingBackedSerializer(
   override def toBinary(o: AnyRef): Array[Byte] =
     protobufSerializer.toBinary(
       scalaClassToProtoBinding
-        .getOrElse(o.getClass,
-                   throw new IllegalArgumentException(
-                     s"No ProtoBinding registered for [${o.getClass}]"))
+        .getOrElse(
+          o.getClass,
+          throw new IllegalArgumentException(
+            s"No ProtoBinding registered for [${o.getClass}]"
+          )
+        )
         .anyRefScalaAsAnyRefProto(o)(resolver)
     )
 
   override def fromBinary(bytes: Array[Byte], manifest: String): AnyRef = {
-    @tailrec def updateCache(cache: Map[String, Class[_]],
-                             key: String,
-                             value: Class[_]): Boolean =
+    @tailrec def updateCache(
+        cache: Map[String, Class[_]],
+        key: String,
+        value: Class[_]
+    ): Boolean =
       manifestCache.compareAndSet(cache, cache.updated(key, value)) || updateCache(
         manifestCache.get,
         key,
-        value)
+        value
+      )
     val cache = manifestCache.get
     val protoClass = cache.get(manifest) match {
       case None =>
         system.dynamicAccess.getClassFor[AnyRef](manifest) match {
           case Failure(_) =>
             throw new NotSerializableException(
-              s"Cannot find manifest class [$manifest].")
+              s"Cannot find manifest class [$manifest]."
+            )
           case Success(loadedProtoClass) =>
             updateCache(cache, manifest, loadedProtoClass)
             loadedProtoClass
@@ -87,9 +101,12 @@ abstract class ProtoBindingBackedSerializer(
         cachedProtoClass
     }
     protoClassToProtoBinding
-      .getOrElse(protoClass,
-                 throw new IllegalArgumentException(
-                   s"No ProtoBinding registered for [$protoClass]"))
+      .getOrElse(
+        protoClass,
+        throw new IllegalArgumentException(
+          s"No ProtoBinding registered for [$protoClass]"
+        )
+      )
       .anyRefProtoAsAnyRefScala(
         protobufSerializer.fromBinary(bytes, Some(protoClass))
       )(resolver)
@@ -99,22 +116,26 @@ abstract class ProtoBindingBackedSerializer(
 object ProtoBindingBackedSerializer {
 
   object AnyRefProtoBinding {
-    def apply[S, P](implicit scalaClassTag: ClassTag[S],
-                    protoClassTag: ClassTag[P],
-                    protoBinding: ProtoBinding[S, P, ActorRefResolver])
-      : AnyRefProtoBinding[S, P] =
+    def apply[S, P](
+        implicit scalaClassTag: ClassTag[S],
+        protoClassTag: ClassTag[P],
+        protoBinding: ProtoBinding[S, P, ActorRefResolver]
+    ): AnyRefProtoBinding[S, P] =
       new AnyRefProtoBinding(scalaClassTag, protoClassTag, protoBinding)
   }
 
   class AnyRefProtoBinding[S, P](
       val scalaClassTag: ClassTag[S],
       val protoClassTag: ClassTag[P],
-      protoBinding: ProtoBinding[S, P, ActorRefResolver]) {
-    def anyRefScalaAsAnyRefProto(s: AnyRef)(
-        implicit resolver: ActorRefResolver): AnyRef =
+      protoBinding: ProtoBinding[S, P, ActorRefResolver]
+  ) {
+    def anyRefScalaAsAnyRefProto(
+        s: AnyRef
+    )(implicit resolver: ActorRefResolver): AnyRef =
       protoBinding.asProto(s.asInstanceOf[S])(resolver).asInstanceOf[AnyRef]
-    def anyRefProtoAsAnyRefScala(p: AnyRef)(
-        implicit resolver: ActorRefResolver): AnyRef =
+    def anyRefProtoAsAnyRefScala(
+        p: AnyRef
+    )(implicit resolver: ActorRefResolver): AnyRef =
       protoBinding.asScala(p.asInstanceOf[P]).asInstanceOf[AnyRef]
   }
 }

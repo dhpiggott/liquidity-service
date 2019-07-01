@@ -16,7 +16,8 @@ lazy val `ws-protocol` = project
     description := "Virtual currencies for Monopoly and other board and " +
       "tabletop games.",
     licenses += "Apache-2.0" -> url(
-      "https://www.apache.org/licenses/LICENSE-2.0.txt"),
+      "https://www.apache.org/licenses/LICENSE-2.0.txt"
+    ),
     organization := "com.dhpcs",
     organizationHomepage := Some(url("https://www.dhpcs.com/")),
     organizationName := "dhpcs",
@@ -111,23 +112,27 @@ lazy val service = project
     ),
     dependencyOverrides += "com.zaxxer" % "HikariCP" % "2.7.8"
   )
-  .settings(libraryDependencies ++= Seq(
-    "com.h2database" % "h2" % "1.4.199" % Test,
-    "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.23" % Test,
-    "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.15.2" % Test,
-    "org.scalatest" %% "scalatest" % "3.0.8" % Test,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8" % Test,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.23" % Test
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.h2database" % "h2" % "1.4.199" % Test,
+      "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.5.23" % Test,
+      "com.github.dnvriend" %% "akka-persistence-inmemory" % "2.5.15.2" % Test,
+      "org.scalatest" %% "scalatest" % "3.0.8" % Test,
+      "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8" % Test,
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.23" % Test
+    )
+  )
   .configs(IntegrationTest)
   .settings(Defaults.itSettings)
   .settings(inConfig(IntegrationTest)(ScalafmtPlugin.scalafmtConfigSettings))
   .settings(IntegrationTest / logBuffered := false)
-  .settings(libraryDependencies ++= Seq(
-    "org.scalatest" %% "scalatest" % "3.0.8" % IntegrationTest,
-    "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8" % IntegrationTest,
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.23" % IntegrationTest
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.8" % IntegrationTest,
+      "com.typesafe.akka" %% "akka-http-testkit" % "10.1.8" % IntegrationTest,
+      "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.23" % IntegrationTest
+    )
+  )
   .enablePlugins(
     BuildInfoPlugin,
     JavaAppPackaging,

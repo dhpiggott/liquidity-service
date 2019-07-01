@@ -28,33 +28,39 @@ object ZoneAnalyticsActor {
   sealed abstract class ZoneAnalyticsMessage
   case object StopZoneAnalytics extends ZoneAnalyticsMessage
 
-  def singletonBehavior(readJournal: ReadJournal with EventsByTagQuery,
-                        analyticsTransactor: Transactor[Task],
-                        runtime: Runtime[Any])(
-      implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
+  def singletonBehavior(
+      readJournal: ReadJournal with EventsByTagQuery,
+      analyticsTransactor: Transactor[Task],
+      runtime: Runtime[Any]
+  )(implicit mat: Materializer): Behavior[ZoneAnalyticsMessage] =
     Behaviors.setup { context =>
       val killSwitch = RestartSource
-        .onFailuresWithBackoff(minBackoff = 3.seconds,
-                               maxBackoff = 30.seconds,
-                               randomFactor = 0.2)(
+        .onFailuresWithBackoff(
+          minBackoff = 3.seconds,
+          maxBackoff = 30.seconds,
+          randomFactor = 0.2
+        )(
           () =>
             Source
-              .fromFuture(runtime.unsafeRunToFuture(
-                (for {
-                  maybePreviousOffset <- TagOffsetsStore.retrieve(
-                    EventTags.ZoneEventTag)
-                  previousOffset <- maybePreviousOffset match {
-                    case None =>
-                      val firstOffset = Sequence(0)
-                      for (_ <- TagOffsetsStore.insert(EventTags.ZoneEventTag,
-                                                       firstOffset))
-                        yield firstOffset
-                    case Some(previousOffset) =>
-                      previousOffset.pure[ConnectionIO]
-                  }
-                } yield previousOffset)
-                  .transact(analyticsTransactor)
-              ))
+              .fromFuture(
+                runtime.unsafeRunToFuture(
+                  (for {
+                    maybePreviousOffset <- TagOffsetsStore.retrieve(
+                      EventTags.ZoneEventTag
+                    )
+                    previousOffset <- maybePreviousOffset match {
+                      case None =>
+                        val firstOffset = Sequence(0)
+                        for (_ <- TagOffsetsStore
+                               .insert(EventTags.ZoneEventTag, firstOffset))
+                          yield firstOffset
+                      case Some(previousOffset) =>
+                        previousOffset.pure[ConnectionIO]
+                    }
+                  } yield previousOffset)
+                    .transact(analyticsTransactor)
+                )
+              )
               .flatMapConcat(readJournal.eventsByTag(EventTags.ZoneEventTag, _))
               .mapAsync(1) { eventEnvelope =>
                 val zoneId =
@@ -64,18 +70,19 @@ object ZoneAnalyticsActor {
                 val eventOffset = eventEnvelope.offset.asInstanceOf[Sequence]
                 runtime.unsafeRunToFuture((for {
                   _ <- projectEvent(zoneId, zoneEventEnvelope)
-                  _ <- TagOffsetsStore.update(EventTags.ZoneEventTag,
-                                              eventOffset)
-                } yield eventOffset)
-                  .transact(analyticsTransactor))
+                  _ <- TagOffsetsStore
+                    .update(EventTags.ZoneEventTag, eventOffset)
+                } yield eventOffset).transact(analyticsTransactor))
               }
               .zipWithIndex
               .groupedWithin(n = 1000, d = 30.seconds)
               .map { group =>
                 val (offset, index) = group.last
-                context.log.info(s"Projected ${group.size} zone events " +
-                  s"(total: ${index + 1}, offset: ${offset.value})")
-            }
+                context.log.info(
+                  s"Projected ${group.size} zone events " +
+                    s"(total: ${index + 1}, offset: ${offset.value})"
+                )
+              }
         )
         .viaMat(KillSwitches.single)(Keep.right)
         .to(Sink.ignore)
@@ -94,7 +101,8 @@ object ZoneAnalyticsActor {
 
   private[this] def projectEvent(
       zoneId: ZoneId,
-      zoneEventEnvelope: ZoneEventEnvelope): ConnectionIO[Unit] =
+      zoneEventEnvelope: ZoneEventEnvelope
+  ): ConnectionIO[Unit] =
     for {
       _ <- zoneEventEnvelope.zoneEvent match {
         case ZoneEvent.Empty =>
@@ -104,11 +112,13 @@ object ZoneAnalyticsActor {
           ZoneStore.insert(zone)
 
         case ClientJoinedEvent(maybeActorRef) =>
-          ClientSessionsStore.insert(zoneId,
-                                     zoneEventEnvelope.remoteAddress,
-                                     maybeActorRef,
-                                     zoneEventEnvelope.publicKey,
-                                     joined = zoneEventEnvelope.timestamp)
+          ClientSessionsStore.insert(
+            zoneId,
+            zoneEventEnvelope.remoteAddress,
+            maybeActorRef,
+            zoneEventEnvelope.publicKey,
+            joined = zoneEventEnvelope.timestamp
+          )
 
         case ClientQuitEvent(maybeActorRef) =>
           maybeActorRef match {
@@ -117,54 +127,74 @@ object ZoneAnalyticsActor {
 
             case Some(actorRef) =>
               for {
-                previousSessionId <- ClientSessionsStore.retrieve(zoneId,
-                                                                  actorRef)
-                _ <- ClientSessionsStore.update(previousSessionId,
-                                                quit =
-                                                  zoneEventEnvelope.timestamp)
+                previousSessionId <- ClientSessionsStore.retrieve(
+                  zoneId,
+                  actorRef
+                )
+                _ <- ClientSessionsStore.update(
+                  previousSessionId,
+                  quit = zoneEventEnvelope.timestamp
+                )
               } yield ()
           }
 
         case ZoneNameChangedEvent(name) =>
-          ZoneNameChangeStore.insert(zoneId,
-                                     name,
-                                     changed = zoneEventEnvelope.timestamp)
+          ZoneNameChangeStore.insert(
+            zoneId,
+            name,
+            changed = zoneEventEnvelope.timestamp
+          )
 
         case MemberCreatedEvent(member) =>
-          MembersStore.insert(zoneId,
-                              member,
-                              created = zoneEventEnvelope.timestamp)
+          MembersStore.insert(
+            zoneId,
+            member,
+            created = zoneEventEnvelope.timestamp
+          )
 
         case MemberUpdatedEvent(member) =>
-          MemberUpdatesStore.insert(zoneId,
-                                    member,
-                                    updated = zoneEventEnvelope.timestamp)
+          MemberUpdatesStore.insert(
+            zoneId,
+            member,
+            updated = zoneEventEnvelope.timestamp
+          )
 
         case AccountCreatedEvent(account) =>
-          AccountsStore.insert(zoneId,
-                               account,
-                               created = zoneEventEnvelope.timestamp,
-                               balance = BigDecimal(0))
+          AccountsStore.insert(
+            zoneId,
+            account,
+            created = zoneEventEnvelope.timestamp,
+            balance = BigDecimal(0)
+          )
 
         case AccountUpdatedEvent(_, account) =>
-          AccountUpdatesStore.insert(zoneId,
-                                     account,
-                                     updated = zoneEventEnvelope.timestamp)
+          AccountUpdatesStore.insert(
+            zoneId,
+            account,
+            updated = zoneEventEnvelope.timestamp
+          )
 
         case TransactionAddedEvent(transaction) =>
           for {
             _ <- TransactionsStore.insert(zoneId, transaction)
-            sourceBalance <- AccountsStore.retrieveBalance(zoneId,
-                                                           transaction.from)
-            _ <- AccountsStore.updateBalance(zoneId,
-                                             transaction.from,
-                                             sourceBalance - transaction.value)
-            destinationBalance <- AccountsStore.retrieveBalance(zoneId,
-                                                                transaction.to)
+            sourceBalance <- AccountsStore.retrieveBalance(
+              zoneId,
+              transaction.from
+            )
+            _ <- AccountsStore.updateBalance(
+              zoneId,
+              transaction.from,
+              sourceBalance - transaction.value
+            )
+            destinationBalance <- AccountsStore.retrieveBalance(
+              zoneId,
+              transaction.to
+            )
             _ <- AccountsStore.updateBalance(
               zoneId,
               transaction.to,
-              destinationBalance + transaction.value)
+              destinationBalance + transaction.value
+            )
           } yield ()
       }
       _ <- ZoneStore.update(zoneId, modified = zoneEventEnvelope.timestamp)
@@ -224,9 +254,11 @@ object ZoneAnalyticsActor {
 
   object ZoneNameChangeStore {
 
-    def insert(zoneId: ZoneId,
-               name: Option[String],
-               changed: Instant): ConnectionIO[Unit] =
+    def insert(
+        zoneId: ZoneId,
+        name: Option[String],
+        changed: Instant
+    ): ConnectionIO[Unit] =
       for (_ <- sql"""
              INSERT INTO zone_name_changes (zone_id, name, changed)
                VALUES ($zoneId, $name, $changed)
@@ -237,9 +269,11 @@ object ZoneAnalyticsActor {
 
   object MembersStore {
 
-    def insert(zoneId: ZoneId,
-               member: Member,
-               created: Instant): ConnectionIO[Unit] =
+    def insert(
+        zoneId: ZoneId,
+        member: Member,
+        created: Instant
+    ): ConnectionIO[Unit] =
       for {
         _ <- sql"""
                INSERT INTO members (zone_id, member_id, created)
@@ -252,9 +286,11 @@ object ZoneAnalyticsActor {
 
   object MemberUpdatesStore {
 
-    def insert(zoneId: ZoneId,
-               member: Member,
-               updated: Instant): ConnectionIO[Unit] =
+    def insert(
+        zoneId: ZoneId,
+        member: Member,
+        updated: Instant
+    ): ConnectionIO[Unit] =
       for {
         updateId <- sql"""
                INSERT INTO member_updates (zone_id, member_id, updated, name, metadata)
@@ -269,9 +305,11 @@ object ZoneAnalyticsActor {
 
     object MemberOwnersStore {
 
-      def insert(updateId: Long,
-                 updated: Instant,
-                 publicKey: PublicKey): ConnectionIO[Unit] =
+      def insert(
+          updateId: Long,
+          updated: Instant,
+          publicKey: PublicKey
+      ): ConnectionIO[Unit] =
         for {
           _ <- DevicesStore.upsert(publicKey, updated)
           _ <- sql"""
@@ -285,10 +323,12 @@ object ZoneAnalyticsActor {
 
   object AccountsStore {
 
-    def insert(zoneId: ZoneId,
-               account: Account,
-               created: Instant,
-               balance: BigDecimal): ConnectionIO[Unit] =
+    def insert(
+        zoneId: ZoneId,
+        account: Account,
+        created: Instant,
+        balance: BigDecimal
+    ): ConnectionIO[Unit] =
       for {
         _ <- sql"""
                INSERT INTO accounts (zone_id, account_id, created, balance)
@@ -297,8 +337,10 @@ object ZoneAnalyticsActor {
         _ <- AccountUpdatesStore.insert(zoneId, account, created)
       } yield ()
 
-    def retrieveBalance(zoneId: ZoneId,
-                        accountId: AccountId): ConnectionIO[BigDecimal] =
+    def retrieveBalance(
+        zoneId: ZoneId,
+        accountId: AccountId
+    ): ConnectionIO[BigDecimal] =
       sql"""
            SELECT balance FROM accounts
              WHERE zone_id = $zoneId AND account_id = $accountId
@@ -306,9 +348,11 @@ object ZoneAnalyticsActor {
         .query[BigDecimal]
         .unique
 
-    def updateBalance(zoneId: ZoneId,
-                      accountId: AccountId,
-                      balance: BigDecimal): ConnectionIO[Unit] =
+    def updateBalance(
+        zoneId: ZoneId,
+        accountId: AccountId,
+        balance: BigDecimal
+    ): ConnectionIO[Unit] =
       for (_ <- sql"""
              UPDATE accounts
                SET balance = $balance
@@ -320,9 +364,11 @@ object ZoneAnalyticsActor {
 
   object AccountUpdatesStore {
 
-    def insert(zoneId: ZoneId,
-               account: Account,
-               updated: Instant): ConnectionIO[Unit] =
+    def insert(
+        zoneId: ZoneId,
+        account: Account,
+        updated: Instant
+    ): ConnectionIO[Unit] =
       for {
         updateId <- sql"""
                INSERT INTO account_updates (zone_id, account_id, updated, name, metadata)
@@ -359,11 +405,13 @@ object ZoneAnalyticsActor {
 
   object ClientSessionsStore {
 
-    def insert(zoneId: ZoneId,
-               remoteAddress: Option[InetAddress],
-               actorRef: Option[String],
-               publicKey: Option[PublicKey],
-               joined: Instant): ConnectionIO[Unit] =
+    def insert(
+        zoneId: ZoneId,
+        remoteAddress: Option[InetAddress],
+        actorRef: Option[String],
+        publicKey: Option[PublicKey],
+        joined: Instant
+    ): ConnectionIO[Unit] =
       for {
         _ <- publicKey.fold(().pure[ConnectionIO])(
           DevicesStore.upsert(_, joined)
@@ -371,7 +419,8 @@ object ZoneAnalyticsActor {
         _ <- sql"""
            INSERT INTO client_sessions (zone_id, remote_address, actor_ref, fingerprint, joined)
              VALUES ($zoneId, $remoteAddress, $actorRef, ${publicKey.map(
-          _.fingerprint)}, $joined)
+          _.fingerprint
+        )}, $joined)
           """.update.run
       } yield ()
 

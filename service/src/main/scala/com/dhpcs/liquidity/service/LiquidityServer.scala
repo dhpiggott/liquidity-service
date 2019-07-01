@@ -56,8 +56,10 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object LiquidityServer extends App {
 
-  final case class CertBundle(privateKeyPem: ByteString,
-                              fullChainPem: ByteString)
+  final case class CertBundle(
+      privateKeyPem: ByteString,
+      fullChainPem: ByteString
+  )
 
   private final val ZoneHostRole = "zone-host"
   private final val ClientRelayRole = "client-relay"
@@ -65,9 +67,11 @@ object LiquidityServer extends App {
 
   private[this] val log = LoggerFactory.getLogger(getClass)
 
-  def loadHttpCertBundle(uri: Uri)(implicit system: ActorSystem[Nothing],
-                                   mat: Materializer,
-                                   ec: ExecutionContext): Future[CertBundle] =
+  def loadHttpCertBundle(uri: Uri)(
+      implicit system: ActorSystem[Nothing],
+      mat: Materializer,
+      ec: ExecutionContext
+  ): Future[CertBundle] =
     for {
       response <- Http(system.toUntyped).singleRequest(
         HttpRequest(uri = uri)
@@ -150,8 +154,10 @@ object LiquidityServer extends App {
                  |  profile = "slick.jdbc.MySQLProfile$$"
                  |  db {
                  |    driver = "com.mysql.cj.jdbc.Driver"
-                 |    url = "${urlForDatabase(mysqlHostname,
-                                              "liquidity_journal")}"
+                 |    url = "${urlForDatabase(
+                                  mysqlHostname,
+                                  "liquidity_journal"
+                                )}"
                  |    user = "$mysqlUsername"
                  |    password = "$mysqlPassword"
                  |    maxConnections = 2
@@ -182,8 +188,7 @@ object LiquidityServer extends App {
             )
             .allocated
           (transactor, release) = pair
-        } yield
-          Reservation(IO.succeed(transactor), release.orDie)).uninterruptible
+        } yield Reservation(IO.succeed(transactor), release.orDie)).uninterruptible
       )
       _ <- managedAnalyticsTransactor.use { analyticsTransactor =>
         implicit val system: ActorSystem[Guardian.CreateClientConnection] =
@@ -204,11 +209,12 @@ object LiquidityServer extends App {
           )
         CoordinatedShutdown(system.toUntyped).addTask(
           CoordinatedShutdown.PhaseClusterExitingDone,
-          "akkaManagementStop")(
+          "akkaManagementStop"
+        )(
           () =>
             akkaManagementHttpBinding.flatMap(
               _.terminate(5.seconds).map(_ => Done)
-          )
+            )
         )
         ClusterBootstrap(system.toUntyped).start()
         val server = new LiquidityServer(
@@ -218,13 +224,11 @@ object LiquidityServer extends App {
         )
         val loadCertBundle = maybeSubdomain match {
           case None =>
-            () =>
-              loadHttpCertBundle(Uri("http://certgen/certbundle.zip"))
+            () => loadHttpCertBundle(Uri("http://certgen/certbundle.zip"))
 
           case Some(subdomain) =>
             val region = sys.env("AWS_REGION")
-            () =>
-              loadS3CertBundle(subdomain, region)
+            () => loadS3CertBundle(subdomain, region)
         }
         val (killSwitch, binding) =
           pollCertBundle(loadCertBundle, 12.hours)
@@ -256,7 +260,8 @@ object LiquidityServer extends App {
             .run()
         CoordinatedShutdown(system.toUntyped).addTask(
           CoordinatedShutdown.PhaseServiceUnbind,
-          "liquidityServerUnbind") { () =>
+          "liquidityServerUnbind"
+        ) { () =>
           killSwitch.shutdown()
           binding.flatMap(
             _.fold(Future.successful(Done))(
@@ -269,7 +274,8 @@ object LiquidityServer extends App {
     } yield ()
     server.foldM(
       err => putStrLn(s"Execution failed with: $err") *> IO.succeed(1),
-      _ => IO.succeed(0))
+      _ => IO.succeed(0)
+    )
   }
 
   private[this] def urlForDatabase(hostname: String, database: String): String =
@@ -300,9 +306,10 @@ object LiquidityServer extends App {
 
   }
 
-  private[this] def loadS3CertBundle(subdomain: String, region: String)(
-      implicit mat: Materializer,
-      ec: ExecutionContext): Future[CertBundle] =
+  private[this] def loadS3CertBundle(
+      subdomain: String,
+      region: String
+  )(implicit mat: Materializer, ec: ExecutionContext): Future[CertBundle] =
     for {
       dataAndMetadata <- S3
         .download(
@@ -313,7 +320,8 @@ object LiquidityServer extends App {
       zipBytesSource <- dataAndMetadata match {
         case None =>
           Future.failed(
-            new IllegalArgumentException("certbundle.zip not found"))
+            new IllegalArgumentException("certbundle.zip not found")
+          )
 
         case Some((data, _)) =>
           Future.successful(data)
@@ -321,20 +329,23 @@ object LiquidityServer extends App {
       certbundle <- readCertBundle(zipBytesSource)
     } yield certbundle
 
-  private[this] def readCertBundle(zipBytesSource: Source[ByteString, Any])(
-      implicit mat: Materializer,
-      ec: ExecutionContext): Future[CertBundle] = {
-    @tailrec def unzip(zip: ZipInputStream,
-                       buffer: Array[Byte] = new Array[Byte](4096),
-                       entries: Map[String, ByteString] = Map.empty)
-      : Map[String, ByteString] = {
+  private[this] def readCertBundle(
+      zipBytesSource: Source[ByteString, Any]
+  )(implicit mat: Materializer, ec: ExecutionContext): Future[CertBundle] = {
+    @tailrec def unzip(
+        zip: ZipInputStream,
+        buffer: Array[Byte] = new Array[Byte](4096),
+        entries: Map[String, ByteString] = Map.empty
+    ): Map[String, ByteString] = {
       val entry = zip.getNextEntry
       if (entry == null) {
         entries
       } else {
         @tailrec def readEntry(
             bytes: ByteArrayOutputStream = new ByteArrayOutputStream(
-              buffer.length)): ByteString = {
+              buffer.length
+            )
+        ): ByteString = {
           val read = zip.read(buffer)
           if (read == -1) {
             ByteString(bytes.toByteArray)
@@ -353,16 +364,16 @@ object LiquidityServer extends App {
       zipEntries = unzip(
         new ZipInputStream(new ByteArrayInputStream(zipBytes.toArray))
       )
-    } yield
-      CertBundle(
-        privateKeyPem = zipEntries("privkey.pem"),
-        fullChainPem = zipEntries("fullchain.pem")
-      )
+    } yield CertBundle(
+      privateKeyPem = zipEntries("privkey.pem"),
+      fullChainPem = zipEntries("fullchain.pem")
+    )
   }
 
   private[this] def pollCertBundle(
       loadCertBundle: () => Future[CertBundle],
-      interval: FiniteDuration): Source[CertBundle, NotUsed] = {
+      interval: FiniteDuration
+  ): Source[CertBundle, NotUsed] = {
     Source
       .fromFuture(loadCertBundle())
       .flatMapConcat(
@@ -394,13 +405,17 @@ object LiquidityServer extends App {
                         Seq.empty
                     }
                 )
-          ))
+            )
+      )
   }
 
-  private[this] def bind(handler: HttpRequest => Future[HttpResponse],
-                         certBundle: CertBundle)(
+  private[this] def bind(
+      handler: HttpRequest => Future[HttpResponse],
+      certBundle: CertBundle
+  )(
       implicit system: ActorSystem[Nothing],
-      mat: Materializer): Future[Http.ServerBinding] = {
+      mat: Materializer
+  ): Future[Http.ServerBinding] = {
     val trustManagerFactory = TrustManagerFactory
       .getInstance(TrustManagerFactory.getDefaultAlgorithm)
     trustManagerFactory.init(
@@ -419,7 +434,8 @@ object LiquidityServer extends App {
 
   private[this] def httpsConnectionContext(
       keyManagerFactory: KeyManagerFactory,
-      trustManagerFactory: TrustManagerFactory): HttpsConnectionContext = {
+      trustManagerFactory: TrustManagerFactory
+  ): HttpsConnectionContext = {
     val sslContext = SSLContext.getInstance("TLS")
     sslContext.init(
       keyManagerFactory.getKeyManagers,
@@ -436,7 +452,7 @@ object LiquidityServer extends App {
           "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
           "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384",
           "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-          "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256",
+          "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256"
         )
       ),
       enabledProtocols = Some(
@@ -449,7 +465,8 @@ object LiquidityServer extends App {
   }
 
   private[this] def keyManagerFactory(
-      certBundle: CertBundle): KeyManagerFactory = {
+      certBundle: CertBundle
+  ): KeyManagerFactory = {
     val keyFactory = KeyFactory.getInstance("RSA")
     val privateKey = keyFactory.generatePrivate(
       new PKCS8EncodedKeySpec(
@@ -482,12 +499,16 @@ object LiquidityServer extends App {
   }
 }
 
-class LiquidityServer(analyticsTransactor: Transactor[Task],
-                      runtime: Runtime[Any],
-                      akkaManagement: Route)(
+class LiquidityServer(
+    analyticsTransactor: Transactor[Task],
+    runtime: Runtime[Any],
+    akkaManagement: Route
+)(
     implicit system: ActorSystem[
-      LiquidityServer.Guardian.CreateClientConnection],
-    mat: Materializer) {
+      LiquidityServer.Guardian.CreateClientConnection
+    ],
+    mat: Materializer
+) {
 
   private[this] val readJournal = PersistenceQuery(system.toUntyped)
     .readJournalFor[JdbcReadJournal](JdbcReadJournal.Identifier)
@@ -504,19 +525,23 @@ class LiquidityServer(analyticsTransactor: Transactor[Task],
       ).withStopMessage(
           StopZone
         )
-        .withSettings(ClusterShardingSettings(system).withRole(
-          LiquidityServer.ZoneHostRole))
+        .withSettings(
+          ClusterShardingSettings(system).withRole(LiquidityServer.ZoneHostRole)
+        )
         .withMessageExtractor(ZoneValidatorActor.messageExtractor)
     )
 
   ClusterSingleton(system).init(
     SingletonActor(
-      behavior = ZoneAnalyticsActor.singletonBehavior(readJournal,
-                                                      analyticsTransactor,
-                                                      runtime),
+      behavior = ZoneAnalyticsActor.singletonBehavior(
+        readJournal,
+        analyticsTransactor,
+        runtime
+      ),
       name = "zoneAnalyticsSingleton"
-    ).withSettings(ClusterSingletonSettings(system).withRole(
-        LiquidityServer.AnalyticsRole))
+    ).withSettings(
+        ClusterSingletonSettings(system).withRole(LiquidityServer.AnalyticsRole)
+      )
       .withStopMessage(StopZoneAnalytics)
   )
 
@@ -550,7 +575,8 @@ class LiquidityServer(analyticsTransactor: Transactor[Task],
           zoneId,
           behavior =>
             system.ask(
-              LiquidityServer.Guardian.CreateClientConnection(_, behavior))
+              LiquidityServer.Guardian.CreateClientConnection(_, behavior)
+            )
         )
       },
       runtime

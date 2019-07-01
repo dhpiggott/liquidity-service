@@ -28,7 +28,8 @@ object ClientConnectionActor {
       publicKey: PublicKey,
       zoneId: ZoneId,
       createActor: Behavior[ClientConnectionMessage] => Future[
-        ActorRef[ClientConnectionMessage]]
+        ActorRef[ClientConnectionMessage]
+      ]
   )(implicit mat: Materializer): Source[ZoneNotification, NotUsed] = {
     val (outActor, source) = ActorSource
       .actorRef[ActorSourceMessage](
@@ -52,10 +53,12 @@ object ClientConnectionActor {
           )
         )
       )
-      .flatMapConcat(_ =>
-        source.collect {
-          case ForwardZoneNotification(zoneNotification) => zoneNotification
-      })
+      .flatMapConcat(
+        _ =>
+          source.collect {
+            case ForwardZoneNotification(zoneNotification) => zoneNotification
+          }
+      )
   }
 
   private def zoneNotificationBehavior(
@@ -63,8 +66,8 @@ object ClientConnectionActor {
       remoteAddress: InetAddress,
       publicKey: PublicKey,
       zoneId: ZoneId,
-      zoneNotificationOut: ActorRef[ActorSourceMessage])
-    : Behavior[ClientConnectionMessage] =
+      zoneNotificationOut: ActorRef[ActorSourceMessage]
+  ): Behavior[ClientConnectionMessage] =
     Behaviors.setup { context =>
       context.watchWith(zoneNotificationOut, ConnectionClosed)
       context.log
@@ -72,7 +75,8 @@ object ClientConnectionActor {
           Map(
             "publicKey.fingerprint" -> publicKey.fingerprint,
             "remoteAddress" -> remoteAddress
-          ))
+          )
+        )
         .info("Starting")
       zoneValidatorShardRegion ! ZoneNotificationSubscription(
         context.self,
@@ -96,88 +100,101 @@ object ClientConnectionActor {
       publicKey: PublicKey,
       zoneId: ZoneId,
       zoneNotificationOut: ActorRef[ActorSourceMessage],
-      expectedSequenceNumber: Long): Behavior[ClientConnectionMessage] =
-    Behaviors.receive[ClientConnectionMessage]((context, message) =>
-      message match {
-        case ZoneNotificationEnvelope(zoneValidator,
-                                      _,
-                                      sequenceNumber,
-                                      zoneNotification) =>
-          if (sequenceNumber != expectedSequenceNumber) {
+      expectedSequenceNumber: Long
+  ): Behavior[ClientConnectionMessage] =
+    Behaviors.receive[ClientConnectionMessage](
+      (context, message) =>
+        message match {
+          case ZoneNotificationEnvelope(
+              zoneValidator,
+              _,
+              sequenceNumber,
+              zoneNotification
+              ) =>
+            if (sequenceNumber != expectedSequenceNumber) {
+              context.log
+                .withMdc(
+                  Map(
+                    "publicKey.fingerprint" -> publicKey.fingerprint,
+                    "remoteAddress" -> remoteAddress
+                  )
+                )
+                .info(
+                  "Rejoining due to unexpected sequence number " +
+                    s"($sequenceNumber != $expectedSequenceNumber)"
+                )
+              zoneValidatorShardRegion ! ZoneNotificationSubscription(
+                context.self,
+                zoneId,
+                remoteAddress,
+                publicKey
+              )
+              forwardingZoneNotifications(
+                zoneValidatorShardRegion,
+                remoteAddress,
+                publicKey,
+                zoneId,
+                zoneNotificationOut,
+                expectedSequenceNumber = 0
+              )
+            } else {
+              zoneNotification match {
+                case ZoneStateNotification(None, _) =>
+                  context.log
+                    .withMdc(
+                      Map(
+                        "publicKey.fingerprint" -> publicKey.fingerprint,
+                        "remoteAddress" -> remoteAddress
+                      )
+                    )
+                    .info("Stopping because zone does not exist")
+                  Behaviors.stopped
+
+                case _ =>
+                  zoneNotification match {
+                    case ZoneStateNotification(Some(_), _) =>
+                      context.watchWith(zoneValidator, ZoneTerminated)
+
+                    case _ =>
+                      ()
+                  }
+                  zoneNotificationOut ! ForwardZoneNotification(
+                    zoneNotification
+                  )
+                  forwardingZoneNotifications(
+                    zoneValidatorShardRegion,
+                    remoteAddress,
+                    publicKey,
+                    zoneId,
+                    zoneNotificationOut,
+                    expectedSequenceNumber = sequenceNumber + 1
+                  )
+              }
+            }
+
+          case ConnectionClosed =>
             context.log
               .withMdc(
                 Map(
                   "publicKey.fingerprint" -> publicKey.fingerprint,
                   "remoteAddress" -> remoteAddress
-                ))
-              .info("Rejoining due to unexpected sequence number " +
-                s"($sequenceNumber != $expectedSequenceNumber)")
-            zoneValidatorShardRegion ! ZoneNotificationSubscription(
-              context.self,
-              zoneId,
-              remoteAddress,
-              publicKey
-            )
-            forwardingZoneNotifications(
-              zoneValidatorShardRegion,
-              remoteAddress,
-              publicKey,
-              zoneId,
-              zoneNotificationOut,
-              expectedSequenceNumber = 0
-            )
-          } else {
-            zoneNotification match {
-              case ZoneStateNotification(None, _) =>
-                context.log
-                  .withMdc(
-                    Map(
-                      "publicKey.fingerprint" -> publicKey.fingerprint,
-                      "remoteAddress" -> remoteAddress
-                    ))
-                  .info("Stopping because zone does not exist")
-                Behaviors.stopped
-
-              case _ =>
-                zoneNotification match {
-                  case ZoneStateNotification(Some(_), _) =>
-                    context.watchWith(zoneValidator, ZoneTerminated)
-
-                  case _ =>
-                    ()
-                }
-                zoneNotificationOut ! ForwardZoneNotification(zoneNotification)
-                forwardingZoneNotifications(
-                  zoneValidatorShardRegion,
-                  remoteAddress,
-                  publicKey,
-                  zoneId,
-                  zoneNotificationOut,
-                  expectedSequenceNumber = sequenceNumber + 1
                 )
-            }
-          }
+              )
+              .info("Stopping")
+            Behaviors.stopped
 
-        case ConnectionClosed =>
-          context.log
-            .withMdc(
-              Map(
-                "publicKey.fingerprint" -> publicKey.fingerprint,
-                "remoteAddress" -> remoteAddress
-              ))
-            .info("Stopping")
-          Behaviors.stopped
-
-        case ZoneTerminated =>
-          context.log
-            .withMdc(
-              Map(
-                "publicKey.fingerprint" -> publicKey.fingerprint,
-                "remoteAddress" -> remoteAddress
-              ))
-            .info("Stopping due to zone termination")
-          Behaviors.stopped
-    }) receiveSignal {
+          case ZoneTerminated =>
+            context.log
+              .withMdc(
+                Map(
+                  "publicKey.fingerprint" -> publicKey.fingerprint,
+                  "remoteAddress" -> remoteAddress
+                )
+              )
+              .info("Stopping due to zone termination")
+            Behaviors.stopped
+        }
+    ) receiveSignal {
       case (_, PostStop) =>
         zoneNotificationOut ! StopActorSource
         Behaviors.same

@@ -12,26 +12,28 @@ import com.dhpcs.liquidity.ws.protocol.ZoneCommand
 sealed abstract class ZoneValidatorMessage
 
 final case class RemoveClient(
-    clientConnection: ActorRef[SerializableClientConnectionMessage])
-    extends ZoneValidatorMessage
+    clientConnection: ActorRef[SerializableClientConnectionMessage]
+) extends ZoneValidatorMessage
 
 sealed abstract class SerializableZoneValidatorMessage
     extends ZoneValidatorMessage
     with Serializable
 case object StopZone extends SerializableZoneValidatorMessage
-final case class GetZoneStateCommand(replyTo: ActorRef[ZoneState],
-                                     zoneId: ZoneId)
-    extends SerializableZoneValidatorMessage
-final case class ZoneCommandEnvelope(replyTo: ActorRef[ZoneResponseEnvelope],
-                                     zoneId: ZoneId,
-                                     remoteAddress: InetAddress,
-                                     publicKey: PublicKey,
-                                     correlationId: Long,
-                                     zoneCommand: ZoneCommand)
-    extends SerializableZoneValidatorMessage
+final case class GetZoneStateCommand(
+    replyTo: ActorRef[ZoneState],
+    zoneId: ZoneId
+) extends SerializableZoneValidatorMessage
+final case class ZoneCommandEnvelope(
+    replyTo: ActorRef[ZoneResponseEnvelope],
+    zoneId: ZoneId,
+    remoteAddress: InetAddress,
+    publicKey: PublicKey,
+    correlationId: Long,
+    zoneCommand: ZoneCommand
+) extends SerializableZoneValidatorMessage
 final case class ZoneNotificationSubscription(
     subscriber: ActorRef[ZoneNotificationEnvelope],
     zoneId: ZoneId,
     remoteAddress: InetAddress,
-    publicKey: PublicKey)
-    extends SerializableZoneValidatorMessage
+    publicKey: PublicKey
+) extends SerializableZoneValidatorMessage

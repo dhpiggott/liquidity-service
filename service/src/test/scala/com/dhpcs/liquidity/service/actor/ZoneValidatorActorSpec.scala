@@ -35,7 +35,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         sendCommand(fixture)(
           CreateZoneCommand(
             equityOwnerPublicKey = PublicKey(
-              keyPairGenerator.generateKeyPair().getPublic.getEncoded),
+              keyPairGenerator.generateKeyPair().getPublic.getEncoded
+            ),
             equityOwnerName = Some("Dave"),
             equityOwnerMetadata = None,
             equityAccountName = None,
@@ -46,7 +47,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateZoneResponse(
-            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)))
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
+          )
+        )
       }
       "rejects it if a public key of invalid length is given" in { fixture =>
         createZone(fixture)
@@ -55,7 +58,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         sendCommand(fixture)(
           CreateZoneCommand(
             equityOwnerPublicKey = PublicKey(
-              keyPairGenerator.generateKeyPair().getPublic.getEncoded),
+              keyPairGenerator.generateKeyPair().getPublic.getEncoded
+            ),
             equityOwnerName = Some("Dave"),
             equityOwnerMetadata = None,
             equityAccountName = None,
@@ -66,7 +70,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateZoneResponse(
-            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)))
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)
+          )
+        )
       }
       "rejects it if the name is too long" in { fixture =>
         sendCommand(fixture)(
@@ -86,7 +92,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateZoneResponse(
-            Validated.invalidNel(ZoneResponse.Error.tagLengthExceeded)))
+            Validated.invalidNel(ZoneResponse.Error.tagLengthExceeded)
+          )
+        )
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -103,17 +111,23 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === ChangeZoneNameResponse(
-            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+          )
+        )
       }
       "rejects it if the name is too long" in { fixture =>
         createZone(fixture)
         sendCommand(fixture)(
-          ChangeZoneNameCommand(fixture.zoneId,
-                                Some(Random.alphanumeric.take(161).mkString))
+          ChangeZoneNameCommand(
+            fixture.zoneId,
+            Some(Random.alphanumeric.take(161).mkString)
+          )
         )
         assert(
           expectResponse(fixture) === ChangeZoneNameResponse(
-            Validated.invalidNel(ZoneResponse.Error.tagLengthExceeded)))
+            Validated.invalidNel(ZoneResponse.Error.tagLengthExceeded)
+          )
+        )
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -137,7 +151,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+          )
+        )
       }
       "rejects it if a public key of invalid type is given" in { fixture =>
         createZone(fixture)
@@ -155,7 +171,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)))
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
+          )
+        )
       }
       "rejects it if a public key of invalid length is given" in { fixture =>
         createZone(fixture)
@@ -173,7 +191,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)))
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)
+          )
+        )
       }
       "rejects it if no owners are given" in { fixture =>
         createZone(fixture)
@@ -187,7 +207,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.noPublicKeys)))
+            Validated.invalidNel(ZoneResponse.Error.noPublicKeys)
+          )
+        )
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -209,7 +231,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === UpdateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+          )
+        )
       }
       "rejects it if the member does not exist" in { fixture =>
         createZone(fixture)
@@ -226,7 +250,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === UpdateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.memberDoesNotExist)
+          )
+        )
       }
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
@@ -244,7 +270,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === UpdateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)))
+            Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
+          )
+        )
       }
       "rejects it if a public key of invalid type is given" in { fixture =>
         createZone(fixture)
@@ -257,14 +285,17 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
             member = member.copy(
               ownerPublicKeys = Set(
                 PublicKey(
-                  keyPairGenerator.generateKeyPair().getPublic.getEncoded)
+                  keyPairGenerator.generateKeyPair().getPublic.getEncoded
+                )
               )
             )
           )
         )
         assert(
           expectResponse(fixture) === UpdateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)))
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyType)
+          )
+        )
       }
       "rejects it if a public key of invalid length is given" in { fixture =>
         createZone(fixture)
@@ -277,14 +308,17 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
             member = member.copy(
               ownerPublicKeys = Set(
                 PublicKey(
-                  keyPairGenerator.generateKeyPair().getPublic.getEncoded)
+                  keyPairGenerator.generateKeyPair().getPublic.getEncoded
+                )
               )
             )
           )
         )
         assert(
           expectResponse(fixture) === UpdateMemberResponse(
-            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)))
+            Validated.invalidNel(ZoneResponse.Error.invalidPublicKeyLength)
+          )
+        )
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -310,7 +344,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateAccountResponse(
-            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+          )
+        )
       }
       "rejects it if an owner does not exist" in { fixture =>
         createZone(fixture)
@@ -326,7 +362,10 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         assert(
           expectResponse(fixture) === CreateAccountResponse(
             Validated.invalidNel(
-              ZoneResponse.Error.memberDoesNotExist(MemberId("non-existent")))))
+              ZoneResponse.Error.memberDoesNotExist(MemberId("non-existent"))
+            )
+          )
+        )
       }
       "rejects it if no owners are given" in { fixture =>
         createZone(fixture)
@@ -341,7 +380,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === CreateAccountResponse(
-            Validated.invalidNel(ZoneResponse.Error.noMemberIds)))
+            Validated.invalidNel(ZoneResponse.Error.noMemberIds)
+          )
+        )
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -365,7 +406,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === UpdateAccountResponse(
-            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+          )
+        )
       }
       "rejects it if the account does not exist" in { fixture =>
         createZone(fixture)
@@ -384,7 +427,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === UpdateAccountResponse(
-            Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.accountDoesNotExist)
+          )
+        )
       }
       "rejects it if not from an owner" in { fixture =>
         createZone(fixture)
@@ -399,7 +444,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === UpdateAccountResponse(
-            Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)))
+            Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)
+          )
+        )
       }
       "rejects it if the acting member is not owned by the requester" in {
         fixture =>
@@ -423,7 +470,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           )
           assert(
             expectResponse(fixture) === UpdateAccountResponse(
-              Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)))
+              Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
+            )
+          )
       }
       "rejects it if an owner does not exist" in { fixture =>
         createZone(fixture)
@@ -439,7 +488,10 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         assert(
           expectResponse(fixture) === UpdateAccountResponse(
             Validated.invalidNel(
-              ZoneResponse.Error.memberDoesNotExist(MemberId("non-existent")))))
+              ZoneResponse.Error.memberDoesNotExist(MemberId("non-existent"))
+            )
+          )
+        )
       }
       "rejects it if no owners are given" in { fixture =>
         createZone(fixture)
@@ -454,7 +506,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === UpdateAccountResponse(
-            Validated.invalidNel(ZoneResponse.Error.noMemberIds)))
+            Validated.invalidNel(ZoneResponse.Error.noMemberIds)
+          )
+        )
       }
       "accepts it if valid" in { fixture =>
         createZone(fixture)
@@ -485,7 +539,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === AddTransactionResponse(
-            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.zoneDoesNotExist)
+          )
+        )
       }
       "rejects it if the source account does not exist" in { fixture =>
         val zone = createZone(fixture)
@@ -504,7 +560,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === AddTransactionResponse(
-            Validated.invalidNel(ZoneResponse.Error.sourceAccountDoesNotExist)))
+            Validated.invalidNel(ZoneResponse.Error.sourceAccountDoesNotExist)
+          )
+        )
       }
       "rejects it if the source account is not owned by the requesting member" in {
         fixture =>
@@ -524,7 +582,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           )
           assert(
             expectResponse(fixture) === AddTransactionResponse(
-              Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)))
+              Validated.invalidNel(ZoneResponse.Error.accountOwnerMismatch)
+            )
+          )
       }
       "rejects it if the acting member is not owned by the requester" in {
         fixture =>
@@ -553,7 +613,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           )
           assert(
             expectResponse(fixture) === AddTransactionResponse(
-              Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)))
+              Validated.invalidNel(ZoneResponse.Error.memberKeyMismatch)
+            )
+          )
       }
       "rejects it if the destination account does not exist" in { fixture =>
         val zone = createZone(fixture)
@@ -569,8 +631,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           )
         )
         assert(
-          expectResponse(fixture) === AddTransactionResponse(Validated
-            .invalidNel(ZoneResponse.Error.destinationAccountDoesNotExist)))
+          expectResponse(fixture) === AddTransactionResponse(
+            Validated
+              .invalidNel(ZoneResponse.Error.destinationAccountDoesNotExist)
+          )
+        )
       }
       "rejects it if the source account is the same as the destination account" in {
         fixture =>
@@ -587,8 +652,11 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
             )
           )
           assert(
-            expectResponse(fixture) === AddTransactionResponse(Validated
-              .invalidNel(ZoneResponse.Error.reflexiveTransaction)))
+            expectResponse(fixture) === AddTransactionResponse(
+              Validated
+                .invalidNel(ZoneResponse.Error.reflexiveTransaction)
+            )
+          )
       }
       "rejects it if the value is negative" in { fixture =>
         val zone = createZone(fixture)
@@ -607,7 +675,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         )
         assert(
           expectResponse(fixture) === AddTransactionResponse(
-            Validated.invalidNel(ZoneResponse.Error.negativeTransactionValue)))
+            Validated.invalidNel(ZoneResponse.Error.negativeTransactionValue)
+          )
+        )
       }
       "rejects it if the source account has an insufficient balance" in {
         fixture =>
@@ -627,7 +697,9 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           )
           assert(
             expectResponse(fixture) === AddTransactionResponse(
-              Validated.invalidNel(ZoneResponse.Error.insufficientBalance)))
+              Validated.invalidNel(ZoneResponse.Error.insufficientBalance)
+            )
+          )
       }
       "accepts it if valid" in { fixture =>
         val zone = createZone(fixture)
@@ -650,7 +722,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         assert(
           expectNotification(fixture) === ZoneStateNotification(
             zone = None,
-            connectedClients = Map.empty)
+            connectedClients = Map.empty
+          )
         )
       }
       "accepts it if valid" in { fixture =>
@@ -672,7 +745,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     val clientConnectionTestProbe = TestProbe()
     val zoneId = ZoneId(UUID.randomUUID().toString)
     val zoneValidator = system.spawnAnonymous(
-      ZoneValidatorActor.shardingBehavior(entityId = zoneId.persistenceId))
+      ZoneValidatorActor.shardingBehavior(entityId = zoneId.persistenceId)
+    )
     try withFixture(
       test.toNoArgTest(
         ZoneValidatorActorSpec.FixtureParam(
@@ -786,7 +860,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       )
     )
     assert(
-      expectResponse(fixture) === ChangeZoneNameResponse(Validated.Valid(())))
+      expectResponse(fixture) === ChangeZoneNameResponse(Validated.Valid(()))
+    )
     ()
   }
 
@@ -807,8 +882,10 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     }
   }
 
-  private[this] def updateMember(fixture: FixtureParam,
-                                 member: Member): Unit = {
+  private[this] def updateMember(
+      fixture: FixtureParam,
+      member: Member
+  ): Unit = {
     sendCommand(fixture)(
       UpdateMemberCommand(
         zoneId = fixture.zoneId,
@@ -816,12 +893,15 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       )
     )
     assert(
-      expectResponse(fixture) === UpdateMemberResponse(Validated.Valid(())))
+      expectResponse(fixture) === UpdateMemberResponse(Validated.Valid(()))
+    )
     ()
   }
 
-  private[this] def createAccount(fixture: FixtureParam,
-                                  owner: MemberId): Account = {
+  private[this] def createAccount(
+      fixture: FixtureParam,
+      owner: MemberId
+  ): Account = {
     sendCommand(fixture)(
       CreateAccountCommand(
         zoneId = fixture.zoneId,
@@ -838,8 +918,10 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     }
   }
 
-  private[this] def updateAccount(fixture: FixtureParam,
-                                  account: Account): Unit = {
+  private[this] def updateAccount(
+      fixture: FixtureParam,
+      account: Account
+  ): Unit = {
     sendCommand(fixture)(
       UpdateAccountCommand(
         zoneId = fixture.zoneId,
@@ -848,13 +930,16 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
       )
     )
     assert(
-      expectResponse(fixture) === UpdateAccountResponse(Validated.Valid(())))
+      expectResponse(fixture) === UpdateAccountResponse(Validated.Valid(()))
+    )
     ()
   }
 
-  private[this] def addTransaction(fixture: FixtureParam,
-                                   zone: Zone,
-                                   to: AccountId): Unit = {
+  private[this] def addTransaction(
+      fixture: FixtureParam,
+      zone: Zone,
+      to: AccountId
+  ): Unit = {
     sendCommand(fixture)(
       AddTransactionCommand(
         zoneId = zone.id,
@@ -875,7 +960,8 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
           transaction.creator === zone
             .accounts(zone.equityAccountId)
             .ownerMemberIds
-            .head)
+            .head
+        )
         assert(
           transaction.created.toEpochMilli === Spread(
             pivot = Instant.now().toEpochMilli,
@@ -888,8 +974,10 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
     ()
   }
 
-  private[this] def subscribe(fixture: FixtureParam,
-                              redelivery: Boolean = false): Unit = {
+  private[this] def subscribe(
+      fixture: FixtureParam,
+      redelivery: Boolean = false
+  ): Unit = {
     fixture.clientConnectionTestProbe.send(
       fixture.zoneValidator.toUntyped,
       ZoneNotificationSubscription(
@@ -933,8 +1021,12 @@ class ZoneValidatorActorSpec extends fixture.FreeSpec with BeforeAndAfterAll {
         assert(zone.transactions === Map.empty)
         assert(zone.name === Some("Dave's Game"))
         assert(zone.metadata === None)
-        assert(connectedClients === Map(ActorRefResolver(system.toTyped)
-          .toSerializationFormat(fixture.clientConnectionTestProbe.ref) -> publicKey))
+        assert(
+          connectedClients === Map(
+            ActorRefResolver(system.toTyped)
+              .toSerializationFormat(fixture.clientConnectionTestProbe.ref) -> publicKey
+          )
+        )
     }
     if (!redelivery)
       assert(
@@ -959,7 +1051,8 @@ object ZoneValidatorActorSpec {
       liquidityServerTestProbe: TestProbe,
       clientConnectionTestProbe: TestProbe,
       zoneId: ZoneId,
-      zoneValidator: ActorRef[SerializableZoneValidatorMessage])
+      zoneValidator: ActorRef[SerializableZoneValidatorMessage]
+  )
 
   private val remoteAddress = InetAddress.getLoopbackAddress
   private val publicKey = {
@@ -969,8 +1062,9 @@ object ZoneValidatorActorSpec {
     PublicKey(keyPair.getPublic.getEncoded)
   }
 
-  private def sendCommand(fixture: FixtureParam)(
-      zoneCommand: ZoneCommand): Unit = {
+  private def sendCommand(
+      fixture: FixtureParam
+  )(zoneCommand: ZoneCommand): Unit = {
     fixture.liquidityServerTestProbe.send(
       fixture.zoneValidator.toUntyped,
       ZoneCommandEnvelope(

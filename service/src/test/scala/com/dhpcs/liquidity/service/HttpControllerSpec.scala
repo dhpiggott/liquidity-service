@@ -60,7 +60,8 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
                 equityOwnerPublicKey = publicKey,
                 equityOwnerName = zone
                   .members(
-                    zone.accounts(zone.equityAccountId).ownerMemberIds.head)
+                    zone.accounts(zone.equityAccountId).ownerMemberIds.head
+                  )
                   .name,
                 equityOwnerMetadata = None,
                 equityAccountName = None,
@@ -70,12 +71,14 @@ class HttpControllerSpec extends FreeSpec with ScalatestRouteTest {
               ))
             CreateZoneResponse(zone.valid)
           else if (zoneId == zone.id &&
-                   zoneCommand == ChangeZoneNameCommand(zoneId = zone.id,
-                                                        name = None))
+                   zoneCommand == ChangeZoneNameCommand(
+                     zoneId = zone.id,
+                     name = None
+                   ))
             ChangeZoneNameResponse(().valid)
           else fail()
         else fail()
-    ),
+      ),
     zoneNotificationSource = (_, _, zoneId) =>
       if (zoneId != zone.id) Source.empty
       else Source(zoneNotifications),

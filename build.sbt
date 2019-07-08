@@ -97,7 +97,7 @@ lazy val service = project
       "mysql" % "mysql-connector-java" % "8.0.16",
       "org.typelevel" %% "cats-effect" % "1.3.1",
       "dev.zio" %% "zio" % "1.0.0-RC9-4",
-      "dev.zio" %% "zio-interop-cats" % "1.3.1.0-RC2",
+      "dev.zio" %% "zio-interop-cats" % "1.3.1.0-RC3",
       "com.typesafe.akka" %% "akka-http" % "10.1.8",
       "com.lightbend.akka" %% "akka-stream-alpakka-s3" % "1.1.0",
       "org.bouncycastle" % "bcpkix-jdk15on" % "1.62",

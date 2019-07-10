@@ -40,7 +40,6 @@ sealed abstract class LowPriorityImplicits extends LowerPriorityImplicits {
     }
   }
 
-  // TODO: Remove and update callers to handle optionality
   implicit def optionProtoBinding[S, P, C](
       implicit protoBinding: ProtoBinding[S, P, C],
       protoClassTag: ClassTag[P]

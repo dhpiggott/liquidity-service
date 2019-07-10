@@ -318,7 +318,6 @@ class HttpController(
                 )
               )
             )
-            // TODO: Validate timing separately
             jwtProcessor.process(signedJwt, null)
           }
           .refineOrDie {
